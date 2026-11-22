@@ -31,7 +31,10 @@ A file's `owner` is "user" (the user's own, written once by New project) or "app
 `starter` is the text New project writes for it, `{name}` the project's name; a path may hold `{slug}` (the
 project's name as a file name) where it is named after the project. The core files (adapter.py,
 connections.py, API.py, data.py, data.ipynb, requirements.txt) are the base's in every type: a contract adds
-to them, never names one.
+to them, never names one. Any type may deliver an Excel workbook beside its own deliverable
+(Plans/excel.plan.md): a file whose path ends .xlsx or .xlsm (`workbooks/{slug}.xlsx`, made by sab_excel
+from a workbook.py: owner app, made_from, grows_on) is declared like any other; it is made, so it has no
+starter.
 
 `check(raw)` is the one checker: it reads a contract loosely where nothing is lost and refuses, in one
 sentence naming the key, what would be (an unknown key, a newer format, a path out of the project, a core
@@ -53,6 +56,7 @@ CORE_FILES: frozenset[str] = frozenset(
 # Cell kinds every project has: the rest of a contract's cells are its extra cell kinds (a mode's cell_kinds).
 BASE_CELLS: frozenset[str] = frozenset({"python", "sql", "dax", "html", "markdown"})
 OWNERS: tuple[str, ...] = ("user", "app")
+WORKBOOKS: tuple[str, ...] = (".xlsx", ".xlsm")  # an Excel workbook: a file any type may deliver
 WORDS: tuple[str, ...] = ("title", "for_whom", "explain", "example")
 _KEYS = frozenset(
     {
@@ -137,6 +141,11 @@ def _file(raw: Any, at: int) -> dict[str, Any]:
         raise ContractError(f"contract.json: {key}.starter is the file's text.")
     if starter is not None and path.endswith("/"):
         raise ContractError(f"contract.json: {key} is a folder: it has no starter text.")
+    if starter is not None and is_workbook(path):
+        raise ContractError(
+            f"contract.json: {key} is an Excel workbook: it is made (sab_excel.build), "
+            "so it has no starter text."
+        )
     made_from = raw.get("made_from")
     return {
         "path": path,
@@ -235,6 +244,16 @@ def write(contract: dict[str, Any]) -> str:
 def languages(contract: dict[str, Any]) -> list[str]:
     """The IDE's languages, each once, in the order the patterns name them (python when none is named)."""
     return list(dict.fromkeys(contract["languages"].values())) or ["python"]
+
+
+def is_workbook(path: str) -> bool:
+    """Is this path an Excel workbook's (.xlsx, .xlsm)?"""
+    return path.lower().endswith(WORKBOOKS)
+
+
+def workbooks(contract: dict[str, Any]) -> list[str]:
+    """The Excel workbooks the type delivers (beside its own deliverable), as the contract lists them."""
+    return [f["path"] for f in contract["files"] if is_workbook(f["path"])]
 
 
 def deliverable_files(contract: dict[str, Any]) -> list[str]:

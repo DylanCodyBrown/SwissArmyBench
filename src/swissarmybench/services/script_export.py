@@ -57,6 +57,7 @@ class ScriptExports:
         folder_of: Callable[[str], str],
         join: Callable[[str, str], str],
         inline: Callable[[str, Iterable[str]], list[dict[str, str]]] = lambda folder, codes: [],
+        carried: Callable[[str], str | None] = lambda module: None,
     ) -> None:
         self.ws = ws
         self._blades = blades
@@ -67,6 +68,9 @@ class ScriptExports:
         self._folder_of = folder_of
         self._join = join
         self._inline = inline  # the API clients the code imports, from beside the document
+        self._carried = (
+            carried  # a scaffold file's text (sab_excel.py, adapter.py), for a blade that imports it
+        )
 
     # ===== the document =====
 
@@ -297,6 +301,12 @@ class ScriptExports:
         clients = (
             [(c["module"], c["code"]) for c in self._inline(self._folder_of(path), codes)] if path else []
         )
+        # A blade that imports one of the scaffold's files (an Excel starter: sab_excel, adapter): inline too.
+        used = "\n".join([*codes, *(p.code for p in pieces.values())])
+        for module in runtime.carried_used(used):
+            text = self._carried(module)
+            if text is not None:
+                clients.append((module, runtime.carried_module(module, text)))
         render = rules.export_notebook if notebook else rules.export
         made = render(
             title, path or f"{title}.ipynb", cells, pieces, names, stub=stub, file=file, clients=clients

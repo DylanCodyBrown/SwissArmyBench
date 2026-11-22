@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime as dt
 import decimal
 import io
-import zipfile
 from collections.abc import Iterator
 
 import openpyxl
@@ -137,17 +136,11 @@ def test_the_column_wise_excel_writer_keeps_every_cell_kind(store: DatasetStore)
 
 
 def test_more_columns_than_an_excel_sheet_holds_is_refused() -> None:
-    # 16,390 columns went out as 16,384: xlsxwriter drops a cell past column XFD without a word.
+    # 16,390 columns once went out as 16,384 without a word.
     wide = pa.table({f"c{i}": [i] for i in range(16_385)})
     columns = tuple(Column(name, "BIGINT") for name in wide.column_names)
     with pytest.raises(ExportError, match="16,385 columns"):
         excel(_reader(wide, [1]), columns, ExportOptions(format="xlsx"), None, 1)
-
-
-def _parts(data: bytes) -> dict[str, bytes]:
-    """Every part of an xlsx except docProps/core.xml, which carries the time it was written."""
-    with zipfile.ZipFile(io.BytesIO(data)) as book:
-        return {name: book.read(name) for name in book.namelist() if name != "docProps/core.xml"}
 
 
 def _reader(table: pa.Table, sizes: list[int]) -> pa.RecordBatchReader:
@@ -237,26 +230,72 @@ SPARSE = pa.table(
     ],
 )
 @pytest.mark.parametrize("provenance", [True, False])
-def test_the_fast_excel_writer_writes_what_xlsxwriter_writes(
+def test_the_excel_writer_writes_the_same_workbook_however_the_rows_are_batched(
     table: pa.Table, sizes: list[int], provenance: bool
 ) -> None:
-    """The data sheet's cells are written as XML directly; every part of the file must be the
-    same, byte for byte, as when each cell goes through xlsxwriter's own write calls."""
+    """openpyxl's write-only sheet, a batch at a time (Plans/excel.plan.md): every cell is the same whether
+    the rows come in one batch or many, blank rows are there, and the Provenance sheet is the last."""
     columns = tuple(Column(f.name, _duck_type(f.type)) for f in table.schema)
     made = Provenance("t (version 1, arrow)", ["Keep rows where gap is 1"], "defaults", "now", 100)
     shown = made if provenance else None
     options = ExportOptions(format="xlsx")
-    fast = excel(_reader(table, sizes), columns, options, shown, table.num_rows)
-    slow = excel(_reader(table, sizes), columns, options, shown, table.num_rows, fast=False)
-    assert _parts(fast) == _parts(slow)
+    whole_book = openpyxl.load_workbook(
+        io.BytesIO(excel(_reader(table, [table.num_rows]), columns, options, shown, table.num_rows))
+    )
+    book = openpyxl.load_workbook(
+        io.BytesIO(excel(_reader(table, sizes), columns, options, shown, table.num_rows))
+    )
+    assert book.sheetnames == (["Data", "Provenance"] if provenance else ["Data"])
+    rows = [[(c.value, c.data_type) for c in row] for row in book["Data"].iter_rows()]
+    assert rows == [[(c.value, c.data_type) for c in row] for row in whole_book["Data"].iter_rows()]
+    assert [v for v, _ in rows[0]] == table.column_names
+    filled = max(i for i in range(table.num_rows) if any(c[i].is_valid for c in table.columns))
+    assert len(rows) == filled + 2  # the header, then down to the last row that holds a value
+    assert book["Data"].freeze_panes == "A2" and book["Data"].auto_filter.ref.startswith("A1:")
 
 
-def test_the_fast_excel_writer_refuses_and_truncates_long_text_the_same_way() -> None:
+def test_the_excel_writer_keeps_hostile_values_as_what_they_are() -> None:
+    columns = tuple(Column(f.name, _duck_type(f.type)) for f in HOSTILE.schema)
+    data = excel(_reader(HOSTILE, [ROWS]), columns, ExportOptions(format="xlsx"), None, ROWS)
+    sheet = openpyxl.load_workbook(io.BytesIO(data))["Data"]
+    at = {name: i + 1 for i, name in enumerate(HOSTILE.column_names)}
+
+    def cell(name: str, row: int) -> openpyxl.cell.cell.Cell:  # row: the data row, from 0
+        return sheet.cell(row=row + 2, column=at[name])
+
+    # Text is a text cell whatever it starts with; a character XML cannot hold is Excel's own _xHHHH_.
+    assert (cell("text", 0).value, cell("text", 0).data_type) == ("=1+1", "s")
+    assert cell("text", 3).value == "a_x0001_b" and cell("text", 4).value == "_x005F_x0041_"
+    assert (
+        cell("text", 5).value == "名前 😀"
+        and cell("text", 6).value == "<&>\"'"
+        and cell("text", 7).value == " lead"
+    )
+    # Whole numbers Excel cannot hold exactly stay exact as text; the rest are numbers.
+    assert cell("int", 0).value == str(-(2**63)) and cell("int", 1).value == str(2**63 - 1)
+    assert cell("int", 2).value == 10**15 - 1 and cell("uint", 0).value == str(2**64 - 1)
+    assert cell("dec", 0).value == "12345678901234567890.1234567890" and cell("dec", 1).value == -1.5
+    assert (
+        cell("float", 1).value == "nan"
+        and cell("float", 2).value == "inf"
+        and cell("float", 5).value == 1e300
+    )
+    # Dates before 1900-03-01 and times with a zone are text, never another day or a shifted hour.
+    assert cell("day", 4).value == "1899-12-31" and cell("day", 5).value == dt.datetime(2024, 2, 29)
+    assert cell("at", 0).value == "1850-01-01T00:00:00" and cell("at", 3).value == dt.datetime(
+        1900, 3, 1, 0, 0, 1
+    )
+    assert cell("zoned", 0).value == "2026-01-01T14:30:00+05:30"
+    assert cell("flag", 0).value is True and cell("flag", 1).value is None
+    assert cell("list", 0).value == "[1, 2]" and cell("nothing", 0).value is None
+    assert sheet.column_dimensions["B"].width == 62  # the longest text, capped
+
+
+def test_the_excel_writer_refuses_and_truncates_long_text() -> None:
     table = pa.table({"a": [1, 2], "long": ["ok", "y" * 40_000]})
     columns = (Column("a", "BIGINT"), Column("long", "VARCHAR"))
-    for fast in (True, False):
-        with pytest.raises(ExportError, match="Row 2, column long holds 40,000 characters"):
-            excel(_reader(table, [2]), columns, ExportOptions(format="xlsx"), None, 2, fast=fast)
+    with pytest.raises(ExportError, match="Row 2, column long holds 40,000 characters"):
+        excel(_reader(table, [2]), columns, ExportOptions(format="xlsx"), None, 2)
     cut = ExportOptions(format="xlsx", allow_cell_truncation=True)
-    fast_cut = excel(_reader(table, [2]), columns, cut, None, 2)
-    assert _parts(fast_cut) == _parts(excel(_reader(table, [2]), columns, cut, None, 2, fast=False))
+    sheet = openpyxl.load_workbook(io.BytesIO(excel(_reader(table, [2]), columns, cut, None, 2)))["Data"]
+    assert sheet["B3"].value == "y" * 32_767

@@ -44,7 +44,6 @@ server = [
     "starlette>=0.46",
     "uvicorn>=0.34",
     "websockets>=15",
-    "xlsxwriter>=3.3.0",
 ]
 # Optional for the client: with pyarrow a push travels as Arrow and keeps its column types.
 client = ["pyarrow>=19"]
@@ -96,7 +95,7 @@ exclude = ["extensions/streamlit/src/swissarmybench_streamlit/widgets/", "exampl
 
 [[tool.mypy.overrides]]
 # These ship no type information.
-module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*"]
+module = ["pyarrow", "pyarrow.*", "openpyxl", "openpyxl.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -140,6 +139,8 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/domain/steps.py" = ["S608"]
 # A local sandbox API's exported projects as text: the lines are the generated files' own.
 "src/swissarmybench/domain/api_targets.py" = ["E501"]
+# The workbook builder's DuckDB queries: a block's own query (the designer's), names quoted by _quote.
+"src/swissarmybench/sab_excel.py" = ["S608"]
 # New endpoint from a table: the CRUD set's code as text, its SQL the user's own to read (checked names).
 "src/swissarmybench/domain/api_scaffold.py" = ["E501", "S608"]
 "src/swissarmybench/adapters/views.py" = ["S608"]

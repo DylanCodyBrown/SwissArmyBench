@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import datetime as _dt
 import decimal
-import json
 import time
 import uuid
 from collections.abc import Callable, Iterator, Sequence
@@ -516,60 +515,27 @@ class FileWrite(Write):
         """The rows a sheet of the workbook holds (its header too); None: no such sheet or workbook."""
         if not self.file.exists():
             return None
-        from openpyxl import load_workbook
+        from swissarmybench.adapters import adapter  # imported when a write runs: this module stays stdlib
 
-        book = load_workbook(self.file, read_only=True)
+        source = adapter.Excel(str(self.file))
+        if sheet.casefold() not in {t.name.casefold() for t in source.tables() if t.kind == "sheet"}:
+            return None
         try:
-            return int(book[sheet].max_row or 0) if sheet in book.sheetnames else None
-        finally:
-            book.close()
+            return int(adapter.read(source, sheet)[0].read_all().num_rows) + 1
+        except adapter.AdapterError:  # a sheet with nothing on it
+            return 0
 
     def sheet(self, sheet: str, add: bool = False) -> int:
         """The rows written to `sheet` (its column names on top), or added below its rows (`add`); the
-        workbook's other sheets as they were."""
-        import os
+        workbook's other sheets as they were. The adapter's Excel write (Plans/excel.plan.md): beside the
+        workbook, then put in its place."""
+        from swissarmybench.adapters import adapter
 
-        from openpyxl import Workbook, load_workbook
-
-        rows = self.need_rows()
-        keep_vba = self.file.suffix.lower() == ".xlsm"
-        book = load_workbook(self.file, keep_vba=keep_vba) if self.file.exists() else Workbook()
-        if not self.file.exists():
-            book.remove(book.active)
-        if sheet in book.sheetnames and not add:
-            at = book.sheetnames.index(sheet)
-            book.remove(book[sheet])
-            target = book.create_sheet(sheet, at)
-        elif sheet in book.sheetnames:
-            target = book[sheet]
-        else:
-            target = book.create_sheet(sheet)
-        if not (add and target.max_row > 1):
-            target.append(rows.names)
-        for batch in rows.batches(rows.names, 5000, _cell_value):
-            for row in batch:
-                target.append(list(row))
-        spare = self.file.with_name(f".{self.file.stem}.{uuid.uuid4().hex[:8]}{self.file.suffix}")
+        source = adapter.Excel(str(self.file), "the workbook")
+        there = self.sheet_rows(sheet)
+        mode = "insert" if add and there else "truncate"
         try:
-            book.save(spare)
-            os.replace(spare, self.file)
+            done = adapter.write(source, sheet, self.need_rows().arrow(), (), mode)
         except Exception as error:
-            if spare.exists():
-                spare.unlink()
-            raise WriteError(
-                f"Nothing was written: {words(error)} (is the workbook open in Excel?)"
-            ) from None
-        return rows.count
-
-
-def _cell_value(value: Any) -> Any:
-    """A value as a sheet's cell holds it: a date and time without its zone, an id as text."""
-    if isinstance(value, _dt.datetime) and value.tzinfo is not None:
-        return value.astimezone(_dt.UTC).replace(tzinfo=None)
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    if isinstance(value, list | dict):
-        return json.dumps(value, default=str)
-    if isinstance(value, _dt.timedelta):
-        return value.total_seconds()
-    return value
+            raise WriteError(f"Nothing was written: {words(error)}") from None
+        return int(done.inserted)

@@ -336,7 +336,15 @@ def test_the_adapter_imports_only_the_standard_library_duckdb_and_pyarrow() -> N
         elif isinstance(node, ast.ImportFrom) and node.module:
             assert node.level == 0, "no relative import: an export copies this file alone"
             found.add(node.module.split(".")[0])
-    assert found - set(sys.stdlib_module_names) == {"duckdb", "pyarrow"}
+    # openpyxl (1.4.0): only inside the Excel source's functions, when a workbook is read or written.
+    assert found - set(sys.stdlib_module_names) == {"duckdb", "pyarrow", "openpyxl"}
+    at_import = {
+        (a.name if isinstance(n, ast.Import) else n.module or "").split(".")[0]
+        for n in ast.parse(ADAPTER.read_text(encoding="utf-8")).body
+        if isinstance(n, ast.Import | ast.ImportFrom)
+        for a in n.names
+    }
+    assert at_import - set(sys.stdlib_module_names) == {"duckdb", "pyarrow"}
 
 
 def test_the_adapter_runs_copied_alone(tmp_path: Path, shop: str) -> None:

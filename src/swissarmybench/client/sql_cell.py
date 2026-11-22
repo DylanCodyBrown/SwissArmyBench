@@ -83,7 +83,7 @@ from swissarmybench.client.writes import quote
 from swissarmybench.domain import dataverse, lakes, variable_refs
 from swissarmybench.domain.errors import missing_table
 
-# The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
+# The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through the adapter's Excel).
 FILE_READERS: dict[str, str] = {
     ".csv": "read_csv_auto",
     ".tsv": "read_csv_auto",
@@ -228,20 +228,18 @@ def _view(con: Any, schema: str | None, table: str, select: str) -> None:
 
 
 def _read_workbook(con: Any, path: Path, in_folder: bool) -> None:
-    """A workbook's sheets as tables (pandas reads them; reread when the file changes)."""
+    """A workbook's sheets and named tables as tables, read by the adapter's Excel source (the one reader of
+    a sheet's rows: Plans/excel.plan.md; reread when the file changes)."""
+    from swissarmybench.adapters import adapter  # with its duckdb and pyarrow, only when a workbook is read
+
     try:
-        import pandas as pd
-    except ImportError:
-        raise SqlCellError(
-            f"A workbook is read with pandas: {sys.executable} -m pip install pandas openpyxl"
-        ) from None
-    try:
-        sheets = pd.read_excel(path, sheet_name=None)
-    except ImportError as error:
-        raise SqlCellError(f"{error} ({sys.executable} -m pip install openpyxl)") from None
-    for i, (sheet, frame) in enumerate(sheets.items()):
+        source = adapter.Excel(str(path))
+        sheets = {t.name: adapter.read(source, t.name)[0].read_all() for t in source.tables() if t.columns}
+    except (adapter.AdapterError, ModuleNotFoundError) as error:
+        raise SqlCellError(str(error)) from None
+    for i, (sheet, rows) in enumerate(sheets.items()):
         hidden = f"__sab_sheet_{abs(hash((str(path), str(sheet))))}"
-        con.register(hidden, frame)
+        con.register(hidden, rows)
         if in_folder:  # a folder's catalog reads a workbook's first sheet, by the file's name
             if i == 0:
                 _view(con, path.parent.name, path.name, f"SELECT * FROM {hidden}")

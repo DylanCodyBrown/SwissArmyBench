@@ -28,7 +28,6 @@ SERVER_PACKAGES = (
     "keyring",
     "mcp",
     "openpyxl",
-    "xlsxwriter",
     "pytz",
     "websockets",
     # The desktop app (the owner, 2026-11-18): Qt for Python.
@@ -213,6 +212,11 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         "client/write_sql.py",
         # 2026-11-22 (Plans/api-adapter.plan.md): sab.records: an envelope's records, api_adapter's table.
         "client/api_client.py",
+        # 2026-11-22 (Plans/excel.plan.md): a workbook's sheets in a SQL cell are the adapter's Excel read,
+        # imported when a cell names a workbook.
+        "client/sql_cell.py",
+        # 2026-11-22 (Plans/excel.plan.md): Read a workbook is the adapter's Excel read.
+        "starters/excel_read_workbook.blade.py",
         "starters/write_to_dataverse.blade.py",
         "starters/write_to_sharepoint_list.blade.py",
         "starters/write_to_delta.blade.py",
@@ -246,8 +250,10 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # 160) moved in from the Write starters (the owner: "then every write is the adapter's").
 # 3,650 (2026-11-22, 1.2.0): observe(), each call's facts for the statistics (about 140 lines), and Trino's
 # replace as one CREATE OR REPLACE TABLE ... AS (Plans/stats.plan.md; phase 5's open decision).
+# 4,075 (2026-11-22, 1.4.0): Excel, a workbook as a source (its sheets and named tables, the one set of type
+# rules, a sheet's write; about 420 lines; Plans/excel.plan.md: "the Excel source lives in the adapter").
 # api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
-ONE_FILE = {"adapter.py": 3650, "api_adapter.py": 3000}
+ONE_FILE = {"adapter.py": 4075, "api_adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+from swissarmybench_streamlit.adapters.widget_files import excel_files
 from swissarmybench_streamlit.domain import canvas_build as build
 from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain import widgets as rules
@@ -75,7 +76,9 @@ def test_every_prebuilt_widget_renders_without_an_error(tmp_path: Path) -> None:
         page = one["pages"][0]
         page["id"] = f"p{at}"
         canvas["pages"].append(page)
-    files = build.build(canvas, built)
+    # What the services carry beside the pages for the Excel widgets: adapter.py and sab_excel.py.
+    carried = excel_files("\n".join(b.code for b in built.values()))
+    files = build.build(canvas, built, carried=carried)
     assert not build.compiles(files)
     pages = sorted(p for p in files if p.startswith("app_pages/"))
     found = run_pages(tmp_path, files, pages)

@@ -141,8 +141,10 @@ def test_without_the_app_blade_folders_and_starters_are_found_and_a_missing_name
     )
     monkeypatch.setenv("SWISSARMYBENCH_BLADE_FOLDERS", str(folder))
     assert blades_client.blade("Greeting") == "made up"
-    copy_template = blades_client.blade("Excel copy template")  # a starter, shipped in the package
-    assert callable(copy_template)
+    make_workbook = blades_client.blade("Excel make a workbook")  # a starter, shipped in the package
+    assert callable(make_workbook)
+    with pytest.raises(ValueError, match="Excel copy template went with the one Excel module"):
+        blades_client.blade("Excel copy template")  # a starter that went: where its effect is now
     with pytest.raises(LookupError, match=r"not running.*Nothing here"):
         blades_client.blade("Nothing here")
     with pytest.raises(sql_cell.SqlCellError, match="Nothing here"):

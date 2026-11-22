@@ -23,7 +23,9 @@ data notebook) -> the workbook automation.
 - `workbook_play`: the workbook built from the open tables (each with its grid's steps), each sheet's
   cells as built. A table it reads must be open (a grid); `missing` names any that is not.
 - `workbook_save`, then `workbook_export`: workbook.py beside the design builds the same workbook from
-  data.py anywhere (`python workbook.py`; openpyxl and duckdb).
+  data.py anywhere (`python workbook.py`; openpyxl and duckdb). The builder is the base's `sab_excel`
+  (`sab_excel.build(grids, design, template)`, the one way to make a workbook: the canvas is the drawn
+  editor of its design); workbook.py carries only the parts of it its design uses.
 
 ## Templates, statements and invoices
 - `template_import(source)`: an existing workbook becomes `templates/<name>.xlsx` (layout, formats,

@@ -17,7 +17,7 @@ from sab_canvas import File, In, Out, Table, as_file, key, sample
 
 label = "Upload a workbook"
 # The file types taken
-types = ["xlsx", "xlsm", "xls", "csv"]
+types = ["xlsx", "xlsm", "csv"]
 # The sheet: its name, or its number from 1 (empty: the first)
 sheet = ""
 # The row the column names are on (within the range when there is one)
@@ -33,63 +33,39 @@ uploaded: Out[Table] = None
 
 
 def _openpyxl():
-    """openpyxl, or None after saying in this widget's place how to get it."""
+    """Whether this app's Python has openpyxl (said in this widget's place, with how to get it, when not)."""
     try:
-        import openpyxl
+        import openpyxl  # noqa: F401
     except ImportError:
         st.warning("Excel files need openpyxl in this app's Python: pip install openpyxl")
-        return None
-    return openpyxl
+        return False
+    return True
 
 
-def _read(data, file_name, sheet, header_row, cell_range, openpyxl):
-    """A workbook's or a CSV's table: the sheet by its name or its number from 1 (empty: the first), the
-    header on header_row (counted within cell_range when there is one, e.g. A1:F200). Returns (table,
-    every sheet's name)."""
+def _read(data, file_name, sheet, header_row, cell_range):
+    """A workbook's or a CSV's table, the workbook read by the adapter (adapter.py, beside the pages): the
+    sheet by its name or its number from 1 (empty: the first), the header on header_row (counted within
+    cell_range when there is one, e.g. A1:F200). Returns (table, every sheet's name)."""
     header_row = max(1, int(header_row))
     if file_name.lower().endswith(".csv"):
         return pd.read_csv(io.BytesIO(data), skiprows=header_row - 1), []
-    if file_name.lower().endswith(".xls"):
-        try:
-            import xlrd  # noqa: F401
-        except ImportError:
-            st.warning("Old .xls workbooks need xlrd in this app's Python: pip install xlrd")
-            return pd.DataFrame(), []
-        books = pd.read_excel(io.BytesIO(data), sheet_name=None, header=None)
-        names = list(books)
-        chosen = (
-            names[int(sheet) - 1]
-            if sheet.strip().isdigit() and 0 < int(sheet) <= len(names)
-            else (sheet if sheet in books else names[0])
-        )
-        rows = books[chosen].values.tolist()
-    else:
-        book = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-        names = book.sheetnames
-        if sheet.strip().isdigit() and 0 < int(sheet) <= len(names):
-            chosen = book.worksheets[int(sheet) - 1]
-        else:
-            chosen = book[sheet] if sheet in names else book.worksheets[0]
-        bounds = {}
-        if cell_range:
-            from openpyxl.utils import range_boundaries
+    import adapter
 
-            low_col, low_row, high_col, high_row = range_boundaries(cell_range.upper())
-            bounds = {"min_col": low_col, "min_row": low_row, "max_col": high_col, "max_row": high_row}
-        rows = [list(r) for r in chosen.iter_rows(values_only=True, **bounds)]
-    if len(rows) < header_row:
+    source = adapter.Excel(data, file_name, header_row=header_row, cells=cell_range)
+    try:
+        names = [t.name for t in source.tables() if t.kind == "sheet"]
+    except adapter.AdapterError as error:
+        st.warning(str(error))
+        return pd.DataFrame(), []
+    if sheet.strip().isdigit() and 0 < int(sheet) <= len(names):
+        chosen = names[int(sheet) - 1]
+    else:
+        chosen = sheet if sheet in names else names[0]
+    try:
+        frame = adapter.read(source, chosen)[0].read_all().to_pandas()
+    except adapter.AdapterError:  # an empty sheet, or no column names on that row
         return pd.DataFrame(), names
-    heading, seen = [], set()
-    for at, cell in enumerate(rows[header_row - 1], start=1):
-        name = str(cell).strip() if cell is not None and str(cell).strip() else f"column_{at}"
-        while name in seen:
-            name += "_2"
-        seen.add(name)
-        heading.append(name)
-    body = [
-        r + [None] * (len(heading) - len(r)) for r in rows[header_row:] if any(v not in (None, "") for v in r)
-    ]
-    return pd.DataFrame([r[: len(heading)] for r in body], columns=heading), names
+    return frame.dropna(how="all").reset_index(drop=True), names
 
 
 def _guess(values):
@@ -112,57 +88,23 @@ def _guess(values):
     return "text"
 
 
-def _workbook(sheets, openpyxl):
-    """Tables as one formatted workbook: a sheet each, its header filled and bold, columns sized to their
-    text, numbers and dates in their formats, the header frozen and filtered. Returns the file's bytes."""
-    from openpyxl.styles import Font, PatternFill
-    from openpyxl.utils import get_column_letter
+def _workbook(sheets):
+    """Tables as one formatted workbook, made by sab_excel (sab_excel.py, beside the pages): a sheet each,
+    its header filled and bold, numbers and dates in their formats, the header frozen and filtered. Returns
+    the file's bytes."""
+    import sab_excel
 
-    book = openpyxl.Workbook()
-    book.remove(book.active)
-    for sheet_name, frame in sheets.items():
-        sheet = book.create_sheet(str(sheet_name)[:31] or "Sheet")
-        sheet.append([str(c) for c in frame.columns])
-        for row in frame.itertuples(index=False):
-            sheet.append(
-                [
-                    None
-                    if (not isinstance(v, (list, dict)) and pd.isna(v))
-                    else (v.to_pydatetime() if hasattr(v, "to_pydatetime") else v)
-                    for v in row
-                ]
-            )
-        fill = PatternFill("solid", start_color="1f4e79".lstrip("#"), end_color="1f4e79".lstrip("#"))
-        for cell in sheet[1]:
-            cell.font = Font(bold=True, color="ffffff".lstrip("#"))
-            cell.fill = fill
-        for at, column in enumerate(frame.columns, start=1):
-            letter = get_column_letter(at)
-            values = frame[column]
-            if pd.api.types.is_datetime64_any_dtype(values):
-                style = "yyyy-mm-dd"
-            elif pd.api.types.is_integer_dtype(values):
-                style = "#,##0"
-            elif pd.api.types.is_float_dtype(values):
-                style = "#,##0.00"
-            else:
-                style = None
-            if style:
-                for cell in sheet[letter][1:]:
-                    cell.number_format = style
-            widest = max([len(str(column))] + [len(str(v)) for v in values.head(500)])
-            sheet.column_dimensions[letter].width = min(60, widest + 2)
-        if True:
-            sheet.freeze_panes = "A2"
-        if sheet.max_row > 1:
-            sheet.auto_filter.ref = sheet.dimensions
-    out = io.BytesIO()
-    book.save(out)
-    return out.getvalue()
+    return sab_excel.build(
+        {str(name): frame for name, frame in sheets.items()},
+        {
+            "style": {"theme": "plain", "header_fill": "1F4E79", "header_colour": "FFFFFF"},
+            "formats": {"integer": "#,##0", "number": "#,##0.00", "date": "yyyy-mm-dd"},
+            "freeze": True,
+        },
+    )
 
 
-openpyxl = _openpyxl()
-if openpyxl is not None:
+if _openpyxl():
     given = as_file(file)
     if given is not None and types and not given.name.lower().endswith(tuple("." + t for t in types)):
         st.warning(f"{given.name} is not one of {', '.join(types)}: this widget reads its own upload.")
@@ -174,16 +116,13 @@ if openpyxl is not None:
         upload = st.file_uploader(label, type=types or None, key=key("file"))
     if upload is None:
         data, file_name = (
-            _workbook(
-                {"Orders": sample(kind="orders"), "Notes": pd.DataFrame({"Note": ["Made-up sample"]})},
-                openpyxl,
-            ),
+            _workbook({"Orders": sample(kind="orders"), "Notes": pd.DataFrame({"Note": ["Made-up sample"]})}),
             "sample.xlsx",
         )
         st.caption("Made-up sample workbook shown until a file is uploaded.")
     else:
         data, file_name = upload.getvalue(), upload.name
-    frame, names = _read(data, file_name, sheet, header_row, cell_range, openpyxl)
+    frame, names = _read(data, file_name, sheet, header_row, cell_range)
     if len(names) > 1:
         default = (
             names.index(sheet)
@@ -192,7 +131,7 @@ if openpyxl is not None:
         )
         picked = st.selectbox("Sheet", names, index=default, key=key("sheet"))
         if picked != names[default]:
-            frame, names = _read(data, file_name, picked, header_row, cell_range, openpyxl)
+            frame, names = _read(data, file_name, picked, header_row, cell_range)
     uploaded = frame
     st.caption(f"{len(frame)} rows, {len(frame.columns)} columns")
     st.dataframe(frame.head(int(preview_rows)), hide_index=True, use_container_width=True)

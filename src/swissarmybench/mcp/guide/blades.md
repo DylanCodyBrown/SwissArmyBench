@@ -49,7 +49,7 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
 
 ## Starters (read-only, shipped with the app)
 - `blades_starters`: the pack by family: Power BI (refresh a dataset, its status, parameters...), Excel
-  (sheets, formats, tables), Files (combine or split CSVs), DAX, HTML, Markdown and Streamlit snippets, Components (your own HTML and JavaScript as Streamlit pieces, one way or two way), and Write (a Python cell that writes to a connection: dry run first; `guide(topic="writing")`).
+  (three: read a workbook through the adapter, make a workbook and fill a template through `sab_excel.build`; a cell-level starter's old name answers with where its effect is now), Files (combine or split CSVs), DAX, HTML, Markdown and Streamlit snippets, Components (your own HTML and JavaScript as Streamlit pieces, one way or two way), and Write (a Python cell that writes to a connection: dry run first; `guide(topic="writing")`).
 - A Python starter makes one function: run it in a kernel,
   `refresh = sab.blade("Power BI refresh dataset")`, then `refresh("Finance/Sales model")`.
 - `blades_copy` makes one the user's own to change.

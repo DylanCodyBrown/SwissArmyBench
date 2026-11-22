@@ -61,13 +61,13 @@ def filled(blade: dict[str, Any]) -> str:
 
 def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     found = blades()
-    assert len(found) == 151
+    assert len(found) == 142
     counts = Counter(b["family"] for b in found)
     assert counts == {
         "Power BI": 13,
         "Dataverse": 2,
         "SharePoint": 5,
-        "Excel": 12,
+        "Excel": 3,
         "Files": 3,
         "DAX": 11,
         "HTML": 10,
@@ -356,24 +356,26 @@ def test_the_pack_is_listed_by_family_and_kept_apart_from_your_blades(client: Te
 
 
 def test_a_starter_is_read_only_and_copies_as_your_own(client: TestClient) -> None:
-    name = "Excel%20add%20sheet"
+    name = "Excel%20make%20a%20workbook"
     starter = client.get(f"/blades/{name}", headers=AUTH).json()
     changed = client.put(f"/blades/{name}", json=starter | {"description": "mine"}, headers=AUTH)
     assert changed.status_code == 400 and "starter (read-only): copy it as your own" in changed.text
     assert "comes with the app" in client.delete(f"/blades/{name}", headers=AUTH).text
     copied = client.post(f"/blades/{name}/copy", headers=AUTH).json()
-    assert copied["name"] == "Excel add sheet copy" and copied["source"] == "saved"
+    assert copied["name"] == "Excel make a workbook copy" and copied["source"] == "saved"
     again = client.post(f"/blades/{name}/copy", headers=AUTH).json()
-    assert again["name"] == "Excel add sheet copy 2"
+    assert again["name"] == "Excel make a workbook copy 2"
     named = client.post(f"/blades/{name}/copy", json={"name": "My sheets"}, headers=AUTH).json()
     assert named["name"] == "My sheets"
     mine = client.get("/blades/My%20sheets", headers=AUTH).json()
-    assert mine["code"] == starter["code"] and mine["family"] == "Excel" and mine["variable"] == "add_sheet"
+    assert (
+        mine["code"] == starter["code"] and mine["family"] == "Excel" and mine["variable"] == "make_workbook"
+    )
     edited = client.put("/blades/My%20sheets", json=mine | {"description": "mine"}, headers=AUTH)
     assert edited.status_code == 200
     assert {b["name"] for b in client.get("/blades", headers=AUTH).json()["blades"]} == {
-        "Excel add sheet copy",
-        "Excel add sheet copy 2",
+        "Excel make a workbook copy",
+        "Excel make a workbook copy 2",
         "My sheets",
     }
     taken = client.post(f"/blades/{name}/copy", json={"name": "My sheets"}, headers=AUTH)

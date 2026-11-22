@@ -2096,6 +2096,15 @@ def _publish_api(values: dict[str, str]) -> None:
             os.environ.pop(name, None)
 
 
+_CARRIED_FILES = {"sab_excel": "sab_excel.py", "adapter": "adapters/adapter.py"}
+
+
+def _carried_file(module: str) -> str | None:
+    """The text of one of the scaffold's files the app holds (what an exported script carries inline)."""
+    place = _CARRIED_FILES.get(module)
+    return (Path(__file__).parent / place).read_text(encoding="utf-8") if place else None
+
+
 def _exports(b: Built) -> None:
     ws, local_api, sandbox = b.ws, b.local_api, b.sandbox
     # Export as one Python script: the document's cells, its connections' own code, ruff's check.
@@ -2109,6 +2118,7 @@ def _exports(b: Built) -> None:
         folder_of=lambda path: str(Path(path).expanduser().parent),
         join=lambda folder, name: str(Path(folder) / name),
         inline=b.apis.inline,  # an API_<name>.py the document imports travels inside the export
+        carried=_carried_file,  # sab_excel.py or adapter.py, for a blade that imports it by that name
     )
     # A local sandbox API exported for its framework target: the real connections' own code.
     b.api_export = api_export = ApiExport(

@@ -14,6 +14,7 @@ import pyarrow.parquet as pq
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench import sab_excel
 from swissarmybench.adapters import export as exporting
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
@@ -102,7 +103,7 @@ def test_excel_row_limit(client: TestClient, monkeypatch: pytest.MonkeyPatch) ->
 def test_excel_cell_limit_warns_before_truncating(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(exporting, "EXCEL_MAX_CELL_CHARS", 3)
+    monkeypatch.setattr(sab_excel, "MAX_CELL_CHARS", 3)
     grid = grid_id(push(client, "t", pa.table({"t": ["abcdef"]})))
     assert client.get(f"/grids/{grid}/export", params={"format": "xlsx"}, headers=AUTH).status_code == 400
     book = openpyxl.load_workbook(io.BytesIO(export(client, grid, format="xlsx", allow_cell_truncation="1")))

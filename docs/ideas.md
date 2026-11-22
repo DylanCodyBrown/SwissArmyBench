@@ -8505,3 +8505,67 @@ Notes for the adapter's builder (adapter.py was not touched here):
   behaviour.
 Not built: an Export widget pairing; the wizard remembering the last fields per table; Compare / Take the new one
 for a pattern block after an app update (the code is the user's once added, by the owner's rule).
+## The one Excel module, as built (2026-11-22, branch excel; Plans/excel.plan.md)
+
+The owner's decisions are the plan's. What was decided while building it, each the smallest thing that kept the
+plan's words:
+
+- **Where the builder lives:** `src/swissarmybench/sab_excel.py`, a public module beside stats.py: standard library,
+  openpyxl and duckdb only, importing nothing of the app, so the app, a kernel (`from swissarmybench import sab_excel`),
+  a Streamlit app and an export (the file beside the pages, `import sab_excel`) share one file, as adapter.py is shared.
+  The Accounting extension's runtime.py is gone: its code moved in whole; the canvas, the templates and the statements
+  call `sab_excel`.
+- **`build(grids, design, template, out)` is one front door over three things:** no design is a plain workbook (a sheet
+  a grid, streamed); a design is the Accounting design (a design that names no sheets gives each grid one styled table:
+  what the Streamlit download widgets need); a template is filled once from the design's bindings, or, with `group_by`,
+  becomes statements with a register. It answers bytes, or the path when `out` is given (statements: their plan).
+- **workbook.py carries only the parts its design uses:** sab_excel is laid out in parts, each starting at a
+  `# ===== name:` line (cells, data, tables, design, pivots, charts, templates, statements, plain, build); a block kind's
+  writer registers itself (BLOCKS, AFTER), so an export keeps the core and adds pivots or charts only when the design
+  has such a block. A copy made without a part says "export it again" if a block of that kind is added later.
+- **One rule for a cell's value, twice:** the adapter (sheet_value) and the builder (cell_value) cannot import each
+  other (each is a file an export copies alone), so the rule is written in both, the same: text is always a text cell
+  (never a formula), a whole number over 15 digits and a date before 1900-03-01 and a time with a zone are text, exact,
+  a character XML cannot hold is Excel's own _xHHHH_. It now holds in designed workbooks and filled templates too (the
+  Accounting runtime wrote a text starting with = as a formula; a zoned time lost its zone silently).
+- **openpyxl always passes a sheet through a temporary file** (the system's temp folder, removed as the workbook is
+  saved; it did so for Accounting's workbooks already). The old export chose xlsxwriter's in-memory mode to avoid that;
+  with openpyxl only there is no in-memory sheet writer. The plain export uses openpyxl's write-only mode: memory stays
+  flat (285 MB against 1,381 MB at a million rows) and it is about seven times slower (99 s against 13 s), which the
+  owner accepted. A direct XML writer under openpyxl (what `_SheetData` was under xlsxwriter) would win the time back;
+  not built: the plan's 1,500 lines that go are mostly that.
+- **A plain sheet's column widths come from its first batch** (50,000 rows): a streamed sheet's widths are written before
+  its rows. The old export sized columns from every row.
+- **A time of day is an Excel time** in the plain export (it was text): one rule everywhere.
+- **The sheet picker lists a workbook's named tables after its sheets**, since the adapter does (`sheet` takes either).
+  A workbook of several sheets says "has 2 sheets (...): name the one to read"; an older .xls says to save it as .xlsx
+  (pandas' xlrd path in the upload widget and sab.sql went with the three readers).
+- **Excel folds a plan's columns and limit** (a preview reads 100 rows, not the sheet); filters, sort and totals are
+  DuckDB's over the stream. `tables()` types each column from its first 1,000 rows; a read types every row.
+- **A workbook's write is insert or truncate** (the plan's "inserted or replaced"): an insert places values by the
+  header's names; update, merge and delete are refused in one sentence (read, change in DuckDB, write whole).
+- **Starters: the twelve cell-level ones went, three came, the Write pair stayed.** "14 become 3" is read as the Excel
+  family (12 become 3); Write to an Excel sheet (a function and its call) stays in the Write family, now writing through
+  the adapter, so every Write function is the adapter's. Each old name answers for one release with one line
+  (domain/blade_templates.py GONE_STARTERS): "Excel borders went with the one Excel module: it is now a table's style,
+  a design option of sab.blade("Excel make a workbook")."
+- **A starter that calls the module still runs without the app:** each of the three imports the file by its own
+  name first (`import sab_excel`, `import adapter`: beside it in a project) and the app's own only when that is not
+  there. An exported script (Export as one Python script, the linear notebook) holds the file's text and a finder
+  that runs it as that module on its first import (domain/script_runtime.py carried_module; after the script's
+  own check of its requirements), as an API client already travels inline: the made-up notebook's export still
+  writes its workbook in a fresh Python that has no Swiss Army Bench. Only what a blade imports is carried.
+- **The Streamlit Excel widgets carry the two files:** a built app (Play, Launch, Export, a widget run alone) gets
+  adapter.py where its code says `import adapter` and sab_excel.py where it says `import sab_excel` (the widgets'
+  carried files, beside api_adapter.py). A table block gained what the fill-in template needs: a column's `note`,
+  `choices`, `check` (whole, number, date) and `required`, the block's `entry_rows`, `filter` and `formats` by kind.
+- **A workbook in a contract:** any contract.json may list a file ending .xlsx or .xlsm (owner app, made_from, grows_on);
+  it is made, so a starter text for it is refused. The forms and reconciliation example's `workbook.py` reads a month's
+  latest runs from its sandbox through adapter.py and builds `workbooks/forms_recon_<yyyy>_<mm>.xlsx` with sab_excel.py,
+  without the app.
+- **Left as they are (said, not done):** SharePoint's own workbook reader inside its connection code (domain/sharepoint.py:
+  a connection's code is text that runs alone; the adapter's Excel takes a document's bytes, `adapter.Excel(conn.download(
+  path))`, when that code is next touched); the file connection's catalog and an exported script's workbook load, which
+  call pandas' read_excel in generated code; `xlsxwriter` as a library a notebook's own environment may still install.
+  An export of a project that makes a workbook (the plan's last section) is the project scaffold's builder's work:
+  sab_excel.py is ready to be carried as adapter.py is.

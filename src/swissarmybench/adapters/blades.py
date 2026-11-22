@@ -37,6 +37,7 @@ from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import library, snippets
 from swissarmybench.domain.blade_tables import follow_variable, stamp, with_code, with_header
+from swissarmybench.domain.blade_templates import gone_starter
 from swissarmybench.domain.blades import (
     Blade,
     BladeError,
@@ -402,6 +403,9 @@ class BladeStore:
         starter = self._starter(name)
         if starter is not None:
             return self.listed(starter)
+        went = gone_starter(name)
+        if went:  # a starter that went: its old name answers with where its effect is now
+            raise BladeError(went)
         raise KeyError(name)
 
     def file_of(self, name: str) -> Path | None:

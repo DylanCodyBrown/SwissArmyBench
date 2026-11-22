@@ -651,24 +651,31 @@ def agent(command: str, **args: Any) -> Any:
 
 # ===== 4. Excel statements: one workbook per customer, from a template =====
 
-STARTERS = ("Excel copy template", "Excel set cell values", "Excel write table")
+# The one Excel module (Plans/excel.plan.md): the three Excel starters, each a line of its own; the
+# statements need only Fill a template.
+STARTERS = ("Excel read a workbook", "Excel make a workbook", "Excel fill a template")
+VARIABLES = ("read_workbook", "make_workbook", "fill_template")
 
 
 def statements_code(template: str) -> str:
     """What the user writes under the three starters' lines: a statement of open invoices for each
-    customer that has one, made from the template (labels in A4:A7, the invoices from A9 down)."""
+    customer that has one, the template filled (labels in A4:A7, the invoices' headings on row 9 and the
+    invoices from A10 down: a table that grows)."""
     return (
         "\n\nfrom pathlib import Path\n\n"
         f'template = r"{template}"\n'
+        'columns = ["invoice_id", "order_id", "invoice_date", "due_date", "amount"]\n'
+        'places = [{"kind": "value", "place": f"B{4 + i}", "value": {"column": name}}\n'
+        '          for i, name in enumerate(["customer_name", "customer_id", "statement_date", "open"])]\n'
+        'places += [{"kind": "value", "place": f"{letter}9", "value": {"text": name}}\n'
+        '           for letter, name in zip("ABCDE", columns)]\n'
+        'places += [{"kind": "table", "place": "A10", "columns": columns, "rows": 1}]\n'
         'for customer_id, rows in invoices.groupby("customer_id"):\n'
         '    who = customers[customers["customer_id"] == customer_id].iloc[0]\n'
+        '    values = {"customer_name": who["customer_name"], "customer_id": int(customer_id),\n'
+        '              "statement_date": "2026-11-01", "open": len(rows)}\n'
         '    to = Path("statements") / f"statement-{customer_id}.xlsx"\n'
-        "    path = copy_template(template, to, overwrite=True)\n"
-        '    heading = {"B4": who["customer_name"], "B5": int(customer_id)}\n'
-        '    heading |= {"B6": "2026-11-01", "B7": len(rows)}\n'
-        '    set_values(path, "Invoice", heading)\n'
-        '    columns = ["invoice_id", "order_id", "invoice_date", "due_date", "amount"]\n'
-        '    write_table(path, "Invoice", rows[columns], start="A9")\n'
+        "    fill_template(template, to, places, values, rows[columns])\n"
     )
 
 
@@ -740,7 +747,7 @@ def test_4_excel_statements_one_workbook_per_customer_from_a_template(
     saved = json.loads((folder.parent / "statements.ipynb").read_text(encoding="utf-8"))
     source = "".join(saved["cells"][-1]["source"])
     assert "$0" not in source
-    for name, variable in zip(STARTERS, ("copy_template", "set_values", "write_table"), strict=True):
+    for name, variable in zip(STARTERS, VARIABLES, strict=True):
         assert f'{variable} = sab.blade("{name}")\n' in source  # each on a line of its own
     check_statements(folder, company)
 
@@ -757,10 +764,7 @@ def test_4a_the_agent_makes_the_same_statements_through_its_commands_only(
     grid = next(g["grid"] for g in agent("tabs_list")["grids"] if g["dataset"] == "invoices")
     agent("table_filter", grid=grid, column="paid_date", op="blank")
     tables = agent("workbench_table_cells")["tables"]
-    lines = "\n".join(
-        f'{v} = sab.blade("{n}")'
-        for n, v in zip(STARTERS, ("copy_template", "set_values", "write_table"), strict=True)
-    )
+    lines = "\n".join(f'{v} = sab.blade("{n}")' for n, v in zip(STARTERS, VARIABLES, strict=True))
     starters = {b["name"] for family in agent("blades_starters")["families"] for b in family["blades"]}
     assert set(STARTERS) <= starters
     cells = [{"kind": "code", "source": t["loaded"]} for t in tables]

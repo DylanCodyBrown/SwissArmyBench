@@ -279,12 +279,11 @@ def test_the_write_family_lists_excel_and_power_bi_starters_too(client: TestClie
     }
     also = [b["name"] for b in families["Write"] if b.get("also")]
     assert also == [
-        "Excel write table",
-        "Excel range as table",
+        "Excel make a workbook",
         "Power BI refresh dataset",
         "Power BI refresh and wait",
     ]
-    assert any(b["name"] == "Excel write table" and not b.get("also") for b in families["Excel"])
+    assert any(b["name"] == "Excel make a workbook" and not b.get("also") for b in families["Excel"])
 
 
 def test_a_write_starters_form_offers_the_connections_of_its_kind_first(client: TestClient) -> None:

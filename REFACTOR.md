@@ -53,7 +53,7 @@ Three things outside the layout pin `server/`:
 (`domain/blades.py`, `domain/catalogs.py`, `adapters/blade_run.py`) use the standard library only.
 `domain/__init__.py`, `adapters/__init__.py` and `services/__init__.py` import nothing. The
 architecture test imports each of them in a clean interpreter where `duckdb`, `pyarrow`, `pandas`,
-`starlette`, `uvicorn`, `sqlglot`, `keyring`, `mcp`, `openpyxl` and `xlsxwriter` cannot be
+`starlette`, `uvicorn`, `sqlglot`, `keyring`, `mcp` and `openpyxl` cannot be
 imported.
 
 ## The service layer

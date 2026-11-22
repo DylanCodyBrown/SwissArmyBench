@@ -1,6 +1,8 @@
 # One way to make Excel (the owner, 2026-11-21)
 
-Status: decided; build after the adapter's first phase merges (the Excel source lives in the adapter).
+Status: built (2026-11-22, branch excel): adapter.py 1.4.0's Excel source, `src/swissarmybench/sab_excel.py`,
+openpyxl only, three starters, the widgets as thin callers, a workbook in any contract.json. What was decided
+while building is in docs/ideas.md ("The one Excel module, as built"); the numbers in docs/verified.md.
 
 ## The owner's answers
 - **Reading and writing a workbook's rows is the adapter's, like every connection** (the owner: "All connection

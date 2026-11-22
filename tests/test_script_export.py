@@ -204,11 +204,11 @@ def test_each_connection_kind_is_a_small_function_of_its_own_code() -> None:
         read="fetch(table)",
     )
     writer = Piece(
-        "Excel write table",
+        "Excel make a workbook",
         "other",
         None,
-        "def write_table(path, sheet, frame):\n    return path",
-        "write_table",
+        "def make_workbook(path, tables):\n    return path",
+        "make_workbook",
     )
     cells = [
         ExportCell("sql", 'SELECT * FROM "orders"', "Sales files -> sales", number=1),
@@ -216,7 +216,7 @@ def test_each_connection_kind_is_a_small_function_of_its_own_code() -> None:
         ExportCell(
             "code",
             "import swissarmybench as sab\nrows = sab.read('Orders API', 'orders')\n"
-            "write_table = sab.blade('Excel write table')\napi = sab.connection('Orders API')",
+            "make_workbook = sab.blade('Excel make a workbook')\napi = sab.connection('Orders API')",
             number=3,
         ),
     ]
@@ -226,13 +226,15 @@ def test_each_connection_kind_is_a_small_function_of_its_own_code() -> None:
     assert '@functools.cache\ndef connect_sales_files():\n    """Sales files: a file connection' in text
     assert 'def connect_finance():\n    """Finance: a Power BI workspace: its sign-in, then DAX' in text
     assert "        return (fetch(table))\n" in text and "    return conn, read" in text  # Read a table
-    assert "def blade_excel_write_table():" in text and "    return write_table\n" in text
+    assert "def blade_excel_make_a_workbook():" in text and "    return make_workbook\n" in text
     body = run_body(text)
     assert (
         "sales = run_sql('Sales files', " in body and "model_sales = run_dax('Finance/Sales model', " in body
     )
     assert "rows = read_table('Orders API', 'orders')" in body
-    assert "write_table = blade('Excel write table')" in body and "api = connection('Orders API')" in body
+    assert (
+        "make_workbook = blade('Excel make a workbook')" in body and "api = connection('Orders API')" in body
+    )
     assert "def run_dax(" in text and "def read_table(" in text and "def open_files(" in text
 
 
@@ -539,8 +541,8 @@ def notebook_cells(live: Live, table: str) -> list[dict[str, Any]]:
         {
             "kind": "code",
             "source": "import os\n\nimport swissarmybench as sab\n\nfolder = os.environ['REPORT_FOLDER']\n"
-            "write_table = sab.blade('Excel write table')\n"
-            "write_table(folder + '/report.xlsx', 'By region', by_region)\n"
+            "make_workbook = sab.blade('Excel make a workbook')\n"
+            "make_workbook(folder + '/report.xlsx', {'By region': by_region})\n"
             "by_region.to_csv(folder + '/by_region.csv', index=False)\nsab.push(by_region, name='by_region')",
             "number": 13,
         },
@@ -590,6 +592,9 @@ def test_a_notebook_exports_and_runs_in_a_fresh_python_with_only_its_requirement
     assert 'WHERE "amount" > 5' in text  # the grid's step, as DuckDB SQL
     assert "'SHOP_PASSWORD': None,  # Shop's secret('password'): saved in the keyring" in text
     assert "'REPORT_FOLDER': None,  # cell 13's REPORT_FOLDER: the notebook's own code reads it" in text
+    # The Excel starter calls the one Excel module: its file travels inside the script (Plans/excel.plan.md).
+    assert "# sab_excel.py travels inside this file" in text and "class _SabExcelFinder:" in text
+    assert "_ADAPTER_PY" not in text  # only what a blade imports
     out = tmp_path / "out"
     out.mkdir()
     python = fresh_python(tmp_path / "venv", with_pip=os.environ.get("SWISSARMYBENCH_TEST_PIP") == "1")

@@ -221,12 +221,13 @@ def _csv_file(s: Sweep) -> str:
 
 
 def _xlsx_file(s: Sweep) -> str:
-    import xlsxwriter
+    from openpyxl import Workbook
 
     path = s.tmp / "book.xlsx"
-    book = xlsxwriter.Workbook(str(path))
-    book.add_worksheet("first").write_row(0, 0, ["id", "amount"])
-    book.close()
+    book = Workbook()
+    book.active.title = "first"
+    book.active.append(["id", "amount"])
+    book.save(path)
     return str(path)
 
 

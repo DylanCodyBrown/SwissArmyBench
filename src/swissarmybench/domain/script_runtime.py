@@ -793,3 +793,41 @@ def where_from(secret: Secret) -> str:
     if secret.where == "code":
         return f"{owner}: the notebook's own code reads it" + ("" if secret.required else " (optional)")
     return f"{owner}: this computer's environment in the app" + ("" if secret.required else " (optional)")
+
+
+# ===== the scaffold's files, carried inside an exported script =====
+
+# The scaffold's files a blade's code may import by their own names (a starter: `import sab_excel`, `import
+# adapter`): an exported script holds each one's text and runs it as that module on its first import.
+CARRIED: tuple[str, ...] = ("sab_excel", "adapter")
+_CARRIED_IMPORT = re.compile(r"^[ \t]*import (" + "|".join(CARRIED) + r")\b", re.MULTILINE)
+
+
+def carried_used(code: str) -> list[str]:
+    """The carried modules this code imports, each once, in CARRIED's order."""
+    found = set(_CARRIED_IMPORT.findall(code))
+    return [module for module in CARRIED if module in found]
+
+
+def carried_module(module: str, text: str) -> str:
+    """One of the scaffold's files (sab_excel.py, adapter.py) as code inside an exported script: its text,
+    line by line, and a finder that runs it as the module when the script first imports it (so the script's
+    own check of its requirements comes first)."""
+    constant = f"_{module.upper()}_PY"
+    finder = "_" + "".join(part.capitalize() for part in module.split("_")) + "Finder"
+    lines = "\n".join(f"        {line!r}," for line in text.splitlines(keepends=True))
+    return (
+        f"# {module}.py travels inside this file: `import {module}` finds it here (run when first imported).\n"
+        f'{constant} = "".join(\n    (\n{lines}\n    )\n)\n\n\n'
+        f"class {finder}:\n"
+        f'    """`import {module}`: the text above, run as that module."""\n\n'
+        "    def find_spec(self, name, path=None, target=None):\n"
+        "        import importlib.util\n\n"
+        f"        return importlib.util.spec_from_loader(name, self) if name == {module!r} else None\n\n"
+        "    def create_module(self, spec):\n"
+        "        return None\n\n"
+        "    def exec_module(self, module):\n"
+        f'        exec(compile({constant}, {module + ".py"!r}, "exec"), module.__dict__)\n\n\n'
+        "import sys as _sys\n\n"
+        f"_sys.meta_path.append({finder}())\n"
+    )

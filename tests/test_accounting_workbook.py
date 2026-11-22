@@ -1,4 +1,5 @@
-"""The Accounting extension's one generator (runtime.py): a design built into a workbook, each block kind
+"""The one workbook builder (sab_excel; it was the Accounting runtime): a design built into a workbook, each
+block kind
 read back cell by cell with openpyxl; a pivot against DuckDB's own GROUP BY; Export's workbook.py run in a
 fresh Python making the same workbook. Made-up data only (tests/accounting_data.py)."""
 
@@ -13,9 +14,10 @@ import duckdb
 import pytest
 from openpyxl import load_workbook
 
+from swissarmybench import sab_excel as runtime
+from swissarmybench.sab_excel import WorkbookError
 from swissarmybench_accounting import design as rules
-from swissarmybench_accounting import exporter, runtime
-from swissarmybench_accounting.runtime import WorkbookError
+from swissarmybench_accounting import exporter
 from tests import accounting_data as made_up
 
 

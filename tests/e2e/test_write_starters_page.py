@@ -71,7 +71,7 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     cells = workbench.locator(".wb-cell")
     expect(cells.nth(1).locator(".monaco-editor")).to_be_visible(timeout=20000)
     listed = blades(workbench)
-    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write37", timeout=20000)
+    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write36", timeout=20000)
     family(listed, "Write")
     upsert = listed.locator(".starter-item", has_text="SQLite write")
     expect(upsert.locator(".blade-kind")).to_have_text("Python")

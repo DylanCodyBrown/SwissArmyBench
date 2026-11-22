@@ -34,9 +34,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
+from swissarmybench import sab_excel
 from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
 from swissarmybench_accounting import design as rules
-from swissarmybench_accounting import runtime
 from swissarmybench_accounting.service import Accounting
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -61,7 +61,7 @@ def routes(accounting: Accounting, mode: dict[str, Any], functions: Any) -> list
                 "charts": list(rules.CHARTS),
                 "aggregates": list(rules.AGGREGATES),
                 "operators": list(rules.OPERATORS),
-                "formats": runtime.FORMATS,
+                "formats": sab_excel.FORMATS,
             }
         )
 
