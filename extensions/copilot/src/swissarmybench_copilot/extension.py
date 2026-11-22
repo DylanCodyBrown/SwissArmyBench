@@ -8,6 +8,7 @@ provider's name), and the Extensions page and Settings draw PANEL's answer (line
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +86,7 @@ def routes(services: Any) -> list[Any]:
         private=lambda: private_project(services),
         app_version=app_version,
         plugin_version=VERSION,
+        process_id=os.getpid(),
     )
     services.copilot = service  # its stop, and tests
     return door.routes(service)

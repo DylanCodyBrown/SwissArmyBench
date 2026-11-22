@@ -23,22 +23,11 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench_copilot.domain import lsp, tools
+from swissarmybench_copilot.domain.lsp import LspError, ServerGone
 
 STANDIN = "SWISSARMYBENCH_COPILOT_STANDIN"
 OnRequest = Callable[[str, Any], Awaitable[Any]]
 OnNotice = Callable[[str, Any], None]
-
-
-class LspError(Exception):
-    """The server answered a request with an error."""
-
-    def __init__(self, code: int, message: str) -> None:
-        super().__init__(message)
-        self.code = code
-
-
-class ServerGone(Exception):
-    """The server's process ended (or never started)."""
 
 
 class Connection:

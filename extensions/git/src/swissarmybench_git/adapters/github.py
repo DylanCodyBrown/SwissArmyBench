@@ -384,6 +384,20 @@ class SyncFolder:
     def full(folder: str) -> Path:
         return Path(folder).expanduser().resolve()
 
+    def inside(self, folder: str, top: str) -> str | None:
+        """Where `folder` is inside `top`, as a slash path ("" when it is `top`); None when it is not."""
+        try:
+            rel = self.full(folder).relative_to(self.full(top)).as_posix()
+        except ValueError:
+            return None
+        return "" if rel == "." else rel
+
+    def child(self, folder: str, name: str) -> str:
+        return str(Path(folder) / name)
+
+    def make(self, folder: str) -> None:
+        Path(folder).mkdir(parents=True, exist_ok=True)
+
     def ignore(self, folder: str) -> rules.Ignore:
         root = self.full(folder)
         found = []

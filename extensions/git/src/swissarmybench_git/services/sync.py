@@ -24,7 +24,6 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import Any, Protocol
 
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
@@ -96,7 +95,17 @@ class Links(Protocol):
 
 
 class Folder(Protocol):
-    def full(self, folder: str) -> Path: ...
+    def full(self, folder: str) -> object:
+        """The folder's real path (its words: str(...))."""
+        ...
+
+    def inside(self, folder: str, top: str) -> str | None:
+        """Where `folder` is inside `top`, as a slash path ("" when it is `top`); None when it is not."""
+        ...
+
+    def child(self, folder: str, name: str) -> str: ...
+
+    def make(self, folder: str) -> None: ...
 
     def ignore(self, folder: str) -> rules.Ignore: ...
 
@@ -308,11 +317,10 @@ class GitHubSync:
         raw = body.get("path") if isinstance(body, dict) else None
         if not raw:
             return None, None
-        try:
-            rel = self._files.full(str(raw)).relative_to(Path(folder)).as_posix()
-        except ValueError:
-            raise rules.SyncError(f"{raw} is not inside {folder}.") from None
-        if rel in ("", "."):
+        rel = self._files.inside(str(raw), folder)
+        if rel is None:
+            raise rules.SyncError(f"{raw} is not inside {folder}.")
+        if not rel:
             return None, None
         return rel, rel.rsplit("/", 1)[-1]
 
@@ -413,22 +421,19 @@ class GitHubSync:
             return None
         by = {f["which"]: f for f in folders}
         shared = by.get("shared") or {}
-        try:
-            rel = (
-                Path(str(self._files.full(project))).relative_to(Path(shared["folder"])).as_posix()
-                if shared.get("connected")
-                else None
-            )
-        except ValueError:
-            rel = None
-        if rel and rel != ".":
+        rel = self._files.inside(project, shared["folder"]) if shared.get("connected") else None
+        if rel:
             name = rel.split("/")[0]
             own = (shared.get("projects") or {}).get(name, {"to_push": 0, "conflicts": 0})
             mark = _mark(
                 own["conflicts"], shared.get("behind") or 0, own["to_push"], not shared.get("pulled")
             )
             if mark:
-                return mark | {"which": "shared", "path": str(Path(shared["folder"]) / name), "name": name}
+                return mark | {
+                    "which": "shared",
+                    "path": self._files.child(shared["folder"], name),
+                    "name": name,
+                }
         library = by.get("library") or {}
         if library.get("connected"):
             mark = _mark(
@@ -497,7 +502,7 @@ class GitHubSync:
         client = self._client(token)
         branch = branch or _sync(lambda: client.default_branch(repository))
         head = _sync(lambda: client.head(repository, branch))
-        Path(folder).mkdir(parents=True, exist_ok=True)
+        self._files.make(folder)
         files: dict[str, str] = {}
         large: list[str] = []
         if head is not None:
@@ -606,11 +611,10 @@ class GitHubSync:
             if not above:
                 continue
             top = str(self._files.full(above))
-            try:
-                rel = Path(folder).relative_to(Path(top)).as_posix()
-            except ValueError:
+            rel = self._files.inside(folder, top)
+            if rel is None:
                 continue
-            found = self._link(top) if rel not in ("", ".") else None
+            found = self._link(top) if rel else None
             if found is not None:
                 return top, found, rel
         return None

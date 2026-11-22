@@ -26,16 +26,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import itertools
-import os
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain.packages import MissingPackagesError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
-from swissarmybench_copilot.adapters.language_server import Connection, LspError, ServerGone
 from swissarmybench_copilot.domain import lsp, tools
 from swissarmybench_copilot.domain.documents import DocumentError, Mirror
+from swissarmybench_copilot.domain.lsp import LspError, ServerGone
 
 NAME = "GitHub Copilot"
 NOTICE = "inline_completion_changed"
@@ -43,6 +42,20 @@ PANEL_NOTICE = "extension_panel_changed"
 MAX_ITEMS_KEPT = 60
 COMPLETION_SECONDS = 20.0
 SIGN_IN_SECONDS = 900.0
+
+
+class Connection(Protocol):
+    """One running language server, as this service uses it (adapters/language_server.py's Connection)."""
+
+    @property
+    def running(self) -> bool: ...
+    def next_id(self) -> int: ...
+    async def request(
+        self, method: str, params: Any, timeout: float = 30.0, ident: int | None = None
+    ) -> Any: ...
+    async def notify(self, method: str, params: Any) -> None: ...
+    async def cancel(self, ident: int) -> None: ...
+    async def close(self) -> None: ...
 
 
 class Machine(Protocol):
@@ -84,6 +97,7 @@ class Copilot:
         private: Callable[[], bool],
         app_version: str,
         plugin_version: str,
+        process_id: int = 0,  # this app's, for the server's initialize (the root hands it in)
     ) -> None:
         self._machine = machine
         self._record = record
@@ -93,6 +107,7 @@ class Copilot:
         self._private = private
         self._app_version = app_version
         self._plugin_version = plugin_version
+        self._process_id = process_id
         self._conn: Connection | None = None
         self._starting = asyncio.Lock()
         self._account: dict[str, Any] | None = None  # what the server last said; None: not asked
@@ -221,7 +236,7 @@ class Copilot:
             try:
                 await conn.request(
                     "initialize",
-                    lsp.initialize_params(os.getpid(), self._app_version, self._plugin_version),
+                    lsp.initialize_params(self._process_id, self._app_version, self._plugin_version),
                     timeout=60.0,
                 )
                 await conn.notify("initialized", {})

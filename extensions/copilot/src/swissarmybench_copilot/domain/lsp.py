@@ -45,6 +45,18 @@ MAX_BODY = 64 * 1024 * 1024
 DEVICE_PAGE = "https://github.com/login/device"
 
 
+class LspError(Exception):
+    """The server answered a request with an error."""
+
+    def __init__(self, code: int, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class ServerGone(Exception):
+    """The server's process ended (or never started)."""
+
+
 class FramingError(ValueError):
     """Bytes on the server's stdout that are not the base protocol."""
 

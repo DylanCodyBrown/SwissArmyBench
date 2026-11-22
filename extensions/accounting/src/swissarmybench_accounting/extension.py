@@ -101,6 +101,7 @@ def describe() -> dict[str, Any]:
 
 def routes(services: Any) -> list[Any]:
     """Its routes, built from the base's services (the composition root's Services)."""
+    from swissarmybench_accounting import files
     from swissarmybench_accounting import routes as door
     from swissarmybench_accounting.service import Accounting
 
@@ -112,7 +113,7 @@ def routes(services: Any) -> list[Any]:
     async def store_table(name: str, table: Any, kind: str, new_grid: bool, who: str) -> Any:
         return await services.datasets.store_table(name, table, kind, new_grid, who)
 
-    accounting = Accounting(services.ws, services.agent.approvals.ask, store_table, project_folder)
+    accounting = Accounting(services.ws, services.agent.approvals.ask, store_table, project_folder, files)
 
     def functions() -> dict[str, Any]:
         families = services.blades.starters()["families"]
