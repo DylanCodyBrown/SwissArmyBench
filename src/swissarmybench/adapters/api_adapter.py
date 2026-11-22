@@ -40,10 +40,12 @@ It reads top to bottom in the order a call runs:
 The standard library only (adapter is imported by table() alone): an export copies this file as it is. Its
 contract only grows (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.0.0 (2026-11-22). What each version added (Plans/api-adapter.plan.md):
+Version 1.0.1 (2026-11-22). What each version added (Plans/api-adapter.plan.md):
   1.0.0    actions from a specification; inputs checked; http, from_client, retries; detection of format,
            envelope, paging and types; shapes, drift, renames offered; run and its envelope; keep, learn;
            discover and the mapping; table; each call's facts and observe() (the statistics' seam)
+  1.0.1    an integer input given as a whole float (3.0, as a form's number box gives it) is taken as 3;
+           one with a fraction (3.5) is refused as before
 """
 
 from __future__ import annotations
@@ -66,7 +68,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from xml.etree import ElementTree
 
-VERSION = "1.0.0"  # the docstring's change list says what each version added
+VERSION = "1.0.1"  # the docstring's change list says what each version added
 
 KINDS = ("records", "record", "value", "file", "empty", "text")
 READS = ("GET", "HEAD", "OPTIONS")  # the methods that change nothing; every other method writes
@@ -455,6 +457,8 @@ def _request_body(doc: Mapping[str, Any], raw: Mapping[str, Any]) -> tuple[tuple
 def _typed(value: Any, kind: str, name: str) -> Any:
     """A value as its input's type, or refused naming it."""
     if kind == "integer":
+        if isinstance(value, float) and value.is_integer():  # a form's number box gives 3.0 for 3
+            return int(value)
         if isinstance(value, bool) or not re.fullmatch(r"-?\d+", str(value).strip()):
             raise ActionError(f"{name} is a whole number: {value!r} is not one.", name)
         return int(str(value).strip())
