@@ -8505,6 +8505,78 @@ Notes for the adapter's builder (adapter.py was not touched here):
   behaviour.
 Not built: an Export widget pairing; the wizard remembering the last fields per table; Compare / Take the new one
 for a pattern block after an app update (the code is the user's once added, by the owner's rule).
+Each of the five notes above is built (branch adapter-6, adapter 1.5.0 to 1.9.1): the next section.
+
+## The adapter's additions for the endpoint wizard, and the plain Excel export's speed (2026-11-22, branch adapter-6): built, with the decisions made
+
+The project scaffold and the app both: adapter.py and sab_excel.py are files of each. Every addition only adds to
+the contract (12b); each its own commit and version; the numbers are docs/verified.md's.
+- **A typed value is `{"sab_type": "date" | "timestamp" | "time" | "decimal", "value": its text}`** (1.5.0), opt-in:
+  `Plan.to_json(typed=True)`, so the plain JSON every other caller reads is unchanged, and plan_from always reads it
+  (every far side, the sandbox's door, a kernel's open tables, the blade runner, reads a plan through plan_from, so
+  none of them changed). Remote's query still sends its params as ISO text (`default=_json_value`, as before): the
+  sandbox makes that SQL DuckDB's by sqlglot, where a date's text compares as a date; typing them too would need the
+  door's query to decode them, left until something needs it. Sql's read now binds its plan's values through
+  Sql.value (SQLite took a date by sqlite3's deprecated adapter before).
+- **Several writes are `write_all(source, writes)`, not a `with connection.transaction():` block** (1.6.0). A block
+  across HTTP (the sandbox through Remote, the API's process) would hold a DuckDB transaction open between
+  requests, and its writes could not say their counts until it ended; a list of writes is one request, one
+  transaction, and each write's counts come back in order. Each write is a Write, a dict or a tuple (the patterns
+  write `[(table, rows, key, mode), (log, rows)]`). One write is plain write() for every source (so Trino's single
+  write keeps its note); two or more on a source with no transaction across writes are refused before anything is
+  sent, in one sentence naming why (Trino: row batches without a transaction; Dataverse: all or none only within
+  one change set of one table; Rows: each write its service's own call; Files: each file replaced on its own;
+  Excel: each sheet on its own; a workbook's several sheets in one save could be all or none, not built). SQL
+  Server's set runs again whole on a passing error, every write of it, as one write did; each write's counts carry
+  the notes. The sandbox's door: POST /sandbox/data/{key}/write_all, a JSON line naming each write and its stream's
+  bytes, then the Arrow IPC streams back to back (a multipart body would need a parser; the streams are
+  self-delimiting but counted bytes are plainer).
+- **Connection.planned takes a key as one name too** (1.7.0): `planned("orders", rows, key="id", mode="merge")`.
+  Bulk upload asks it with the keys alone (`[{key: k}]`): the problems' rows may hold values the source's types
+  refuse, and a dry run only needs the keys. Insert-only still reads the keys there itself: its problems name each
+  row already there, which counts cannot.
+- **A period is `Plan.periods: (Period(column, unit, name),)`, beside group, not an expression in group** (1.8.0):
+  group stays plain column names for every caller that reads it, and a period is one of five units, never SQL
+  text, so nothing a caller gives reaches a statement. Its answer is the period's first day as a date (SQLite's
+  text, Oracle's date and time made dates by dated()), before the group's columns; a sort names it by its label.
+  A week starts on Monday everywhere (DuckDB's, PostgreSQL's, Trino's, Databricks' DATE_TRUNC; Oracle's IW; SQL
+  Server's whatever its DATEFIRST; MySQL's WEEKDAY; Snowflake's with its WEEK_START left at 0). SQL Server's is
+  DATEFROMPARTS (every version, where DATETRUNC is 2022's) and its week's modulo is written `x - 7 * (x / 7)`, and
+  MySQL's months by DATE_SUB, so no % is in a statement a pyformat driver would misread. A source that cannot
+  group (OData, Rows) reads only the columns the plan names (Plan.needed) and DuckDB groups them over the stream:
+  a Summary endpoint calls no duckdb.connect of its own any more, so it is never marked "DuckDB does part of it
+  over the stream", even on Dataverse, as Summary by region on Dataverse was not before (the adapter's statistics
+  say what DuckDB did: by_duckdb). The wizard's periods gain Week.
+- **"contains" is the op's name** (1.9.0), its value text taken literally (no wildcard), matched in any case.
+  Dataverse's Web API takes no tolower, and its string filters already ignore case (Microsoft Learn, "Filter rows by
+  using OData"), so its fold is contains(field,'text'); a text holding % _ [ ] (Dataverse's wildcards) stays with
+  DuckDB. Each SQL dialect's is LOWER(column) LIKE ? ESCAPE '!' with the text escaped in the bound value (! rather
+  than \, which MySQL's string literals would need doubled; SQL Server's [ escaped too, its LIKE reading it as a
+  set; never Oracle's ESCAPE rule broken: ! is only ever before %, _ or !). On a column that is not text a
+  dialect may refuse LOWER (PostgreSQL); the patterns use it on text columns only. Choices' ?search= uses it too.
+- **An Action's second table is an optional step, "Also adds a row to"** (the patterns' `other`, a one-table
+  pattern now taking it when named): a row a key, its columns found by their names (the key's own name or
+  <table>_<key>; a note column named action, event, note, said, what, change or kind gets the action's name; a date
+  column named at, when, time, logged, changed, created, date or on, else the first date column, gets now or
+  today), the log's other columns left to the database's defaults. The same connection is required (one
+  transaction); the wizard does not offer a mapping of the log's columns yet (the agent's fields could carry one:
+  not built).
+- **The plain Excel export writes its data rows' XML itself, openpyxl the rest** (sab_excel 1.1.0). openpyxl's
+  write-only sheet makes, styles and serializes an element per cell through et_xmlfile (lxml is not installed and
+  is not added: the owner chose openpyxl only); that was 90% of the time. Now each sheet's header, widths, frozen
+  pane, filter and the workbook's styles are openpyxl's, the rows are written by the one rule (cell_value's)
+  10,000 at a time into a temporary file (beside openpyxl's own, in the system's temp folder, removed at the end),
+  and zipfile copies openpyxl's zip putting each sheet's rows into its sheetData and its dimension right. Text is
+  always an inline string (never a formula or an error, whatever its first character); a date, a date and time, a
+  time and a duration take the one style openpyxl gives each (asked once a sheet), so no cell has a style object
+  of its own. Widths are measured on a column's first 1,000 rows. Deflate stays at level 6 (openpyxl's own; 1 was a
+  sixth faster and a quarter bigger): ZIP_LEVEL. The adapter's Excel source's sheet write was left alone: it keeps
+  a workbook's other sheets, so it loads the whole workbook in openpyxl's normal mode; the same splice could
+  replace one sheet's part, not built.
+- **Testing a hosted local API from a worktree**: api_runs starts the host with `python -I`, which ignores
+  PYTHONPATH, so in a worktree with no install of its own the host imports the main checkout's package. A venv
+  with a .pth naming the worktree's src and then the main venv's site-packages runs them on the worktree's code
+  (nothing installed).
 ## The one Excel module, as built (2026-11-22, branch excel; Plans/excel.plan.md)
 
 The owner's decisions are the plan's. What was decided while building it, each the smallest thing that kept the

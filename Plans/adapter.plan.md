@@ -219,8 +219,12 @@ Three calls, the same for every source:
 | Call | Takes | Gives |
 |---|---|---|
 | `tables(source)` | a connection, the sandbox or a structure | names, columns and types |
-| `read(source, table, plan)` | a plan: columns, filters, sort, limit, group and totals | a stream of Arrow batches, and what was folded |
+| `read(source, table, plan)` | a plan: columns, filters (contains in any case, 1.9.0), sort, limit, group, a date's periods (1.8.0) and totals | a stream of Arrow batches, and what was folded |
 | `write(source, table, batches, key, mode)` | Arrow batches; insert, update, merge or delete | counts |
+| `write_all(source, writes)` (1.6.0) | several writes, all or none in one transaction | each one's counts |
+
+A plan's JSON keeps its values' types (`to_json(typed=True)`, 1.5.0); `Connection.planned` is a write's dry run
+through the connection (1.7.0).
 
 and the grids:
 

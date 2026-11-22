@@ -323,7 +323,8 @@ src/swissarmybench/
   sab_excel.py           public: THE workbook builder (Plans/excel.plan.md, the owner 2026-11-21), one file the
                          app, a kernel, a Streamlit app and an export share; standard library, openpyxl and
                          duckdb only: build(grids, design, template, out): no design a plain workbook
-                         streamed a batch at a time (the grid's Excel export; notes: its Provenance), a design
+                         streamed a batch at a time (the grid's Excel export; notes: its Provenance; its data
+                         rows' XML written here by the one rule, openpyxl the rest: 1.1.0), a design
                          the Accounting design (title, text, table: formats, widths, total row, conditional
                          colours, filter, a form's checks; pivot by DuckDB GROUPING SETS; Excel's own charts;
                          freeze panes, print setup; no sheets named: each grid one styled table), a template
@@ -987,17 +988,22 @@ src/swissarmybench/
                          and an export share, standard library + duckdb + pyarrow only: tables(source),
                          read(source, table, plan) -> (Arrow batches, Folded), query(source, sql, params) (its own
                          SQL: joins, CTEs; a write's count), write(source, table, batches, key, mode: insert,
-                         update, merge, delete, truncate) -> Counts, planned() (a write's dry run by reads),
+                         update, merge, delete, truncate) -> Counts, write_all(source, writes) (several writes
+                         in one transaction, all or none, each one's counts; Trino, OData, Rows, Files and Excel
+                         refuse two in one sentence), planned() (a write's dry run by reads),
                          table(name) and refresh(name) (a table is the data, a grid its view); Connection (what
-                         API.py's connection(name) gives, here and exported: tables, columns, read, query, write);
+                         API.py's connection(name) gives, here and exported: tables, columns, read, query, write,
+                         write_all, planned);
                          source_from(client) (a connection's own client or a file's path in its backend);
                          catalog_rows (tables as a listing's rows, descriptions too), listed(source) (a database's
                          whole catalog as its starter lists it: Dialect.listing and listing_shape); the Plan
-                         (columns, filters, sort, limit,
-                         offset, group, totals; what a source cannot fold done by DuckDB over the stream);
+                         (columns, filters (contains: in any case, literal), sort, limit, offset, group, periods
+                         (a date's year, quarter, month, week or day in each dialect's own SQL: period_sql), totals;
+                         its values' types kept through JSON: to_json(typed=True), plan_from; what a source cannot
+                         fold done by DuckDB over the stream, only the columns it needs read);
                          from_json (pages to Arrow with given types); sources DuckDB (a file, a connection, the
                          sandbox's gated cursor, the app's session as it is), Remote (the sandbox through
-                         /sandbox/data/<key>/tables|read|query|write, a kernel's open tables with the token), Sql
+                         /sandbox/data/<key>/tables|read|query|write|write_all, a kernel's open tables), Sql
                          (any DB-API connection; DIALECTS as data: quote, marks, LIMIT/OFFSET/FETCH, catalog; the
                          plan folded, writes in one transaction; SQL Server's and Azure SQL's writes their own
                          section: staged in the target's types from sys.columns, MERGE WITH (HOLDLOCK), TRUNCATE,
@@ -1023,7 +1029,7 @@ src/swissarmybench/
                          listed, read as Arrow by one set of type rules with columns and a limit folded,
                          rows written into a sheet by insert or truncate, the other sheets kept, the file
                          replaced safely; openpyxl imported only when a workbook is used, missing said in
-                         one sentence; header_names, typed, sheet_value). Version 1.4.0. Allowed 4,075
+                         one sentence; header_names, typed, sheet_value). Version 1.9.1. Allowed 4,450
                          lines (one file); it only grows (design principle 12b)
     call_stats.py        the open project's .sab/stats.json read, and written atomically only when it changes
     changes.py           the open project's .sab/changes.jsonl read, and one line appended per change

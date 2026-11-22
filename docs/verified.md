@@ -5345,3 +5345,75 @@ are files of both.
   large through the adapter's other sources (unchanged code); a workbook of a million rows read through the
   adapter (200,000 measured); the plain export's time on Windows; LibreOffice or Excel itself opening the files
   (read back with openpyxl only); a SharePoint document's bytes through adapter.Excel against a real site.
+
+## The adapter 1.5.0 to 1.9.1 for the endpoint wizard, and the plain Excel export's speed (branch adapter-6, 2026-11-22; DuckDB 2.0.0, pyarrow 26.0.1, openpyxl 3.1.5, sqlglot 30.24.0)
+
+Checked on Linux (Python 3.12), made-up data only. The app and the project scaffold: adapter.py (1.4.0 to 1.9.1) and
+sab_excel.py (1.0.0 to 1.1.0) are files of both. Each adapter version its own commit, each against every backend it
+touches; the test bed's real PostgreSQL 16 and MariaDB were up for 1.8.0 and 1.9.0 (tools/testbed/testbed.py up).
+- **1.5.0, a plan's values keep their type through JSON** (tests/test_adapter_plans.py): a date, a date and time (its
+  microseconds and its zone kept), a time and a decimal as {"sab_type", "value"} and back as the same type; a value
+  that is not one, or a sab_type not known, said in one sentence; the plain JSON as it was. The sandbox through
+  Remote filtered by a date, a date and time and a decimal at once (it failed before: "Object of type date is not
+  JSON serializable"); SQLite through Sql given a date and a decimal as its own text and number. Cost: 20.5 us a
+  plan's JSON round trip without, 24.9 with (20,000 plans of 3 filters).
+- **1.6.0, write_all** (tests/test_adapter_transactions.py, tests/test_adapter_sandbox.py): two tables, an update
+  and an insert, all or none, each one's counts, on a DuckDB file, SQLite, SQL Server's stand-in (a passing error on
+  the second write runs the whole set again on a fresh connection, once; a refusal rolls the first back), and the
+  sandbox through Remote (a key the sandbox refuses rolls the update back with it; the change log counts each);
+  Trino refuses two before anything is sent (one still writes, its NO_TRANSACTION note said), and so do OData,
+  Rows, Files and Excel, each in one sentence. A door's body whose streams do not match its JSON line: 422. DuckDB's
+  first try unregistered the rows inside the aborted transaction, which raised over the constraint's own error:
+  the rows are unregistered after the rollback.
+- **1.7.0, Connection.planned**: a merge's, a delete's, a truncate's and an insert's counts on DuckDB, SQLite, SQL
+  Server's own staged dry run (#sab_keys, rolled back) and the sandbox through Remote, nothing written.
+- **1.8.0, a plan's period**: every dialect's text for every unit (year, quarter, month, week, day) read back by
+  sqlglot, its period's expression and region grouped, its answer's columns named; no % in it but SQLite's (a
+  pyformat driver's marks); run for real on DuckDB, SQLite, the sandbox through Remote, the test bed's PostgreSQL
+  (every unit, beside a %s mark) and MariaDB (every unit through its own command line client: no Python driver
+  here): each period's first day and count as worked out by hand, a week from Monday. SQL Server's (DATEFROMPARTS,
+  and the week by DATEFIRST with no %) and Oracle's (TRUNC) by sqlglot only. OData (the stand-in's opportunities by
+  year) and Rows ask only for the columns the plan needs; OData's $orderby was built even when not sent, so a sort
+  by a total's name raised KeyError: built only when sent.
+- **1.9.0, contains**: in any case and the text literal (% and _ its own) on DuckDB, SQLite, the sandbox, Rows (by
+  DuckDB), OData (contains(name,'ER') sent; Dataverse compares strings in any case and takes no tolower: Microsoft
+  Learn, "Filter rows by using OData", so the stand-in now answers contains, startswith and endswith in any case;
+  a text with % _ [ ] left to DuckDB), the test bed's PostgreSQL and MariaDB (four texts each); every dialect's
+  `LOWER(column) LIKE ? ESCAPE '!'` read back by sqlglot, SQL Server's [ escaped too.
+- **1.9.1**: a period on DuckDB groups a date as it is: the cast to a timestamp first (for text dates) cost 37 ms on
+  Larkfield's 3.3M orders (96 ms, without 59, the old pattern's statement 63); a column held as text is cast, a
+  stream's string columns and a table's VARCHAR ones (tested both ways).
+- **Larkfield large** (10,001,903 order lines, 3,333,384 orders, 300,050 customers; made in 13.0 s, a 286 MB DuckDB
+  file, deleted after), adapter 1.4.0 against this branch's in fresh processes alternated, medians of 7 to 9 (the
+  machine noisy: the whole read's fastest runs 507 and 542 ms): the whole order lines read 634 / 608 ms, its peak
+  +777 / +776 MB; 3 columns filtered (4,362,916 rows, streamed) 150 / 141 ms, +106 / +104 MB; a 1M-row write 191 /
+  180 ms; two writes of 500,000 rows each into two tables, two calls / one write_all 257 / 185 ms; a month summary
+  of the orders, the old pattern's own statement through query / the plan's period 110 / 120 ms (fastest 87 / 104:
+  the difference is the catalog look-up every DuckDB plan read makes, not the period), +47 / +49 MB; a text search
+  of the customers, like / contains 72 / 75 ms (0 / 6,700 rows: like was in one case only). A plan with totals
+  through a Rows source over the orders: 1.4.0 read every column (493 ms, peak +306 MB), now only status and
+  shipping_fee (318 ms, +122 MB).
+- **The patterns on them** (tests/test_api_patterns.py, 28, the hosted API run with this branch's code): Summary one
+  plan for every source style (periods in the plan, since a date), Search and Choices by contains, Search's dates as
+  dates, no `.isoformat()` left in any pattern, Bulk upload's dry run the connection's planned (the hosted run's
+  counts as before), an Action with Also adds a row to (the key, the action's name, now; datetime.now() or
+  date.today() by its type), its refusals (another connection, no key column); through the hosted sandbox API a
+  close noted in audit, and a second close whose note the sandbox refuses changing nothing (orders' updates 4, the
+  audit's inserts 1); the nine exported for the three targets and run on a real SQLite connection.
+- **The plain Excel export, before and after** (1,000,000 made-up rows by 8 columns: whole numbers, text, a decimal
+  (10,2), a double, a date, a time, yes/no; one process, the same machine): sab_excel 1.0.0 (openpyxl's write-only
+  cells) 103.7 s, a 45.0 MB file, peak 306 MB (the made-up table alone 306 MB); 1.1.0 (the rows' XML written here,
+  openpyxl the rest) 19.6 s, 46.2 MB, peak 306 MB: 5.3 times faster, memory flat (the rows go through a temporary
+  file 10,000 at a time; 100,000 rows: +17 MB over the table). Of the rest: about a fifth is deflate (level 6, as
+  openpyxl's; level 1: 16.1 s and 57.3 MB, not taken), the rest the cells' text. Profiled before: 30 of 33 s was
+  openpyxl and et_xmlfile building and serializing an element per cell (no lxml here). The old and the new writer's
+  workbooks of every kind of value (whole numbers past 15 digits, NaN and infinities, =, #, @ and + texts, spaces,
+  a control character, & < >, a literal _x0041_, Unicode, yes/no, decimals of 10 and 22 digits, dates from
+  1899-12-30 to 9999-12-31, dates and times to the microsecond, a zoned column, times, durations, lists, records, a
+  null column) read back by openpyxl cell for cell the same: value, data type, number format, bold, frozen pane,
+  filter, dimension and widths (one width differed first: the sample measured a text before its _xHHHH_; now
+  after). LibreOffice 24 (soffice --convert-to csv) opened it and read each value as meant. The adapter's own
+  sheet write (keeping the other sheets: openpyxl's normal mode) was not changed: 100,000 rows by 3 in 3.6 s,
+  +108 MB (the workbook in memory).
+- **Not checked here**: SQL Server's, Oracle's, Snowflake's, Trino's and Databricks' period and contains SQL against
+  real servers (sqlglot only); Excel itself opening the new export (LibreOffice did); the export on Windows.
