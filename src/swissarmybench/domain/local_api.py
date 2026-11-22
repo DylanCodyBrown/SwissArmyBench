@@ -271,7 +271,7 @@ def _connections_and_sql(fn: ast.AST) -> tuple[list[str], list[dict[str, Any]]]:
         if callee.split(".")[-1] == "connection" and node.args and isinstance(node.args[0], ast.Constant):
             names.append(str(node.args[0].value))
         method = callee.split(".")[-1]
-        if method in ("execute", "executemany", "read_arrow", "sql") and node.args:
+        if method in ("query", "execute", "executemany", "read_arrow", "sql") and node.args:
             first = node.args[0]
             if isinstance(first, ast.Constant) and isinstance(first.value, str):
                 sql.append({"text": first.value, "line": first.lineno})
@@ -560,15 +560,16 @@ def scaffold(name: str) -> str:
     """API.py as New project writes it: the header, and one example endpoint left commented."""
     settings = Settings(name=f"{name} API" if name else Settings.name)
     return (
-        "\n".join(header_block(settings))  # noqa: S608 (the example's SQL is text in a comment)
+        "\n".join(header_block(settings))
         + '''
 """The project's local sandbox API: endpoints over the project's sandbox, for its app and anything
 else on this computer. Run it from the APIs page (Local sandbox APIs); Export makes it a FastAPI,
 Azure Functions or AWS Lambda project that uses the real connections.
 
-connection("<name>") is a mock of that connection's own client (the same methods), over the
-sandbox's tables read from it: Add to sandbox first (a grid's Table row). It never reaches the
-real connection.
+connection("<name>") is the adapter's calls on that connection: read(table, columns=, filters=,
+sort=, limit=), query(sql, params) in its own SQL, write(table, rows, key, mode), tables(). Here
+they read and write the sandbox's tables read from it (Add to sandbox first: a grid's Table row),
+never the real connection; an export runs the same code against the real one.
 """
 
 from typing import TypedDict
@@ -587,8 +588,7 @@ from sab_api import ApiError, connection, endpoint, records
 # def orders_in(region: str, limit: int = 100) -> list[Order]:
 #     """The orders of one region."""
 #     db = connection("Sandbox")
-#     db.execute("SELECT * FROM orders WHERE region = ? LIMIT ?", [region, limit])
-#     return records(db)
+#     return records(db.read("orders", filters=[["region", "=", region]], limit=limit))
 
 __all__ = ["ApiError", "TypedDict", "connection", "endpoint", "records"]
 '''

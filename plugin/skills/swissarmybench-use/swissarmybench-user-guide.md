@@ -1860,8 +1860,8 @@ data.
    list of records the same way. The APIs page's Sandbox panel adds a file, an empty table by its columns, or an
    open table, and shows each table's rows, where it came from and the client its rows answer as ("Mock of
    Warehouse (sqlserver)" for a table read from that connection). A table from a file or its columns can be
-   **Mocked as** one of your connections (the picker on its row): its mock client then takes that connection's kind
-   and SQL. Click a column heading (Table, Rows, From, Created, Last changed) to sort; again, the other way. The
+   **Mocked as** one of your connections (the picker on its row): an endpoint's `connection("Warehouse")` then reads
+   it as one of Warehouse's tables, its SQL in Warehouse's own dialect. Click a column heading (Table, Rows, From, Created, Last changed) to sort; again, the other way. The
    Catalog's Sandbox section sorts the same way (its Sort button).
    - **Edit in its grid.** Open a sandbox table in Grids: double-click a cell (or Enter, F2), type, Enter. A value
      its column cannot hold is said under the box. **Add row** and **Delete rows** are on the bar over the grid.
@@ -1869,9 +1869,12 @@ data.
    - **The Sandbox is a connection.** The Connections page shows the project's Sandbox (local test data, never
      live) in its own indigo, with its tables, the change log and Reset. DuckDB SQL names its tables
      `[Sandbox].orders`. It is never exported as a connection.
-2. **Write endpoints.** **New endpoint from a table…** writes list, get, create, update and delete into API.py in the
-   source's own style; or write your own with `@endpoint("GET", "/orders/{region}")`. `connection("Warehouse")` is a
-   mock with Warehouse's own client's methods over the sandbox.
+2. **Write endpoints.** **New endpoint from a table…** writes list, get, create, update and delete into API.py; or
+   write your own with `@endpoint("GET", "/orders/{region}")`. `connection("Warehouse")` gives the same calls here
+   and in an export: `read("orders", filters=[["region", "=", region]], limit=50)`, `query(sql, params)` in
+   Warehouse's own SQL (joins, CTEs), `write("orders", rows, key=["order_id"], mode="merge")`, `tables()`. Here
+   they read and write the sandbox's tables from Warehouse, never the real one; the exported API runs the same
+   code against Warehouse itself.
 3. **Run** it (127.0.0.1, its own key): **Try it** on each endpoint; the request log under it; the change log
    counts every row it inserted, updated or deleted. **Keep as its example** keeps the body you edited as the
    endpoint's example (Try it starts from it next time), in `.sab/api_examples.json` beside API.py.

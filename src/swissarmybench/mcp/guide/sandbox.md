@@ -55,26 +55,28 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
 
     @endpoint("GET", "/orders/{region}")
     def orders_in(region: str, limit: int = 100) -> list[Order]:
-        db = connection("Warehouse")       # a mock with Warehouse's own client's shape
-        with db.cursor() as cursor:        # T-SQL, as the real SQL Server would take it
-            cursor.execute("SELECT TOP (?) * FROM dbo.orders WHERE region = ?", limit, region)
-            return records(cursor)
+        db = connection("Warehouse")       # the adapter's calls on Warehouse (here: its sandbox tables)
+        return records(db.read("dbo.orders", filters=[["region", "=", region]], limit=limit))
 
 - A path's `{name}` is its parameter; a TypedDict, dataclass, dict or list parameter is the JSON body; the rest
   are the query's. `raise ApiError(404, "No order 7.")` answers that status. `status=201` on the decorator.
-- `connection(name)` is a mock of that connection's client over the sandbox's tables read from it (SQL Server's
-  SqlServer, Dataverse's Dataverse, SharePoint lists, any DB-API database, `connection("Sandbox")` a plain
-  DuckDB client). Its SQL is the source's own dialect and marks; what the mock cannot emulate (MERGE, EXEC,
-  temporary tables, system views, a Web API call) is refused with its line. It never reaches the real one.
-- Through a mock an API may make `CREATE [OR REPLACE] VIEW v AS SELECT ...`, `CREATE TABLE t AS SELECT ...`
+- `connection(name)` is the adapter's calls on that connection (the same in an export, against the real one;
+  here over the sandbox's tables read from it, never the real one): `tables()`, `columns(table)` (`name`,
+  `type`, `key`), `read(table, columns=, filters=[[column, op, value]], sort=[[column, "asc"|"desc"]],
+  limit=, offset=)` (a plan: the real source folds it into its own query), `query(sql, params)` (SQL a plan
+  cannot say, joins and CTEs, in the connection's OWN dialect and driver marks: T-SQL for SQL Server and
+  Dataverse's SQL endpoint, the driver's for a database, DuckDB's for `Sandbox`; a statement that returns no
+  rows answers one `count`), `write(table, rows, key=[...], mode=insert|update|merge|delete|truncate)` (rows: a
+  list of dicts or Arrow; all or none; the counts). Each answers Arrow; `records(x)` makes it dicts, and an
+  endpoint may return the Arrow as it is. What the sandbox cannot emulate in a query (MERGE, EXEC, temporary
+  tables, system views) is refused with its line. Dataverse's SQL is read-only (SELECT only). The old client
+  calls (`cursor()`, `execute`, `rows()`, `fetch`...) went with the mock clients (2026-11-22): said in one line.
+- Through `query` an API may make `CREATE [OR REPLACE] VIEW v AS SELECT ...`, `CREATE TABLE t AS SELECT ...`
   (T-SQL's `SELECT ... INTO t`), `CREATE SEQUENCE s` (`nextval('s')`, T-SQL's `NEXT VALUE FOR s`) and drop them;
   never over a table the user added. A view or table made is that connection's table from then on (its source
   "Made by the API"); Reset and Restore undo all of it. A view cannot hold a bound value (write it in its SQL).
-- The SQL mocks answer `tables()` (their tables, the views made among them) and `columns(table)` (`name`,
-  `type`, `key`): no system views needed.
-- `executemany(sql, rows)` is one call to the sandbox (a plain INSERT ... VALUES goes in as one columnar insert):
-  load rows with it, not a loop of execute(). A read past 10,000 rows comes back whole, as the real client
-  gives it (the mock follows the rest page by page): ask for less with LIMIT and OFFSET when that is all needed.
+- Load many rows with one `write(table, rows)` (one Arrow call, all or none), not a loop of queries. A read
+  streams every row: ask for less with `limit` and `offset` when that is all needed.
 - The body is checked against its model (a TypedDict's or a dataclass's fields, nested ones, `list[Model]`)
   before the endpoint runs: a wrong type, a missing required field or an unknown one is a 422, its `error` naming
   the field and `field` its path (`order.lines[0].quantity`). Numbers as FastAPI takes them: 3.0 or "3" for an
@@ -96,7 +98,7 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   written); `"body": null` forgets it.
 - From a kernel: `sab.api().get("/orders/West")`, `.post(path, json=...)`, `.put`, `.patch`, `.delete`.
 - In its editor (the Scripts page) API.py's own problems are squiggles (the same rules, a `connection("X")` with no
-  sandbox table, SQL the mock would refuse: `workbench_problems`); `sab_api`'s names and the sandbox's tables
+  sandbox table, SQL in a `query` the sandbox would refuse: `workbench_problems`); `sab_api`'s names and the sandbox's tables
   and columns complete. Its Endpoints panel (the status bar's toggle) has each endpoint's Try it beside the code.
 - Payloads through the adapter: an endpoint may return an Arrow table (`from sab_adapter import read, Plan`);
   it is answered as JSON records (or an Arrow IPC stream to a caller sending `Accept:
@@ -117,9 +119,8 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
 
 ## New endpoint from a table
 - `scaffold` `{"table": "orders", "key": "order_id"}`: the CRUD set appended to API.py (list with `limit` and
-  `offset`, get, create, update, delete by the key; a TypedDict of the columns), written in the source's own
-  style: DuckDB SQL for `Sandbox`, T-SQL through SQL Server's cursor, the driver's SQL and marks for another
-  database, OData reads for Dataverse (its writes go through the Write starters), list calls for SharePoint.
+  `offset`, get, create, update, delete by the key; a TypedDict of the columns), one style for every source:
+  `connection(name).read(...)` and `.write(...)`, the table named in its schema (`dbo.orders`).
 
 ## Widgets that use it, and their shapes
 - Prebuilt widgets: API table (a GET's rows, paged by `limit` and `offset`), API form (a POST or PUT from its body

@@ -21,9 +21,15 @@ from tests.test_local_api import API_PY
 
 
 def _amounts(server: dict[str, Any]) -> list[float]:
-    sql = "SELECT amount FROM orders_sandbox ORDER BY order_id"
-    read = call(server, "POST", "/sandbox/data", {"op": "query", "sql": sql})
-    return [r["amount"] for r in read["rows"]]
+    """The sandbox's rows as a local sandbox API reads them: the adapter's query on its door."""
+    from swissarmybench.adapters import sab_adapter
+
+    door = sab_adapter.Remote(
+        f"http://127.0.0.1:{server['port']}/sandbox/adapter",
+        headers={"Authorization": f"Bearer {server['token']}"},
+    )
+    read = sab_adapter.query(door, "SELECT amount FROM orders_sandbox ORDER BY order_id")
+    return [float(r["amount"]) for r in read.read_all().to_pylist()]
 
 
 def test_a_grid_table_made_a_variant_edited_in_its_grid_then_reset(

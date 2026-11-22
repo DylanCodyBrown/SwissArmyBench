@@ -13,13 +13,14 @@ POST  /sandbox/reset                 every table back to the baseline (agent: on
 POST  /sandbox/baseline              the sandbox as it is now made the baseline     sandbox_checkpoint
 POST  /sandbox/checkpoints           {"name", "action": save | delete}                      sandbox_checkpoint
 POST  /sandbox/checkpoints/restore   {"name"}                                                 sandbox_restore
-POST  /sandbox/data                  a mock client's data call (the token)
-POST  /sandbox/data/{key}            a running local sandbox API's data call: its own key in the path
-                                     instead of the token (server/security.py's secret paths)
-POST  /sandbox/adapter/{tables|read|write}  the three below with the token (an in-app caller, a test)
-POST  /sandbox/data/{key}/tables     sab_adapter.Remote's tables(source): {"connection"}
+POST  /sandbox/adapter/{tables|read|query|write}  the four below with the token (an in-app caller, a test)
+POST  /sandbox/data/{key}/tables     sab_adapter.Remote's tables(source): {"connection"}; a running local
+                                     sandbox API's own key in the path instead of the token
+                                     (server/security.py's secret paths)
 POST  /sandbox/data/{key}/read       its read: {"connection", "table", "plan"}; an Arrow IPC stream
                                      (X-Sab-Folded: the plan's parts folded)
+POST  /sandbox/data/{key}/query      its query: {"connection", "sql", "params"}: the connection's own SQL made
+                                     DuckDB SQL over its sandbox tables; an Arrow IPC stream
 POST  /sandbox/data/{key}/write      its write: an Arrow IPC stream; ?connection&table&key&mode; the counts
 """
 
@@ -49,12 +50,6 @@ ADAPTER = "/sandbox/adapter"  # the adapter's calls with the token (the key'd on
 
 
 def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRoute]:
-    async def by_key(request: Request) -> Response:
-        key = str(request.path_params["key"])
-        if not any(secrets.compare_digest(key, k) for k in keys()):
-            return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        return json_response(await sandbox.data(await read_json(request), "api"))
-
     def allowed(request: Request) -> bool:
         """A key'd path: a running local sandbox API's own key; the token's path: the guard checked it."""
         key = request.path_params.get("key")
@@ -73,6 +68,13 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         return StreamingResponse(
             _ipc(reader), media_type=ARROW_STREAM, headers={"X-Sab-Folded": ",".join(folded)}
         )
+
+    async def adapter_query(request: Request) -> Response:
+        """sab_adapter.Remote's query: the connection's own SQL, its answer an Arrow IPC stream."""
+        if not allowed(request):
+            return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
+        reader = await sandbox.query_arrow(await read_json(request), "api")
+        return StreamingResponse(_ipc(reader), media_type=ARROW_STREAM)
 
     async def adapter_write(request: Request) -> Response:
         """sab_adapter.Remote's write: an Arrow IPC stream's rows; the names in the query string."""
@@ -97,13 +99,13 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         Route("/sandbox/baseline", with_body(sandbox.set_baseline), methods=["POST"]),
         Route("/sandbox/checkpoints", with_body(sandbox.checkpoint), methods=["POST"]),
         Route("/sandbox/checkpoints/restore", with_body(sandbox.restore), methods=["POST"]),
-        Route("/sandbox/data", with_body(sandbox.data), methods=["POST"]),
-        Route(DATA_PREFIX + "{key}", by_key, methods=["POST"]),
         Route(ADAPTER + "/tables", adapter_tables, methods=["POST"]),
         Route(ADAPTER + "/read", adapter_read, methods=["POST"]),
+        Route(ADAPTER + "/query", adapter_query, methods=["POST"]),
         Route(ADAPTER + "/write", adapter_write, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/tables", adapter_tables, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/read", adapter_read, methods=["POST"]),
+        Route(DATA_PREFIX + "{key}/query", adapter_query, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/write", adapter_write, methods=["POST"]),
     ]
 

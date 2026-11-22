@@ -56,26 +56,20 @@ class Order(TypedDict):
 def orders_in(region: str, limit: int = 100) -> list[Order]:
     """The orders of one region."""
     db = connection("Sandbox")
-    db.execute("SELECT * FROM orders WHERE region = ? ORDER BY order_id LIMIT ?", [region, limit])
-    return records(db)
+    found = db.query("SELECT * FROM orders WHERE region = ? ORDER BY order_id LIMIT ?", [region, limit])
+    return records(found)
 
 
 @endpoint("POST", "/orders", status=201)
 def add_order(order: Order) -> Order:
     """Add an order."""
-    db = connection("Sandbox")
-    db.execute(
-        "INSERT INTO orders (order_id, region, amount) VALUES (?, ?, ?)",
-        [order["order_id"], order["region"], order["amount"]],
-    )
+    connection("Sandbox").write("orders", [order])
     return order
 
 
 @endpoint("GET", "/orders/one/{order_id}")
 def one_order(order_id: int) -> Order:
-    db = connection("Sandbox")
-    db.execute("SELECT * FROM orders WHERE order_id = ?", [order_id])
-    found = records(db)
+    found = records(connection("Sandbox").read("orders", filters=[["order_id", "=", order_id]]))
     if not found:
         raise ApiError(404, f"No order {order_id}.")
     return found[0]
@@ -363,10 +357,11 @@ def test_the_crud_set_compiles_in_every_source_style() -> None:
         assert not api.problems, (source, api.problems)
         assert {e.name for e in api.endpoints} >= {"list_orders", "get_orders"}
         assert "OrdersRow" in api.models and api.models["OrdersRow"].fields["placed"][0] == "date"
+    # One style for every source (phase 3): the adapter's calls, its schema in the table's name.
     tsql = scaffold.crud("orders", columns, scaffold.Source("database", "Warehouse", "sqlserver", "dbo"))
-    assert "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY', offset, limit)" in tsql and "[dbo].[orders]" in tsql
+    assert "connection('Warehouse').read('dbo.orders', sort=[['order_id', \"asc\"]]" in tsql
     odata = scaffold.crud("orders", columns, scaffold.Source("dataverse", "Sales CRM", "dataverse"))
-    assert 'filter=f"order_id eq {value}"' in odata and "create_orders" not in odata
+    assert "create_orders" in odata and 'mode="update"' in odata
     with pytest.raises(scaffold.ScaffoldError, match="has list_orders already"):
         scaffold.crud("orders", columns, scaffold.Source("duckdb", "Sandbox"), taken=["list_orders"])
     with pytest.raises(scaffold.ScaffoldError, match="no column nope"):
@@ -402,7 +397,10 @@ def test_new_endpoint_from_a_table_runs_its_crud_set_on_the_mocks(live: int, tmp
     assert by["list_invoices"]["data"] == ["Mock of Warehouse (sqlserver)"]
     assert by["list_orders"]["data"] == ["The sandbox (plain DuckDB)"]
     text = (folder / "API.py").read_text(encoding="utf-8")
-    assert "FETCH NEXT ? ROWS ONLY" in text and "LIMIT ? OFFSET ?" in text
+    assert (
+        "connection('Warehouse').read('dbo.invoices'" in text
+        and "connection('Sandbox').read('orders'" in text
+    )
     assert _ask(port, "POST", "/local-api/run", {})["running"]
 
     def call(method: str, path: str, body: Any = None, query: dict[str, Any] | None = None) -> Any:

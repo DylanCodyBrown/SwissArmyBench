@@ -19,7 +19,6 @@ import contextlib
 import copy
 import shutil
 import threading
-import warnings
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
@@ -355,6 +354,21 @@ class SandboxFiles:
         done = sab_adapter.write(self.source(), name, reader, key, mode)
         return {"inserted": done.inserted, "updated": done.updated, "deleted": done.deleted}
 
+    def query_arrow(self, sql: str, params: Any) -> pa.RecordBatchReader:
+        """The adapter's query for a read (DuckDB SQL, the source's made so): streamed under the gate."""
+        return sab_adapter.query(self.source(), sql, params)
+
+    def change_arrow(self, sql: str, params: Any) -> tuple[pa.Table, int]:
+        """A write: its answer (RETURNING rows, else its count) and the rows it changed."""
+        answer = sab_adapter.query(self.source(), sql, params).read_all()
+        if answer.column_names == [sab_adapter.COUNT]:
+            return answer, int(answer.column(0)[0].as_py() or 0) if answer.num_rows else 0
+        return answer, answer.num_rows
+
+    @staticmethod
+    def counted(rows: int) -> pa.RecordBatchReader:
+        return sab_adapter.counted(rows)
+
     # ===== an API's reads and writes =====
 
     def query(
@@ -374,49 +388,6 @@ class SandboxFiles:
             finally:
                 cursor.close()
         return columns, types, [list(r) for r in rows[:limit]], len(rows) > limit
-
-    def query_paged(
-        self, statement: rules.Statement, page: int
-    ) -> tuple[list[str], list[str], list[list[Any]], pa.Table | None]:
-        """A read for a mock client, whose real client hands back every row: its first `page` rows, and the
-        rest (None: there is none) taken as Arrow while the gate is held, so no cursor stays open on the file
-        (Reset and Restore replace it) and the rest is a snapshot of this read."""
-        with self._gate.shared():
-            cursor = self._open().cursor()
-            try:
-                result = cursor.execute(statement.sql, statement.params)
-                described = result.description or []
-                columns = [str(d[0]) for d in described]
-                types = [str(d[1]) for d in described]
-                rows = result.fetchmany(page)
-                rest: pa.Table | None = None
-                if len(rows) == page:
-                    with warnings.catch_warnings():  # the copy it warns of is the point: the rest kept
-                        warnings.simplefilter("ignore")
-                        reader: Any = result.to_arrow_reader(MAX_BATCH)
-                        rest = reader.read_all()
-                    if rest is not None and rest.num_rows == 0:
-                        rest = None
-            finally:
-                cursor.close()
-        return columns, types, [list(r) for r in rows], rest
-
-    def change(self, statement: rules.Statement) -> tuple[list[str], list[str], list[list[Any]]]:
-        """One write in its own transaction: what it answers (its RETURNING rows, else its count)."""
-        with self._gate.shared():
-            con = self._open().cursor()
-            con.execute("BEGIN TRANSACTION")
-            try:
-                result = con.execute(statement.sql, statement.params)
-                described = result.description or []
-                rows = [list(r) for r in result.fetchall()]
-                con.execute("COMMIT")
-            except BaseException:
-                con.execute("ROLLBACK")
-                raise
-            finally:
-                con.close()
-        return [str(d[0]) for d in described], [str(d[1]) for d in described], rows
 
     def write(self, groups: Sequence[Sequence[rules.Statement]]) -> list[int]:
         """Each group's statements, all in one transaction: the rows each group changed, all or none."""
@@ -438,52 +409,6 @@ class SandboxFiles:
             finally:
                 con.close()
             return counts
-
-    def insert_columns(self, table: str, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> int:
-        """Many rows into a table's columns in one statement and one transaction (an executemany of a plain
-        INSERT ... VALUES): the rows as one Arrow table, each value cast to its column's type by DuckDB."""
-        incoming = pa.table(
-            {f"c{i}": pa.array([r[i] for r in rows]) for i in range(len(columns))}
-            if rows
-            else {f"c{i}": pa.array([], pa.null()) for i in range(len(columns))}
-        )
-        names = ", ".join(rules.quote(c) for c in columns)
-        picked = ", ".join(f'"c{i}"' for i in range(len(columns)))
-        with self._gate.shared():
-            cursor = self._open().cursor()
-            try:
-                cursor.register("__sab_many", incoming)
-                cursor.execute("BEGIN TRANSACTION")
-                try:
-                    cursor.execute(
-                        f"INSERT INTO {rules.quote(table)} ({names}) SELECT {picked} FROM __sab_many"  # noqa: S608
-                    )
-                    cursor.execute("COMMIT")
-                except BaseException:
-                    cursor.execute("ROLLBACK")
-                    raise
-                cursor.unregister("__sab_many")
-            finally:
-                cursor.close()
-        return len(rows)
-
-    def change_many(self, sql: str, sets: Sequence[Sequence[Any]]) -> int:
-        """One statement for each parameter set, all in one transaction: the rows they changed."""
-        with self._gate.shared():
-            con = self._open().cursor()
-            con.execute("BEGIN TRANSACTION")
-            changed = 0
-            try:
-                for params in sets:
-                    found = con.execute(sql, list(params)).fetchall()
-                    changed += int(found[0][0]) if found and isinstance(found[0][0], int) else 0
-                con.execute("COMMIT")
-            except BaseException:
-                con.execute("ROLLBACK")
-                raise
-            finally:
-                con.close()
-            return changed
 
     # ===== baseline, reset, checkpoints =====
 

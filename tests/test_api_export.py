@@ -55,19 +55,14 @@ class Customer(TypedDict):
 @endpoint("GET", "/customers")
 def customers(city: str = "") -> list[Customer]:
     db = connection("Shop")
-    cursor = db.cursor()
     if city:
-        cursor.execute("SELECT customer_id, city FROM customers WHERE city = ? ORDER BY customer_id", (city,))
-    else:
-        cursor.execute("SELECT customer_id, city FROM customers ORDER BY customer_id")
-    return records(cursor)
+        return records(db.query("SELECT customer_id, city FROM customers WHERE city = ? ORDER BY customer_id", [city]))
+    return records(db.read("customers", columns=["customer_id", "city"], sort=[["customer_id", "asc"]]))
 
 
 @endpoint("GET", "/customers/{customer_id}")
 def customer(customer_id: int) -> Customer:
-    cursor = connection("Shop").cursor()
-    cursor.execute("SELECT customer_id, city FROM customers WHERE customer_id = ?", (customer_id,))
-    found = records(cursor)
+    found = records(connection("Shop").read("customers", filters=[["customer_id", "=", customer_id]]))
     if not found:
         raise ApiError(404, f"No customer {customer_id}.")
     return found[0]
@@ -368,16 +363,11 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
         {"customer_id": 3, "city": "Springfield"},
         [{"customer_id": 1, "city": "Springfield"}, {"customer_id": 3, "city": "Springfield"}],
     ]
-    # The sandbox's mock of Shop answers the same SQL alike (tests/test_local_api.py runs the API itself).
+    # The sandbox's tables from Shop answer the same SQL alike (tests/test_local_api.py runs the API itself).
+    from tests.test_sandbox_query import arrow_rows, query
+
     sql = "SELECT customer_id, city FROM customers WHERE city = ? ORDER BY customer_id"
-    mock = ok(
-        client.post(
-            "/sandbox/data",
-            json={"op": "sql", "connection": "Shop", "sql": sql, "params": ["Springfield"]},
-            headers=AUTH,
-        )
-    )
-    assert [dict(zip(mock["columns"], r, strict=True)) for r in mock["rows"]] == lam[0][1]
+    assert arrow_rows(query(client, sql, ["Springfield"], connection="Shop")) == lam[0][1]
 
 
 def test_a_hand_edited_file_is_kept_and_a_stale_one_goes(shop: tuple[TestClient, Path]) -> None:

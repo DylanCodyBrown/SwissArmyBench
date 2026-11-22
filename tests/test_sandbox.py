@@ -22,11 +22,13 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.adapters.database import duckdb_grammar
 from swissarmybench.adapters.sandbox import SandboxFiles
 from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain.sandbox import SandboxError
 from tests.conftest import AGENT, AUTH, make_client
+from tests.test_sandbox_query import TestRemote
 
 ORDERS = "order_id,region,amount\n1,West,10.5\n2,East,7.25\n3,West,3.0\n"
 
@@ -191,31 +193,18 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
             return int(ok(client.get(f"/grids/{box_grid}/count", headers=AUTH))["row_count"])
 
         assert rows() == 3
-        # An API's writes: counted, the grid following.
-        write = {
-            "op": "batch",
-            "ops": [
-                {
-                    "op": "insert",
-                    "table": "orders",
-                    "rows": [{"order_id": 4, "region": "North", "amount": 1.5}],
-                },
-                {"op": "update", "table": "orders", "values": {"amount": 99}, "where": {"order_id": 1}},
-                {"op": "delete", "table": "orders", "where": {"region": "East"}},
-            ],
-        }
-        assert ok(client.post("/sandbox/data", json=write, headers=AUTH))["counts"] == [1, 1, 1]
+        # An API's writes through the adapter: counted, the grid following.
+        db = sab_adapter.Connection(TestRemote(client, "Sandbox"))
+        assert db.write("orders", [{"order_id": 4, "region": "North", "amount": 1.5}]).inserted == 1
+        assert db.query("UPDATE orders SET amount = 99 WHERE order_id = ?", [1]).read_all().to_pylist() == [
+            {"count": 1}
+        ]
+        assert db.write("orders", [{"region": "East"}], key=["region"], mode="delete").deleted == 1
         assert rows() == 3
         log = ok(client.get("/sandbox", headers=AUTH))
         assert log["log"] == {"orders": {"inserted": 1, "updated": 1, "deleted": 1}}
-        read = ok(
-            client.post(
-                "/sandbox/data",
-                json={"op": "query", "sql": "SELECT amount FROM orders WHERE order_id = ?", "params": [1]},
-                headers=AUTH,
-            )
-        )
-        assert read["rows"] == [{"amount": 99.0}]
+        read = db.query("SELECT amount FROM orders WHERE order_id = ?", [1]).read_all()
+        assert read.to_pylist() == [{"amount": 99.0}]
         # DuckDB SQL names it [Sandbox].orders, read again after a write.
         built = ok(
             client.post(
@@ -228,13 +217,13 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
         assert first["rows"][0][0] == 3
         # A checkpoint, more writes, then Reset to the baseline.
         ok(client.post("/sandbox/checkpoints", json={"name": "after edits"}, headers=AUTH))
-        ok(client.post("/sandbox/data", json={"op": "delete", "table": "orders", "all": True}, headers=AUTH))
+        db.query("DELETE FROM orders")
         assert rows() == 0
         # One table back alone first: the others keep their changes.
-        ok(client.post("/sandbox/data", json={"op": "delete", "table": "west", "all": True}, headers=AUTH))
+        db.query("DELETE FROM west")
         one = ok(client.post("/sandbox/reset", json={"table": "west"}, headers=AUTH))
         assert one["undone"] == {"west": {"inserted": 0, "updated": 0, "deleted": 2}}
-        assert ok(client.post("/sandbox/data", json={"op": "table", "table": "west"}, headers=AUTH))["rows"]
+        assert db.read("west").read_all().num_rows
         assert rows() == 0
         reset = ok(client.post("/sandbox/reset", json={}, headers=AUTH))
         assert reset["undone"]["orders"]["deleted"] == 4
@@ -253,20 +242,11 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
         section = next(s for s in browse["sections"] if s["kind"] == "sandbox")
         assert {i["name"] for i in section["items"]} == {"notes", "orders", "west"}
         # A write naming a column that is not there: one sentence, nothing written.
-        bad = client.post(
-            "/sandbox/data", json={"op": "insert", "table": "orders", "row": {"nope": 1}}, headers=AUTH
-        )
-        assert bad.status_code == 400 and "no column named nope" in bad.text
-        dup = client.post(
-            "/sandbox/data",
-            json={"op": "insert", "table": "notes", "rows": [{"id": 1}, {"id": 1}]},
-            headers=AUTH,
-        )
-        assert dup.status_code == 400
-        assert (
-            ok(client.post("/sandbox/data", json={"op": "table", "table": "notes"}, headers=AUTH))["rows"]
-            == []
-        )
+        with pytest.raises(sab_adapter.AdapterError, match="nope"):
+            db.write("orders", [{"nope": 1}])
+        with pytest.raises(sab_adapter.AdapterError, match="duplicate key"):
+            db.write("notes", [{"id": 1}, {"id": 1}])
+        assert db.read("notes").read_all().num_rows == 0
 
 
 def test_a_connections_table_is_read_once_and_remembers_its_client(tmp_path: Path) -> None:
@@ -307,7 +287,7 @@ def test_the_agents_reset_waits_for_the_users_allow(tmp_path: Path) -> None:
                 "/sandbox/tables", json={"from": "columns", "name": "t", "columns": cols}, headers=AGENT
             )
         )
-        ok(client.post("/sandbox/data", json={"op": "insert", "table": "t", "row": {"id": 1}}, headers=AGENT))
+        sab_adapter.Connection(TestRemote(client, "Sandbox")).write("t", [{"id": 1}])
         answer: dict[str, Any] = {}
         waiting = threading.Thread(
             target=lambda: answer.update(r=client.post("/sandbox/reset", json={}, headers=AGENT))
@@ -323,12 +303,11 @@ def test_the_agents_reset_waits_for_the_users_allow(tmp_path: Path) -> None:
         ok(client.post(f"/agent/approvals/{pending[0]['id']}", json={"approve": False}, headers=AUTH))
         waiting.join(10)
         assert answer["r"].status_code == 403
-        assert ok(client.post("/sandbox/data", json={"op": "table", "table": "t"}, headers=AUTH))["rows"] == [
-            {"id": 1}
-        ]
+        found = sab_adapter.Connection(TestRemote(client, "Sandbox")).read("t").read_all()
+        assert found.to_pylist() == [{"id": 1}]
 
 
 def test_a_running_apis_key_path_needs_its_own_key(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
-        refused = client.post("/sandbox/data/not-a-key", json={"op": "tables"})
+        refused = client.post("/sandbox/data/not-a-key/tables", json={"connection": "Sandbox"})
         assert refused.status_code == 403

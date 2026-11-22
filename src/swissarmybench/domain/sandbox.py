@@ -38,9 +38,7 @@ META_FILE = "sandbox.json"
 GRID_PREFIX = "sandbox_"  # an open grid of a sandbox table: sandbox_orders
 FORMAT = 1
 PLAIN = "duckdb"  # a table from a file or made empty: mocked as a plain DuckDB client
-MAX_ROWS_ANSWERED = 10_000  # a query's rows sent back at once (a mock's read: the rest in pages of as many)
-MAX_KEPT_READS = 16  # a mock's reads whose rest is kept for its next page at once (the oldest dropped)
-REST_GONE = "The rest of that read is gone (the sandbox keeps the last 16 unfinished reads): read it again."
+MAX_ROWS_ANSWERED = 10_000  # a table_read's rows at most
 MAX_WRITE_ROWS = 5_000  # rows one insert takes
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")

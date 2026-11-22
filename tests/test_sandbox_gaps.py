@@ -19,6 +19,7 @@ from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain.sandbox import SandboxError
 from tests.conftest import AGENT, AUTH, make_client
 from tests.test_local_api import API_PY
+from tests.test_sandbox_query import arrow_rows, query
 
 ORDERS = "order_id,region,amount\n1,West,10.5\n2,East,7.25\n3,West,3.0\n4,North,12.0\n"
 
@@ -249,15 +250,10 @@ def test_list_struct_and_map_cells_are_edited_as_json_and_checked_against_their_
                 headers=AGENT,
             )
         )
-        got = ok(
-            client.post(
-                "/sandbox/data",
-                json={"op": "sql", "connection": "Sandbox", "sql": "SELECT * FROM shapes ORDER BY id"},
-                headers=AUTH,
-            )
-        )
-        assert got["rows"][1] == [2, ["blue", "green"], {"x": 7, "label": "z"}, {"q": 3}]
-        assert got["rows"][2][:2] == [3, ["x"]]
+        got = [list(r.values()) for r in arrow_rows(query(client, "SELECT * FROM shapes ORDER BY id"))]
+        assert got[1][:3] == [2, ["blue", "green"], {"x": 7, "label": "z"}]
+        assert dict(got[1][3]) == {"q": 3}  # a MAP, as Arrow carries it
+        assert got[2][:2] == [3, ["x"]]
         wrong = client.post(
             "/sandbox/edit",
             json={"table": "shapes", "op": "update", "where": {"id": 1}, "values": {"pt": {"y": 1}}},
@@ -304,13 +300,7 @@ def test_an_edit_on_a_row_that_changed_says_so(tmp_path: Path) -> None:
         assert dup.status_code == 400  # the key is taken: nothing written
         ok(client.post("/sandbox/tables/open", json={"table": "notes"}, headers=AUTH))
         # Changed by an API since it was shown: the grid shows it again, nothing written.
-        ok(
-            client.post(
-                "/sandbox/data",
-                json={"op": "update", "table": "notes", "values": {"id": 2}, "where": {"id": 1}},
-                headers=AUTH,
-            )
-        )
+        arrow_rows(query(client, "UPDATE notes SET id = 2 WHERE id = 1"))
         # (the grid followed at once, so the edit below names the row as it is now)
         ok(
             client.post(
@@ -321,8 +311,7 @@ def test_an_edit_on_a_row_that_changed_says_so(tmp_path: Path) -> None:
         )
         where = {"table": "notes", "op": "update", "where": {"id": 2}, "values": {"note": "by key"}}
         assert ok(client.post("/sandbox/edit", json=where, headers=AGENT))["rows"] == 1
-        read = ok(client.post("/sandbox/data", json={"op": "table", "table": "notes"}, headers=AUTH))
-        assert read["rows"] == [{"id": 2, "note": "by key"}]
+        assert arrow_rows(query(client, "SELECT * FROM notes")) == [{"id": 2, "note": "by key"}]
         past = client.post(
             "/sandbox/edit", json={"table": "notes", "op": "delete", "rows": [7]}, headers=AUTH
         )
@@ -366,10 +355,14 @@ def test_mocked_as_a_connection(tmp_path: Path) -> None:
         )
         assert mocked["client"]["connection"] == "Shop" and mocked["client"]["dialect"] == "sqlite"
         # Its mock client is Shop's now: its kind and dialect, its tables.
-        client_of = ok(
-            client.post("/sandbox/data", json={"op": "client", "connection": "Shop"}, headers=AUTH)
-        )
-        assert set(client_of["tables"]) == {"orders", "customers"} and client_of["dialect"] == "sqlite"
+        from swissarmybench.adapters import sab_adapter
+        from tests.test_sandbox_query import TestRemote
+
+        assert {t.name for t in sab_adapter.tables(TestRemote(client, "Shop"))} == {"orders", "customers"}
+        # its SQL is SQLite's now (the sandbox makes it DuckDB's): a SQLite function answers
+        sqlite_sql = "SELECT ifnull(NULL, 'x') AS v FROM orders LIMIT 1"
+        said = arrow_rows(query(client, sqlite_sql, connection="Shop"))
+        assert said == [{"v": "x"}]
         assert ok(client.get("/sandbox", headers=AUTH))["tables"][1]["mocked"] in (True, False)
         refused = client.post(
             "/sandbox/tables/mock", json={"table": "customers", "connection": "Shop"}, headers=AUTH
@@ -471,11 +464,7 @@ def test_the_agents_catalog_commands_sort_the_sandbox_as_the_catalog_does(tmp_pa
                 )
             )
             for at in range(rows):
-                ok(
-                    client.post(
-                        "/sandbox/data", json={"op": "insert", "table": name, "row": {"id": at}}, headers=AUTH
-                    )
-                )
+                arrow_rows(query(client, f"INSERT INTO {name} (id) VALUES (?)", [at]))  # noqa: S608 (made-up names)
 
         def names(answer: dict[str, Any]) -> list[str]:
             return [i["name"] for i in next(s for s in answer["sections"] if s["kind"] == "sandbox")["items"]]

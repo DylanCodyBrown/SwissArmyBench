@@ -3,22 +3,28 @@ kernel, a local sandbox API's process, an exported project). It holds nothing: a
 batches from its source, a write streams them into it, and only tables (named Arrow tables) stay: a grid is
 only a view of one.
 
-    from sab_adapter import Filter, Plan, read, table, tables, write
+    from sab_adapter import Filter, Plan, query, read, table, tables, write
 
     reader, folded = read("Warehouse", "orders", Plan(columns=("id", "amount"), filters=(Filter("region",
                           "=", "North"),), limit=100))
     for batch in reader: ...                  # Arrow record batches, as the source answers them
+    query("Warehouse", "SELECT ... JOIN ...", [region])   # the source's own SQL (joins, CTEs) -> Arrow
     write("Warehouse", "orders", rows, key=("id",), mode="merge")   # -> Counts(inserted, updated, deleted)
+
+    db = Connection("Warehouse")              # what API.py's connection(name) hands out: the same calls
+    db.read("orders", filters=[["region", "=", "North"]], limit=100); db.query(sql, params); db.write(...)
 
 It reads top to bottom in the order a call runs:
 
   1. The plan       what a read asks for (columns, filters, sort, limit, offset, group, totals), and what
                     its source folded
-  2. Sources        a source is three functions (tables, read, write); DuckDB (a file, or a connection given),
-                    Remote (the project's sandbox through the app, for a local sandbox API's process)
-  3. The calls      tables(source), read(source, table, plan), write(source, table, batches, key, mode): by a
-                    source's name (use() says how a name is found) or the source itself; what a source could
-                    not fold is finished here, in DuckDB, over the stream
+  2. Sources        a source is three functions (tables, read, write), and query when it speaks SQL; DuckDB (a
+                    file, or a connection given), Remote (the project's sandbox through the app, for a local
+                    sandbox API's process), Sql, OData, Rows; source_from(client) wraps a real client
+  3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
+                    table, batches, key, mode): by a source's name (use() says how a name is found) or
+                    the source itself; what a source could not fold is finished here, in DuckDB, over the
+                    stream; Connection(name): the same calls on one source (API.py's connection(name))
   4. JSON to Arrow  pages of records (an API's answer, a request's body) made Arrow by DuckDB, page by page,
                     with the types given (else the first page's)
   5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
@@ -233,6 +239,31 @@ class Source(Protocol):
 
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts: ...
 
+    # and, for a source that speaks SQL: query(self, sql: str, params: Sequence[Any]) -> pa.RecordBatchReader
+
+
+READS = ("SELECT", "WITH", "FROM", "VALUES", "TABLE", "SHOW", "DESCRIBE", "SUMMARIZE", "EXPLAIN", "PRAGMA")
+COUNT = "count"  # the one column a statement that returns no rows answers: the rows it changed
+
+
+Params = Sequence[Any] | Mapping[str, Any]  # a query's values: by place (its marks), or by name
+
+
+def _given(params: Params) -> Any:
+    return {str(k): v for k, v in params.items()} if isinstance(params, Mapping) else list(params)
+
+
+def reads_only(sql: str) -> bool:
+    """Whether a statement only reads (its first word; a comment before it skipped)."""
+    text = re.sub(r"^(\s|--[^\n]*\n|/\*.*?\*/)+", "", str(sql), flags=re.S)
+    head = text.split(None, 1)[0].upper().strip("(") if text.strip() else ""
+    return head in READS
+
+
+def counted(rows: int) -> pa.RecordBatchReader:
+    """A statement that returned no rows, answered as one row of its `count`."""
+    return pa.table({COUNT: pa.array([max(int(rows), 0)], pa.int64())}).to_reader()
+
 
 def quote(name: str) -> str:
     return '"' + str(name).replace('"', '""') + '"'
@@ -377,6 +408,24 @@ class DuckDB:
                     con.unregister("sab_incoming")
             return done
 
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """DuckDB's own SQL: a read streamed as it is made; a write run at once in its own transaction,
+        answering its RETURNING rows, else its count."""
+        if reads_only(sql):
+
+            def run(con: Any, _table: str, _plan: Plan) -> tuple[str, Any]:
+                return sql, _given(params)
+
+            return _stream(self._connect, run, "", Plan())
+        with self._connect(True) as con:
+            found = con.sql(sql, params=_given(params))
+            if found is None:
+                return counted(0)
+            made = found.to_arrow_table()
+        if made.column_names == ["Count"]:
+            return counted(int(made.column(0)[0].as_py() or 0) if made.num_rows else 0)
+        return made.to_reader()
+
 
 def _relations(con: Any) -> list[tuple[str, str, str]]:
     """Each table and view of the database: its listed name (table, or schema.table outside main), schema,
@@ -409,7 +458,7 @@ def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool]]:
 
 
 def _stream(
-    connect: Connect, query: Callable[[Any, str, Plan], tuple[str, list[Any]]], table: str, plan: Plan
+    connect: Connect, query: Callable[[Any, str, Plan], tuple[str, Any]], table: str, plan: Plan
 ) -> pa.RecordBatchReader:
     """The query's answer as a reader that keeps its connection only while it is read: the batches come as
     DuckDB makes them, never all at once."""
@@ -512,6 +561,15 @@ class Remote:
         answer = json.loads(self._post("/write?" + query, sink.getvalue().to_pybytes()).read())
         return Counts(int(answer["inserted"]), int(answer["updated"]), int(answer["deleted"]))
 
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """The source's own SQL, answered as Arrow (the sandbox makes it DuckDB SQL over its tables)."""
+        body = json.dumps(
+            {"connection": self.connection, "sql": sql, "params": _given(params)}, default=_json_value
+        ).encode()
+        answer = self._post("/query", body)
+        reader = ipc.open_stream(answer)
+        return pa.RecordBatchReader.from_batches(reader.schema, _closing(reader, answer))
+
     def _post(self, path: str, body: bytes) -> http.client.HTTPResponse:
         parts = urllib.parse.urlsplit(self.url + path)
         connection = http.client.HTTPConnection(parts.hostname or "127.0.0.1", parts.port or 80, timeout=600)
@@ -525,8 +583,20 @@ class Remote:
                 said = str(json.loads(raw or b"{}").get("error") or answer.reason)
             except ValueError:
                 said = answer.reason
-            raise AdapterError(said)
+            raise AdapterError(sql_line(said))
         return answer
+
+
+def sql_line(said: str) -> str:
+    """A refusal that starts with its SQL's own line ("Line 3: ..."), said without a second "Line" (the
+    endpoint's own line is the caller's): the first line of the SQL goes unsaid, a later one is "(line 3 of
+    its SQL)"."""
+    found = re.match(r"Line (\d+): (.*)$", said, re.S)
+    if not found:
+        return said
+    rest = found.group(2)
+    rest = rest[:1].upper() + rest[1:]
+    return rest if found.group(1) == "1" else f"{rest.rstrip()} (line {found.group(1)} of its SQL)"
 
 
 def _closing(reader: Any, answer: Any) -> Iterator[pa.RecordBatch]:
@@ -784,6 +854,33 @@ class Sql:
             raise
         finally:
             _quietly(cursor.close)
+
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """Its own SQL with its driver's marks: a read streamed from the cursor; a write committed (rolled
+        back when it fails), answering its RETURNING rows, else its count."""
+        cursor = self.connection.cursor()
+        bound: Any = (
+            {str(k): self.value(v) for k, v in params.items()}
+            if isinstance(params, Mapping)
+            else _bound(self.style, [self.value(v) for v in params])
+        )
+        try:
+            if bound:
+                cursor.execute(sql, bound)
+            else:
+                cursor.execute(sql)
+            if reads_only(sql) and cursor.description:
+                return cursor_batches(cursor)
+            answer = cursor_batches(cursor).read_all() if cursor.description else None
+            changed = int(getattr(cursor, "rowcount", 0) or 0)
+            self.connection.commit()
+        except BaseException:
+            _quietly(cursor.close)
+            if not reads_only(sql):
+                _quietly(self.connection.rollback)
+            raise
+        _quietly(cursor.close)
+        return answer.to_reader() if answer is not None else counted(changed)
 
     def value(self, value: Any) -> Any:
         """A value as the driver takes it (SQLite: a decimal as a number, a date or time as text)."""
@@ -1159,6 +1256,21 @@ def _finished(reader: pa.RecordBatchReader, rest: Plan) -> pa.RecordBatchReader:
     return pa.RecordBatchReader.from_batches(schema, made)
 
 
+def query(source: str | Source, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+    """SQL a plan cannot say (joins, CTEs, a write with RETURNING), in the source's own SQL and its driver's
+    marks, answered as Arrow; a statement that returns no rows answers one `count` column. The sandbox makes
+    it DuckDB SQL over its tables, so the same statement runs against the real source in an export."""
+    found = source_of(source)
+    run = getattr(found, "query", None)
+    if not callable(run):
+        said = getattr(found, "name", "") or type(found).__name__
+        raise AdapterError(f"{said} has no SQL of its own: read its tables with a plan (read).")
+    answer = run(sql, params)
+    if not isinstance(answer, pa.RecordBatchReader):
+        answer = answer.to_reader()
+    return answer
+
+
 def write(
     source: str | Source,
     table: str,
@@ -1177,6 +1289,160 @@ def write(
         batches = pa.table({})
     reader = batches if isinstance(batches, pa.RecordBatchReader) else batches.to_reader()
     return source_of(source).write(table, reader, tuple(key), mode)
+
+
+# ----- one source's calls together: what API.py's connection(name) hands out -----
+
+GONE_CALLS = (
+    "cursor",
+    "execute",
+    "executemany",
+    "fetchone",
+    "fetchall",
+    "fetchmany",
+    "commit",
+    "rollback",
+    "read_arrow",
+    "rows",
+    "fetch",
+    "create",
+    "update",
+    "delete",
+    "ids",
+    "for_writes",
+    "df",
+    "fetch_arrow_table",
+)  # fmt: skip  the old per-source clients' calls, said in the adapter's words
+
+
+class Connection:
+    """One source's calls: what `connection(name)` gives an endpoint, here (the sandbox behind it) and in an
+    export (the real connection behind it), so the same code runs in both.
+
+        db = connection("Warehouse")
+        db.tables()                                   # names, columns, types
+        db.read("orders", columns=["id"], filters=[["region", "=", "North"]], sort=[["id", "desc"]], limit=10)
+        db.query("SELECT ... JOIN ...", [region])     # its own SQL -> Arrow (a write: its count)
+        db.write("orders", rows, key=["id"], mode="merge")   # rows: Arrow, or a list of dicts -> Counts
+    """
+
+    def __init__(self, source: str | Source, name: str = "") -> None:
+        self._source = source
+        self.name = name or (source if isinstance(source, str) else str(getattr(source, "name", "") or ""))
+
+    @property
+    def source(self) -> Source:
+        return source_of(self._source)
+
+    def tables(self) -> list[Table]:
+        return tables(self.source)
+
+    def columns(self, table: str) -> list[Column]:
+        """A table's columns (its name in any case)."""
+        wanted = str(table).casefold()
+        for found in self.tables():
+            if found.name.casefold() == wanted:
+                return list(found.columns)
+        raise AdapterError(f"{self.name or 'The source'} has no table {table!r}.")
+
+    def read(
+        self,
+        table: str,
+        plan: Plan | Mapping[str, Any] | None = None,
+        *,
+        columns: Sequence[str] = (),
+        filters: Sequence[Any] = (),
+        sort: Sequence[Any] = (),
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> pa.RecordBatchReader:
+        """A table's rows as Arrow: a Plan, or its parts by name (filters as [column, op, value], sort as
+        [column, "asc" | "desc"])."""
+        if plan is None:
+            plan = plan_from(
+                {"columns": list(columns), "filters": [list(f) for f in filters], "limit": limit,
+                 "offset": offset, "sort": [s if isinstance(s, str) else list(s) for s in sort]}
+            )  # fmt: skip
+        elif not isinstance(plan, Plan):
+            plan = plan_from(plan)
+        return read(self.source, table, plan)[0]
+
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        return query(self.source, sql, params)
+
+    def write(
+        self,
+        table: str,
+        rows: pa.Table | pa.RecordBatchReader | Sequence[Mapping[str, Any]] | None = None,
+        key: Sequence[str] = (),
+        mode: str = "insert",
+    ) -> Counts:
+        """Rows (Arrow, or a list of dicts) into a table by mode; the counts."""
+        given: pa.Table | pa.RecordBatchReader | None = None
+        if rows is not None:
+            given = (
+                rows
+                if isinstance(rows, pa.Table | pa.RecordBatchReader)
+                else pa.Table.from_pylist([dict(r) for r in rows])
+            )
+        return write(self.source, table, given, key, mode)
+
+    def __getattr__(self, name: str) -> Any:
+        if name in GONE_CALLS:
+            raise AttributeError(
+                f"connection({self.name!r}) has no {name}(): it is the adapter's now: query(sql, params), "
+                "read(table, columns=, filters=, sort=, limit=), write(table, rows, key, mode), tables()."
+            )
+        raise AttributeError(f"'Connection' object has no attribute {name!r}")
+
+
+_DRIVERS = {
+    "sqlite3": "sqlite",
+    "psycopg": "postgres",
+    "psycopg2": "postgres",
+    "pg8000": "postgres",
+    "pymysql": "mysql",
+    "mysql": "mysql",
+    "MySQLdb": "mysql",
+    "mariadb": "mysql",
+    "oracledb": "oracle",
+    "cx_Oracle": "oracle",
+    "snowflake": "snowflake",
+    "trino": "trino",
+    "databricks": "databricks",
+    "mssql_python": "sqlserver",
+    "pymssql": "sqlserver",
+    "pyodbc": "sqlserver",
+    "pytds": "sqlserver",
+}  # fmt: skip  a DB-API driver's module -> its dialect
+
+
+def source_from(client: Any, dialect: str = "", name: str = "") -> Source:
+    """A connection's own client (what its code made) as the adapter's source: a DuckDB connection; a
+    client that reads a table with OData (Dataverse: rows, described, catalog) or by its own rows (the lakes,
+    SharePoint); a DB-API connection in its dialect (`dialect`, else its `dbms`, else its driver's)."""
+    if isinstance(client, DuckDB | Sql | OData | Rows | Remote):
+        return client
+    if isinstance(client, duckdb.DuckDBPyConnection):
+        return DuckDB.over(client, name or "DuckDB")
+    if callable(getattr(client, "rows", None)) and callable(getattr(client, "catalog", None)):
+        if callable(getattr(client, "described", None)):
+            return OData(client, name or "Dataverse")
+        return Rows(client, name)
+    if callable(getattr(client, "cursor", None)):
+        found = dialect or str(getattr(client, "dbms", "") or "")
+        if not found:
+            module = type(getattr(client, "raw", client)).__module__.split(".")[0]
+            found = _DRIVERS.get(module, "")
+        if found in DIALECTS:
+            return Sql(client, found, name)
+        raise AdapterError(
+            f"{name or 'The connection'}'s SQL dialect is not known: "
+            "name it (source_from(client, dialect=...))."
+        )
+    raise AdapterError(
+        f"The adapter cannot tell what {name or type(client).__name__} is: it has no cursor, rows or catalog."
+    )
 
 
 # ===== 4. JSON to Arrow =====
@@ -1365,6 +1631,7 @@ __all__ = [
     "DIALECTS",
     "AdapterError",
     "Column",
+    "Connection",
     "Counts",
     "Dialect",
     "DuckDB",
@@ -1388,8 +1655,10 @@ __all__ = [
     "make_table",
     "plan_from",
     "plan_sql",
+    "query",
     "read",
     "refresh",
+    "source_from",
     "table",
     "tables",
     "to_ipc",

@@ -1,10 +1,10 @@
 """The local sandbox API builder's performance fixes (found by tests/stress/test_local_api_stress.py,
 2026-11-21), each held by a rule here so it stays fixed:
 
-- executemany is one call to the sandbox (it was one HTTP request a row), and a plain INSERT ... VALUES of
-  its marks goes in as one columnar insert (DuckDB's own executemany took 120 s for 100k rows);
-- connection("Sandbox") is one object, so what execute() answered is kept per thread (two requests at once
-  fetched each other's rows);
+- many rows written are one call to the sandbox (they were one HTTP request a row): since phase 3 of the
+  adapter, one Arrow write (connection(name).write), all or none;
+- two requests at once never see each other's rows (connection(name) keeps no answer: each query is its
+  own Arrow stream);
 - a statement's translation is made once (sqlglot parsed every call);
 - the tables' names are read once until one is added or dropped (every call counted every table's rows);
 - reads share the file: two at once are not queued behind one lock;
@@ -22,44 +22,15 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.adapters.sandbox import SandboxFiles, _Gate
-from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.server import api_host
-from swissarmybench.server import sandbox_clients as mocks
 from tests.conftest import AUTH, make_client
 from tests.fake_keyring import memory_keyring
+from tests.test_sandbox_query import TestRemote
 
 # ===== the rules =====
-
-
-def test_an_executemany_is_translated_once_and_each_set_ordered_by_its_marks() -> None:
-    made, values = dialects.to_duckdb_many(
-        "INSERT INTO dbo.entries (a, b) VALUES (?, ?)", "sqlserver", [[1, "x"], [2, "y"]], ["entries"]
-    )
-    assert made.sql == 'INSERT INTO "entries" (a, b) VALUES ($1, $2)' and values == [[1, "x"], [2, "y"]]
-    assert dialects.plain_insert(made.sql) == ("entries", ("a", "b"), 2)
-    named, values = dialects.to_duckdb_many(
-        "INSERT INTO entries (a, b) VALUES (:b, :a)",
-        "oracle",
-        [{"a": 1, "b": 2}, {"a": 3, "b": 4}],
-        ["entries"],
-    )
-    assert values == [[2, 1], [4, 3]] and dialects.plain_insert(named.sql) == ("entries", ("a", "b"), 2)
-    with pytest.raises(rules.SandboxError, match="Parameter set 2"):
-        dialects.to_duckdb_many("INSERT INTO entries VALUES (?, ?)", "duckdb", [[1, 2], [3]], ["entries"])
-
-
-def test_only_a_plain_insert_of_its_marks_goes_in_as_columns() -> None:
-    for sql in (
-        'INSERT INTO "t" (a, b) VALUES ($1, 5)',
-        'INSERT INTO "t" (a) VALUES ($1), ($2)',
-        'INSERT INTO "t" (a) SELECT $1',
-        'UPDATE "t" SET a = $1',
-        'INSERT INTO "t" (a) VALUES ($1) RETURNING a',
-    ):
-        assert dialects.plain_insert(sql) is None, sql
-    assert dialects.plain_insert('INSERT INTO "t" VALUES ($1, $2, $3)') == ("t", None, 3)
 
 
 def test_a_statement_is_parsed_once_whatever_its_values() -> None:
@@ -123,20 +94,18 @@ def test_the_table_names_are_read_once_until_a_table_comes_or_goes(tmp_path: Pat
 # ===== through the app =====
 
 
-class CountingLink(mocks.Link):
-    """The mock's door through the test's client, counting the calls."""
+class CountingRemote(TestRemote):
+    """The adapter's sandbox door through the test's client, counting the calls."""
+
+    __test__ = False
 
     def __init__(self, client: TestClient) -> None:
-        super().__init__("http://127.0.0.1:9/sandbox/data")
-        self.client = client
+        super().__init__(client, "Sandbox")
         self.calls = 0
 
-    def ask(self, op: str, **body: Any) -> dict[str, Any]:
+    def _post(self, path: str, body: bytes) -> Any:
         self.calls += 1
-        answer = self.client.post("/sandbox/data", json={"op": op} | body, headers=AUTH)
-        if answer.status_code != 200:
-            raise self.error(answer.json()["error"])
-        return dict(answer.json())
+        return super()._post(path, body)
 
 
 @pytest.fixture
@@ -158,19 +127,24 @@ def boxed(tmp_path: Path) -> Iterator[TestClient]:
         yield client
 
 
-def test_executemany_is_one_call_and_every_row_lands_typed(boxed: TestClient) -> None:
-    link = CountingLink(boxed)
-    db = mocks.MockDuckDB(link)
-    rows = [(1, f"f{n % 4}", n * 1.5, f"2026-10-{1 + n % 28:02d}", n % 2 == 0) for n in range(20_000)]
-    db.executemany("INSERT INTO entries VALUES (?, ?, ?, ?, ?)", rows)
-    assert link.calls == 1 and db.rowcount == 20_000
-    db.execute(
-        "SELECT count(*), sum(value_number), min(value_date), count(*) FILTER (WHERE value_bool) FROM entries"
+def test_many_rows_written_are_one_call_and_every_row_lands_typed(boxed: TestClient) -> None:
+    door = CountingRemote(boxed)
+    db = sab_adapter.Connection(door)
+    rows = [
+        {"batch_id": 1, "field": f"f{n % 4}", "value_number": n * 1.5,
+         "value_date": f"2026-10-{1 + n % 28:02d}", "value_bool": n % 2 == 0}
+        for n in range(20_000)
+    ]  # fmt: skip
+    assert db.write("entries", rows).inserted == 20_000 and door.calls == 1
+    found = (
+        db.query(
+            "SELECT count(*) AS n, sum(value_number) AS total, min(value_date) AS first, "
+            "count(*) FILTER (WHERE value_bool) AS yes FROM entries"
+        )
+        .read_all()
+        .to_pylist()[0]
     )
-    found = db.fetchone()
-    assert found is not None
-    count, total, first, yes = found
-    assert (count, total, str(first), yes) == (
+    assert (found["n"], found["total"], str(found["first"]), found["yes"]) == (
         20_000,
         sum(n * 1.5 for n in range(20_000)),
         "2026-10-01",
@@ -178,31 +152,30 @@ def test_executemany_is_one_call_and_every_row_lands_typed(boxed: TestClient) ->
     )
     log = boxed.get("/sandbox", headers=AUTH).json()["log"]
     assert log["entries"]["inserted"] == 20_000
-    # Any other statement: one call too, one transaction, each set in turn.
-    db.executemany("UPDATE entries SET value_number = ? WHERE field = ?", [(0, "f0"), (1, "f1")])
-    assert link.calls == 3 and db.rowcount == 10_000
-    # All or none: a bad set and nothing of the part is written.
-    with pytest.raises(mocks.MockError):
-        db.executemany(
-            "INSERT INTO entries (batch_id, value_date) VALUES (?, ?)", [(2, "2026-10-01"), (2, "not a day")]
+    # All or none: a bad value and nothing of the write is there.
+    with pytest.raises(sab_adapter.AdapterError):
+        db.write(
+            "entries",
+            [{"batch_id": 2, "value_date": "2026-10-01"}, {"batch_id": 2, "value_date": "not a day"}],
         )
-    db.execute("SELECT count(*) FROM entries WHERE batch_id = 2")
-    assert db.fetchone() == (0,)
+    assert db.query("SELECT count(*) AS n FROM entries WHERE batch_id = 2").read_all().to_pylist() == [
+        {"n": 0}
+    ]
 
 
-def test_two_requests_at_once_never_fetch_each_others_rows(boxed: TestClient) -> None:
-    db = mocks.MockDuckDB(CountingLink(boxed))
-    db.executemany("INSERT INTO entries (batch_id, field) VALUES (?, ?)", [(b, f"b{b}") for b in range(8)])
+def test_two_requests_at_once_never_see_each_others_rows(boxed: TestClient) -> None:
+    db = sab_adapter.Connection(CountingRemote(boxed))
+    db.write("entries", [{"batch_id": b, "field": f"b{b}"} for b in range(8)])
     wrong: list[str] = []
     ready = threading.Barrier(8, timeout=10)
 
     def one(batch: int) -> None:
         ready.wait()
         for _ in range(10):
-            db.execute("SELECT field FROM entries WHERE batch_id = ?", [batch])
+            answer = db.query("SELECT field FROM entries WHERE batch_id = ?", [batch])
             time.sleep(0.001)
-            got = db.fetchall()
-            if got != [(f"b{batch}",)]:
+            got = answer.read_all().to_pylist()
+            if got != [{"field": f"b{batch}"}]:
                 wrong.append(f"{batch}: {got}")
 
     threads = [threading.Thread(target=one, args=(b,)) for b in range(8)]

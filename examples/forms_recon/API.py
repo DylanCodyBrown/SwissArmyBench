@@ -104,8 +104,40 @@ class SignOff(TypedDict):
     by: str
 
 
+ENTRY_COLUMNS = ("form_id", "batch_id", "row_no", "field", "value_text", "value_number", "value_date",
+                 "value_bool")  # fmt: skip
+FIELD_COLUMNS = ("field_id", "form_id", "version", "position", "field", "label", "type", "required", "choices",
+                 "format")  # fmt: skip
+
+
 def _db():
     return connection("Sandbox")
+
+
+def _rows(sql: str, params: list | None = None) -> list[dict]:
+    """The sandbox's own SQL (DuckDB's), its rows as dicts: the adapter's query."""
+    return records(_db().query(sql, params or []))
+
+
+def _first(sql: str, params: list | None = None) -> tuple | None:
+    """The first row's values, or None."""
+    found = _rows(sql, params)
+    return tuple(found[0].values()) if found else None
+
+
+def _tuples(sql: str, params: list | None = None) -> list[tuple]:
+    return [tuple(r.values()) for r in _rows(sql, params)]
+
+
+def _run(sql: str, params: list | None = None) -> int:
+    """A write in the sandbox's own SQL: the rows it changed."""
+    return int(_rows(sql, params)[0].get("count") or 0)
+
+
+def _insert(table: str, columns: tuple, rows: list[tuple]) -> None:
+    """Many rows in at once: the adapter's write (one Arrow table, all or none)."""
+    if rows:
+        _db().write(table, [dict(zip(columns, r)) for r in rows])
 
 
 def _now() -> str:
@@ -126,20 +158,18 @@ def _period(value: str) -> str:
 
 
 def _fields(form_id: str, version: int | None = None) -> tuple[int, list[Field]]:
-    db = _db()
     if version is None:
-        db.execute("SELECT version FROM forms WHERE form_id = ?", [form_id])
-        found = db.fetchone()
+        found = _first("SELECT version FROM forms WHERE form_id = ?", [form_id])
         if found is None:
             raise ApiError(404, f"No form {form_id}.")
         version = int(found[0])
-    db.execute(
+    listed = _tuples(
         "SELECT field, label, type, required, choices, format FROM form_fields "
         "WHERE form_id = ? AND version = ? ORDER BY position",
         [form_id, version],
     )
     fields: list[Field] = []
-    for name, label, kind, required, choices, fmt in db.fetchall():
+    for name, label, kind, required, choices, fmt in listed:
         field: Field = {"name": name, "label": label or name, "type": kind}
         if required:
             field["required"] = True
@@ -155,15 +185,12 @@ def _every_field(form_id: str) -> list[Field]:
     """Every field any version had, the latest version's first: the column store's columns."""
     version, latest = _fields(form_id)
     seen = {f["name"] for f in latest}
-    db = _db()
-    db.execute(
+    found = _tuples(
         "SELECT field, any_value(type) FROM form_fields WHERE form_id = ? AND version < ? "
         "GROUP BY field ORDER BY min(position)",
         [form_id, version],
     )
-    older: list[Field] = [
-        {"name": n, "label": n, "type": t} for n, t in db.fetchall() if n not in seen
-    ]
+    older: list[Field] = [{"name": n, "label": n, "type": t} for n, t in found if n not in seen]
     return latest + older
 
 
@@ -194,13 +221,11 @@ def _checked(fields: list[Field]) -> list[Field]:
 def list_forms(full: bool = False) -> list[dict]:
     """Every form: its name, title, version and how many fields (?full=true: each one's definition, as
     the form picker takes them)."""
-    db = _db()
-    db.execute(
+    found = _rows(
         "SELECT f.form_id, f.title, f.version, count(ff.field) AS fields, f.updated_at FROM forms f "
         "LEFT JOIN form_fields ff ON ff.form_id = f.form_id AND ff.version = f.version "
         "GROUP BY ALL ORDER BY f.title"
     )
-    found = records(db)
     if not full:
         return found
     return [{"name": f["form_id"], **get_form(f["form_id"])} for f in found]
@@ -209,9 +234,7 @@ def list_forms(full: bool = False) -> list[dict]:
 @endpoint("GET", "/forms/{form_id}")
 def get_form(form_id: str, version: int = 0) -> Form:
     """A form's definition (its latest version, or ?version=)."""
-    db = _db()
-    db.execute("SELECT title, description FROM forms WHERE form_id = ?", [form_id])
-    found = db.fetchone()
+    found = _first("SELECT title, description FROM forms WHERE form_id = ?", [form_id])
     if found is None:
         raise ApiError(404, f"No form {form_id}.")
     number, fields = _fields(form_id, version or None)
@@ -226,28 +249,25 @@ def save_form(form_id: str, form: FormIn) -> Form:
         raise ApiError(422, "A form's name is small letters, digits and _ .")
     fields = _checked(list(form.get("fields") or []))
     title = str(form.get("title") or form_id)
-    db = _db()
-    db.execute("SELECT version FROM forms WHERE form_id = ?", [form_id])
-    found = db.fetchone()
+    found = _first("SELECT version FROM forms WHERE form_id = ?", [form_id])
     version = 1
     if found is not None:
         version, before = _fields(form_id)
         if before != fields:
             version += 1
-        db.execute(
+        _run(
             "UPDATE forms SET title = ?, description = ?, version = ?, updated_at = ? WHERE form_id = ?",
             [title, form.get("description") or "", version, _now(), form_id],
         )
     else:
-        db.execute(
+        _run(
             "INSERT INTO forms VALUES (?, ?, ?, ?, ?)",
             [form_id, title, form.get("description") or "", version, _now()],
         )
-    db.execute(
-        "DELETE FROM form_fields WHERE form_id = ? AND version = ?", [form_id, version]
-    )
-    db.executemany(
-        "INSERT INTO form_fields VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    _run("DELETE FROM form_fields WHERE form_id = ? AND version = ?", [form_id, version])
+    _insert(
+        "form_fields",
+        FIELD_COLUMNS,
         [
             (
                 f"{form_id}:{version}:{f['name']}",
@@ -270,12 +290,10 @@ def save_form(form_id: str, form: FormIn) -> Form:
 @endpoint("DELETE", "/forms/{form_id}")
 def delete_form(form_id: str) -> None:
     """Remove a form that has no entries."""
-    db = _db()
-    db.execute("SELECT count(*) FROM batches WHERE form_id = ?", [form_id])
-    if db.fetchone()[0]:
+    if _first("SELECT count(*) FROM batches WHERE form_id = ?", [form_id])[0]:
         raise ApiError(409, f"{form_id} has entries: remove its batches first.")
-    db.execute("DELETE FROM form_fields WHERE form_id = ?", [form_id])
-    db.execute("DELETE FROM forms WHERE form_id = ?", [form_id])
+    _run("DELETE FROM form_fields WHERE form_id = ?", [form_id])
+    _run("DELETE FROM forms WHERE form_id = ?", [form_id])
 
 
 # ===== batches and entries: stored long =====
@@ -345,19 +363,16 @@ def _long(
 def _numbered(table: str, column: str, values: list, placeholders: str) -> int:
     """A row inserted with the next number in its first column, in one statement (so two callers at once
     never take the same number): the number."""
-    db = _db()
-    db.execute(
+    found = _first(
         f"INSERT INTO {table} SELECT coalesce(max({column}), 0) + 1, {placeholders} FROM {table} "  # noqa: S608
         f"RETURNING {column}",
         values,
     )
-    return int(db.fetchone()[0])
+    return int(found[0])
 
 
 def _batch(batch_id: int) -> Batch:
-    db = _db()
-    db.execute("SELECT * FROM batches WHERE batch_id = ?", [batch_id])
-    found = records(db)
+    found = _rows("SELECT * FROM batches WHERE batch_id = ?", [batch_id])
     if not found:
         raise ApiError(404, f"No batch {batch_id}.")
     return found[0]  # type: ignore[return-value]
@@ -375,10 +390,7 @@ def new_batch(form_id: str, batch: BatchIn) -> Batch:
         [form_id, version, period, batch.get("source") or "typed", batch.get("loaded_by") or "", _now(), len(rows)],
         "?, ?, ?, ?, ?, ?, ?",
     )  # fmt: skip
-    entries = _long(form_id, batch_id, 1, fields, rows)
-    db = _db()
-    if entries:
-        db.executemany("INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?)", entries)
+    _insert("entries", ENTRY_COLUMNS, _long(form_id, batch_id, 1, fields, rows))
     return _batch(batch_id)
 
 
@@ -388,13 +400,8 @@ def add_rows(batch_id: int, more: RowsIn) -> Batch:
     found = _batch(batch_id)
     _, fields = _fields(found["form_id"], found["form_version"])
     rows = list(more.get("rows") or [])
-    entries = _long(found["form_id"], batch_id, int(found["rows"]) + 1, fields, rows)
-    db = _db()
-    if entries:
-        db.executemany("INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?)", entries)
-    db.execute(
-        "UPDATE batches SET rows = rows + ? WHERE batch_id = ?", [len(rows), batch_id]
-    )
+    _insert("entries", ENTRY_COLUMNS, _long(found["form_id"], batch_id, int(found["rows"]) + 1, fields, rows))
+    _run("UPDATE batches SET rows = rows + ? WHERE batch_id = ?", [len(rows), batch_id])
     return _batch(batch_id)
 
 
@@ -436,45 +443,33 @@ def batch_from_table(form_id: str, load: FromTable) -> Batch:
         yes = f"TRY_CAST({_quote(column)} AS BOOLEAN)" if kind == "yes/no" else "NULL"
         parts.append(f"SELECT row_no, '{field}' AS field, {text} AS t, {number} AS n, {day} AS d, {yes} AS b "
                      f"FROM src WHERE {_quote(column)} IS NOT NULL")  # fmt: skip
-    db = _db()
-    db.execute(
+    _run(
         "INSERT INTO entries SELECT ?, ?, row_no, field, t, n, d, b FROM (WITH src AS (SELECT *, "  # noqa: S608
         f"row_number() OVER () AS row_no FROM {_quote(table)}{where}) "
         + " UNION ALL ".join(parts)
         + ")",
         params,
     )
-    db.execute(
-        "SELECT count(DISTINCT row_no) FROM entries WHERE batch_id = ?", [batch_id]
-    )
-    db.execute(
-        "UPDATE batches SET rows = ? WHERE batch_id = ?",
-        [int(db.fetchone()[0]), batch_id],
-    )
+    counted = _first("SELECT count(DISTINCT row_no) FROM entries WHERE batch_id = ?", [batch_id])
+    _run("UPDATE batches SET rows = ? WHERE batch_id = ?", [int(counted[0]), batch_id])
     return _batch(batch_id)
 
 
 @endpoint("GET", "/forms/{form_id}/batches")
 def list_batches(form_id: str, period: str = "") -> list[Batch]:
     """A form's batches, newest first (one month with ?period=)."""
-    db = _db()
     if period:
-        db.execute("SELECT * FROM batches WHERE form_id = ? AND period = ? ORDER BY batch_id DESC",
-                   [form_id, _period(period)])  # fmt: skip
-    else:
-        db.execute(
-            "SELECT * FROM batches WHERE form_id = ? ORDER BY batch_id DESC", [form_id]
-        )
-    return records(db)  # type: ignore[return-value]
+        return _rows("SELECT * FROM batches WHERE form_id = ? AND period = ? ORDER BY batch_id DESC",
+                     [form_id, _period(period)])  # type: ignore[return-value]  # fmt: skip
+    return _rows("SELECT * FROM batches WHERE form_id = ? ORDER BY batch_id DESC", [form_id])  # type: ignore[return-value]
 
 
 @endpoint("DELETE", "/batches/{batch_id}")
 def delete_batch(batch_id: int) -> None:
     """Remove a batch and its entries."""
     _batch(batch_id)
-    db = _db()
-    db.execute("DELETE FROM entries WHERE batch_id = ?", [batch_id])
-    db.execute("DELETE FROM batches WHERE batch_id = ?", [batch_id])
+    _run("DELETE FROM entries WHERE batch_id = ?", [batch_id])
+    _run("DELETE FROM batches WHERE batch_id = ?", [batch_id])
 
 
 # ===== the column store: one typed column per field (DuckDB PIVOT) =====
@@ -518,28 +513,23 @@ def entries(
 ) -> list[dict]:
     """A form's entries from its column store, a page at a time."""
     sql, params, _ = column_store(form_id, period, batch_id)
-    db = _db()
-    db.execute(f"{sql} ORDER BY batch_id, row_no LIMIT ? OFFSET ?",
-               params + [max(1, min(limit, MOST_ROWS)), max(0, offset)])  # fmt: skip
-    return records(db)
+    return _rows(f"{sql} ORDER BY batch_id, row_no LIMIT ? OFFSET ?",
+                 params + [max(1, min(limit, MOST_ROWS)), max(0, offset)])  # fmt: skip
 
 
 @endpoint("GET", "/forms/{form_id}/entries/count")
 def entries_count(form_id: str, period: str = "") -> dict:
     """How many entries a form has (one month with ?period=)."""
     sql, params, _ = column_store(form_id, period)
-    db = _db()
-    db.execute(f"SELECT count(*) AS rows FROM ({sql})", params)  # noqa: S608
-    return {"form_id": form_id, "period": period, "rows": int(db.fetchone()[0])}
+    found = _first(f"SELECT count(*) AS rows FROM ({sql})", params)  # noqa: S608
+    return {"form_id": form_id, "period": period, "rows": int(found[0])}
 
 
 # ===== reconciliations: saved once, run each month =====
 
 
 def _recon(recon_id: str) -> dict:
-    db = _db()
-    db.execute("SELECT * FROM recon_defs WHERE recon_id = ?", [recon_id])
-    found = records(db)
+    found = _rows("SELECT * FROM recon_defs WHERE recon_id = ?", [recon_id])
     if not found:
         raise ApiError(404, f"No reconciliation {recon_id}.")
     one = found[0]
@@ -551,11 +541,7 @@ def _recon(recon_id: str) -> dict:
 @endpoint("GET", "/recons")
 def list_recons() -> list[dict]:
     """Every reconciliation definition."""
-    db = _db()
-    db.execute(
-        "SELECT recon_id, title, form_id, source_table, updated_at FROM recon_defs ORDER BY title"
-    )
-    return records(db)
+    return _rows("SELECT recon_id, title, form_id, source_table, updated_at FROM recon_defs ORDER BY title")
 
 
 @endpoint("GET", "/recons/{recon_id}")
@@ -595,9 +581,8 @@ def save_recon(recon_id: str, recon: ReconIn) -> dict:
         raise ApiError(422, "source_period is a column's name.")
     row = [recon_id, recon.get("title") or recon_id, form_id, table, period, json.dumps(keys),
            json.dumps(list(recon.get("compares") or [])), json.dumps(list(recon.get("totals") or [])), _now()]  # fmt: skip
-    db = _db()
-    db.execute("DELETE FROM recon_defs WHERE recon_id = ?", [recon_id])
-    db.execute("INSERT INTO recon_defs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
+    _run("DELETE FROM recon_defs WHERE recon_id = ?", [recon_id])
+    _run("INSERT INTO recon_defs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
     return _recon(recon_id)
 
 
@@ -605,7 +590,7 @@ def save_recon(recon_id: str, recon: ReconIn) -> dict:
 def delete_recon(recon_id: str) -> None:
     """Remove a reconciliation definition (its runs stay)."""
     _recon(recon_id)
-    _db().execute("DELETE FROM recon_defs WHERE recon_id = ?", [recon_id])
+    _run("DELETE FROM recon_defs WHERE recon_id = ?", [recon_id])
 
 
 def _side(column: str, kind: str) -> str:
@@ -685,8 +670,7 @@ def run_recon(recon_id: str, run: RunIn) -> dict:
         s_params = [period]
     run_id = _numbered("recon_runs", "run_id", [recon_id, period, _now()],
                        "?, ?, ?, 0, 0, 0, 0, 0, '[]', NULL, NULL")  # fmt: skip
-    db = _db()
-    db.execute(
+    _run(
         "INSERT INTO recon_results SELECT ?, CASE WHEN en > 1 OR sn > 1 THEN 'duplicate' "  # noqa: S608
         "WHEN sn IS NULL THEN 'only_entries' WHEN en IS NULL THEN 'only_source' "
         f"WHEN fields_off <> '' THEN 'difference' ELSE 'matched' END, record_key, "
@@ -699,26 +683,20 @@ def run_recon(recon_id: str, run: RunIn) -> dict:
         "GROUP BY 1) USING (record_key)))",
         [run_id] + params + s_params,
     )
-    db.execute(
-        "SELECT status, count(*) FROM recon_results WHERE run_id = ? GROUP BY status",
-        [run_id],
-    )
-    counts = {s: 0 for s in STATUSES} | {s: int(n) for s, n in db.fetchall()}
+    found = _tuples("SELECT status, count(*) FROM recon_results WHERE run_id = ? GROUP BY status", [run_id])
+    counts = {s: 0 for s in STATUSES} | {s: int(n) for s, n in found}
     totals = []
     for t in recon["totals"]:
-        db.execute(
-            f"SELECT sum(TRY_CAST({_quote(t['field'])} AS DOUBLE)) FROM ({store})",
-            params,
-        )  # noqa: S608
-        entries_total = float(db.fetchone()[0] or 0)
-        db.execute(
-            f"SELECT sum(TRY_CAST({_quote(t['column'])} AS DOUBLE)) FROM {table}{where}",
-            s_params,
-        )  # noqa: S608
-        source_total = float(db.fetchone()[0] or 0)
+        entries_total = float(
+            _first(f"SELECT sum(TRY_CAST({_quote(t['field'])} AS DOUBLE)) FROM ({store})", params)[0] or 0  # noqa: S608
+        )
+        source_total = float(
+            _first(f"SELECT sum(TRY_CAST({_quote(t['column'])} AS DOUBLE)) FROM {table}{where}", s_params)[0]  # noqa: S608
+            or 0
+        )
         totals.append({"field": t["field"], "entries": round(entries_total, 2), "source": round(source_total, 2),
                        "difference": round(entries_total - source_total, 2)})  # fmt: skip
-    db.execute(
+    _run(
         "UPDATE recon_runs SET matched = ?, differences = ?, only_entries = ?, only_source = ?, duplicates = ?, "
         "totals = ? WHERE run_id = ?",
         [
@@ -737,11 +715,7 @@ def run_recon(recon_id: str, run: RunIn) -> dict:
 @endpoint("GET", "/recons/{recon_id}/runs")
 def list_runs(recon_id: str) -> list[dict]:
     """A reconciliation's runs, newest first."""
-    db = _db()
-    db.execute(
-        "SELECT * FROM recon_runs WHERE recon_id = ? ORDER BY run_id DESC", [recon_id]
-    )
-    return [_run_out(r) for r in records(db)]
+    return [_run_out(r) for r in _rows("SELECT * FROM recon_runs WHERE recon_id = ? ORDER BY run_id DESC", [recon_id])]
 
 
 def _run_out(row: dict) -> dict:
@@ -752,9 +726,7 @@ def _run_out(row: dict) -> dict:
 @endpoint("GET", "/runs/{run_id}")
 def get_run(run_id: int) -> dict:
     """A run: its month, counts by status, totals and sign-off."""
-    db = _db()
-    db.execute("SELECT * FROM recon_runs WHERE run_id = ?", [run_id])
-    found = records(db)
+    found = _rows("SELECT * FROM recon_runs WHERE run_id = ?", [run_id])
     if not found:
         raise ApiError(404, f"No run {run_id}.")
     return _run_out(found[0])
@@ -766,19 +738,16 @@ def run_results(
 ) -> list[dict]:
     """A run's results a page at a time: one status (matched, difference, only_entries, only_source,
     duplicate) or every one but matched."""
-    db = _db()
     page = [max(1, min(limit, MOST_ROWS)), max(0, offset)]
     if status:
         if status not in STATUSES:
             raise ApiError(422, f"A status is one of {', '.join(STATUSES)}.")
-        db.execute("SELECT status, record_key, entry_values, source_values, difference, fields_off "
-                   "FROM recon_results WHERE run_id = ? AND status = ? ORDER BY record_key LIMIT ? OFFSET ?",
-                   [run_id, status] + page)  # fmt: skip
-    else:
-        db.execute("SELECT status, record_key, entry_values, source_values, difference, fields_off "
-                   "FROM recon_results WHERE run_id = ? AND status <> 'matched' "
-                   "ORDER BY status, record_key LIMIT ? OFFSET ?", [run_id] + page)  # fmt: skip
-    return records(db)
+        return _rows("SELECT status, record_key, entry_values, source_values, difference, fields_off "
+                     "FROM recon_results WHERE run_id = ? AND status = ? ORDER BY record_key LIMIT ? OFFSET ?",
+                     [run_id, status] + page)  # fmt: skip
+    return _rows("SELECT status, record_key, entry_values, source_values, difference, fields_off "
+                 "FROM recon_results WHERE run_id = ? AND status <> 'matched' "
+                 "ORDER BY status, record_key LIMIT ? OFFSET ?", [run_id] + page)  # fmt: skip
 
 
 @endpoint("POST", "/runs/{run_id}/signoff")
@@ -787,6 +756,6 @@ def sign_off(run_id: int, signed: SignOff) -> dict:
     get_run(run_id)
     if not str(signed.get("by") or "").strip():
         raise ApiError(422, "Say who signs it off.")
-    _db().execute("UPDATE recon_runs SET signed_off_by = ?, signed_off_at = ? WHERE run_id = ?",
-                  [signed["by"], _now(), run_id])  # fmt: skip
+    _run("UPDATE recon_runs SET signed_off_by = ?, signed_off_at = ? WHERE run_id = ?",
+         [signed["by"], _now(), run_id])  # fmt: skip
     return get_run(run_id)

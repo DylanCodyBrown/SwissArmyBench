@@ -1,36 +1,31 @@
-"""A mock client speaks its source's own language over the sandbox (the owner, 2026-11-21: "sometimes the
-clients
-vary by source ... Things that get built should always hand back to a client that mimics the connections
-client
-shape").
+"""The sandbox's half of the adapter's query (Plans/adapter.plan.md, 2026-11-22): a statement in its
+connection's own language, made DuckDB SQL over the sandbox's tables, so an endpoint's SQL deploys
+unchanged against the real source.
 
   [SQL]      a statement in the source's dialect (T-SQL, PostgreSQL, MySQL, Snowflake, SQLite, Oracle, Trino,
              DuckDB) with its driver's parameter marks (?, %s, %(name)s, :name, :1, $1) made DuckDB SQL by
              sqlglot: each mark a numbered parameter in its own order (OFFSET ? ROWS FETCH NEXT ? ROWS keeps
-             its
-             values), every table named by the sandbox's own name (dbo.orders is orders), SELECT, INSERT,
-             UPDATE and DELETE only
-  [ODATA]    a Dataverse read's OData $filter ("revenue gt 100000 and contains(name,'Contoso')") and $orderby
-  [FETCHXML] a FetchXML query's entity, attributes, filter conditions, orders and top/count
-  [LIST]     a SharePoint list read's filters ([["Status", "=", "Open"]])
+             its values), every table named by the sandbox's own name (dbo.orders is orders), SELECT, INSERT,
+             UPDATE and DELETE only; a view, a query's table or a sequence made or dropped
+  [NAMES]    what a query names, checked against a catalog (Will this work for real?), never run
 
 What cannot be emulated is refused in one sentence that names the feature and its line, never changed quietly.
-Pure rules: standard library and sqlglot.
+(Dataverse's OData and FetchXML text and a SharePoint list's filters went with the mock clients: an endpoint
+reads them with a plan.) Pure rules: standard library and sqlglot.
 """
 
 from __future__ import annotations
 
 import functools
 import re
-import xml.etree.ElementTree as ET
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 import sqlglot
 from sqlglot import exp
 
-from swissarmybench.domain.sandbox import SandboxError, check_table_name, quote
+from swissarmybench.domain.sandbox import SandboxError, check_table_name
 
 # A connection's dialect (domain/catalogs.py's words) as sqlglot reads it, and its driver's parameter marks.
 SQLGLOT: dict[str, str] = {
@@ -455,333 +450,6 @@ def _define(
     except sqlglot.errors.UnsupportedError as error:
         raise SandboxError(f"Line 1: the sandbox's mock cannot run this {language}: {error}.") from None
     return out, kind, target.name, tuple(dict.fromkeys(used))
-
-
-def to_duckdb_many(
-    sql: Any, dialect: str | None, sets: Sequence[Any], tables: Iterable[str]
-) -> tuple[Translated, list[list[Any]]]:
-    """An executemany's statement made DuckDB SQL once, and each parameter set's values in its marks' order
-    (the order is read once, from the marks: a set is never scanned again)."""
-    if not isinstance(sets, Sequence) or not sets:
-        raise SandboxError("executemany takes at least one set of parameters.")
-    first = sets[0]
-    made = to_duckdb(sql, dialect, first, tables)
-    if isinstance(first, Mapping):
-        probe: Any = {k: k for k in first}
-    else:
-        probe = list(range(len(first)))
-    word = dialect_of(dialect)
-    reads = SQLGLOT[word]
-    quoting = "tsql" if reads == "tsql" else "mysql" if reads == "mysql" else "ansi"
-    style = PARAMSTYLE[word]
-    if style == "qmark" and isinstance(first, Mapping):
-        style = "named"
-    _, order = marked(str(sql).strip(), probe, style, quoting)
-    out: list[list[Any]] = []
-    for at, one in enumerate(sets):
-        try:
-            out.append([one[k] for k in order])
-        except (KeyError, IndexError, TypeError):
-            raise SandboxError(f"Parameter set {at + 1} does not match the first one's marks.") from None
-    return made, out
-
-
-@functools.lru_cache(maxsize=256)
-def plain_insert(sql: str) -> tuple[str, tuple[str, ...] | None, int] | None:
-    """A DuckDB INSERT INTO t [(columns)] VALUES ($1, ..., $n), one row of its marks in order: its table, its
-    columns (None: every column, in order) and n; else None (any other statement)."""
-    try:
-        tree = sqlglot.parse_one(sql, read="duckdb")
-    except sqlglot.errors.SqlglotError:
-        return None
-    if not isinstance(tree, exp.Insert) or tree.args.get("returning") or tree.args.get("conflict"):
-        return None
-    values = tree.expression
-    if not isinstance(values, exp.Values) or len(values.expressions) != 1:
-        return None
-    row = values.expressions[0]
-    marks = row.expressions if isinstance(row, exp.Tuple) else []
-    numbers = []
-    for mark in marks:
-        if not isinstance(mark, (exp.Parameter, exp.Placeholder)):
-            return None
-        try:
-            numbers.append(int(str(mark.this.name if isinstance(mark.this, exp.Expression) else mark.this)))
-        except (TypeError, ValueError):
-            return None
-    if not numbers or numbers != list(range(1, len(numbers) + 1)):
-        return None
-    target = tree.this
-    columns: tuple[str, ...] | None = None
-    if isinstance(target, exp.Schema):
-        columns = tuple(c.name for c in target.expressions)
-        target = target.this
-    if not isinstance(target, exp.Table) or (columns is not None and len(columns) != len(numbers)):
-        return None
-    return target.name, columns, len(numbers)
-
-
-# ===== Dataverse: OData $filter and $orderby, FetchXML =====
-
-_ODATA_TOKEN = re.compile(
-    r"\s*(?:(?P<str>'(?:[^']|'')*')|(?P<num>-?\d+(?:\.\d+)?)|(?P<word>[A-Za-z_][A-Za-z0-9_./]*)"
-    r"|(?P<punct>[(),]))"
-)
-_ODATA_OPS = {"eq": "=", "ne": "<>", "gt": ">", "ge": ">=", "lt": "<", "le": "<="}
-_ODATA_FUNCS = {"contains": "%{}%", "startswith": "{}%", "endswith": "%{}"}
-
-
-def odata_where(text: Any, columns: Sequence[str]) -> tuple[str, list[Any]]:
-    """An OData $filter as a DuckDB WHERE (values bound): eq ne gt ge lt le, and or not, parentheses,
-    contains, startswith, endswith, null, true and false. What else it says is refused in one sentence."""
-    source = str(text or "").strip()
-    if not source:
-        return "", []
-    tokens: list[tuple[str, str]] = []
-    at = 0
-    while at < len(source):
-        m = _ODATA_TOKEN.match(source, at)
-        if not m or m.end() == at:
-            if source[at:].strip():
-                raise SandboxError(f"The mock's OData $filter cannot read {source[at:].strip()[:30]!r}.")
-            break
-        kind = m.lastgroup or ""
-        tokens.append((kind, m.group(kind)))
-        at = m.end()
-    by_case = {c.casefold(): c for c in columns}
-    params: list[Any] = []
-    pos = 0
-
-    def peek() -> tuple[str, str] | None:
-        return tokens[pos] if pos < len(tokens) else None
-
-    def take() -> tuple[str, str]:
-        nonlocal pos
-        if pos >= len(tokens):
-            raise SandboxError("The mock's OData $filter ends too soon.")
-        pos += 1
-        return tokens[pos - 1]
-
-    def value(token: tuple[str, str]) -> str:
-        kind, said = token
-        if kind == "str":
-            params.append(said[1:-1].replace("''", "'"))
-            return "?"
-        if kind == "num":
-            params.append(float(said) if "." in said else int(said))
-            return "?"
-        low = said.lower()
-        if low in ("true", "false"):
-            params.append(low == "true")
-            return "?"
-        if low == "null":
-            return "NULL"
-        real = by_case.get(said.casefold())
-        if real is None:
-            raise SandboxError(f"The mock's OData $filter names {said}, which this table has no column for.")
-        return quote(real)
-
-    def primary() -> str:
-        token = take()
-        if token == ("punct", "("):
-            inner = disjunction()
-            if take() != ("punct", ")"):
-                raise SandboxError("The mock's OData $filter has a ( with no ).")
-            return f"({inner})"
-        if token[0] == "word" and token[1].lower() == "not":
-            return f"NOT {primary()}"
-        if token[0] == "word" and token[1].lower() in _ODATA_FUNCS and peek() == ("punct", "("):
-            take()
-            column = value(take())
-            if take() != ("punct", ","):
-                raise SandboxError(f"The mock's OData {token[1]}() takes a column and a text.")
-            text_token = take()
-            if text_token[0] != "str":
-                raise SandboxError(f"The mock's OData {token[1]}() compares with a quoted text.")
-            if take() != ("punct", ")"):
-                raise SandboxError(f"The mock's OData {token[1]}() has no ).")
-            pattern = _ODATA_FUNCS[token[1].lower()].format(text_token[1][1:-1].replace("''", "'"))
-            params.append(pattern)
-            return f"{column} ILIKE ?"
-        if token[0] == "word" and peek() == ("punct", "("):
-            raise SandboxError(f"The mock's OData $filter cannot emulate {token[1]}().")
-        left = value(token)
-        op_token = take()
-        op = _ODATA_OPS.get(op_token[1].lower())
-        if op is None:
-            raise SandboxError(f"The mock's OData $filter cannot emulate the operator {op_token[1]}.")
-        right = value(take())
-        if right == "NULL":
-            return f"{left} IS {'NOT ' if op == '<>' else ''}NULL"
-        return f"{left} {op} {right}"
-
-    def conjunction() -> str:
-        parts = [primary()]
-        while (t := peek()) is not None and t[0] == "word" and t[1].lower() == "and":
-            take()
-            parts.append(primary())
-        return " AND ".join(parts)
-
-    def disjunction() -> str:
-        parts = [conjunction()]
-        while (t := peek()) is not None and t[0] == "word" and t[1].lower() == "or":
-            take()
-            parts.append(conjunction())
-        return " OR ".join(parts)
-
-    where = disjunction()
-    if pos != len(tokens):
-        raise SandboxError(f"The mock's OData $filter cannot read the words after {tokens[pos - 1][1]!r}.")
-    return where, params
-
-
-def order_by(text: Any, columns: Sequence[str]) -> str:
-    """An OData $orderby ("name desc, revenue") as DuckDB's ORDER BY's list."""
-    by_case = {c.casefold(): c for c in columns}
-    parts = []
-    for item in str(text or "").split(","):
-        bits = item.split()
-        if not bits:
-            continue
-        real = by_case.get(bits[0].casefold())
-        if real is None or len(bits) > 2 or (len(bits) == 2 and bits[1].lower() not in ("asc", "desc")):
-            raise SandboxError(f"The mock's $orderby cannot read {item.strip()!r}.")
-        parts.append(quote(real) + (" DESC" if len(bits) == 2 and bits[1].lower() == "desc" else ""))
-    return ", ".join(parts)
-
-
-_FETCH_OPS = {
-    "eq": "=", "ne": "<>", "neq": "<>", "gt": ">", "ge": ">=", "lt": "<", "le": "<=", "like": "LIKE",
-    "not-like": "NOT LIKE",
-}  # fmt: skip
-
-
-@dataclass
-class Fetch:
-    table: str
-    sql: str
-    params: list[Any]
-
-
-def fetchxml(text: Any, tables: Iterable[str], columns_of: Any) -> Fetch:
-    """A FetchXML query as one DuckDB SELECT: <entity name>, <attribute>s (none or <all-attributes/>: every
-    column), <filter type="and|or"> of <condition attribute operator value> (eq ne gt ge lt le like not-like
-    null not-null in not-in; nested filters), <order attribute descending>, top or count. Link-entities,
-    aggregates and the rest are refused in one sentence. `columns_of(table)` gives a table's columns."""
-    try:
-        root = ET.fromstring(str(text or ""))  # noqa: S314 (the user's own FetchXML; no DOCTYPE is read)
-    except ET.ParseError as error:
-        raise SandboxError(f"The FetchXML could not be read: {error}.") from None
-    if "<!DOCTYPE" in str(text).upper():
-        raise SandboxError("A FetchXML query has no DOCTYPE.")
-    if root.tag != "fetch":
-        raise SandboxError("A FetchXML query starts with <fetch>.")
-    if root.get("aggregate") in ("true", "1"):
-        raise SandboxError("The sandbox's mock cannot emulate a FetchXML aggregate.")
-    entity = root.find("entity")
-    if entity is None or not entity.get("name"):
-        raise SandboxError('A FetchXML query names its table: <entity name="account">.')
-    known = {t.casefold(): t for t in tables}
-    table = known.get(str(entity.get("name")).casefold())
-    if table is None:
-        raise SandboxError(f"The sandbox has no table {entity.get('name')} here.")
-    columns = list(columns_of(table))
-    by_case = {c.casefold(): c for c in columns}
-
-    def col(name: Any) -> str:
-        real = by_case.get(str(name or "").casefold())
-        if real is None:
-            raise SandboxError(f"{table} has no column {name}.")
-        return quote(real)
-
-    if entity.find("link-entity") is not None:
-        raise SandboxError("The sandbox's mock cannot emulate a FetchXML link-entity (a join).")
-    picked = [col(a.get("name")) for a in entity.findall("attribute")]
-    params: list[Any] = []
-
-    def condition(c: ET.Element) -> str:
-        op = str(c.get("operator") or "eq")
-        name = col(c.get("attribute"))
-        if op == "null":
-            return f"{name} IS NULL"
-        if op == "not-null":
-            return f"{name} IS NOT NULL"
-        if op in ("in", "not-in"):
-            items = [v.text or "" for v in c.findall("value")]
-            if not items:
-                raise SandboxError(f"The condition on {c.get('attribute')} ({op}) has no values.")
-            params.extend(items)
-            return f"{name} {'NOT ' if op == 'not-in' else ''}IN ({', '.join('?' for _ in items)})"
-        if op not in _FETCH_OPS:
-            raise SandboxError(f"The sandbox's mock cannot emulate the FetchXML operator {op}.")
-        params.append(c.get("value"))
-        return f"CAST({name} AS VARCHAR) {_FETCH_OPS[op]} ?" if "like" in op else f"{name} {_FETCH_OPS[op]} ?"
-
-    def filtered(f: ET.Element) -> str:
-        joiner = " OR " if f.get("type") == "or" else " AND "
-        parts = [
-            condition(c) if c.tag == "condition" else f"({filtered(c)})"
-            for c in f
-            if c.tag in ("condition", "filter")
-        ]
-        return joiner.join(parts) or "TRUE"
-
-    wheres = [filtered(f) for f in entity.findall("filter")]
-    orders = [
-        col(o.get("attribute")) + (" DESC" if o.get("descending") in ("true", "1") else "")
-        for o in entity.findall("order")
-    ]
-    most = root.get("top") or root.get("count")
-    sql = f"SELECT {', '.join(picked) if picked else '*'} FROM {quote(table)}"  # noqa: S608 (checked names)
-    if wheres:
-        sql += " WHERE " + " AND ".join(f"({w})" for w in wheres)
-    if orders:
-        sql += " ORDER BY " + ", ".join(orders)
-    if most:
-        if not str(most).isdigit():
-            raise SandboxError("A FetchXML top or count is a whole number.")
-        sql += f" LIMIT {int(most)}"
-    return Fetch(table, sql, params)
-
-
-# ===== SharePoint: a list read's filters =====
-
-_LIST_OPS = {"=": "=", "==": "=", "!=": "<>", "<>": "<>", "<": "<", "<=": "<=", ">": ">", ">=": ">="}
-
-
-def list_where(filters: Any, columns: Sequence[str]) -> tuple[str, list[Any]]:
-    """A SharePoint read's filters ([[column, op, value]]: = != <> < <= > >=, in, between, like, is null)."""
-    by_case = {c.casefold(): c for c in columns}
-    parts: list[str] = []
-    params: list[Any] = []
-    for item in filters or []:
-        if not isinstance(item, (list, tuple)) or len(item) not in (2, 3):
-            raise SandboxError("A filter is [column, op, value].")
-        column, op = str(item[0]), str(item[1]).lower()
-        value = item[2] if len(item) == 3 else None
-        real = by_case.get(column.casefold())
-        if real is None:
-            raise SandboxError(f"The list has no column {column}.")
-        name = quote(real)
-        if op in _LIST_OPS:
-            parts.append(f"{name} {_LIST_OPS[op]} ?")
-            params.append(value)
-        elif op == "in" and isinstance(value, (list, tuple)) and value:
-            parts.append(f"{name} IN ({', '.join('?' for _ in value)})")
-            params.extend(value)
-        elif op == "between" and isinstance(value, (list, tuple)) and len(value) == 2:
-            parts.append(f"{name} BETWEEN ? AND ?")
-            params.extend(value)
-        elif op == "like":
-            parts.append(f"CAST({name} AS VARCHAR) LIKE ?")
-            params.append(value)
-        elif op in ("is null", "null"):
-            parts.append(f"{name} IS NULL")
-        elif op in ("is not null", "not null"):
-            parts.append(f"{name} IS NOT NULL")
-        else:
-            raise SandboxError(f"The sandbox's mock cannot emulate the list filter {item[1]!r}.")
-    return " AND ".join(parts), params
 
 
 # ===== "Will this work for real?": what a query names, checked against a catalog (never run) =====

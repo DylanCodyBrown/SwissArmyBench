@@ -14,6 +14,7 @@ from starlette.testclient import TestClient
 from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain.sandbox import SandboxError
 from tests.conftest import AGENT, AUTH, make_client
+from tests.test_sandbox_query import query
 
 
 def ok(response: Any) -> Any:
@@ -28,7 +29,7 @@ def _project(client: TestClient, tmp_path: Path) -> Path:
 
 
 def _sql(client: TestClient, sql: str) -> Any:
-    return client.post("/sandbox/data", json={"op": "sql", "connection": "Sandbox", "sql": sql}, headers=AUTH)
+    return query(client, sql)
 
 
 def test_a_key_is_checked_and_a_refusal_says_the_key() -> None:
@@ -59,9 +60,7 @@ def test_the_sandbox_refuses_a_duplicate_key_as_the_database_would(tmp_path: Pat
         assert again.status_code == 400 and again.json()["error"] == (
             "Duplicate key: a row with visit_id: 1 is there already (its primary key)."
         )
-        blank = client.post(
-            "/sandbox/data", json={"op": "insert", "table": "visits", "row": {"store": "x"}}, headers=AUTH
-        )
+        blank = _sql(client, "INSERT INTO visits (store) VALUES ('x')")
         assert blank.status_code == 400 and "cannot be blank" in blank.json()["error"]
 
 
