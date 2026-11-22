@@ -1054,7 +1054,42 @@ def test_trino_merges_a_batch_at_a_time_and_says_when_the_connector_cannot(
     said = str(refused.value)
     assert said.startswith("Batch 1 (rows 1 to 2) failed: TrinoUserError")
     assert "This catalog's connector has no MERGE: Iceberg, Delta Lake, Hive" in said
-    assert said.endswith("Trino writes each statement by itself: nothing was written.")
+    assert said.endswith("Trino writes row batches without a transaction: nothing was written.")
+
+
+def test_trino_says_it_has_no_transaction_in_its_dry_run_and_refuses_replace(
+    monkeypatch: pytest.MonkeyPatch, connection: Callable[[Callable[[], Any]], list[str]]
+) -> None:
+    fake = types.ModuleType("trino")
+    fake.paramstyle = "qmark"  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "trino", fake)
+    world: dict[str, Any] = {}
+    connection(lambda: FakeTrino(world))
+    dry = run(cell("write_trino", mode="append", dry_run=True, target="iceberg.sales.orders"), orders=ORDERS)
+    said = str(dry)
+    assert (
+        "Trino writes row batches without a transaction: a failure part-way leaves the rows already" in said
+    )
+    assert (
+        'INSERT INTO "iceberg"."sales"."orders" ("order_id", "region", "amount") VALUES (?, ?, ?), ...'
+        in said
+    )
+    with pytest.raises(WriteError, match="Clear it first"):
+        run(cell("write_trino", mode="replace", dry_run=True, target="iceberg.sales.orders"), orders=ORDERS)
+
+
+def test_a_copy_of_the_old_sql_server_starter_is_told_what_to_do_in_one_line(
+    sql_server: dict[str, Any],
+) -> None:
+    from swissarmybench.client.write_sql import SqlServerWrite
+
+    w = SqlServerWrite("Warehouse", "dbo.orders", "upsert", ROWS, dry_run=True)
+    with pytest.raises(
+        WriteError, match=r"w\.in_transaction went in 0\.0\.32: .*Copy the Write to SQL Server"
+    ):
+        w.in_transaction(lambda: {})
+    with pytest.raises(AttributeError):
+        _ = w.not_a_method
 
 
 # ===== Dataverse: the Web API's change sets =====

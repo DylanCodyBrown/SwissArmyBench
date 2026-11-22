@@ -15,7 +15,7 @@ It knows each database by its driver: PostgreSQL (psycopg), SQLite (sqlite3: the
 read-only, so the same file is opened again to write), MySQL and MariaDB (pymysql, mariadb), SQL Server
 and Azure SQL (Microsoft's mssql-python; an older connection's pyodbc, told apart from any other ODBC
 source by the driver's own answer), Oracle
-(oracledb) and Trino (trino: no transactions on most connectors, so each statement stands by itself).
+(oracledb) and Trino (trino: no transactions on most connectors, so a write is row batches without one).
 For each: how it quotes a name (a plain one written the way it reads one unquoted, so Region finds a
 column made as region), its parameter marks, how it takes a value, the types a new table gets from the
 rows' DuckDB types, and what its refusals usually mean.
@@ -317,7 +317,7 @@ ENGINES: dict[str, Engine] = {
             (
                 "does not support MERGE",
                 "This catalog's connector has no MERGE: Iceberg, Delta Lake, Hive (transactional tables) and "
-                "some JDBC connectors do. The append and replace starters work on the others.",
+                "some JDBC connectors do. Append works on the others.",
             ),
             (
                 "does not support",
@@ -664,7 +664,8 @@ class SqlWrite(Write):
             raise WriteError(f"Nothing was written: {why}") from None
         written = f"the {before:,} rows before it were written" if before else "nothing was written"
         raise WriteError(
-            f"{why[:1].upper()}{why[1:]}. {self.engine.title} writes each statement by itself: {written}."
+            f"{why[:1].upper()}{why[1:]}. {self.engine.title} writes row batches without a transaction: "
+            f"{written}."
         ) from None
 
     def _rollback(self) -> None:
@@ -966,6 +967,25 @@ class SqlServerWrite(SqlWrite):
     def _reopened(self) -> Any:
         _, conn = live(self._given)
         return for_writes(conn)
+
+    def __getattr__(self, name: str) -> Any:
+        """A copy of the SQL Server starter made before the adapter wrote it (its own in_transaction, stage,
+        merge...): refused in one line that says what to do."""
+        if name in GONE_METHODS:
+            raise WriteError(
+                f"w.{name} went in 0.0.32: SQL Server's write is the adapter's now. Copy the Write to SQL "
+                "Server starter as your own again, or end your cell with return w.by_adapter(keys)."
+            )
+        raise AttributeError(name)
+
+
+# What the SQL Server starter called before the adapter wrote for it (a copy made then names them).
+GONE_METHODS: frozenset[str] = frozenset(
+    {
+        "in_transaction", "insert", "insert_into", "stage", "matching", "merge", "merge_sql",
+        "update_then_insert_sql", "delete_staged", "joined", "identity", "input_sizes", "rows_a_batch",
+    }
+)  # fmt: skip
 
 
 __all__ = ["ENGINES", "Rows", "SqlServerWrite", "SqlWrite", "WriteError", "detect"]
