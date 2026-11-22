@@ -450,6 +450,141 @@ def _beta_log(ws: Workspace, settings: Settings, store: DatasetStore, token: str
     )
 
 
+# ----- the app's own life: extensions, the Team box, sharing, updates (bootstrap's order) -----
+
+
+def _extensions(
+    ws: Workspace, live: LiveUpdates, approvals: Approvals, state_dir: Path, audit_log: bool,
+    on_extensions: list[Any], on_shutdown: Callable[[], None] | None,
+) -> tuple[UpdateHelper, Extensions]:  # fmt: skip
+    """Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
+    over to the update's helper, and each update keeps the installed ones (`--with`)."""
+    update_helper = UpdateHelper(info_file_path(), state_dir / "update_failed.json")
+    extensions = Extensions(
+        current=__version__,
+        found=discover_extensions(os.environ),
+        helper=update_helper,
+        approvals=approvals,
+        audit=ws.audit,
+        live=live,
+        stop=on_shutdown or (lambda: None),
+        record=JsonFile(state_dir / "extensions.json" if audit_log else None),
+        panels={
+            str(getattr(m, "ID", "")).lower(): str(m.PANEL)
+            for m in on_extensions
+            if isinstance(getattr(m, "PANEL", None), str) and str(m.PANEL).startswith("/")
+        },
+    )
+    update_helper.kept = extensions.kept_wheels
+    return update_helper, extensions
+
+
+def _team(
+    ws: Workspace, hooks: Hooks, library: Library, project_explorer: ProjectExplorer, library_setup: Any,
+    file_manager: Any, approvals: Approvals, extensions: Extensions, state_dir: Path, audit_log: bool,
+) -> Team:  # fmt: skip
+    """Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the
+    team joined, the folders before it, a step kept over Install's restart). The GitHub work is an
+    extension's."""
+    syncing = next((e for e in extension_rules.CATALOG if "team" in e.provides), None)
+    return Team(
+        ws,
+        hooks,
+        library,
+        project_explorer,
+        library_setup,
+        JsonFile(state_dir / "team.json" if audit_log else None),
+        TeamFiles(file_manager.show),
+        str(state_dir),
+        approvals,
+        lambda: {
+            "id": syncing.id if syncing else "",
+            "name": syncing.name if syncing else "",
+            "installable": extensions.state()["installable"],
+        },
+    )
+
+
+def _sharing(ws: Workspace, hooks: Hooks, approvals: Approvals, state_dir: Path, port: int) -> Sharing:
+    """Share a running app with your organization (Microsoft Dev Tunnels; the third way data leaves this
+    computer, on the user's click): devtunnel in the state folder's devtunnel/, got on the first share."""
+    sharing = Sharing(
+        ws,
+        DevTunnelProgram(TunnelFiles(state_dir / "devtunnel")),
+        lambda: hooks.share_targets,
+        approvals,
+        port,
+    )
+    hooks.sharing = sharing
+    return sharing
+
+
+def _updates(
+    ws: Workspace, live: LiveUpdates, settings: Settings, update_helper: UpdateHelper, extensions: Extensions,
+    approvals: Approvals, open_work: Any, failure_note: Path | None, state_dir: Path, audit_log: bool,
+    on_shutdown: Callable[[], None] | None,
+) -> Updates:  # fmt: skip
+    """The update check (the one request that leaves the computer, the owner's call) and Update to X."""
+    return Updates(
+        current=__version__,
+        feeds=settings.update_feeds,
+        feed=HttpFeed(),
+        switch=UpdateSwitchFile(state_dir / "update.json" if audit_log else None),
+        helper=update_helper,
+        open_work=open_work,
+        approvals=approvals,
+        audit=ws.audit,
+        live=live,
+        stop=on_shutdown or (lambda: None),
+        failed=take_failure_note(failure_note),
+        changing=extensions.changing,
+    )
+
+
+# ----- what context.md reads of the connections -----
+
+
+async def _catalog_of(catalogs: Any, name: str) -> Any:
+    """A loaded catalog's schemas (datasets), its first tables, their count, and the names shared."""
+    schemas = await catalogs.schema_names(name)
+    if schemas is None:
+        return None
+    tables: list[CatalogTable] = []
+    for s in schemas:
+        if len(tables) >= context_rules.MAX_CATALOG_TABLES:
+            break
+        if not s.get("tables") and not s.get("views"):
+            continue
+        found = await catalogs.tables(
+            name, str(s["schema"]), str(s["database"]) or None, 0, context_rules.MAX_CATALOG_TABLES
+        )
+        tables += [
+            CatalogTable(str(t["database"]), str(t["schema"]), str(t["table"])) for t in found["tables"]
+        ]
+    total = sum(int(s.get("tables") or 0) + int(s.get("views") or 0) for s in schemas)
+    return (
+        [str(s["schema"]) for s in schemas],
+        tables[: context_rules.MAX_CATALOG_TABLES],
+        total,
+        await catalogs.shared_tables(name),
+    )
+
+
+def _used_in(sab_projects: Any, connection_usage: Any, name: str) -> list[tuple[str, str]]:
+    """The project's documents and the open grids that use a connection (kind, path or table)."""
+    folder = (sab_projects.state().get("project") or {}).get("folder")
+    found, _ = connection_usage.references(name)
+    out = []
+    for ref in found:
+        if ref.kind == "grid":
+            out.append(("grid", ref.title))
+        elif folder and ref.document.replace("\\", "/").casefold().startswith(
+            str(folder).replace("\\", "/").rstrip("/").casefold() + "/"
+        ):
+            out.append((ref.kind, ref.document))
+    return out
+
+
 def bootstrap(
     port: int,
     token: str,
@@ -1349,109 +1484,29 @@ def bootstrap(
     failure_note = state_dir / "update_failed.json" if audit_log else None
     # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
     # over to the update's helper, and each update keeps the installed ones (`--with`).
-    update_helper = UpdateHelper(info_file_path(), state_dir / "update_failed.json")
-    extensions = Extensions(
-        current=__version__,
-        found=discover_extensions(os.environ),
-        helper=update_helper,
-        approvals=approvals,
-        audit=ws.audit,
-        live=live,
-        stop=on_shutdown or (lambda: None),
-        record=JsonFile(state_dir / "extensions.json" if audit_log else None),
-        panels={
-            str(getattr(m, "ID", "")).lower(): str(m.PANEL)
-            for m in on_extensions
-            if isinstance(getattr(m, "PANEL", None), str) and str(m.PANEL).startswith("/")
-        },
+    update_helper, extensions = _extensions(
+        ws, live, approvals, state_dir, audit_log, on_extensions, on_shutdown
     )
-    update_helper.kept = extensions.kept_wheels
     # Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the team
     # joined, the folders before it, a step kept over Install's restart). The GitHub work is an extension's.
-    syncing = next((e for e in extension_rules.CATALOG if "team" in e.provides), None)
-    team = Team(
-        ws,
-        hooks,
-        library,
-        project_explorer,
-        library_setup,
-        JsonFile(state_dir / "team.json" if audit_log else None),
-        TeamFiles(file_manager.show),
-        str(state_dir),
-        approvals,
-        lambda: {
-            "id": syncing.id if syncing else "",
-            "name": syncing.name if syncing else "",
-            "installable": extensions.state()["installable"],
-        },
-    )
+    team = _team(
+        ws, hooks, library, project_explorer, library_setup, file_manager, approvals, extensions, state_dir,
+        audit_log,
+    )  # fmt: skip
     # Share a running app with your organization (Microsoft Dev Tunnels; the third way data leaves this
     # computer, on the user's click): devtunnel in the state folder's devtunnel/, got on the first share.
-    sharing = Sharing(
-        ws,
-        DevTunnelProgram(TunnelFiles(state_dir / "devtunnel")),
-        lambda: hooks.share_targets,
-        approvals,
-        port,
-    )
-    hooks.sharing = sharing
-    updates = Updates(
-        current=__version__,
-        feeds=settings.update_feeds,
-        feed=HttpFeed(),
-        switch=UpdateSwitchFile(state_dir / "update.json" if audit_log else None),
-        helper=update_helper,
-        open_work=open_work,
-        approvals=approvals,
-        audit=ws.audit,
-        live=live,
-        stop=on_shutdown or (lambda: None),
-        failed=take_failure_note(failure_note),
-        changing=extensions.changing,
-    )
+    sharing = _sharing(ws, hooks, approvals, state_dir, port)
+    updates = _updates(
+        ws, live, settings, update_helper, extensions, approvals, open_work, failure_note, state_dir,
+        audit_log, on_shutdown,
+    )  # fmt: skip
     # Launch Claude: Claude Code in the user's terminal, or Claude Desktop, found wherever it is installed.
     standin = settings.claude_standin
     claude_files = ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if audit_log else None)
     agent = AgentService(ws, approvals, tickets)
 
-    async def catalog_of(name: str) -> Any:
-        """A loaded catalog's schemas (datasets), its first tables, their count, and the names shared."""
-        schemas = await catalogs.schema_names(name)
-        if schemas is None:
-            return None
-        tables: list[CatalogTable] = []
-        for s in schemas:
-            if len(tables) >= context_rules.MAX_CATALOG_TABLES:
-                break
-            if not s.get("tables") and not s.get("views"):
-                continue
-            found = await catalogs.tables(
-                name, str(s["schema"]), str(s["database"]) or None, 0, context_rules.MAX_CATALOG_TABLES
-            )
-            tables += [
-                CatalogTable(str(t["database"]), str(t["schema"]), str(t["table"])) for t in found["tables"]
-            ]
-        total = sum(int(s.get("tables") or 0) + int(s.get("views") or 0) for s in schemas)
-        return (
-            [str(s["schema"]) for s in schemas],
-            tables[: context_rules.MAX_CATALOG_TABLES],
-            total,
-            await catalogs.shared_tables(name),
-        )
-
-    def used_in(name: str) -> list[tuple[str, str]]:
-        """The project's documents and the open grids that use a connection (kind, path or table)."""
-        folder = (sab_projects.state().get("project") or {}).get("folder")
-        found, _ = connection_usage.references(name)
-        out = []
-        for ref in found:
-            if ref.kind == "grid":
-                out.append(("grid", ref.title))
-            elif folder and ref.document.replace("\\", "/").casefold().startswith(
-                str(folder).replace("\\", "/").rstrip("/").casefold() + "/"
-            ):
-                out.append((ref.kind, ref.document))
-        return out
+    catalog_of = partial(_catalog_of, catalogs)
+    used_in = partial(_used_in, sab_projects, connection_usage)
 
     # One Jedi world and one set of linters: the editors' intelligence's, and the Scripts IDE's (never a
     # second).

@@ -12,8 +12,13 @@ reached by `write_sql_server = sab.blade("Write to SQL Server")` until the proje
   is read-only). Trino writes where the catalog's connector does.
 - `blades_starters`: the Write family. SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite,
   Oracle, Trino and ODBC (append, create table, replace, upsert, delete); Dataverse (create, update,
-  upsert, delete); files (CSV, Parquet, partitioned Parquet,
-  JSON, an Excel sheet). Excel's writers and Power BI's refreshes are listed there too.
+  upsert, delete, truncate); SharePoint lists (create, update, delete, truncate); a Delta table (append,
+  overwrite, merge, delete by a condition, optimize, vacuum); a lake file; files (CSV, Parquet, partitioned
+  Parquet, JSON, an Excel sheet). Excel's writers and Power BI's refreshes are listed there too.
+- Dataverse, SharePoint lists, a Delta table and a lake file write through the adapter (sab_adapter.write on the
+  connection's own client: the same write an exported API.py's `connection(name).write(...)` makes); their dry
+  run is the adapter's `planned()`: counts read from the target as it is. `truncate` deletes every row, then
+  writes the rows (none: only clears it). An update stops when a key is not there ("merge adds the others").
 - Writing to an API: the APIs page's Write rows with this call.
 
 ## The rule: a dry run first

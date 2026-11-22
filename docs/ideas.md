@@ -7836,7 +7836,7 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   (routes_connection_tables keeps its two own answers, narrowed to their types). bootstrap()'s split by area is not
   done (it is the next merge-conflict magnet: the adapter work touches it in two places only).
 
-**For the owner to decide (not built):**
+**For the owner to decide (not built)** (decided 2026-11-22, Plans/adapter.plan.md "after phase 2"; built in phase 3, below):
 1. The mock clients and sandbox_dialects.py. An endpoint today runs SQL in its source's own dialect (forms_recon's
    API.py, the scaffold's CRUD). Taking the mocks away means endpoint code calls the adapter (read with a Plan,
    write by mode) instead of SQL text, and SQL that a Plan cannot say (joins, a CTE) needs a home: (a) the adapter
@@ -7863,6 +7863,75 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   write_sql, server/sandbox_clients (the SQL mocks' SQL), blade_runner's old SQL path (dialects the adapter does not
   know), the Write starters; SQL text in api_clients, ts_notebook, sharepoint and blade_templates; the extensions'
   accounting runtime and service, powerbi's pbix readers.
+**Phase 3 built (2026-11-22, branch adapter-3).** Decisions:
+- `query(source, sql, params)` is one statement in the source's own SQL and its driver's marks (params by place,
+  or by name as a dict); a read is streamed, a write runs in its own transaction and answers its RETURNING rows,
+  else one `count` column (DuckDB's own `Count` renamed, so every source says it alike). A source with no SQL
+  (OData, Rows) refuses in one sentence; the sandbox's Dataverse is SELECT only, as the SQL endpoint.
+- `Connection` is in the adapter (sab_adapter.py), not sab_api: an export copies it with the rest, and sab_api's
+  `connection(name)` gives it when sab_adapter is beside it. `read` takes a Plan or its parts by name; `write`
+  takes Arrow or a list of dicts; `records()` takes Arrow (and a cursor, as before).
+- The JSON op door (`/sandbox/data`, `/sandbox/data/{key}`: query, table, insert/update/delete, sql, sql_many,
+  odata, fetchxml, list, client, more) went with the mocks: the adapter's door is tables, read, query and write
+  as Arrow. Dataverse's OData and FetchXML text and a SharePoint list's filter text are no longer translated: an
+  endpoint reads them with a plan, which the real source folds into its own OData or Graph call.
+- What a user's own API.py sees differently (say it to the owner): `connection(name)` no longer has its real
+  client's shape (cursor(), execute(), rows(), fetch(), create()...): an API.py written for the mocks must move to
+  read, query and write (the refusal says so in one line). A refusal's type in Try it is `AdapterError` (was
+  `MockError`); its words are the same. New endpoint from a table writes one style for every source (was T-SQL,
+  OData, list calls by source). A read past 10,000 rows is one stream (no `more` pages).
+- Writes: the protocol code moved into the adapter for Dataverse (stdlib HTTP on the connection's own address and
+  token); SharePoint lists and the lakes keep their protocol in their connection's own code (create, update,
+  delete, ids; write_delta, delete_delta, write_file) and the adapter drives it, as Rows' read does. Dataverse and
+  SharePoint have no transaction across batches: a refusal says what was written before it. A Delta `update` is a
+  merge of only the keys that are there; a lake or plain file takes truncate and insert only.
+- A dry run is the adapter's `planned()`: counts by reads through the source (a key a hundred values at a time as
+  an `in` filter the source folds), so every source's dry run is the same code. An update with a key that is not
+  there stops in the starter ("an update only changes rows that are there (merge adds the others)").
+- The starters keep their names, modes and dry_run; Dataverse and SharePoint lists take `truncate` (new).
+- "Edited" (the Catalog's listing): a connection's List the tables differs, whitespace aside, from its starter's
+  listing query (or its language does). An unedited one is listed by `tables()` in the connection's child process
+  only for the dialects whose adapter listing is its starter's row for row (DuckDB, SQLite: a test compares the
+  two; PostgreSQL: the same information_schema query). The adapter's Table carries schema, kind and database and
+  its Column nullability (not compared, so earlier equalities hold).
+- Files: DuckDB's readers (read_csv, read_parquet, read_json), each file a table by its path without its suffix; a
+  write is a file written beside and put in its place. The app's own Open as grid of a file connection stays on its
+  loader: its pyarrow fallbacks (a stray value read as text, cp1252 and latin-1 files) type some files otherwise.
+- The engine: exports, the "+" tab's and SQL box's tables and a kernel's view read through `query` over the app's
+  DuckDB session (`DuckDB.session` uses a connection as it is; a kernel's view takes a cursor of its own, as the
+  session may hold an unfinished execute). The window reads stay rowid ranges over the view cache.
+- sab_adapter.py is allowed 2,400 lines in tests/test_architecture.py (one file by design: an export copies it).
+- bootstrap(): six more module-level helpers (extensions and the update helper, the Team box, sharing, updates,
+  catalog_of, used_in), the code as it was.
+
+**For the owner to approve (not built):**
+1. The old API.py client shape is refused, not kept: keep it so (the plan's "the mock clients go"), or give one
+   release of a cursor-shaped helper over `query`?
+2. A file connection's Open as grid through the adapter: accept DuckDB's types for CSV (a stray value fails the
+   column, a cp1252 file needs `encoding`), or move the loader's fallbacks into the adapter's Files?
+3. The Catalog through the adapter for MySQL, Oracle and Snowflake lists only the connection's own database or
+   schema (the adapter's catalog query) where their starters list every non-system schema: widen the adapter's
+   query to the starter's scope (then switch them), or keep the starters'?
+4. The grid's windows and the analyses through the adapter need the view cache as a source of its own (a plan
+   with a rowid range, or `query` over the cache table): is that the next step, or are they "the engine's own"?
+
+- What each later piece needs now: contract.json loading needs nothing of the adapter. The eight-file export:
+  connections.py already wires `source_from` and `Connection`; data.py needs `TableSource`s per table. Folder
+  extensions add sources by the three functions (plus `query`). The Environment page reads `sab.table` and the
+  open tables' listing (built). The Excel module is a `Rows`-like or `Files`-like source plus a `replace` mode
+  (truncate clears a sheet). sab.write is `write()` with `planned()` as its dry run (built for every source the
+  adapter writes). The endpoint wizard writes `connection(name).read/query/write` (the scaffold's style).
+- The boundary list now (tests/test_adapter_boundary.py, -s prints it; 42 places): moved and enforced: a local
+  sandbox API's process opens no driver and has no mock client; the sandbox's door is the adapter's four calls;
+  the app-written endpoints and forms_recon call only the adapter; every export's rows, a query made a table and
+  a kernel's view read through `query`; Open as grid for every dialect the adapter knows; a kernel's read of an
+  open table. Still outside: adapters/apis, catalogs, codegen, database, datasets (its loaders, read_json),
+  found_connections (sqlite3), intellisense, library (read_json), sandbox, views; bootstrap.py, stats.py,
+  server/http.py, routes_agent, routes_grids; client/sql_cell, structures_client, write_sql, writes (DuckDB
+  staging); the 12 Write starters not yet on the adapter (and the 4 that are keep `import duckdb` as their package
+  mark); SQL text in api_clients, sharepoint, blade_templates; the extensions' accounting runtime and service,
+  powerapps' ts_notebook, powerbi's pbix readers.
+
 ## The approved API and sandbox items, and three canvas gaps (the owner, 2026-11-21; branch api-approved)
 
 BUILT, each with its decision:
