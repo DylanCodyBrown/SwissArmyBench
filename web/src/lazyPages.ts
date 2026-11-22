@@ -140,6 +140,11 @@ export function cardActions(status: SyncStatus | null, path: string): { label: s
 
 // An install or a removal handed over (the user's click elsewhere, or the agent's after Allow): the
 // Extensions page follows it through the restart, opened or not.
+// A folder extension made, removed or loaded again (the agent's too): the page, when it has been opened, redraws.
+onNotice((n) => {
+  if (n.type !== "extensions_changed") return;
+  void import("./extensionsPage").then((page) => page.refresh());
+});
 onNotice((n) => {
   if (n.type !== "extensions_changing") return;
   const said = n as unknown as { id: string; action: "install" | "remove" };

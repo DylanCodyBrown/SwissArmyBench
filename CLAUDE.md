@@ -242,6 +242,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   sets, variables and connection colours live outside every project, in one folder of text files made to be a Git
   repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
   `library.json` keeps the path): `connections/`, `vaults/`, `blades/<name>.blade.py`, `apis/<name>/`,
+  `extensions/<id>/` (folder extensions: found at start, trusted like the blades, no signing; Plans/folder-extensions.plan.md),
   `relationship-sets/`, `variables.toml`, `colours.toml`, `catalog/` (the shared catalog, below), `local/` (this
   computer only, git-ignored: `local/variables.toml`, and `local/vault-names/<vault>.json`, a key vault's secret
   names and their variables as last read here, never a value, so a vault that loads every secret gives its
@@ -316,7 +317,11 @@ src/swissarmybench/
                          so far; a closure reads a later one when it runs), then Services from it
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
                          SWISSARMYBENCH_EXTENSIONS: extension_on(id)), their modules, every project type's
-                         mode as data (the base's BASE_MODE, each extension's MODE)
+                         mode as data (the base's BASE_MODE, each extension's MODE); the library's folder
+                         extensions (folders(): library/extensions/<id>/ loaded as the package sab_ext_<id>,
+                         or kept with its error, its missing REQUIRES, a package of its id winning; use_library:
+                         the server's library; SWISSARMYBENCH_EXTENSION_FOLDERS for tests), a folder's MODE and
+                         New project files from its contract.json; contract(module): any extension's contract.json
 
   domain/                the model and its rules. Standard library and sqlglot only; no I/O, no clock
     datasets.py          Column, DatasetInfo, names, the dataset errors
@@ -567,7 +572,18 @@ src/swissarmybench/
                          update's plan (uv tool install --force, each installed extension `--with`)
     extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps, copilot available), statuses
                          (preinstalled, available, installed, coming), an entry point's description read loosely,
-                         the wheel on this version's GitHub release, Install's and Remove's plan
+                         the wheel on this version's GitHub release, Install's and Remove's plan; a folder
+                         extension's card (source folder, path, on, error, missing: the one missing answer) and
+                         a contract's project type and deliverable on a card
+    extension_folders.py folder extensions' rules (Plans/folder-extensions.plan.md): the id (a Python name, never a
+                         base word), the manifest's literals and REQUIRES read with ast before it loads, a load
+                         error's one sentence with its file and line, the words; New extension's folder
+                         (extension.py with one route, commands.py with one command, README.md, contract.json)
+    project_contract.py  contract.json (FORMAT 1; Plans/adapter.plan.md): a project type as JSON (type, name,
+                         deliverable, languages by pattern, cells, files: path, owner user or app, starter, made_from,
+                         grows_on; requirements, canvas, export, areas, words); the one checker (one sentence naming
+                         the key: unknown keys, a newer format, paths out of the project, the core files refused);
+                         byte-stable text; New project's files from it, its MODE, a path matched to its entry
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice; the rail's
@@ -808,7 +824,10 @@ src/swissarmybench/
     file_watch.py        a table read from a file, watched (a stat every few seconds, off the loop): Changed on
                          disk said once (`file_changed`), Not now; Reload is datasets.py's (steps kept)
     extensions.py        the Extensions page: the cards, Install and Remove handed to the update's helper (the
-                         agent's on Allow; Remove asks the user first; a development checkout says what to run)
+                         agent's on Allow; Remove asks the user first; a development checkout says what to run);
+                         a folder extension with no restart: Install (its missing packages, then Load again: its
+                         routes mounted), Remove (to the trash, asked first), Show its folder (the user's only),
+                         New extension (the agent's on Allow; written, loaded, mounted)
     claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
                          Desktop started (Desktop's config asked once); the agent reads only
     context_md.py        context.md kept current: gathered from the services, looked at after a notice (every
@@ -958,7 +977,9 @@ src/swissarmybench/
     desktop.py           the desktop app's channel (127.0.0.1, a key, one JSON line each way), desktop.json, its
                          windows.json
     extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
-                         SWISSARMYBENCH_EXTENSIONS (tests and development only)
+                         SWISSARMYBENCH_EXTENSIONS (tests and development only); each one's contract.json;
+                         FolderExtensions (the library's folders as cards, New extension's folder written, Remove's
+                         system trash, Show its folder's file manager, Load again)
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     sab_files.py         a project folder's .sab/ files (written atomically, only when their bytes change),
                          the scaffold's Git files, its documents listed, Copy project to;
@@ -1141,7 +1162,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          areas (the owner, 2026-11-16); pageActions.ts the buttons an on extension adds to a
                          base page (the mode's page_actions: label and icon as data; a click runs the plug-in of
                          that id); extensionsPage.ts the Extensions page (open=extensions,
-                         above Settings: a card per extension, Install's progress through the restart);
+                         above Settings: a card per extension, Install's progress through the restart; a folder
+                         extension's card from its data: Installed (folder), its path, Remove, Show its folder,
+                         its error with Load again, its packages through the missing-package prompt; New
+                         extension… in its heading);
                          library.ts Settings' Team box (Join a team…, Start a team…: one dialog of steps; the
                          Joined row: Pull, Push, …; Advanced: the two folders; Set up this computer) and the
                          notices said once (the move, a team library, a pull's catalog change; a kept step
@@ -1397,7 +1421,9 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          in for, a made-up .venv and a made-up package index on 127.0.0.1: the Environment's
                          Libraries tab), devtunnel_standin.py (Microsoft's
                          devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
-                         and Git Data APIs and the device flow over in-memory repositories of made-up files)
+                         and Git Data APIs and the device flow over in-memory repositories of made-up files),
+                         folder_extension_example/stockroom/ (a made-up folder extension, never shipped: a project
+                         type with one deliverable, one route, one command; test_folder_extensions.py proves it)
 tools/                   screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for

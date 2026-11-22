@@ -245,6 +245,8 @@ NOT_COMMANDS = {
     "/sharing/sign-in": "signing in to share (Microsoft Entra) is the user's own (403 for the agent)",
     "/team/show": "Show its folder opens the user's own file manager: the user's click only (403 for the "
     "agent)",
+    "/extensions/show": "a folder extension's Show its folder opens the user's own file manager: the user's "
+    "click only (403 for the agent)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }
@@ -941,9 +943,9 @@ def test_the_agent_guide_only_names_commands_that_exist() -> None:
     guide = "\n".join([execute("guide"), *(execute("guide", {"topic": topic}) for topic in GUIDE_TOPICS)])
     prefixes = "|".join(area for area, _ in AREAS if area != "help")
     named = set(re.findall(rf"\b((?:{prefixes})_[a-z_]+)\b", guide))
-    named -= {
-        "environment_id"
-    }  # an argument of powerapps_new, not a command (the `environment` tool's prefix)
+    # Arguments and a module's name, not commands: powerapps_new's environment_id, extensions_new's
+    # project_type, domain/project_contract.py (their words begin with a tool's prefix).
+    named -= {"environment_id", "project_type", "project_contract"}
     unknown = sorted(n for n in named if n not in REGISTRY and not n.endswith("_"))
     assert unknown == [], f"the guide names commands that do not exist: {unknown}"
     assert {"tabs_new_query", "column_keep", "cell_exclude", "steps_add", "agent_events"} <= named

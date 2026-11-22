@@ -4085,6 +4085,18 @@ def extensions_remove(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "extensions_new",
+    "New folder extension in the library (extensions/<id>/: one route, one command; waits for Allow)",
+    req("id", "Its id: lower case, digits, _ (its routes /<id>/, commands <id>_...)."),
+    opt("name", "Its name."),
+    opt("project_type", "A project type it adds (contract.json)."),
+)
+def extensions_new(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("id", "name", "project_type") if a.get(k)}
+    return api.call("POST", "/extensions/new", body, timeout=200)
+
+
+@command(
     "app_lifecycle",
     "When the server stops: windows open, the last client, busy, held, seconds left (it lives while the app is open)",
 )
@@ -5457,8 +5469,15 @@ def _add_extensions() -> None:
 
     for module in extensions.enabled():
         made = getattr(module, "commands", None)
-        for name, cmd in (made() if callable(made) else {}).items():
-            REGISTRY.setdefault(name, cmd)
+        try:
+            given = made() if callable(made) else {}
+        except Exception:  # a folder extension's own code (the library's): its commands left out, never all
+            given = {}
+        known = {area for area, _ in AREAS} | {a[0] for a in getattr(module, "AREAS", ()) or ()}
+        for name, cmd in (given if isinstance(given, dict) else {}).items():
+            # A command in no area would leave the registry unordered: only one under an area is taken.
+            if isinstance(cmd, Command) and any(name == a or name.startswith(a + "_") for a in known):
+                REGISTRY.setdefault(name, cmd)
         # Its commands that went: an old call says why (as the base's GONE_NAMES).
         gone = getattr(module, "gone_commands", None)
         for name, said in (gone() if callable(gone) else {}).items():

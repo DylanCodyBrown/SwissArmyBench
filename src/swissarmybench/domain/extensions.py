@@ -7,8 +7,13 @@ The catalog is every extension that exists or is coming, each with a status:
     preinstalled  comes with every install (Streamlit: the installers and each update install its package);
                listed as installed while its package is here (Remove asks first), available once removed
     available  a package this version can install (from the GitHub release of this exact version)
-    installed  a package found under the entry-point group `swissarmybench.extensions`
+    installed  a package found under the entry-point group `swissarmybench.extensions`, or a folder in the
+               library (`library/extensions/<id>/`, Plans/folder-extensions.plan.md): source "folder"
     coming     listed, not installable
+
+A folder extension (domain/extension_folders.py has its rules) is listed with source "folder", its path,
+whether it is on, its load error and its missing packages (the one missing-package answer). Remove moves its
+folder to the trash (the user's own; the agent's on Allow); no restart.
 
 An installed extension's entry point gives its description (`describe`): id, name, description, version,
 what it adds. Install and Remove are the updater's machinery (server/updater.py): the app stops, uv installs
@@ -20,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain.packages import missing_packages
 from swissarmybench.domain.updates import PACKAGE, REPOSITORY, UpdateError, UpdatePlan
 
 GROUP: str = "swissarmybench.extensions"
@@ -136,7 +142,7 @@ class ExtensionError(ValueError):
 
 @dataclass(frozen=True)
 class Found:
-    """An installed extension, as its entry point described it."""
+    """An installed extension, as its entry point (or its folder's extension.py) described it."""
 
     id: str
     version: str = ""
@@ -144,6 +150,13 @@ class Found:
     description: str = ""
     adds: tuple[str, ...] = field(default_factory=tuple)
     package: str = ""
+    source: str = "package"  # package | folder
+    path: str = ""  # a folder extension's folder
+    error: str = ""  # a folder that did not load: its one sentence (with the line)
+    missing: tuple[str, ...] = ()  # a folder's REQUIRES not in the app's Python (it is not on until they are)
+    project_type: str = ""  # its contract.json's type
+    project_name: str = ""
+    deliverable: tuple[str, ...] = ()  # its contract.json's files
 
 
 def check_id(value: object) -> str:
@@ -208,6 +221,7 @@ def listed(catalog: tuple[Extension, ...], found: dict[str, Found], current: str
         if here is not None:
             said["status"] = "installed"
             said["version"] = here.version or current
+            said |= _contract_fields(here)
         else:
             if ext.status == "preinstalled":
                 said["status"] = "available"
@@ -217,18 +231,44 @@ def listed(catalog: tuple[Extension, ...], found: dict[str, Found], current: str
     for ident, here in found.items():
         if ident in known:
             continue
-        out.append(
-            {
-                "id": ident,
-                "name": here.name or ident,
-                "description": here.description,
-                "adds": list(here.adds),
-                "status": "installed",
-                "package": here.package,
-                "version": here.version or None,
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": ident,
+            "name": here.name or ident,
+            "description": here.description,
+            "adds": list(here.adds),
+            "status": "installed",
+            "package": here.package,
+            "version": here.version or None,
+        }
+        if here.source == "folder":
+            entry |= _folder_fields(here)
+        out.append(entry | _contract_fields(here))
     return out
+
+
+def _folder_fields(here: Found) -> dict[str, Any]:
+    """A folder extension's card: where it is, whether it is on, why not (its error, its missing packages)."""
+    feature = f"The {here.name or here.id} extension"
+    # Into the app's own Python ("app"): its command names no other Python.
+    missing = missing_packages(feature, list(here.missing), "", own=True) if here.missing else None
+    return {
+        "source": "folder",
+        "path": here.path,
+        "on": not here.error and not here.missing,
+        "error": here.error or None,
+        "missing": missing,
+    }
+
+
+def _contract_fields(here: Found) -> dict[str, Any]:
+    """What its contract.json says, for its card: the project type it adds and the deliverable's files."""
+    if not here.project_type:
+        return {}
+    return {
+        "project_type": here.project_type,
+        "project_name": here.project_name or here.project_type,
+        "deliverable": list(here.deliverable),
+    }
 
 
 def to_bring_back(

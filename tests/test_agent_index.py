@@ -33,7 +33,8 @@ GUIDE = files("swissarmybench.mcp")
 
 # Words shaped like a command that are an argument's name: Power Apps' environment_id (the Environment's one
 # tool, `environment`, made its word a prefix, 2026-11-22).
-ARGUMENTS = {"environment_id"}
+# Words shaped like commands that are not: an argument (extensions_new's project_type) or a module's name.
+ARGUMENTS = {"environment_id", "project_type", "project_contract"}
 
 
 def index() -> str:

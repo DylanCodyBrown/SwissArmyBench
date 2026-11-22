@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "type": "powerbi",
+  "name": "Power BI",
+  "deliverable": "a Power BI report",
+  "core": "base",
+  "languages": {
+    "*.py": "python",
+    "*.ipynb": "python",
+    "*.dax": "dax",
+    "*.tmdl": "tmdl",
+    "*.m": "powerquery"
+  },
+  "cells": [
+    "python",
+    "sql",
+    "dax",
+    "markdown"
+  ],
+  "files": [
+    {
+      "path": "powerbi/",
+      "owner": "app",
+      "about": "The model as a Power BI Project (.pbip).",
+      "starter": null,
+      "made_from": "the ERD's tables and relationships",
+      "grows_on": [
+        "export"
+      ],
+      "section": ""
+    }
+  ],
+  "requirements": [],
+  "canvas": null,
+  "export": [
+    "powerbi"
+  ],
+  "areas": [
+    "projects",
+    "powerbi",
+    "connections",
+    "variables",
+    "data",
+    "grids",
+    "erd",
+    "notebooks",
+    "session",
+    "settings"
+  ],
+  "words": {
+    "title": "Power BI",
+    "for_whom": "For anyone who works on a Power BI report and wants its data checked at the source.",
+    "explain": "Start from a .pbix: its connections, tables, relationships and measures come in ready to work. Each table is read from its source and as Power BI has it, side by side, so you can compare them.",
+    "example": "Example: the sales report's numbers tied out to the warehouse before the month closes."
+  }
+}

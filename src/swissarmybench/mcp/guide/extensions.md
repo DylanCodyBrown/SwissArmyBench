@@ -9,15 +9,86 @@ underneath stay the same (design principles 1.0 and 13a).
 Read the existing ones before writing one: `extensions/copilot/` is the smallest (a panel, three commands),
 `extensions/powerbi/` adds a project type and a rail page, `extensions/streamlit/` a canvas.
 
-## How it is found
-Today an extension is a package (folders in the library are planned: see the end).
-- Its `pyproject.toml` names the base at the same version and registers one entry point:
-  `[project.entry-points."swissarmybench.extensions"]` with `<id> = "<package>.extension"`.
-- The base reads the installed entry points once at start (`src/swissarmybench/adapters/extensions.py`). One that
-  fails to import is left out and the app starts anyway.
-- In a checkout, `SWISSARMYBENCH_EXTENSIONS=<id>` turns one on without installing it (its `src/` on the path);
-  `-<id>` turns an installed one off. Tests do this in `tests/conftest.py`.
-- `extensions_list` shows what is on; `extensions_install` and `extensions_remove` wait for the user's Allow.
+## Two kinds, one shape
+An extension is either **a folder in the library** (the quickest: no package, no install, no restart) or **a
+package** (a wheel with an entry point, as the shipped ones are). Both have the same module values (`extension.py`
+below), the same `commands.py` and the same `contract.json`, so one moves between the two.
+
+- **A folder:** the library's `extensions/<id>/` (the library is `~/.swissarmybench/library` unless Settings moved
+  it: `library_info` says where). Found when the app starts, trusted like the library's blades (no signing, no
+  question), shared with the library (a team's Git repository too). It loads as the package `sab_ext_<id>`: its own
+  files import each other relatively (`from .commands import COMMANDS`), never as top-level modules. One that fails
+  is listed on the Extensions page with its error and the line (the app starts anyway); a folder with an installed
+  package's id loses to the package.
+- **A package:** its `pyproject.toml` names the base at the same version and registers one entry point,
+  `[project.entry-points."swissarmybench.extensions"]` with `<id> = "<package>.extension"`; the base reads the
+  installed entry points once at start. In a checkout, `SWISSARMYBENCH_EXTENSIONS=<id>` turns one on without
+  installing it; `-<id>` turns one off (a folder's too).
+- `extensions_list` shows them all (a folder's: `source: "folder"`, its `path`, `on`, its `error`, its `missing`
+  packages). `extensions_install` and `extensions_remove` wait for the user's Allow: for a package the app
+  restarts; for a folder Install installs its missing packages and loads it again (no restart), Remove sends its
+  folder to the trash and stops its routes at once. Show its folder is the user's click only.
+
+## Make a folder extension from scratch
+1. `extensions_new(id="inventory", name="Inventory", project_type="inventory")` (waits for the user's Allow): it
+   writes `extensions/inventory/` with `extension.py` (one route, `GET /inventory/status`), `commands.py` (one
+   command, `inventory_status`), `README.md` and, with a project type, `contract.json`; then loads it and mounts its
+   routes. `extensions_list` gives its `path`.
+2. Grow it with your own file tools in that folder: routes in `routes(services)`, commands in `commands.py`, the
+   project type's files in `contract.json`. The id is a Python name (lower case, digits, `_`): its routes are
+   `/<id>/...` and its commands `<id>_<verb>`, in its `AREAS`.
+3. Load it again: `extensions_install(id="inventory")` (its routes are mounted again at once). Its new commands
+   reach your tool list when your MCP server next starts; until then call its routes through the app.
+4. A package it needs: name it in `REQUIRES = ["openpyxl>=3.1"]` (a literal list: it is read before the folder
+   loads). Until it is installed the extension is not on and its card offers Install now (the one missing-package
+   prompt); `extensions_install` installs it on the user's Allow. Never install anything another way.
+
+A folder by hand, the smallest that works:
+
+```
+library/extensions/inventory/
+  extension.py     ID = "inventory"; NAME; ADDS; REQUIRES = []; AREAS = (("inventory", "what it covers"),);
+                   routes(services) -> [Route("/inventory/...", ...)]; commands() -> {name: Command}
+  commands.py      COMMANDS = {}; command = Registrar(COMMANDS); @command("inventory_<verb>", "...")
+  contract.json    only when it adds a project type (below)
+  README.md        what it adds
+```
+
+With no `MODE` and no `scaffold` of its own, a folder's project type comes from its `contract.json`: New project
+offers it (`project_types`), and a new project of that type gets each file the contract lists with a `starter`.
+
+## contract.json: the project type (FORMAT 1)
+One JSON object at the extension's root (a package's: beside its `extension.py`), only for an extension that adds
+a project type. The checker (`src/swissarmybench/domain/project_contract.py`) refuses, in one sentence naming the
+key, an unknown key, a newer format, a path out of the project or a core file.
+
+```json
+{
+  "format": 1,
+  "type": "inventory",
+  "name": "Inventory",
+  "deliverable": "a stock report",
+  "languages": {"*.py": "python", "*.ipynb": "python", "*.md": "markdown"},
+  "cells": ["python", "sql"],
+  "files": [{"path": "stock_report.md", "owner": "user", "about": "The report.", "starter": "# {name}\n"}],
+  "requirements": [],
+  "canvas": null,
+  "export": ["report"],
+  "areas": [],
+  "words": {"title": "Stock report", "for_whom": "For ...", "explain": "...", "example": "..."}
+}
+```
+
+- `files` is the deliverable: files and folders (a path ending in `/`) the type adds. `owner` is `user` (the user's,
+  written once from `starter`; `{name}` is the project's name, `{slug}` in a path the name as a file name) or `app`
+  (made by the app: `made_from`, `grows_on`, `section`).
+- The core files (`adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`, `requirements.txt`) are the
+  base's in every type: a contract adds to them, never names one. The back end is always Python; data and APIs go
+  through the base's adapters.
+- `languages` maps file patterns to the IDE's languages; `cells` the notebook's cell kinds (beyond python, sql,
+  dax, html and markdown they are the mode's extra cell kinds).
+- The shipped extensions with a project type each carry one (Streamlit, Accounting, Power Apps, Power BI); Copilot
+  and Git add none and have none.
 
 ## The layout
 Arranged like the base (Cosmic Python, REFACTOR.md): imports point inwards, one file per feature in each layer.
@@ -120,11 +191,11 @@ Routes are behind the base's guard (127.0.0.1, the token): never open a port of 
 - The base's own tests keep the boundary: no extension's name in `web/`, no front-end file in an extension, each
   manifest against the shared shapes.
 
-## Planned, not yet loadable
-- **Folders in the library** (Plans/folder-extensions.plan.md): `library/extensions/<id>/` with the same
-  `extension.py`, `commands.py`, `sources.py`, `starters/` and `README.md`, found at start, trusted like the
-  library's blades, a missing package offered through the Install now prompt, and a New extension scaffold.
-- **The project contract** (Plans/adapter.plan.md): a `contract.json` at the extension's root (JSON; a project's own state stays `.sab/project.json`) listing the files the
-  extension owns, made or yours, and what grows each; the base scaffolds, grows and exports a project from it.
+## Planned, not yet built
+- **A folder's own starters and the Scripts page:** a folder's `starters/` listed like a package's, and the
+  library's extensions in the Scripts page's explorer; a change to its files offered as Load again by itself.
+- **The project contract, further** (Plans/adapter.plan.md): today New project reads a folder's deliverable from
+  `contract.json`; the packaged types keep their own `scaffold` and `MODE`, and the base does not yet grow, list
+  or export a project from the contract.
 - **Sources for the adapter:** `sources.py` with three calls (list tables, read a plan as Arrow, write Arrow),
   the only way an extension reaches data once the adapter exists.

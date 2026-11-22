@@ -5034,3 +5034,25 @@ What was not checked:
 - Not checked: Edge; Windows and macOS; a real outside API (only the stand-in); a library API whose sign-in needs
   the keyring or a browser, in a built app; a hosted Streamlit app actually deployed with a carried API client;
   the stress test (tests/stress, SWISSARMYBENCH_STRESS=1) with api_bridge on action().
+## Folder extensions and contract.json (2026-11-22, branch folder-extensions)
+
+Python 3.12.3, Starlette 1.9.0, uv 0.11.32, Chromium 1243 (Playwright's), on Linux.
+- A folder loads as a package with no file of its own: `importlib.util.module_from_spec(ModuleSpec("sab_ext_<id>",
+  None, is_package=True))` with `__path__ = [folder]`, put in `sys.modules`, then `import_module("sab_ext_<id>.
+  extension")`; its own files import each other relatively (`from .commands import COMMANDS`), and nothing of the
+  folder goes on `sys.path` (tests/test_folder_extensions.py). `importlib.invalidate_caches()` makes a file written a
+  moment before (New extension) importable at once.
+- A missing import while a folder loads is `ModuleNotFoundError` with `.name` the missing module (offered as its pip
+  name through domain/packages.py); a `raise` at its top is caught with its traceback's frame in the folder's file:
+  the card says the file and line.
+- Starlette reads `app.router.routes` on each request: routes inserted at its front after the app is built answer,
+  and removed ones answer 404 (a folder's Remove and New extension, no restart).
+- `importlib.metadata.distribution(name)` raises PackageNotFoundError for a REQUIRES line not installed (read with
+  ast, never by running the file).
+- `uv build --wheel` of extensions/powerbi (hatchling, `packages = ["src/swissarmybench_powerbi"]`) puts
+  `swissarmybench_powerbi/contract.json` in the wheel: a package's contract ships at its package root without a
+  change to its pyproject.
+- The Extensions page's browser tests (tests/e2e/test_extensions_page.py, the folder card among them) passed in
+  Chromium here, not Edge.
+- Not verified: the system's trash on Windows and macOS for a folder extension (server/file_manager.trash, the same
+  call a project's Delete makes); a folder extension's routes mounted while a request to them is in flight.

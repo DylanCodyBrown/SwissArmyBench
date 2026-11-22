@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "type": "accounting",
+  "name": "Accounting",
+  "deliverable": "an Excel workbook",
+  "core": "base",
+  "languages": {
+    "*.py": "python",
+    "*.ipynb": "python",
+    "*.json": "json"
+  },
+  "cells": [
+    "python",
+    "sql",
+    "markdown"
+  ],
+  "files": [
+    {
+      "path": "workbook.design.json",
+      "owner": "user",
+      "about": "The workbook's design: sheets, tables, pivots, charts.",
+      "starter": null,
+      "made_from": null,
+      "grows_on": [],
+      "section": ""
+    },
+    {
+      "path": "workbook.py",
+      "owner": "app",
+      "about": "The Python automation that builds the workbook.",
+      "starter": null,
+      "made_from": "workbook.design.json",
+      "grows_on": [
+        "export"
+      ],
+      "section": ""
+    },
+    {
+      "path": "templates/",
+      "owner": "user",
+      "about": "Existing workbooks imported as templates.",
+      "starter": null,
+      "made_from": null,
+      "grows_on": [],
+      "section": ""
+    }
+  ],
+  "requirements": [],
+  "canvas": "excel",
+  "export": [
+    "workbook.py",
+    "workbook"
+  ],
+  "areas": [],
+  "words": {
+    "title": "Accounting workbook",
+    "for_whom": "For accountants who hand over the same Excel workbook every month or quarter.",
+    "explain": "Design the workbook once: sheets of tables, pivots and charts from your data. A Python automation builds it again whenever the data changes. You get data.ipynb, workbook.design.json and workbook.py.",
+    "example": "Example: the quarterly cession statements for each reinsurer, built in one click."
+  }
+}

@@ -43,6 +43,7 @@ from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, grammar_later, open_database
 from swissarmybench.adapters.datasets import DatasetStore, file_stamp
+from swissarmybench.adapters.extensions import FolderExtensions
 from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import is_folder, make_folder
@@ -461,10 +462,12 @@ def _beta_log(ws: Workspace, settings: Settings, store: DatasetStore, token: str
 
 def _extensions(
     ws: Workspace, live: LiveUpdates, approvals: Approvals, state_dir: Path, audit_log: bool,
-    on_extensions: list[Any], on_shutdown: Callable[[], None] | None,
+    on_extensions: list[Any], on_shutdown: Callable[[], None] | None, install_packages: Any,
 ) -> tuple[UpdateHelper, Extensions]:  # fmt: skip
     """Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
-    over to the update's helper, and each update keeps the installed ones (`--with`)."""
+    over to the update's helper, and each update keeps the installed ones (`--with`). The library's folder
+    extensions are read live (FolderExtensions): their packages go into the app's own Python (the blades'
+    install), their folders to the system's trash on Remove, shown in its file manager on Show its folder."""
     update_helper = UpdateHelper(info_file_path(), state_dir / "update_failed.json")
     extensions = Extensions(
         current=__version__,
@@ -475,6 +478,8 @@ def _extensions(
         live=live,
         stop=on_shutdown or (lambda: None),
         record=JsonFile(state_dir / "extensions.json" if audit_log else None),
+        folders=FolderExtensions(file_manager.trash, file_manager.show),
+        install_packages=install_packages,
         panels={
             str(getattr(m, "ID", "")).lower(): str(m.PANEL)
             for m in on_extensions
@@ -838,6 +843,10 @@ def bootstrap(
     b.port, b.token, b.on_shutdown, b.audit_log = port, token, on_shutdown, audit_log
     b.settings = settings or Settings()
     b.state_dir, b.export_dir = b.settings.state_dir, b.settings.export_dir
+    # The library's folder extensions (its extensions/<id>/) are this server's library's: pointed at it first.
+    extension_modules.use_library(
+        LibraryFolder(b.settings.library_dir, b.state_dir / "library.json" if audit_log else None).root
+    )
     b.on_extensions = extension_modules.enabled()
     for part in (
         _adapters,
@@ -1802,7 +1811,7 @@ def _app_life(b: Built) -> None:
     # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
     # over to the update's helper, and each update keeps the installed ones (`--with`).
     b.update_helper, b.extensions = _extensions(
-        ws, live, approvals, state_dir, audit_log, b.on_extensions, b.on_shutdown
+        ws, live, approvals, state_dir, audit_log, b.on_extensions, b.on_shutdown, b.blades.install
     )
     # Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the team
     # joined, the folders before it, a step kept over Install's restart). The GitHub work is an extension's.

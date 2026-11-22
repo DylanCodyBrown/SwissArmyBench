@@ -4,11 +4,15 @@ An extension is a package that registers itself under the entry-point group `swi
 (its entry point names a module: `accounting = "swissarmybench_accounting.extension"`). The base finds the
 installed ones here; nothing else in the shared code names one.
 
-  extension_on(id)  the one capability check: installed (its entry point), or named in
-                    SWISSARMYBENCH_EXTENSIONS (a comma list: a checkout or a test turns one on without
-                    installing it; "-accounting" turns an installed one off)
+  extension_on(id)  the one capability check: installed (its entry point, or a folder in the library that
+                    loaded), or named in SWISSARMYBENCH_EXTENSIONS (a comma list: a checkout or a test turns
+                    one on without installing it; "-accounting" turns an installed one off)
   load(id)          its module (None: off, or it cannot be imported)
   enabled()         the on ones' modules, in id order
+  folders()         the library's folder extensions (its extensions/<id>/, Plans/folder-extensions.plan.md):
+                    each loaded as the package sab_ext_<id>, or kept with why not (its error, its missing
+                    packages, a package of the same id winning); use_library(path): the server's library
+  contract(module)  its contract.json (domain/project_contract.py), the project type it adds
   modes()           every project type's mode, as data: the base's (BI) and each on extension's MODE
   mode_of(type)     a project type's mode (an unknown or missing type: the base's)
 
@@ -17,17 +21,26 @@ the blade and function families shown first, the languages, the extra cell kinds
 and the export. It is declared, never coded: shared code reads these fields, and never asks which type it
 is. Until the manifest boundary exists the extension's MODE lives in its extension module (the entry point).
 
-Standard library only (the MCP server reads it to order its tools).
+Standard library and the domain's rules only (the MCP server reads it to order its tools).
 """
 
 from __future__ import annotations
 
 import importlib
+import importlib.machinery
 import importlib.metadata
+import importlib.util
+import json
 import os
 import sys
+from dataclasses import dataclass, field
+from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+from swissarmybench.domain import extension_folders as folder_rules
+from swissarmybench.domain import project_contract
+from swissarmybench.domain.packages import pip_name
 
 GROUP = "swissarmybench.extensions"
 VARIABLE = "SWISSARMYBENCH_EXTENSIONS"
@@ -125,29 +138,224 @@ def forget_installed() -> None:
     _installed = None
 
 
-def extension_on(extension: str, environ: dict[str, str] | None = None) -> bool:
-    """Is this extension on: installed or named in SWISSARMYBENCH_EXTENSIONS, and not turned off there."""
+def _package_on(name: str, environ: dict[str, str] | None = None) -> bool:
     on, off = _said(environ)
-    name = extension.lower()
     return name not in off and (name in on or name in installed())
 
 
-def load(extension: str) -> ModuleType | None:
-    """The extension's module when it is on (its entry point's, else `swissarmybench_<id>.extension`)."""
-    if not extension_on(extension):
+def extension_on(extension: str, environ: dict[str, str] | None = None) -> bool:
+    """Is this extension on: installed (a package, or a folder in the library that loaded) or named in
+    SWISSARMYBENCH_EXTENSIONS, and not turned off there."""
+    name = extension.lower()
+    if _package_on(name, environ):
+        return True
+    _, off = _said(environ)
+    found = folders().get(name)
+    return name not in off and found is not None and found.module is not None
+
+
+def _package(name: str) -> ModuleType | None:
+    if not _package_on(name):
         return None
-    target = installed().get(extension.lower(), f"swissarmybench_{extension.lower()}.extension")
+    target = installed().get(name, f"swissarmybench_{name}.extension")
     try:
         return importlib.import_module(target.split(":")[0])
     except Exception:  # named but not importable here: off
         return None
 
 
+def load(extension: str) -> ModuleType | None:
+    """The extension's module when it is on (its entry point's, else `swissarmybench_<id>.extension`; else
+    the library's folder of that id)."""
+    name = extension.lower()
+    module = _package(name)
+    if module is not None or not extension_on(name):
+        return module
+    found = folders().get(name)
+    return found.module if found is not None else None
+
+
 def enabled() -> list[ModuleType]:
-    """Every extension that is on and imports, in id order."""
-    on, _ = _said()
-    ids = sorted(set(installed()) | on)
-    return [m for m in (load(i) for i in ids) if m is not None]
+    """Every extension that is on and imports, in id order: the packages', then the library's folders'."""
+    on, off = _said()
+    packages = {i: m for i in sorted(set(installed()) | on) if (m := _package(i)) is not None}
+    for ident, found in folders().items():
+        if found.module is not None and ident not in off and ident not in packages:
+            packages[ident] = found.module
+    return [packages[i] for i in sorted(packages)]
+
+
+# ===== folder extensions: the library's extensions/<id>/ (Plans/folder-extensions.plan.md) =====
+#
+# Found at start beside the packages (the folders are read once per process, again after forget_folders: New
+# extension, Remove, Load again), each loaded as the package sab_ext_<id> (its folder that package's only
+# path). One that fails is kept with its error (never stops the app), one whose REQUIRES are missing is not
+# loaded until they are installed, and one with a package's id loses to the package. Its contract.json (when
+# it adds a project type) gives its MODE and its New project files where extension.py declares neither.
+
+FOLDERS_VARIABLE = "SWISSARMYBENCH_EXTENSION_FOLDERS"  # a folder of folder extensions: tests and development
+
+
+@dataclass
+class Folder:
+    """A folder extension as found: its module once loaded, else why not."""
+
+    id: str
+    path: Path
+    module: ModuleType | None = None
+    error: str = ""
+    missing: list[str] = field(default_factory=list)
+    shadowed: bool = False  # a package of the same id is on: it wins
+    contract: dict[str, Any] | None = None
+    # Its literal NAME, VERSION... read before it loads (its card when it does not).
+    manifest: dict[str, Any] = field(default_factory=dict)
+
+
+_library: Path | None = None
+_folders: tuple[Path, dict[str, Folder]] | None = None
+
+
+def _state_library() -> Path:
+    """The library as the state folder says (SWISSARMYBENCH_STATE or ~/.swissarmybench; library.json's
+    folder when Settings moved it): what a process with no Settings of its own (the MCP server) reads."""
+    told = os.environ.get("SWISSARMYBENCH_STATE", "")
+    state = Path(told) if told else Path.home() / ".swissarmybench"
+    try:
+        chosen = json.loads((state / "library.json").read_text(encoding="utf-8")).get("folder")
+    except (OSError, ValueError, AttributeError):
+        chosen = None
+    return Path(chosen) if isinstance(chosen, str) and chosen.strip() else state / "library"
+
+
+def use_library(folder: Path | None) -> None:
+    """The library the server uses (bootstrap's Settings); None: the state folder's. Its folders read
+    again."""
+    global _library
+    _library = folder
+    forget_folders()
+
+
+def folders_root() -> Path:
+    """Where folder extensions are: SWISSARMYBENCH_EXTENSION_FOLDERS, else the library's extensions/."""
+    told = os.environ.get(FOLDERS_VARIABLE, "")
+    if told:
+        return Path(told)
+    return (_library if _library is not None else _state_library()) / folder_rules.FOLDER
+
+
+def forget_folders(ident: str | None = None) -> None:
+    """Read the folders again on the next ask; each loaded one's modules dropped (all, or `ident`'s)."""
+    global _folders
+    prefixes = [folder_rules.MODULE_PREFIX + (ident or "")]
+    for name in [n for n in sys.modules if any(n.startswith(p) for p in prefixes)]:
+        del sys.modules[name]
+    importlib.invalidate_caches()  # a file just written (New extension) is seen on the next import
+    _folders = None
+    _contracts.clear()
+
+
+def folders() -> dict[str, Folder]:
+    """The library's folder extensions by id (loaded once per process, in id order)."""
+    global _folders
+    root = folders_root()
+    if _folders is not None and _folders[0] == root:
+        return _folders[1]
+    try:
+        names = sorted(p.name for p in root.iterdir() if p.is_dir() and (p / "extension.py").is_file())
+    except OSError:
+        names = []
+    found = {n: _load_folder(n, root / n) for n in names if folder_rules.is_id(n)}
+    _folders = (root, found)
+    return found
+
+
+def _missing(requires: list[str]) -> list[str]:
+    out: list[str] = []
+    for line in requires:
+        try:
+            importlib.metadata.distribution(folder_rules.dist_name(line))
+        except Exception:  # not there (PackageNotFoundError), or a broken install's metadata: as missing
+            out.append(line)
+    return out
+
+
+def _load_folder(ident: str, path: Path) -> Folder:
+    """One folder: its contract checked, its REQUIRES present, then extension.py imported as sab_ext_<id>."""
+    found = Folder(ident, path)
+    if _package_on(ident):
+        found.shadowed, found.error = True, folder_rules.shadowed(ident)
+        return found
+    try:
+        source = (path / "extension.py").read_text(encoding="utf-8")
+        found.manifest = folder_rules.literals(source)
+        found.missing = _missing(folder_rules.requires_of(source))
+        if (path / project_contract.FILE).is_file():
+            found.contract = project_contract.read((path / project_contract.FILE).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, project_contract.ContractError) as error:
+        found.error = f"It did not load: {error}"
+        return found
+    if found.missing:
+        return found
+    package = folder_rules.MODULE_PREFIX + ident
+    try:
+        if (
+            f"{package}.extension" not in sys.modules
+        ):  # read again after another folder's change: kept as it is
+            spec = importlib.machinery.ModuleSpec(package, None, is_package=True)
+            holder = importlib.util.module_from_spec(spec)
+            holder.__path__ = [str(path)]
+            sys.modules[package] = holder
+        module = importlib.import_module(f"{package}.extension")
+    except ModuleNotFoundError as error:
+        forget_folders(ident)
+        if error.name and not error.name.startswith(folder_rules.MODULE_PREFIX):
+            found.missing = [pip_name(error.name)[0]]
+        else:
+            found.error = folder_rules.load_error(error, str(path))
+        return found
+    except (Exception, SystemExit) as error:  # its own code: listed with its error, never the app's stop
+        forget_folders(ident)
+        found.error = folder_rules.load_error(error, str(path))
+        return found
+    declared = getattr(module, "ID", None)
+    if declared is not None and str(declared).lower() != ident:
+        forget_folders(ident)
+        found.error = folder_rules.wrong_id(str(declared), ident)
+        return found
+    _complete(module, ident, path, found.contract)
+    found.module = module
+    return found
+
+
+def _complete(module: ModuleType, ident: str, path: Path, contract: dict[str, Any] | None) -> None:
+    """What a folder extension leaves out, from its folder: its ID, its commands' area, and (with a contract)
+    its MODE and New project's files."""
+    module.ID = ident  # type: ignore[attr-defined]
+    module.FOLDER = str(path)  # type: ignore[attr-defined]
+    if not getattr(module, "AREAS", None):
+        module.AREAS = ((ident, f"{getattr(module, 'NAME', ident)}: a folder extension"),)  # type: ignore[attr-defined]
+    if contract is None:
+        return
+    module.CONTRACT = contract  # type: ignore[attr-defined]
+    if getattr(module, "MODE", None) is None:
+        module.MODE = project_contract.as_mode(contract) | {"tools": [f"{ident}_"]}  # type: ignore[attr-defined]
+    if getattr(module, "scaffold", None) is None:
+        module.scaffold = lambda name, _names: project_contract.scaffold(contract, name)  # type: ignore[attr-defined]
+
+
+_contracts: dict[str, dict[str, Any] | None] = {}
+
+
+def contract(module: ModuleType) -> dict[str, Any] | None:
+    """An extension's contract.json, checked (its package root's: beside its extension.py), or None (it adds
+    no project type). A broken one raises ContractError."""
+    if isinstance(getattr(module, "CONTRACT", None), dict):
+        return dict(module.CONTRACT)
+    key = module.__name__
+    if key not in _contracts:
+        file = Path(module.__file__ or "").with_name(project_contract.FILE)
+        _contracts[key] = project_contract.read(file.read_text(encoding="utf-8")) if file.is_file() else None
+    return _contracts[key]
 
 
 def _mode(raw: Any) -> dict[str, Any] | None:

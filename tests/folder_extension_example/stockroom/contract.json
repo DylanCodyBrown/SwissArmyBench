@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "type": "stockroom",
+  "name": "Stockroom",
+  "deliverable": "a stock report",
+  "languages": {"*.py": "python", "*.ipynb": "python", "*.md": "markdown"},
+  "cells": ["python", "sql"],
+  "files": [
+    {
+      "path": "stock_report.md",
+      "owner": "user",
+      "about": "The stock report this project hands over.",
+      "starter": "# {name}\n\nShelf counts, checked.\n"
+    }
+  ],
+  "export": ["report"],
+  "words": {
+    "title": "Stock report",
+    "for_whom": "For anyone counting a made-up stockroom.",
+    "explain": "Tables in data.ipynb and the report in stock_report.md.",
+    "example": "Example: shelves A1 to B1, counted."
+  }
+}
