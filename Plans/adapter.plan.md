@@ -355,3 +355,11 @@ be created in app." So, everywhere in this plan and the code:
   truncate included (the Write starters' code moves in); then sab.write covers every source.
 - **The Catalog lists through the adapter's tables()**, except a connection whose "List the tables" query the user
   edited keeps using theirs.
+
+## The owner's answers after phase 3 (2026-11-22)
+- An API.py written against the old mock clients stays refused (one line pointing to the new calls); no helper.
+- A file connection's Open as grid goes through the adapter with DuckDB's types (the loader's text and encoding
+  fallbacks are not carried over; a few messy files type differently than before: accepted).
+- MySQL, Oracle and Snowflake: the adapter's catalog query widened to their starters' scope (and SQL Server's
+  descriptions and keys), then every connection lists through the adapter (a user's edited listing still wins).
+- Grid windows, the steps, analyses and profiles go through the adapter: the view cache becomes one of its sources.
