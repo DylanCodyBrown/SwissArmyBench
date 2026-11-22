@@ -292,7 +292,6 @@ has the rules and why. Three layers, imports pointing inwards, nothing deeper th
 ```
 src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
-  renamed.py             `env` only, for client/sql_cell.py (the adapter branch's file); goes when it merges
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
   bootstrap.py           the composition root: builds the adapters, hands them to the services
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
@@ -629,8 +628,9 @@ src/swissarmybench/
                          mock would refuse, never run); agent_writes_words
     api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
                          Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
-                         sab_api.py, connections.py: the real connections' own code; README with the deploy steps,
-                         the checklist and the variables; no secret), exports/api/<target>/ a made folder
+                         sab_api.py, sab_adapter.py, connections.py: the real connections' own code; README with
+                         the deploy steps, the checklist and the variables; no secret), exports/api/<target>/ a made
+                         folder
     api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
                          delete by a key; a TypedDict of the columns) in the source's style (DuckDB, a DB-API
                          database's SQL and marks, T-SQL, Dataverse OData reads, SharePoint list calls); the
@@ -768,7 +768,8 @@ src/swissarmybench/
                          uses) and Portability.verdict(connection) (default: "Not checked yet")
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from; an open
-                         table's grid view as Arrow for a kernel's DuckDB SQL naming it (view)
+                         table's grid view as Arrow for a kernel's DuckDB SQL naming it (view); the open tables as
+                         a source of the adapter (adapter_tables, adapter_read: a plan over a grid view)
     hooks.py             what an extension hands the base's services once built (late binding): the documents
                          the Workbench windows hold, a canvas, what stops with a kernel or a window, an app's
                          own file, the cells shown live, a new project's app; a project's dataset connection
@@ -825,10 +826,15 @@ src/swissarmybench/
     sab_adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `sab_adapter`)
                          and an export share, standard library + duckdb + pyarrow only: tables(source),
                          read(source, table, plan) -> (Arrow batches, Folded), write(source, table, batches, key,
-                         mode) -> Counts, grid(name) and refresh(name); the Plan (columns, filters, sort, limit,
+                         mode: insert, update, merge, delete, truncate) -> Counts, table(name) and refresh(name) (a
+                         table is the data, a grid its view); the Plan (columns, filters, sort, limit,
                          offset, group, totals; what a source cannot fold done by DuckDB over the stream);
                          from_json (pages to Arrow with given types); sources DuckDB (a file, a connection, the
-                         sandbox's gated cursor) and Remote (the sandbox through /sandbox/data/<key>/read|write)
+                         sandbox's gated cursor), Remote (the sandbox through /sandbox/data/<key>/read|write, a
+                         kernel's open tables with the token), Sql (any DB-API connection; DIALECTS as data: quote,
+                         marks, LIMIT/OFFSET/FETCH, catalog; the plan folded, writes in one transaction), OData
+                         (Dataverse's Web API), Rows (the lakes and SharePoint by their own read); to_json and to_ipc
+                         (an endpoint's Arrow answer)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -974,7 +980,8 @@ src/swissarmybench/
                          Azure's passing errors), write_dataverse.py ($batch change sets, choice labels, keys).
                          Standard library only; the statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
-                         table by a Python connection's own Read a table box)
+                         table by a Python connection's own Read a table box), sab.table (an open table as its grid
+                         shows it, through the adapter: Arrow, a plan folded by the app)
   client/api_client.py   sab.api(): the project's local sandbox API through the app (get, post, put, patch, delete)
   client/connection_slot.py a Workbench kernel's query in one of its connection's slots (acquire, wait with its
                          place shown, renew, release); no gate outside a kernel or with no app

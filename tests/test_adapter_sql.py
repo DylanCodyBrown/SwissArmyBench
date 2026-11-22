@@ -210,3 +210,31 @@ def test_postgresql_lists_reads_with_its_plan_folded_and_writes(postgres: Any) -
     ) == (sab.Counts(inserted=1, deleted=2))
     back, _ = sab.read(source, "pg_temp.scratch", Plan())
     assert back.read_all().to_pylist() == [{"id": 3, "label": "three"}]
+
+
+def test_mariadb_reads_with_its_plan_folded_in_its_own_sql() -> None:
+    pymysql = pytest.importorskip("pymysql")
+    bed = _testbed()
+    if not bed or not bed.get("mariadb") or "port" not in bed["mariadb"]:
+        pytest.skip("the real-world test bed is not running (tools/testbed/testbed.py up)")
+    db = bed["mariadb"]
+    try:
+        con = pymysql.connect(host=db["host"], port=db["port"], user=db["user"], password=db["password"],
+                              database=db["database"], connect_timeout=3)  # fmt: skip
+    except pymysql.MySQLError:
+        pytest.skip("the test bed's MariaDB does not answer")
+    try:
+        source = sab.Sql(con, "mysql", "Warehouse")
+        assert source.style == "pyformat"  # pymysql's marks: %s
+        listed = {t.name: t for t in sab.tables(source)}
+        assert {"customers", "order_lines"} <= set(listed)
+        plan = Plan(columns=("product_id", "quantity"), filters=(Filter("quantity", ">=", 2),),
+                    sort=(("quantity", True),), limit=5)  # fmt: skip
+        reader, folded = sab.read(source, "order_lines", plan)
+        assert folded.parts == ("filters", "columns", "sort", "limit")
+        rows = reader.read_all().to_pylist()
+        assert len(rows) == 5 and all(r["quantity"] >= 2 for r in rows)
+        counted, _ = sab.read(source, "order_lines", Plan(totals=(Total("count"),)))
+        assert counted.read_all().column("count")[0].as_py() > 0
+    finally:
+        con.close()

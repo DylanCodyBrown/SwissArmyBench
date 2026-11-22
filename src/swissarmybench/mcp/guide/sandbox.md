@@ -98,12 +98,17 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
 - In its editor (the Scripts page) API.py's own problems are squiggles (the same rules, a `connection("X")` with no
   sandbox table, SQL the mock would refuse: `workbench_problems`); `sab_api`'s names and the sandbox's tables
   and columns complete. Its Endpoints panel (the status bar's toggle) has each endpoint's Try it beside the code.
+- Payloads through the adapter: an endpoint may return an Arrow table (`from sab_adapter import read, Plan`);
+  it is answered as JSON records (or an Arrow IPC stream to a caller sending `Accept:
+  application/vnd.apache.arrow.stream`). A body typed `Annotated[pa.Table, Order]` is checked against Order
+  (422 naming the field), then given as an Arrow table; OpenAPI and Try it show it as `list[Order]`.
 
 ## Export for a framework target
 - `targets`: FastAPI, Azure Functions (Linux, Python v2), AWS Lambda (Linux, Python); extensions add theirs.
 - The target is API.py's own (asked at New, changed in Properties: `settings`); Export never asks again.
 - `export` `{"target"?, "folder"?, "rows"?, "replace"?: [files]}`: `exports/api/<target>/` in the project (a made
-  folder): API.py as it is, sab_api.py, connections.py (each connection's own portable code: its variables read
+  folder): API.py as it is, sab_api.py, sab_adapter.py (the adapter: duckdb and pyarrow in its requirements),
+  connections.py (each connection's own portable code: its variables read
   where it runs, nothing here runs it), the target's files (main.py; function_app.py, host.json,
   local.settings.json; lambda_function.py, template.yaml), requirements.txt, README.md (deploy steps, the
   checklist, `variables` to set). No secret in any file. A file edited by hand is `kept` until `replace` names it.

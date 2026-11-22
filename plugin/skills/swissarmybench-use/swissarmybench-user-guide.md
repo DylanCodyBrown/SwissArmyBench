@@ -295,6 +295,8 @@ SQL is written where your Python is: the Workbench, Jupyter, or Python in the te
 
 A DuckDB SQL cell (no connection) also sees every table open in Grids by its name: `SELECT region, count(*) FROM orders GROUP BY ALL` reads the grid as it shows it, its steps applied, each time the cell runs, with a line saying so. A table of the same name in your Python wins. When code names a table open in Grids that it cannot see (`duckdb.sql(...)` in a Python cell), the error offers **orders is open in Grids: add its table cell**.
 
+In Python, `sab.table("orders")` reads a table open in Grids the same way, as an Arrow table (`.to_pandas()` for a DataFrame); add `columns=`, `filters=[("amount", ">", 100)]`, `sort=[("amount", "desc")]` or `limit=` and the app does that work before it sends the rows. It reads again each time; the table itself stays in the app.
+
 For any other Python, the steps window (**Edit steps**) still has a Code tab: **Copy as SQL** and **Copy as Python** there give the same one query, run on a copy of your table and matched with the grid before they're copied.
 
 A SQL step is still one step among the others: in Edit steps, **Add a SQL step** takes one SELECT over the table entering it, read as `grid` or by the table's name. Anything else is refused, and the strip names the broken step.
