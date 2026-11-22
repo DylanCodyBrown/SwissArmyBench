@@ -40,7 +40,7 @@ from swissarmybench.domain.local_api import ApiFileError
 from swissarmybench.services.changes import raised
 from swissarmybench.services.local_api_wizard import EndpointWizard, data_words
 from swissarmybench.services.ports import Approvals
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 WATCH_SECONDS = 1.0
 LINE_HEADER = "X-Sab-Error-Line"  # server/api_host.py's: a failed request's API.py line
