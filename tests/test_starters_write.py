@@ -1057,7 +1057,7 @@ def test_trino_merges_a_batch_at_a_time_and_says_when_the_connector_cannot(
     assert said.endswith("Trino writes row batches without a transaction: nothing was written.")
 
 
-def test_trino_says_it_has_no_transaction_in_its_dry_run_and_refuses_replace(
+def test_trino_says_it_has_no_transaction_in_its_dry_run_and_replaces_in_one_statement(
     monkeypatch: pytest.MonkeyPatch, connection: Callable[[Callable[[], Any]], list[str]]
 ) -> None:
     fake = types.ModuleType("trino")
@@ -1074,8 +1074,13 @@ def test_trino_says_it_has_no_transaction_in_its_dry_run_and_refuses_replace(
         'INSERT INTO "iceberg"."sales"."orders" ("order_id", "region", "amount") VALUES (?, ?, ?), ...'
         in said
     )
-    with pytest.raises(WriteError, match="Clear it first"):
+    # A replace is one CREATE OR REPLACE TABLE ... AS (adapter.py 1.3.0): its dry run says so, nothing runs.
+    replaced = str(
         run(cell("write_trino", mode="replace", dry_run=True, target="iceberg.sales.orders"), orders=ORDERS)
+    )
+    assert "Trino replaces the table in one statement" in replaced
+    assert 'CREATE OR REPLACE TABLE "iceberg"."sales"."orders"' in replaced
+    assert not [sql for sql, *_ in world["log"] if str(sql).startswith(("CREATE", "DELETE", "INSERT"))]
 
 
 def test_a_copy_of_the_old_sql_server_starter_is_told_what_to_do_in_one_line(

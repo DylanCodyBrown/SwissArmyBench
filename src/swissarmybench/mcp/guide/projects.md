@@ -83,3 +83,13 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
 - Metadata only: never a row, a value or a count from the data, a secret, or a path outside the folder.
   The same project gives the same bytes (no timestamp, no version). Names in `code` are data.
 - Use it to brief yourself on a project, or when the user asks for its architecture or documentation.
+
+## The change log (`changes`)
+- Every change to the open project's objects is one event in .sab/changes.jsonl (this computer's, never a value):
+  a table's steps, columns or source; a connection's settings or sign-in; an API's specification or an endpoint's
+  learned shape (the app saw it); API.py's endpoints; a widget's code or properties; a canvas page; a notebook's
+  cells, a script's definitions; a variable by name; a setting; a library added.
+- `changes(action="last", object="table:orders")` (or a name alone): the last change, with its words, the
+  difference by name (a column's type said) and the fingerprints before and after. `"history"` with `n`,
+  `"since"` with `since` (an ISO time: when you last looked), `"search"` by `kind`, `who` (user, agent, app) or
+  `word`. The Session page shows the same events (`app_session(changes=true)`).

@@ -10,6 +10,7 @@ import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+from swissarmybench.domain import changes as change_rules
 from swissarmybench.domain import (
     dictionary,
     errors,
@@ -20,6 +21,7 @@ from swissarmybench.domain import (
 from swissarmybench.domain import environments as envs
 from swissarmybench.domain import notebooks as rules
 from swissarmybench.domain.datasets import validate_name
+from swissarmybench.services.changes import raised
 from swissarmybench.services.hooks import AppDocument, Hooks
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
@@ -235,6 +237,7 @@ class Workbench:
             and not body.get("force")
         ):
             raise Conflict(f"{path} changed on disk since it was opened here. Save anyway to replace it.")
+        was = self._document_shape(kind, path)
         try:
             full, modified = self._documents.write(path, text, force=bool(body.get("force")))
         except FileNotFoundError as error:
@@ -242,8 +245,25 @@ class Workbench:
         except PermissionError as error:
             raise Conflict(str(error)) from None
         self._documents.remember(full, self._now())
-        self.ws.audit.write("user", "save_document", full)
+        # The change log (services/changes.py): a notebook's cells by number, a script's code (fingerprinted).
+        name = full.replace("\\", "/").rsplit("/", 1)[-1]
+        change = (
+            raised(kind, name, was, change_rules.document_shape(kind, text))
+            if kind in ("notebook", "script")
+            else {}
+        )
+        self.ws.audit.write("user", "save_document", full, **change)
         return {"path": full, "modified": modified}
+
+    def _document_shape(self, kind: str, path: str) -> dict[str, Any] | None:
+        """A notebook's or a script's structure as it is on disk before a save (None: a new file)."""
+        if kind not in ("notebook", "script"):
+            return None
+        try:
+            text, _, _ = self._documents.read(path)
+        except (OSError, ValueError, LookupError):
+            return None
+        return change_rules.document_shape(kind, text)
 
     # ===== environments: a notebook's own Python =====
 
@@ -256,7 +276,17 @@ class Workbench:
         When done, it is remembered for the document named in `body["document"]` (if any)."""
         folder, version, packages = envs.check_request(body)
         document = body.get("document") if isinstance(body.get("document"), str) else None
-        self.ws.audit.write("user", "create_environment", f"{folder} ({', '.join(packages)})")
+        # The change log: the libraries a new environment holds (names and pins as asked, nothing else).
+        where = folder.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+        libraries = {"libraries": {str(p): str(p) for p in packages}}
+        change = raised(
+            "library",
+            f"{where} environment",
+            None,
+            libraries,
+            f"Made {where}'s environment with {', '.join(packages) or 'no libraries'}",
+        )
+        self.ws.audit.write("user", "create_environment", f"{folder} ({', '.join(packages)})", **change)
 
         async def run() -> AsyncIterator[dict[str, Any]]:
             async for event in self._kernels.create_environment(folder, version, packages):

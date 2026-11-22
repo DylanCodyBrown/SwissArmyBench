@@ -581,7 +581,10 @@ class ConnectionService:
             n = int(next(iter(values[0].values()))) if values and values[0] else 0
             if n > most:
                 raise BladeError(table_rules.too_many(blade.name, table_name, n, most, bool(pushed.where)))
-        table = (await self._blades.rows(blade, select, None, {}, within))["table"]
+        parts = (("filters", pushed.where), ("columns", pushed.columns), ("limit", pushed.limit is not None))
+        folded = [] if dax else [part for part, on in parts if on]  # what the SELECT sent to the source
+        read = await self._blades.rows(blade, select, None, {}, within, target=table_name, folded=folded)
+        table = read["table"]
         shown = int(table.num_rows)
         origin = powerbi.joined_name(blade.name, within)
         return TableRead(table_name, table, None, shown, shown, origin, select, dax, place=where)

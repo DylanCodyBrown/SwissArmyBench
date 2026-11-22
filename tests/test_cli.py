@@ -115,6 +115,8 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    # The statistics (2026-11-22): the pages' figures by name; the agent's stats(action=connection|endpoint).
+    "/stats/figures": "the Connections and APIs pages' figures by name (the agent: stats connection)",
     # A connection's slots (2026-11-21): a kernel's leased slot is its own process's
     # (client/connection_slot.py); a query's SQL is the user's only (the agent sees names and counts);
     # a page's Cancel of its own waiting queries (the agent cancels by id: connections_cancel_query).

@@ -50,6 +50,8 @@ export interface Entry {
   what: string;
   area: string;
   target: Target | null;
+  /** What it changed, in words (the change log's same event: names and types, never a value). */
+  change?: string;
 }
 
 type Who = "agent" | "user" | "both";
@@ -309,9 +311,14 @@ function entryRow(e: Entry): HTMLElement {
     },
     h("time", { class: "session-time", datetime: e.time }, timeWord(e.time)),
     h("span", { class: "session-area", title: area }, icon(AREA_ICONS[e.area] ?? "grids"), h("span", {}, area)),
-    e.target
-      ? h("button", { type: "button", class: "session-link", title: `Go to it (${area})`, onclick: () => goToTarget(e.target) }, what)
-      : what,
+    h(
+      "span",
+      { class: "session-main" },
+      e.target
+        ? h("button", { type: "button", class: "session-link", title: `Go to it (${area})`, onclick: () => goToTarget(e.target) }, what)
+        : what,
+      e.change && e.change !== e.what ? h("span", { class: "session-change", title: e.change }, e.change) : null,
+    ),
     h("span", { class: `session-who ${e.actor}` }, e.actor === "agent" ? "Agent" : "You"),
   );
 }
@@ -342,6 +349,7 @@ function drawSession(): void {
   setOverTitle("Session");
   setUnseen(0);
   const filter = h("div", { class: "segmented session-filter", role: "group", "aria-label": "Whose" });
+  const changes = h("div", { class: "session-changes-filter" });
   const list = h("ol", { class: "session-list", "aria-label": "This session", "aria-live": "polite" });
   const draw = (): void => {
     if (!element.open) return;
@@ -356,7 +364,15 @@ function drawSession(): void {
         return b;
       }),
     );
-    const kept = entries.filter((e) => now === "both" || e.actor === now);
+    // Changes: only the entries that changed something (the change log's events), remembered.
+    const onlyChanges = recall("session.changes") === "1";
+    changes.replaceChildren(
+      button("Changes", () => {
+        remember("session.changes", onlyChanges ? "0" : "1");
+        draw();
+      }, { pressed: onlyChanges, class: "session-changes" }),
+    );
+    const kept = entries.filter((e) => (now === "both" || e.actor === now) && (!onlyChanges || e.change));
     if (!loaded) list.replaceChildren(h("li", {}, loadingBlock("Loading this session…")));
     else if (!kept.length)
       list.replaceChildren(
@@ -374,7 +390,7 @@ function drawSession(): void {
     setUnseen(0);
   };
   redraw = draw;
-  actions.replaceChildren(filter, followSwitch());
+  actions.replaceChildren(filter, changes, followSwitch());
   body.append(list);
   watchLayerDialog(element, "session", [], () => {
     if (shownPage === element) shownPage = null;

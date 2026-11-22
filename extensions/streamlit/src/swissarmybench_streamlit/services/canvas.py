@@ -30,6 +30,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_layouts as model
@@ -352,9 +353,20 @@ class Canvases:
         opened.back.append(opened.canvas)
         del opened.back[:-HISTORY]
         opened.forward.clear()
+        before = opened.canvas
         await self._keep(opened, after, window)
         self.ws.audit.write(who, f"canvas_{kind}", f"{opened.path} {made or body.get('id') or ''}".strip())
+        self._pages_changed(who, str(after.get("name") or canvas), before, after)
         return self.state(canvas) | {"made": made}
+
+    def _pages_changed(self, who: str, name: str, before: dict[str, Any], after: dict[str, Any]) -> None:
+        """The change log (the base's services/changes.py): each canvas page that changed, one event each
+        (its containers and widget instances by id: their places and values fingerprinted, never kept)."""
+        was, now = _pages(before), _pages(after)
+        for page in sorted(set(was) | set(now)):
+            change = raised("canvas", f"{name} / {page}", was.get(page), now.get(page))
+            if change:
+                self.ws.audit.write(who, "changed", name, **change)
 
     async def _keep(self, opened: Open, canvas: dict[str, Any], window: str) -> None:
         opened.canvas = canvas
@@ -587,3 +599,19 @@ def _keep(made: Open, fresh: Open) -> Open:
 
 
 Hook = Callable[[str, str], Awaitable[int]]
+
+
+def _pages(canvas: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each page by name: its containers and widget instances by id (a widget's name beside its id), as
+    the change log names them."""
+    out: dict[str, dict[str, Any]] = {}
+    for page in canvas.get("pages") or []:
+        items: dict[str, Any] = {}
+        waiting = list(page.get("children") or [])
+        while waiting:
+            node = waiting.pop()
+            waiting += list(node.get("children") or [])
+            label = f"{node.get('id')} {node.get('widget') or node.get('kind') or ''}".strip()
+            items[label] = {k: v for k, v in node.items() if k != "children"}
+        out[str(page.get("name") or page.get("id"))] = {"items": items}
+    return out

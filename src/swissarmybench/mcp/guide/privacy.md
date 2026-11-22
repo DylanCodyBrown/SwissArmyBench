@@ -102,3 +102,6 @@ password.
   needed); then `app_navigate` moves it.
 - Only the app's own address loads inside; any other link opens in the user's browser. Downloads ask where to
   save with the system's dialog; `table_export` stays the way to write a file yourself.
+
+- The call statistics (`stats`) and the change log (`changes`) hold names, times, sizes, types and fingerprints
+  only: never a row, a value, a query's text, a setting's or a variable's value.

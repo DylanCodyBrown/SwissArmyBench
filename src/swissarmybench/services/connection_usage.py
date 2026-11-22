@@ -61,6 +61,8 @@ class ConnectionUsage:
         self._about: dict[str, dict[str, Any]] = {}
         # More cards than the library's: the open project's Sandbox (services/sandbox.py card).
         self.extra_cards: Callable[[], list[dict[str, Any]]] = lambda: []
+        # A connection's running figures (services/call_stats.py figures_of), None while it has none.
+        self.figures_of: Callable[[str], dict[str, Any] | None] = lambda name: None
 
     # ===== the calls =====
 
@@ -162,7 +164,9 @@ class ConnectionUsage:
             "about": sql_server.card_words(about) if about else [],
             "catalog_state": entry.get("catalog_state"),
             "catalog_loaded": bool(entry.get("catalog_loaded")),
-            "calls": (calls or rules.Calls()).to_json(),
+            # Its calls this session by kind, and the project's running figures (services/call_stats.py:
+            # times, typical rows, errors; never a value), when there are any.
+            "calls": (calls or rules.Calls()).to_json() | {"figures": self.figures_of(name)},
             "tables_kind": entry.get("tables_kind"),
             # A Dataverse connection saved for its Web API: its card offers the SQL endpoint.
             "reads": dataverse.WEB_API_WORDS if entry.get("tables_kind") == "dataverse_web" else "",

@@ -48,6 +48,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
+  routes_call_stats.py     every call's statistics: the agent's views, the pages' figures
+  routes_changes.py        the open project's change log: last, history, since, search
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_environment.py    the Environment: everything the project holds, where each is used, its libraries
   routes_script_runs.py    a script's run settings
@@ -95,8 +97,10 @@ from swissarmybench.server import (
     routes_app_registrations,
     routes_beta_log,
     routes_blades,
+    routes_call_stats,
     routes_cards,
     routes_catalog,
+    routes_changes,
     routes_claude,
     routes_connection_colours,
     routes_connection_slots,
@@ -406,6 +410,8 @@ def create_app(
                 *routes_shared_catalog.routes(ctx.shared_catalog),
                 *routes_connection_colours.routes(ctx.connection_colours),
                 *routes_session_log.routes(ctx.session_log),
+                *routes_call_stats.routes(ctx.call_stats),
+                *routes_changes.routes(ctx.changes),
                 *routes_variables.routes(ctx.variables),
                 *routes_environment.routes(ctx.environment),
                 *routes_script_runs.routes(ctx.script_runs),

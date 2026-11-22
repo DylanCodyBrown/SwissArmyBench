@@ -28,6 +28,7 @@ import re
 import secrets
 import time
 from collections.abc import Callable
+from dataclasses import asdict
 from typing import Any, Protocol
 
 from swissarmybench.domain import api_actions
@@ -35,6 +36,7 @@ from swissarmybench.domain import api_scaffold as scaffold_rules
 from swissarmybench.domain import local_api as rules
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.local_api import ApiFileError
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 WATCH_SECONDS = 1.0
@@ -121,6 +123,7 @@ class LocalApi:
         self._key = ""
         self._data_key = ""
         self._failed: dict[str, Any] | None = None  # the last start's failure: {error, line}
+        self._endpoints_seen: dict[str, Any] = {}  # API.py's endpoints at the last start (the change log)
         # The project whose sandbox the agent may write through the API for the rest of this session (the
         # owner approved, 2026-11-21: one Allow, the sandbox only, never live; Reset undoes it); None: each
         # agent write asks.
@@ -467,6 +470,7 @@ class LocalApi:
         if text is None:
             raise NotFound("The project has no API.py yet: New local sandbox API… makes it.")
         settings = rules.read_settings(text)
+        self._endpoints_seen = _endpoint_shapes(text)
         self._key = secrets.token_urlsafe(24)
         self._data_key = secrets.token_urlsafe(24)
         self._stamp = self._files.stamp(path)
@@ -504,6 +508,15 @@ class LocalApi:
     async def stop_all(self) -> None:
         await self.stop(None, "app")
 
+    def _endpoints_changed(self, was: dict[str, Any], now: dict[str, Any]) -> None:
+        """The change log (services/changes.py): each endpoint API.py added, changed or removed, one event
+        each (its method and path; its parameters, answer and SQL fingerprinted), seen by the app."""
+        for key in sorted(set(was) | set(now)):
+            before, after = was.get(key), now.get(key)
+            change = raised("endpoint", f"{rules.FILE} {key}", before, after, by="app")
+            if change:
+                self.ws.audit.write("app", "changed", rules.FILE, **change)
+
     async def _watch_file(self) -> None:
         """While it runs (or its last start failed), a change to API.py on disk starts it again."""
         try:
@@ -518,10 +531,12 @@ class LocalApi:
                     return
                 stamp = self._files.stamp(path)
                 if stamp != self._stamp:
+                    was = self._endpoints_seen
                     async with self._lock:
                         await self._stop_quietly()
                         await self._begin()
                     await self._told("app", "local_api_restart", failed=bool(self._failed))
+                    self._endpoints_changed(was, self._endpoints_seen)
         except asyncio.CancelledError:
             pass
 
@@ -633,3 +648,16 @@ class StartFailed(Exception):
         super().__init__(error)
         self.error = error
         self.line = line
+
+
+def _endpoint_shapes(text: str) -> dict[str, Any]:
+    """API.py's endpoints by method and path, each as the change log fingerprints it (its parameters, answer,
+    connections and SQL; not its lines, which move when code above it does)."""
+    try:
+        found = rules.parse(text).endpoints
+    except (SyntaxError, ValueError):
+        return {}
+    return {
+        f"{e.method} {e.path}": {"endpoint": {k: v for k, v in asdict(e).items() if k not in ("line", "end")}}
+        for e in found
+    }

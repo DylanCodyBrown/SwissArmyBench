@@ -37,7 +37,9 @@ from swissarmybench.adapters.app_registrations import MicrosoftProbe, Registrati
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
+from swissarmybench.adapters.call_stats import StatsFiles
 from swissarmybench.adapters.catalogs import CatalogStore
+from swissarmybench.adapters.changes import ChangeFiles
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
@@ -130,8 +132,10 @@ from swissarmybench.services.apis import Apis
 from swissarmybench.services.app_registrations import AppRegistrations
 from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
+from swissarmybench.services.call_stats import CallStats
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
+from swissarmybench.services.changes import ChangeLog
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.code_files import CodeFiles
@@ -230,6 +234,8 @@ class Services:
     found_connections: FoundConnections
     connection_usage: ConnectionUsage
     connection_slots: ConnectionSlots
+    call_stats: CallStats
+    changes: ChangeLog
     apis: Apis
     structures: Structures
     api_explorer: ApiExplorer
@@ -753,6 +759,8 @@ class Built:
     tickets: ExportTickets
     approvals: Approvals
     slots: ConnectionSlots
+    call_stats: CallStats
+    changes: ChangeLog
     datasets: DatasetService
     file_watch: FileWatch
     catalogs: CatalogService
@@ -940,6 +948,7 @@ def _connection_runs(b: Built) -> None:
                 )
             else:
                 answer = await work()
+                answer.pop("facts", None)  # the statistics' (only a connection's run is counted)
         except Exception as error:
             b.connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
@@ -1032,6 +1041,24 @@ def _data(b: Built) -> None:
         save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
         ask=b.approvals.ask,
     )
+
+    # Every call's statistics (Plans/stats.plan.md): the slots' finished calls, the adapter's and the API
+    # adapter's facts in this process; the running figures in the open project's .sab/stats.json. No value.
+    def project() -> str | None:
+        return b.sab_projects.current.folder if b.has("sab_projects") and b.sab_projects.current else None
+
+    def stamp() -> str:
+        return datetime.now(UTC).isoformat(timespec="seconds")
+
+    b.call_stats = CallStats(StatsFiles(), project, stamp)
+    # The change log (Plans/changes.plan.md): each change a service raises on its audit entry, heard with
+    # the Session page's and written as it happens to the open project's .sab/changes.jsonl.
+    b.changes = ChangeLog(ChangeFiles(), project, stamp)
+    if isinstance(ws.audit, Heard):
+        ws.audit.changes = b.changes
+    b.slots.on_finished = b.call_stats.finished
+    adapter.observe(b.call_stats.adapter)
+    api_adapter.observe(b.call_stats.api_observed)
     b.datasets = datasets = DatasetService(
         ws,
         table_reader,
@@ -1188,6 +1215,7 @@ def _connections(b: Built) -> None:
         environ=os.environ,
         now=time.time,
     )
+    b.connection_usage.figures_of = lambda name: b.call_stats.figures_of("connection", [name]).get(name)
     # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
     b.api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
     b.apis = Apis(
@@ -1767,6 +1795,7 @@ def _sandbox_part(b: Built) -> None:
         show=lambda path, at: b.workbench_window.ask(
             "file.openCell" if "cell" in at else "file.openAt", {"path": path, **at}, "app"
         ),
+        stats=b.call_stats,
     )
     b.local_api.learned = b.actions.local_learned  # Try it fills its form from the learned shape
 
@@ -2102,6 +2131,8 @@ def _services(b: Built) -> Services:
         found_connections=b.found_connections,
         connection_usage=b.connection_usage,
         connection_slots=b.slots,
+        call_stats=b.call_stats,
+        changes=b.changes,
         apis=b.apis,
         structures=b.structures,
         api_explorer=b.api_explorer,

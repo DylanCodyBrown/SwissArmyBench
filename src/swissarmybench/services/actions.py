@@ -29,6 +29,7 @@ writes). Values are never written anywhere: a shape holds paths and types only; 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
@@ -38,6 +39,7 @@ from swissarmybench.domain import api_actions as rules
 from swissarmybench.domain import apis as api_rules
 from swissarmybench.domain import notebooks
 from swissarmybench.domain.api_actions import LOCAL, BuildError
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 DISCOVER_CALLS = 20  # calls a discovery makes at most
@@ -75,6 +77,7 @@ class Actions:
         adapter_text: Callable[[], str] | None = None,  # api_adapter.py's own text (a built app carries it)
         changed: Callable[[str, str], Awaitable[Any]] | None = None,  # a code file written: every window told
         show: Callable[[str, dict[str, Any]], Awaitable[Any]] | None = None,  # a document opened at a place
+        stats: Any = None,  # services/call_stats.py CallStats: each envelope's facts (own(), api)
     ) -> None:
         self.ws = ws
         self._explorer = explorer
@@ -91,7 +94,12 @@ class Actions:
         self._show = show
         # Discovery allowed with nowhere to keep it (the local sandbox API with no project open): memory.
         self._allowed: set[str] = set()
+        self._stats = stats
         self._last: dict[tuple[str, str], dict[str, Any]] = {}  # the last call of each action (memory only)
+
+    def _own(self) -> Any:
+        """Runs said here from their envelopes: api_adapter's observe hook leaves them (call_stats.own)."""
+        return self._stats.own() if self._stats is not None else contextlib.nullcontext()
 
     # ===== the actions, from each API's specification =====
 
@@ -243,12 +251,15 @@ class Actions:
         self, api: str, entry: dict[str, Any] | None, action: str, answer: dict[str, Any], who: str
     ) -> None:
         path = self._shape_path(api, entry, action)
-        kept, change = self._aa.keep(self._shape(path), answer, self._today())
+        was = self._shape(path)
+        kept, change = self._aa.keep(was, answer, self._today())
         if kept:
             self._write_shape(path, kept)
         if change:  # said once: the Session log, the pages, the agent's next read
             words = self._aa.drift_words(change, kept.get("changed", ""))
-            self.ws.audit.write(who, "api_shape_changed", f"{api} {action}", words=words)
+            # The change log: the endpoint's learned shape (its fields and their types), seen by the app.
+            logged = raised("endpoint", f"{api} {action}", _fields(was), _fields(kept), words, by="app")
+            self.ws.audit.write(who, "api_shape_changed", f"{api} {action}", words=words, **logged)
             await self.ws.live.broadcast(
                 {"type": "api_shape_changed", "api": api, "action": action, "words": words}
             )
@@ -393,10 +404,13 @@ class Actions:
             "required": [str(p) for p in given.get("required") or []],
             "who": who,
         }
-        if entry is None:
-            answer = await self._run_local(one, inputs, options, who)
-        else:
-            answer = await self._run_library(name, one, inputs, options)
+        with self._own():
+            if entry is None:
+                answer = await self._run_local(one, inputs, options, who)
+            else:
+                answer = await self._run_library(name, one, inputs, options)
+        if self._stats is not None:  # its facts, and where it came from (a widget and its page, a cell)
+            self._stats.api(answer, given.get("where") if isinstance(given.get("where"), dict) else {})
         await self._kept(name, entry, one.name, answer, who)
         self._last[(name, one.name)] = {
             "at": self._today(),
@@ -466,7 +480,8 @@ class Actions:
         if entry is None:
             loop = asyncio.get_running_loop()
             api = self._aa.Api("", _local_send(self._aa, self._local, loop, who), LOCAL)
-            learned = await self._thread(lambda: self._aa.discover(found, api, known, DISCOVER_CALLS))
+            with self._own():
+                learned = await self._thread(lambda: self._aa.discover(found, api, known, DISCOVER_CALLS))
         else:
             actions = {n: a.to_json() for n, a in found.items()}
             found_text, known_text = json.dumps(json.dumps(actions)), json.dumps(json.dumps(known))
@@ -476,6 +491,8 @@ class Actions:
             )
             learned = await self._in_child(name, command)
         for action, answer in learned["answers"].items():
+            if self._stats is not None:
+                self._stats.api(answer, {})
             await self._kept(name, entry, action, answer, who)
         self.ws.audit.write(who, "api_discovered", name, calls=learned["calls"])
         await self.ws.live.broadcast({"type": "api_shape_changed", "api": name, "action": None, "words": ""})
@@ -566,6 +583,14 @@ class Actions:
             except Exception:  # no Notebooks or Scripts page open: the answer says where it went
                 opened = False
         return {"path": path, **at} | ({"opened": opened} if who == "agent" else {})
+
+
+def _fields(shape: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A kept shape's answer as the change log names it: each field's path and type (never a value)."""
+    fields = ((shape or {}).get("returned") or {}).get("fields")
+    if not isinstance(fields, dict):
+        return None
+    return {"fields": {str(p): str((f or {}).get("type") or "") for p, f in fields.items()}}
 
 
 def _child_command(expression: str) -> str:

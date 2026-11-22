@@ -32,6 +32,7 @@ from swissarmybench.domain import connection_slots as rules
 from swissarmybench.domain.connection_slots import Board, Limits, Ticket
 from swissarmybench.domain.query_text import format_sql
 from swissarmybench.domain.refusals import first_sentence, try_again
+from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import Audit, Notifier
 from swissarmybench.services.workspace import NotFound, Refused, TimedOut
 
@@ -90,6 +91,8 @@ class ConnectionSlots:
         # A kernel's caller now (services/workbench.py: the user's or the agent's cell), its interrupt.
         self.kernel_caller: Callable[[str], Caller] = lambda kernel: Caller(kernel=kernel)
         self.interrupt_kernel: Callable[[str], Awaitable[None]] | None = None
+        # Each finished call heard (the statistics: services/call_stats.py CallStats.finished).
+        self.on_finished: Callable[[dict[str, Any], list[Any]], None] | None = None
         self._dirty = False
         self._sweeper: asyncio.Task[None] | None = None
         self.started = secrets.token_hex(
@@ -114,11 +117,13 @@ class ConnectionSlots:
         await self._wait(ticket)
         task: asyncio.Future[T] = asyncio.ensure_future(work())
         self._tasks[ticket.id] = task
-        outcome, reason, rows = "ok", "", None
+        outcome, reason, rows, facts = "ok", "", None, []
         try:
             answer = await task
             table: Any = answer.get("table") if isinstance(answer, dict) else None
             rows = int(table.num_rows) if table is not None and hasattr(table, "num_rows") else None
+            said = answer.pop("facts", None) if isinstance(answer, dict) else None  # the statistics' only
+            facts = said if isinstance(said, list) else []
             return answer
         except asyncio.CancelledError:
             outcome = "cancelled"
@@ -134,7 +139,7 @@ class ConnectionSlots:
         finally:
             self._tasks.pop(ticket.id, None)
             self._cancelled.discard(ticket.id)
-            self._leave(ticket.id, outcome, reason, rows)
+            self._leave(ticket.id, outcome, reason, rows, facts)
 
     def _ticket(
         self, connection: str, caller: Caller, kind: str, targets: tuple[str, ...], sql: str, dialect: str
@@ -191,10 +196,22 @@ class ConnectionSlots:
             if future is not None and not future.done():
                 future.set_result("go")
 
-    def _leave(self, ticket_id: str, outcome: str, reason: str, rows: int | None = None) -> None:
-        _, started = self.board.leave(ticket_id, self._clock(), outcome, reason, rows)
+    def _leave(
+        self,
+        ticket_id: str,
+        outcome: str,
+        reason: str,
+        rows: int | None = None,
+        facts: list[Any] | None = None,
+    ) -> None:
+        left, started = self.board.leave(ticket_id, self._clock(), outcome, reason, rows)
         self._wake(started)
         self._changed()
+        if left is not None and self.board.finished and self.on_finished is not None:
+            # The call statistics (services/call_stats.py): the finished entry and the adapter's facts its
+            # child process sent back. A listener that fails never fails the call.
+            with contextlib.suppress(Exception):
+                self.on_finished(self.board.finished[0].to_json(), list(facts or []))
 
     # ===== cancel =====
 
@@ -399,9 +416,14 @@ class ConnectionSlots:
         """A connection's limits (its file's [queries]): total 1 to 64, the agent's at most the total."""
         if self._save_limits is None:
             raise ValueError("The limits cannot be saved here.")
-        limits = rules.check_limits(body if isinstance(body, dict) else None, self.board.limits(name))
+        was = self.board.limits(name)
+        limits = rules.check_limits(body if isinstance(body, dict) else None, was)
         saved = self._save_limits(name, limits.header())
-        self._audit.write(who, "connection_limits", saved, total=limits.total, agent=limits.agent)
+        # The change log: a setting by name (the counts are settings, not data).
+        change = raised(
+            "setting", f"{saved} queries at once", {"limits": was.to_json()}, {"limits": limits.to_json()}
+        )
+        self._audit.write(who, "connection_limits", saved, total=limits.total, agent=limits.agent, **change)
         self._wake(self.board.regrant(saved, self._clock()))
         self._changed()
         return self.limits(saved)

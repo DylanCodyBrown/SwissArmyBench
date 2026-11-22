@@ -357,11 +357,6 @@ RULES: dict[str, Rule] = {
     ),
     # Every API's actions through api_adapter (services/actions.py): names, counts and days, never a value.
     "api_action": lambda d, x: (f"Ran {d} ({_name(x.get('status'))})", "apis", _area("apis")),
-    "api_shape_changed": lambda d, x: (
-        f"{d} answers a new shape: {_name(x.get('words'))}",
-        "apis",
-        _area("apis"),
-    ),
     "api_discovered": lambda d, x: (
         f"Discovered the API {d} ({_name(x.get('calls'))} read-only calls)",
         "apis",
@@ -378,6 +373,11 @@ RULES: dict[str, Rule] = {
         _document(x.get("path"), x.get("cell")),
     ),
     "api_refresh": lambda d, x: (f"Read the API {_name(x.get('api'))} again", "apis", _area("apis")),
+    "api_shape_changed": lambda d, x: (
+        f"{d}'s answer changed: {_name(x.get('words'))}" if x.get("words") else f"{d}'s answer changed",
+        "apis",
+        _area("apis"),
+    ),
     "api_delete": lambda d, x: (f"Deleted the API {_name(x.get('api'))}", "apis", _area("apis")),
     # Structures: names only, never a value.
     "structure_open": lambda d, x: (
@@ -478,19 +478,56 @@ RULES: dict[str, Rule] = {
 }
 
 
+# A change's object (domain/changes.py) as the Session page's area and place.
+_CHANGE_AREAS = {
+    "table": "grids",
+    "connection": "connections",
+    "api": "apis",
+    "endpoint": "apis",
+    "widget": "apps",
+    "canvas": "apps",
+    "notebook": "notebooks",
+    "script": "scripts",
+    "variable": "variables",
+}
+
+
+def _changed(d: str, x: dict[str, Any]) -> Said | None:
+    """A change no other entry says (the change log's own event: an API's drift, API.py's endpoints)."""
+    change = x.get("change")
+    if not isinstance(change, dict):
+        return None
+    obj = change.get("object") or {}
+    kind, name = str(obj.get("kind") or ""), _name(obj.get("name"))
+    area = _CHANGE_AREAS.get(kind, "project")
+    target: Target = (
+        _dataset(name)
+        if kind == "table"
+        else {"place": "connection", "name": name}
+        if kind == "connection"
+        else _area(area)
+    )
+    return _name(change.get("words")) or f"Changed {name}", area, target
+
+
 def entry(actor: Any, action: Any, dataset: Any, details: dict[str, Any]) -> Entry | None:
     """The Session page's entry for one audit entry (no id, no time: the service adds them), or None
-    when the action makes nothing. Built from names and counts only."""
+    when the action makes nothing. Built from names and counts only; a change's words beside it
+    (the change log's same event: names and types, never a value)."""
     if actor not in ACTORS or not isinstance(action, str):
         return None
-    rule = RULES.get(action)
+    rule = _changed if action == "changed" else RULES.get(action)
     if rule is None:
         return None
     said = rule(_name(dataset), details)
     if said is None:
         return None
     what, area, target = said
-    return {"actor": actor, "action": action, "what": what, "area": area, "target": target}
+    made: Entry = {"actor": actor, "action": action, "what": what, "area": area, "target": target}
+    change = details.get("change")
+    if isinstance(change, dict) and change.get("words"):
+        made["change"] = _name(change["words"]) if action != "changed" else what
+    return made
 
 
 def check_filter(value: Any) -> str:

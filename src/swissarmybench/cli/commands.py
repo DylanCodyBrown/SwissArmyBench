@@ -3922,9 +3922,46 @@ def app_gates(a: dict[str, Any]) -> Any:
     "with its area and its object; and whether the user follows you (their switch, read-only to you)",
     opt("who", "agent (default), user or both."),
     opt("limit", "Default 200.", "int"),
+    opt("changes", "true: only the entries that changed something (the page's Changes).", "bool"),
 )
 def app_session(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/session-log", params={k: a.get(k) for k in ("who", "limit")})
+    params = {k: a.get(k) for k in ("who", "limit")} | ({"changes": "1"} if a.get("changes") else {})
+    return api.call("GET", "/session-log", params=params)
+
+
+@command(
+    "stats",
+    "Every call's statistics (connections' reads, queries and writes; APIs' actions): time in parts (wait in "
+    "line, connect, first row or byte, total), size, folded vs DuckDB, outcome, who and where, the shape's "
+    "fingerprint; the running figures per table, connection and endpoint; hints. Never a value",
+    opt("action", "summary (default), slowest, errors, table, connection, endpoint or hints."),
+    opt("name", "The table (Connection.table), connection or endpoint (API action) for those views."),
+    opt("n", "How many calls (default 20).", "int"),
+)
+def stats(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/stats", params={k: a.get(k) for k in ("action", "name", "n")})
+
+
+@command(
+    "changes",
+    "The open project's change log: each change to a table (columns, source, steps), a connection, an API or "
+    "an endpoint's learned shape, API.py, a widget, a canvas page, a notebook or script, a variable or setting: "
+    "when, who, what in words and as a difference by name, fingerprints before and after. Never a value",
+    opt("action", "last (default: the object's last change), history, since or search."),
+    opt(
+        "object", "kind:name (table:orders, endpoint:Shop list_orders) or a name alone, for last and history."
+    ),
+    opt("n", "How many (default 20).", "int"),
+    opt("since", "An ISO time, for since (e.g. when you last looked)."),
+    opt(
+        "kind", "For search: table, connection, api, endpoint, widget, canvas, notebook, script, variable..."
+    ),
+    opt("who", "For search: user, agent or app."),
+    opt("word", "For search: a word in the change's words."),
+)
+def changes(a: dict[str, Any]) -> Any:
+    keys = ("action", "object", "n", "since", "kind", "who", "word")
+    return api.call("GET", "/changes", params={k: a.get(k) for k in keys})
 
 
 @command(
@@ -5282,6 +5319,8 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
+    ("stats", "Every call's statistics: times, sizes and outcomes per table, connection and endpoint; hints"),
+    ("changes", "The open project's change log: the last change to an object, its history, since a time"),
     ("app", "The page itself: snapshots"),
     ("desktop", "The desktop app: its windows, a page opened in one"),
     ("extensions", "Extensions: what plugs into the base (Streamlit, Accounting, Power Apps)"),

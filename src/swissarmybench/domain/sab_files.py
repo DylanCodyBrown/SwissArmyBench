@@ -539,8 +539,8 @@ def fix_for(table: str, source: Source, problem: str) -> dict[str, Any]:
 APP_IGNORE_FILE: str = f"{APP_FOLDER}/.gitignore"
 APP_GITIGNORE: str = (
     "# Swiss Army Bench: a table's rows kept on a tick, and the sandbox's, stay out of Git\n"
-    "# (data is sensitive).\n"
-    "data/\nsandbox/\n"
+    "# (data is sensitive); this computer's call statistics and change log stay here too.\n"
+    "data/\nsandbox/\nstats.json\nchanges.jsonl\n"
 )
 GITIGNORE_FILE: str = ".gitignore"
 README_FILE: str = "README.md"

@@ -1,6 +1,7 @@
 # The change log (the owner, 2026-11-22)
 
-Status: decided; not built.
+Status: built (branch stats-changes, 2026-11-22): services/changes.py raised on the audit, .sab/changes.jsonl, the changes
+tool, the Session page's Changes; decisions and what is not raised yet in docs/ideas.md "The change log".
 
 > "A change tracking, event based tracker that would write to a per project change log, so when a table structure,
 > an API, or anything is modified the agent could quickly run an MCP tool that would return the last recorded change

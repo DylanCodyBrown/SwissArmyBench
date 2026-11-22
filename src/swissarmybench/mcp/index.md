@@ -1,4 +1,4 @@
-# Swiss Army Bench: the index (read first; live picture: `app_context`, swissarmybench://context)
+# Swiss Army Bench: the index (read first; live picture: `app_context`)
 
 A local server on 127.0.0.1: the user's tables in live grids; DuckDB SQL transforms.
 A project is a folder; connections, APIs, vaults, blades, variables: the library.
@@ -9,28 +9,28 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 3. `steps_run_sql`: one DuckDB SELECT; `grid` is that grid's view, other tables by name, a
    connection's as `[Finance].Sales` (`connections_tables`).
 4. `agent_events`: the user's next move; `agent_inbox`: sent to you.
-5. `project_outline`: the project for a newcomer.
+5. `project_outline`: the project for a newcomer; `changes`: what changed; `stats`: call times.
 
 ## Tools by prefix
 | Prefix | Area | Key tools |
 |---|---|---|
 | `tabs_` | tabs, + query | `tabs_list`, `tabs_new_query` |
 | `datasets_` | tables: file, paste, Python | `datasets_load`, `datasets_paste` |
-| `table_` | ribbon, Table row | `table_filter`, `table_export`, `table_swap_connection` |
+| `table_` | ribbon, Table row | `table_filter`, `table_export` |
 | `column_` | ribbon, Column row | `column_keep`, `column_rename`, `column_outliers` |
 | `cell_`, `row_` | a cell's menu; rows | `cell_exclude`, `row_read`, `row_count` |
 | `steps_` | a grid's steps, SQL, code | `steps_add`, `steps_kinds`, `steps_python` |
 | `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
-| `compare_` | two grids | `compare_create` |
-| `connections_`, `variables_` | connections; variables; access | `connections_list`, `variables_resolve`, `app_registration_check` |
+| `compare_`, `stats_`, `changes_` | grids; call stats; changes | `compare_create` |
+| `connections_`, `variables_` | connections; variables | `connections_list`, `variables_resolve` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
 | `apis_`, `actions_`; `sandbox_`, `api_` | APIs, any API call; local APIs | `actions`, `apis_call`; `sandbox`, `api` |
 | `structures_`; `environment_` | JSON, YAML; all a project holds | `structures_open`; `environment` |
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_` | saved code, starters | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
-| `widgets_`, `canvas_` | widgets, the canvas, wiring, launches | `widgets_new`, `canvas_insert_widget`, `canvas_wire` |
+| `widgets_`, `canvas_` | widgets, the canvas, wiring | `widgets_new`, `canvas_wire` |
 | `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |
 | `files_`, `app_`, `extensions_` | files; page, mode, gates; extensions | `app_context`, `app_gates`, `extensions_list` |
 | `desktop_` | app windows | `desktop_open`, `app_lifecycle` |

@@ -7,6 +7,7 @@ Made-up rows only."""
 
 from __future__ import annotations
 
+import re
 import sys
 import types
 from typing import Any
@@ -38,11 +39,26 @@ class TrinoStandIn:
     def cursor(self) -> TrinoStandIn:
         return self
 
+    # SHOW CREATE TABLE as Trino answers it for an Iceberg table: its columns, then its properties.
+    SHOWN = (
+        "CREATE TABLE lake.sales.orders (\n   order_id bigint,\n   region varchar\n)\nWITH (\n   format = "
+        "'PARQUET',\n   partitioning = ARRAY['region']\n)"
+    )
+
     def execute(self, sql: str, params: Any = None) -> None:
         self.statements.append(sql)
         for start, words in self.refuse.items():
             if sql.startswith(start):
                 raise RuntimeError(f'TrinoUserError(type=USER_ERROR, name=NOT_SUPPORTED, message="{words}")')
+        if sql.startswith("SHOW CREATE TABLE"):
+            self.description, self._rows = [("Create Table",)], [(self.SHOWN,)]
+            return
+        # DuckDB has no table properties: the WITH (...) of a CREATE OR REPLACE TABLE is Trino's to keep.
+        sql = (
+            re.sub(r"\nWITH \(.*?\)\nAS ", "\nAS ", sql, flags=re.DOTALL)
+            if sql.startswith("CREATE OR")
+            else sql
+        )
         self.db.execute(sql.replace('"lake".', ""), params)
         self.description = [(d[0],) for d in self.db.description] if self.db.description else None
         self._rows = self.db.fetchall() if self.db.description else []
@@ -98,9 +114,7 @@ def test_trino_writes_a_statement_a_batch_without_a_transaction(trino: TrinoStan
     assert lake_rows(trino) == []
 
 
-def test_trino_says_it_has_no_transaction_in_its_dry_run_and_refuses_a_truncate_with_rows(
-    trino: TrinoStandIn,
-) -> None:
+def test_trino_says_it_has_no_transaction_in_its_dry_run(trino: TrinoStandIn) -> None:
     db = adapter.Sql(trino, "trino", "Lake")
     rows = pa.table({"order_id": [1, 2], "region": ["South", "East"]})
     plan = adapter.planned(db, "lake.sales.orders", rows, ["order_id"], "merge")
@@ -108,12 +122,9 @@ def test_trino_says_it_has_no_transaction_in_its_dry_run_and_refuses_a_truncate_
     assert adapter.NO_TRANSACTION == (
         "Trino writes row batches without a transaction: a failure part-way leaves the rows already written."
     )
-    for call in (adapter.planned, adapter.write):
-        with pytest.raises(
-            adapter.AdapterError, match="Trino writes row batches without a transaction: a fail"
-        ) as no:
-            call(db, "lake.sales.orders", rows, (), "truncate")
-        assert "Clear it first (truncate with no rows), then insert the rows." in str(no.value)
+    # A replace (truncate with rows) is one statement: its dry run says so, nothing changes.
+    plan = adapter.planned(db, "lake.sales.orders", rows, (), "truncate")
+    assert (plan.inserted, plan.deleted, plan.notes) == (2, 2, (adapter.TRINO_REPLACE,))
     assert lake_rows(trino) == [(1, "North"), (9, "North")]
     said = adapter.statements(db, "lake.sales.orders", ["order_id", "region"], (), "insert")
     assert said == [
@@ -141,3 +152,51 @@ def test_a_trino_batch_that_fails_says_the_rows_before_it_were_written(trino: Tr
     assert adapter.batch_of(failed.value) == adapter.Batch(2, 2, 1)
     assert "the 2 rows before it were written" in " ".join(failed.value.__notes__)
     assert [r[0] for r in lake_rows(trino)] == [1, 5, 6, 9]  # the first batch stays: no transaction
+
+
+# ===== a replace: one CREATE OR REPLACE TABLE ... AS where the catalog has it (Iceberg) =====
+
+
+def test_a_trino_replace_is_one_statement_keeping_its_types_and_properties(trino: TrinoStandIn) -> None:
+    db = adapter.Sql(trino, "trino", "Lake")
+    rows = pa.table({"order_id": pa.array([5, 6, 7], pa.int32()), "region": ["West", "East", "South"]})
+    done = adapter.write(db, "lake.sales.orders", rows.to_reader(max_chunksize=2), (), "truncate")
+    assert (done.inserted, done.deleted, done.notes) == (3, 2, (adapter.TRINO_REPLACE,))
+    (replaced,) = [s for s in trino.statements if s.startswith("CREATE OR REPLACE")]
+    assert replaced.startswith(
+        'CREATE OR REPLACE TABLE "lake"."sales"."orders"\n'
+        "WITH (format = 'PARQUET', partitioning = ARRAY['region'])\n"
+        'AS SELECT CAST("order_id" AS BIGINT) AS "order_id", CAST("region" AS VARCHAR) AS "region"\n'
+        'FROM (VALUES (?, ?), (?, ?), (?, ?)) AS s ("order_id", "region")'
+    )
+    assert not [s for s in trino.statements if s.startswith(("DELETE", "INSERT"))]  # never two steps
+    assert lake_rows(trino) == [(5, "West"), (6, "East"), (7, "South")]
+    types = trino.db.execute("SELECT data_type FROM information_schema.columns WHERE table_name = 'orders'")
+    assert [t[0] for t in types.fetchall()] == ["BIGINT", "VARCHAR"]  # its own types, not the rows'
+    said = adapter.statements(db, "lake.sales.orders", ["order_id", "region"], (), "truncate")
+    assert said[0].startswith(
+        'CREATE OR REPLACE TABLE "lake"."sales"."orders"\nWITH (its properties)\nAS SELECT'
+    )
+
+
+def test_a_catalog_without_it_keeps_the_refusal_and_changes_nothing(trino: TrinoStandIn) -> None:
+    db = adapter.Sql(trino, "trino", "Lake")
+    trino.refuse = {"CREATE OR REPLACE": "Replacing tables is not supported"}  # Hive's catalog
+    rows = pa.table({"order_id": [5], "region": ["West"]})
+    with pytest.raises(adapter.AdapterError) as no:
+        adapter.write(db, "lake.sales.orders", rows, (), "truncate")
+    said = str(no.value)
+    assert said.startswith("lake.sales.orders's catalog cannot replace a table in one statement")
+    assert "Clear it first (truncate with no rows), then insert the rows." in said
+    assert lake_rows(trino) == [(1, "North"), (9, "North")]
+
+
+def test_a_replace_too_big_for_one_statement_is_refused_before_anything_runs(
+    trino: TrinoStandIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(adapter, "TRINO_REPLACE_VALUES", 4)
+    db = adapter.Sql(trino, "trino", "Lake")
+    rows = pa.table({"order_id": [5, 6, 7], "region": ["W", "E", "S"]})
+    with pytest.raises(adapter.AdapterError, match="too big for one Trino statement"):
+        adapter.write(db, "lake.sales.orders", rows, (), "truncate")
+    assert trino.statements == [] and lake_rows(trino) == [(1, "North"), (9, "North")]

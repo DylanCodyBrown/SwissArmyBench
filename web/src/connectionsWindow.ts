@@ -55,6 +55,7 @@ import { openOnPage } from "./workbenchPages";
 import { showAddApi } from "./addApi";
 import { api, onNotice } from "./api";
 import { slotLine, slotsSection } from "./connectionSlots";
+import { type Figures, figuresTerms, figuresTitle, usualWords } from "./callFigures";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
 import { accessSection } from "./connectionAccess";
@@ -223,6 +224,8 @@ interface Calls {
   last_used: number | null;
   last_kind: string | null;
   last_ok: boolean | null;
+  /** The open project's running figures for it (services/call_stats.py), null while it has none. */
+  figures?: Figures | null;
 }
 
 /** A card (GET /connections/usage). */
@@ -321,7 +324,8 @@ function ago(seconds: number): string {
 /** "12 calls · 3 min ago"; "No calls yet". */
 function callsWord(calls: Calls): string {
   if (!calls.total) return "No calls yet";
-  return `${calls.total.toLocaleString()} call${calls.total === 1 ? "" : "s"}${calls.last_used ? ` · ${ago(calls.last_used)}` : ""}`;
+  const usual = usualWords(calls.figures);
+  return `${calls.total.toLocaleString()} call${calls.total === 1 ? "" : "s"}${calls.last_used ? ` · ${ago(calls.last_used)}` : ""}${usual ? ` · ${usual}` : ""}`;
 }
 
 /** Where a reference opens: the Workbench page's own (its documents and cells), else this one. */
@@ -393,6 +397,7 @@ function callsList(calls: Calls): HTMLElement {
     { class: "connection-calls" },
     ...Object.entries(CALL_WORDS).flatMap(([k, label]) => term(label, String(calls.by_kind[k] ?? 0))),
     ...term("Last used", calls.last_used ? `${ago(calls.last_used)}${calls.last_ok === false ? " (failed)" : ""}` : "Not yet"),
+    ...figuresTerms(calls.figures),
   );
 }
 
@@ -669,7 +674,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
           h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection])),
           h("span", { class: "connection-card-marks" }, statusPill(c)),
-          h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
+          h("span", { class: "connection-card-calls", title: c.calls.figures?.count ? figuresTitle(c.calls.figures) : undefined }, callsWord(c.calls)),
           c.about?.length ? h("span", { class: "connection-card-about" }, c.about[0]) : null,
           c.local?.length ? h("span", { class: "connection-card-local" }, errorMark(c.local[0]!.words, { level: "warning", title: c.local.map((n) => n.words).join("\n") })) : null,
           // "Running 3 of 8 · 1 waiting", live, while anything runs or waits (connectionSlots.ts).

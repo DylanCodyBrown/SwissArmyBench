@@ -26,6 +26,7 @@ from swissarmybench.domain.steps import (
     with_header_sort,
 )
 from swissarmybench.domain.table_cells import Origin
+from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.workspace import NotFound, Workspace
 
@@ -279,11 +280,21 @@ class GridService:
         ws = self.ws
         if isinstance(gen, int):  # newer gen from this page: interrupt its older queries
             grid.release(grid.admit(gen, ws.store.cursor(), client))
+        was = _table_shape(grid.steps, await self.describe(grid, info))  # the change log's before
         grid.set_steps(new_steps)  # remembered, so the change can be undone
         grid.settings = new_settings
         described = await self.describe(grid, info)
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
-        ws.audit.write(who, "steps", info.name, steps=len(new_steps), grid=grid.id, **(change or {}))
+        now = _table_shape(new_steps, described)
+        ws.audit.write(
+            who,
+            "steps",
+            info.name,
+            steps=len(new_steps),
+            grid=grid.id,
+            **(change or {}),
+            **raised("table", info.name, was, now),
+        )
         return described | (extra or {})
 
     async def put_steps(self, grid: Grid, info: DatasetInfo, body: Any, who: str) -> dict[str, Any]:
@@ -400,11 +411,16 @@ class GridService:
         ws = self.ws
         if isinstance(gen, int):
             grid.release(grid.admit(gen, ws.store.cursor(), client))
+        was_steps = list(grid.steps)
         if not (grid.undo() if op == "undo" else grid.redo()):
             raise ValueError(f"Nothing to {op}.")
+        was = {"steps": _table_shape(was_steps, {})["steps"]}  # the columns of before are not read again
         described = await self.describe(grid, info)
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
-        ws.audit.write(who, op, info.name, steps=len(grid.steps), grid=grid.id)
+        now = {"steps": _table_shape(grid.steps, described)["steps"]}
+        ws.audit.write(
+            who, op, info.name, steps=len(grid.steps), grid=grid.id, **raised("table", info.name, was, now)
+        )
         return described
 
     async def header_sort(self, grid: Grid, info: DatasetInfo, body: Any, who: str) -> dict[str, Any]:
@@ -476,3 +492,12 @@ def _query_connection(origin: Origin, query: str | None) -> str | None:
     if query is None or origin.kind != "connection" or not origin.sql:
         return None
     return origin.connection
+
+
+def _table_shape(steps: list[Step], described: dict[str, Any]) -> dict[str, Any]:
+    """A table's structure for the change log: its view's columns and their types, its steps by place and
+    kind (their parameters fingerprinted there, never kept)."""
+    return {
+        "columns": {str(c["name"]): str(c["type"]) for c in described.get("columns") or []},
+        "steps": {f"{i + 1} {s.kind}": s.params for i, s in enumerate(steps)},
+    }
