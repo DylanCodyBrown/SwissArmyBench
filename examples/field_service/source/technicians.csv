@@ -1,0 +1,13 @@
+technician_id,name,region,skill,active
+100,Ada Marlow,North,HVAC,True
+101,Bram Quill,South,Refrigeration,True
+102,Cleo Tarn,East,Plumbing,True
+103,Dov Voss,West,Electrical,True
+104,Esme Wren,North,HVAC,True
+105,Finn Yarrow,South,Refrigeration,True
+106,Greta Marlow,East,Plumbing,True
+107,Hugo Quill,West,Electrical,False
+108,Ines Tarn,North,HVAC,True
+109,Jory Voss,South,Refrigeration,True
+110,Kaia Wren,East,Plumbing,True
+111,Lev Yarrow,West,Electrical,True

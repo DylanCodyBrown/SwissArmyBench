@@ -614,13 +614,18 @@ def _local_send(aa: Any, local_api: Any, loop: asyncio.AbstractEventLoop, who: s
         body = json.loads(request.body) if request.body else None
         sent = {"method": request.method, "path": path, "query": query, "body": body}
         try:
-            done = asyncio.run_coroutine_threadsafe(local_api.call(sent, who), loop).result(timeout=180)
+            done = asyncio.run_coroutine_threadsafe(local_api.call(sent, who, raw=True), loop).result(
+                timeout=180
+            )
         except (Conflict, Refused) as error:
             return aa.Response(0, {}, str(error).encode())
-        said = done.get("body")
-        raw = json.dumps(said).encode() if said is not None else b""
-        if int(done.get("status") or 0) >= 400 and done.get("error"):
+        status = int(done.get("status") or 0)
+        if status >= 400 and done.get("error"):
             raw = json.dumps({"error": done["error"]}).encode()
-        return aa.Response(int(done.get("status") or 0), {"content-type": "application/json"}, raw)
+            return aa.Response(status, {"content-type": "application/json"}, raw)
+        # The answer as the API itself gave it (its bytes and its content type), so a file to save (the Export
+        # pattern's CSV or workbook) is read here as a built app's own call reads it, not as Try it shows it.
+        headers = {k: str(v) for k, v in (done.get("headers") or {}).items()}
+        return aa.Response(status, headers or {"content-type": "application/json"}, done.get("raw") or b"")
 
     return send

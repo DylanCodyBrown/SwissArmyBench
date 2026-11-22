@@ -58,6 +58,14 @@ def test_the_editors_checks_are_the_api_pages_rules_and_the_mocks() -> None:
     assert not any("order_id FROM orders" in lines[line - 1] for line in words)  # its ? comes at run time
     assert api_rules.is_api_file("/p/shop/API.py") and api_rules.is_api_file("C:\\shop\\API.py")
     assert not api_rules.is_api_file("/p/api.py")
+    # SQL made at run time (an f-string, as the wizard's Reconcile writes its query around a constant) is not
+    # read as SQL here: it was marked "could not read this DuckDB SQL" on the wizard's own code (2026-11-22).
+    made = (
+        'from sab_api import connection, endpoint, records\n\nCOMPARED = "SELECT order_id FROM orders"\n\n\n'
+        '@endpoint("GET", "/compared")\ndef compared() -> list[dict]:\n'
+        '    return records(connection("Sandbox").query(f"WITH c AS ({COMPARED}) SELECT * FROM c"))\n'
+    )
+    assert api_rules.editor_problems(made, mocks) == []
 
 
 def test_sql_strings_and_sab_api_complete_and_jedi_reads_sab_api() -> None:

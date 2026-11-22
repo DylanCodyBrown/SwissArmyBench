@@ -1,0 +1,6 @@
+# Swiss Army Bench: a table's rows kept on a tick, and the sandbox's, stay out of Git
+# (data is sensitive); this computer's call statistics and change log stay here too.
+data/
+sandbox/
+stats.json
+changes.jsonl

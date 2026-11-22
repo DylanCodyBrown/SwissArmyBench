@@ -88,6 +88,7 @@ _SANDBOX_COPY = """
 # ===== connection("Sandbox"): the sandbox's tables, bundled as data/sandbox.duckdb =====
 # The platform's package folder is read-only: the copy works in a temporary folder, so writes last until the
 # instance is recycled. For data that lasts, point an endpoint at a real connection instead.
+import hashlib as _hashlib
 import shutil as _shutil
 import tempfile as _tempfile
 from pathlib import Path as _Path
@@ -102,7 +103,13 @@ def _sandbox():
 
         if not _BUNDLED.exists():
             raise RuntimeError("This export has no sandbox copy (data/sandbox.duckdb): export it with its rows.")
-        working = _Path(os.environ.get("SAB_SANDBOX_PATH") or _Path(_tempfile.gettempdir()) / "sab_sandbox.duckdb")
+        # The working copy is this bundle's own (named by where the bundle is and when it was made): another
+        # export on the same computer, or this one exported again, never reads an older copy's rows.
+        made = _BUNDLED.stat()
+        mark = _hashlib.sha256(f"{_BUNDLED}|{made.st_size}|{made.st_mtime_ns}".encode()).hexdigest()[:12]
+        working = _Path(
+            os.environ.get("SAB_SANDBOX_PATH") or _Path(_tempfile.gettempdir()) / f"sab_sandbox_{mark}.duckdb"
+        )
         if not working.exists():
             _shutil.copyfile(_BUNDLED, working)
         _SANDBOX.append(duckdb.connect(str(working)))

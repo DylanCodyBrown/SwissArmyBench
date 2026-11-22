@@ -1,0 +1,19 @@
+price_id,part_sku,part_name,version,is_current,price
+FLT-100-v1,FLT-100,Air filter,1,False,16.25
+FLT-100-v2,FLT-100,Air filter,2,False,17.5
+FLT-100-v3,FLT-100,Air filter,3,True,18.75
+CMP-220-v1,CMP-220,Compressor relay,1,False,62.4
+CMP-220-v2,CMP-220,Compressor relay,2,False,67.2
+CMP-220-v3,CMP-220,Compressor relay,3,True,72.0
+VLV-310-v1,VLV-310,Shut-off valve,1,False,28.28
+VLV-310-v2,VLV-310,Shut-off valve,2,False,30.45
+VLV-310-v3,VLV-310,Shut-off valve,3,True,32.62
+THM-415-v1,THM-415,Thermostat,1,False,83.2
+THM-415-v2,THM-415,Thermostat,2,False,89.6
+THM-415-v3,THM-415,Thermostat,3,True,96.0
+FAN-520-v1,FAN-520,Fan motor,1,False,149.5
+FAN-520-v2,FAN-520,Fan motor,2,False,161.0
+FAN-520-v3,FAN-520,Fan motor,3,True,172.5
+SEA-610-v1,SEA-610,Door seal,1,False,12.03
+SEA-610-v2,SEA-610,Door seal,2,False,12.95
+SEA-610-v3,SEA-610,Door seal,3,True,13.88

@@ -471,6 +471,12 @@ def test_payload_shapes_flag_a_widget_whose_endpoint_answers_otherwise(tmp_path:
                             "widget": "api_button",
                             "values": {"endpoint": "GET /gone"},
                         },
+                        {
+                            "id": "w6",
+                            "kind": "widget",
+                            "widget": "api_metric",
+                            "values": {"endpoint": "[Orders] GET /orders/{order_id}", "field": "amount"},
+                        },
                     ],
                 }
             ],
@@ -483,6 +489,56 @@ def test_payload_shapes_flag_a_widget_whose_endpoint_answers_otherwise(tmp_path:
         assert by["w3"] == ["one_order's answer has no field total (it has order_id, region, amount)."]
         assert by["w4"] == ["add_order's body has no field colour."]
         assert by["w5"] == ["API.py has no endpoint GET /gone."]
+        # Another API's action (through the API adapter) is not API.py's to check: it was said to be an
+        # endpoint API.py does not have (found building the field service test app, 2026-11-22).
+        assert "w6" not in by
         assert not found["ok"]
         first = next(u for u in found["uses"] if u["instance"] == "w1")
         assert first["answers"]["fields"] == {"order_id": "int", "region": "str", "amount": "float"}
+
+
+EXTRA = '''
+
+@endpoint("GET", "/count")
+def how_many() -> dict:
+    """How many orders there are."""
+    return {"orders": len(records(connection("Sandbox").read("orders")))}
+
+
+@endpoint("GET", "/orders.csv")
+def orders_file() -> Download:
+    """The orders as a CSV file to save."""
+    return download(connection("Sandbox").read("orders", sort=[["order_id", "asc"]]), "orders.csv")
+'''
+
+
+def test_a_call_right_after_a_save_is_answered_by_the_code_as_saved(live: int, tmp_path: Path) -> None:
+    """API.py saved and called at once (an agent's two commands in a row): the call starts the API again
+    itself rather than being answered by the process started before the save; a file that no longer starts
+    says so, never "not running" (found building the field service test app, 2026-11-22)."""
+    port = live
+    folder = tmp_path / "shop"
+    _ask(port, "POST", "/project/new", {"path": str(folder)})
+    csv = tmp_path / "orders.csv"
+    csv.write_text(ORDERS, encoding="utf-8")
+    _ask(port, "POST", "/sandbox/tables", {"from": "file", "path": str(csv)})
+    (folder / "API.py").write_text(API_PY, encoding="utf-8")
+    assert _ask(port, "POST", "/local-api/run", {})["running"]
+    get = {"method": "GET", "path": "/count"}
+    assert _ask(port, "POST", "/local-api/call", get)["status"] == 404
+    with_file = API_PY.replace("endpoint, records", "Download, download, endpoint, records") + EXTRA
+    (folder / "API.py").write_text(with_file, encoding="utf-8")
+    counted = _ask(port, "POST", "/local-api/call", get)  # no wait for the watch's next look
+    assert counted["status"] == 200 and counted["body"] == {"orders": 3}
+    # A file to save through api_adapter is read as the API gave it (CSV: its records), as a built app's own
+    # call reads it; Try it's summary of a download (name, type, size) is never what an action learns.
+    ran = _ask(port, "POST", "/actions/run", {"api": "local", "action": "orders_file"})
+    assert ran["ok"] and ran["kind"] == "records" and ran["format"] == "csv"
+    assert [r["order_id"] for r in ran["records"]] == [1, 2, 3]
+    assert set(ran["shape"]["fields"]) == {"order_id", "region", "amount"}
+    tried = _ask(port, "POST", "/local-api/call", {"method": "GET", "path": "/orders.csv"})
+    assert tried["body"]["download"] == "orders.csv" and "raw" not in tried and "headers" not in tried
+    (folder / "API.py").write_text(with_file + "\ndef broken(:\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match=r"409: .*did not start"):
+        _ask(port, "POST", "/local-api/call", get)
+    _ask(port, "POST", "/local-api/stop", {})

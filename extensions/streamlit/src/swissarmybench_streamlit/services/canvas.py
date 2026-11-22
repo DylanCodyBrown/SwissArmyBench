@@ -573,7 +573,9 @@ class Canvases:
             core = await self._core_files(read_live)
         if core["files"]:
             files |= core["files"]
-            names = {n for n in names if not n.startswith("[")}
+            # (The sandbox's tables stay the export's own copies: connections.py never names the sandbox, so
+            # a canvas reading both a connection's table and a sandbox one lost the sandbox's.)
+            names = {n for n in names if not n.startswith("[") or n.casefold().startswith("[sandbox]")}
             wanted = [*build_rules.REQUIREMENTS, *core["requirements"]]
             files["requirements.txt"] = "\n".join(dict.fromkeys(wanted)) + "\n"
         tables = await self._widgets.tables_for(names)
@@ -597,6 +599,8 @@ class Canvases:
         # Another API's own client travels with the app (API_<name>.py): its sign-in's variables are named.
         for name in sorted(n for n in files if _client(n)):
             for variable in dict.fromkeys(_ENVIRON.findall(files[name])):
+                if variable in variables:
+                    continue  # connections.py reads it too: said once
                 variables.append(variable)
                 warnings.append(f"Set {variable} where it runs: {name} reads it.")
                 lines.append(f"- `{variable}`: {name} reads it (its API's address or sign-in)\n")

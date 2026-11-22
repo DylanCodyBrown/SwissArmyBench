@@ -86,6 +86,13 @@ def test_a_key_set_later_is_kept_by_reset_and_an_older_checkpoint(tmp_path: Path
         assert _sql(client, "INSERT INTO stock VALUES ('A-1', 9)").status_code == 400
         listed = {t["name"]: t for t in ok(client.get("/sandbox", headers=AUTH))["tables"]}
         assert [c["name"] for c in listed["stock"]["columns"] if c["key"]] == ["sku"]
+        # One table put back alone keeps its key too (its rows come back as a new table: the key went with
+        # the old one; found building the field service test app, 2026-11-22).
+        assert _sql(client, "UPDATE stock SET count = 4 WHERE sku = 'A-1'").status_code == 200
+        ok(client.post("/sandbox/reset", json={"table": "stock"}, headers=AUTH))
+        listed = {t["name"]: t for t in ok(client.get("/sandbox", headers=AUTH))["tables"]}
+        assert [c["name"] for c in listed["stock"]["columns"] if c["key"]] == ["sku"]
+        assert _sql(client, "INSERT INTO stock VALUES ('A-1', 9)").status_code == 400
         # Rows that repeat it: the key refused, in one sentence; one asked for at Add: in, without it, said.
         ok(client.post("/sandbox/tables", json={"from": "file", "path": str(dup)}, headers=AUTH))
         refused = client.post("/sandbox/tables/key", json={"table": "moves", "key": ["sku"]}, headers=AUTH)

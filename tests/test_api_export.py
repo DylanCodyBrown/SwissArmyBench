@@ -409,3 +409,59 @@ def test_will_this_work_for_real_reads_only_a_loaded_catalog(shop: tuple[TestCli
     checked = ok(client.post("/local-api/check", json={}, headers=AUTH))
     differs = [c for c in checked["checks"] if c["state"] == "differs"]
     assert differs and "customers has no column town" in differs[0]["words"]
+
+
+SANDBOX_API = '''\
+# /// swissarmybench-api
+# name = "Cities API"
+# description = ""
+# target = "aws_lambda"
+# base_path = ""
+# ///
+from sab_api import connection, endpoint, records
+
+
+@endpoint("GET", "/cities")
+def cities() -> list[str]:
+    """The customers' cities, from the sandbox's own copy."""
+    return sorted({row["city"] for row in records(connection("Sandbox").read("customers"))})
+'''
+
+
+def test_an_export_with_rows_reads_its_own_copy_never_an_older_exports(
+    shop: tuple[TestClient, Path], tmp_path: Path
+) -> None:
+    """connection("Sandbox") in an export works on a copy of its bundle in the temporary folder. The copy was
+    one fixed name, made only when not there: an export made again (or another project's, on the same
+    computer) silently answered an older export's rows (found building the field service test app,
+    2026-11-22). Now the working copy is the bundle's own."""
+    client, folder = shop
+    (folder / "API.py").write_text(SANDBOX_API, encoding="utf-8")
+    temp = tmp_path / "platform-tmp"
+    temp.mkdir()
+    script = """
+        import json, lambda_function
+        out = lambda_function.handler({"httpMethod": "GET", "path": "/cities"}, None)
+        print(json.dumps([out["statusCode"], json.loads(out["body"])]))
+    """
+    done = ok(client.post("/local-api/export", json={"rows": True}, headers=AUTH))
+    place = Path(done["folder"])
+    assert done["sandbox"] is True and (place / "data" / "sandbox.duckdb").is_file()
+    assert _run(place, script, env={"TMPDIR": str(temp)}) == [200, ["Shelbyville", "Springfield"]]
+    assert _run(place, script, env={"TMPDIR": str(temp)}) == [200, ["Shelbyville", "Springfield"]]
+    assert len(list(temp.glob("sab_sandbox_*.duckdb"))) == 1  # the same export: the same working copy
+    # The sandbox changes and the API is exported again: its run answers the new rows.
+    edit = {
+        "table": "customers",
+        "op": "update",
+        "where": {"customer_id": 2},
+        "values": {"city": "Ogdenville"},
+    }
+    ok(client.post("/sandbox/edit", json=edit, headers=AUTH))
+    ok(client.post("/local-api/export", json={"rows": True}, headers=AUTH))
+    assert _run(place, script, env={"TMPDIR": str(temp)}) == [200, ["Ogdenville", "Springfield"]]
+    assert len(list(temp.glob("sab_sandbox_*.duckdb"))) == 2
+    # A place of the host's own choosing is still taken as it is.
+    own = tmp_path / "own.duckdb"
+    assert _run(place, script, env={"SAB_SANDBOX_PATH": str(own), "TMPDIR": str(temp)})[0] == 200
+    assert own.is_file()

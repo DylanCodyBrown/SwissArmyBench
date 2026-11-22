@@ -48,7 +48,10 @@ PROBE = '''(() => {
 })()'''
 
 def done(said):
-    print("SAB-SHOT " + json.dumps(said), flush=True)
+    try:  # the server that asked may be gone (its end of the pipe closed): end all the same
+        print("SAB-SHOT " + json.dumps(said), flush=True)
+    except Exception:
+        pass
     app.quit()
 
 def probe():
@@ -74,6 +77,8 @@ view.load(QUrl(url))
 late = {"ok": False, "said": "The preview took too long."}
 QTimer.singleShot(int(float(sys.argv[4]) * 1000), lambda: done(late))
 app.exec()
+import os
+os._exit(0)  # never held up by the engine's own teardown
 """
 
 DARK = '[theme]\nbase = "dark"\n'
@@ -88,6 +93,7 @@ class Previewer:
         self._queue: asyncio.Queue[tuple[str, str]] | None = None
         self._wanted: set[str] = set()
         self._worker: asyncio.Task[None] | None = None
+        self._shooters: set[asyncio.subprocess.Process] = set()  # the photographers running now
 
     def want(self, name: str, theme: str) -> None:
         """A preview asked for: made in the background when it is not made (or failed) yet."""
@@ -159,12 +165,18 @@ class Previewer:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
+        self._shooters.add(process)
         try:
             found, _ = await asyncio.wait_for(process.communicate(), SHOT_SECONDS + 15)
         except TimeoutError:
             process.kill()
             await process.wait()
             return {"ok": False, "said": "The preview took too long."}
+        finally:
+            self._shooters.discard(process)
+            if process.returncode is None:  # cancelled (the server stopping): it never outlives the server
+                with contextlib.suppress(ProcessLookupError):
+                    process.kill()
         line = next(
             (x for x in found.decode("utf-8", "replace").splitlines() if x.startswith("SAB-SHOT ")), None
         )
@@ -174,6 +186,9 @@ class Previewer:
         return said
 
     async def stop(self) -> None:
+        for process in list(self._shooters):  # a photographer still at work ends with the server
+            with contextlib.suppress(ProcessLookupError):
+                process.kill()
         if self._worker is not None:
             self._worker.cancel()
         for theme in ("light", "dark"):

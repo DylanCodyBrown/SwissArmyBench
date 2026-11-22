@@ -1,0 +1,1453 @@
+{
+  "format": 2,
+  "name": "field_service",
+  "pages": [
+    {
+      "children": [
+        {
+          "at": {
+            "desktop": {
+              "h": 90,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            },
+            "phone": {
+              "h": 90,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.664167,
+                  "x": 0.006667,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w1",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "text": "Brightline dispatch"
+              },
+              "widget": "title"
+            }
+          ],
+          "id": "c1",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": false,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "desktop"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 130,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 100
+            },
+            "phone": {
+              "h": 130,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 98
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.245,
+                  "x": 0.006667,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w2",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "label": "Technician",
+                "options_column": "name",
+                "placeholder": "Everyone"
+              },
+              "widget": "input_select",
+              "wires": {
+                "options_table": {
+                  "endpoint": "GET /technicians/choices"
+                }
+              }
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.329167,
+                  "x": 0.35,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 68
+                }
+              },
+              "id": "w3",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "label": "Search the summaries"
+              },
+              "widget": "input_text"
+            }
+          ],
+          "id": "c2",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Filter"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 470,
+              "w": 0.583333,
+              "x": 0.0,
+              "y": 240
+            },
+            "phone": {
+              "h": 470,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 236
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 400,
+                  "w": 0.977143,
+                  "x": 0.011429,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w4",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "GET /work_orders/search",
+                "page_size": 10
+              },
+              "widget": "api_table"
+            }
+          ],
+          "id": "c3",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Work orders"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 470,
+              "w": 0.408333,
+              "x": 0.591667,
+              "y": 240
+            },
+            "phone": {
+              "h": 470,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 714
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 400,
+                  "w": 0.983673,
+                  "x": 0.016327,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 400,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w5",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "heading": "Visits to do"
+              },
+              "widget": "visit_card",
+              "wires": {
+                "completed": {
+                  "actions": [
+                    {
+                      "body": "",
+                      "do": "call",
+                      "endpoint": "POST /visits/done"
+                    },
+                    {
+                      "do": "set",
+                      "key": "last_visit",
+                      "value": "work_order_id"
+                    },
+                    {
+                      "do": "rerun"
+                    }
+                  ]
+                },
+                "orders": {
+                  "endpoint": "GET /work_orders"
+                },
+                "technician": {
+                  "out": "w2.value"
+                },
+                "technicians": {
+                  "table": "[Sandbox].technicians"
+                }
+              }
+            }
+          ],
+          "id": "c4",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Visits"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 340,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 720
+            },
+            "phone": {
+              "h": 620,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1192
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.496667,
+                  "x": 0.006667,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w6",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "title": "Work orders",
+                "x": "status",
+                "y": "rows"
+              },
+              "widget": "bar_chart",
+              "wires": {
+                "table_name": {
+                  "endpoint": "GET /work_orders/summary/status"
+                }
+              }
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.329167,
+                  "x": 0.508333,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 320
+                }
+              },
+              "id": "w7",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "title": "Share by status"
+              },
+              "widget": "cs_status_pie",
+              "wires": {
+                "table_name": {
+                  "table": "[Sandbox].work_orders"
+                }
+              }
+            }
+          ],
+          "id": "c5",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "By status"
+          },
+          "show": "both"
+        }
+      ],
+      "id": "p1",
+      "name": "Dispatch"
+    },
+    {
+      "children": [
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.425833,
+              "x": 0.0,
+              "y": 0
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.968689,
+                  "x": 0.015656,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w8",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "id_column": "work_order_id",
+                "subject_column": "summary"
+              },
+              "widget": "cs_ticket_detail",
+              "wires": {
+                "table_name": {
+                  "table": "[Sandbox].work_orders"
+                },
+                "ticket_id": {
+                  "out": "w5.picked"
+                }
+              }
+            }
+          ],
+          "id": "c6",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.425833,
+              "x": 0.4325,
+              "y": 0
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 288
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.968689,
+                  "x": 0.015656,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w9",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "POST /work_orders"
+              },
+              "widget": "api_form"
+            }
+          ],
+          "id": "c7",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 76,
+              "w": 0.258333,
+              "x": 0.0,
+              "y": 288
+            },
+            "phone": {
+              "h": 76,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 576
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.948387,
+                  "x": 0.025806,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w10",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body": {
+                  "keys": [
+                    1000,
+                    1003
+                  ]
+                },
+                "endpoint": "POST /work_orders/complete",
+                "label": "Mark 1000 and 1003 done"
+              },
+              "widget": "api_button"
+            }
+          ],
+          "id": "c8",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 416,
+              "w": 0.425833,
+              "x": 0.265,
+              "y": 288
+            },
+            "phone": {
+              "h": 416,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 660
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 400,
+                  "w": 0.968689,
+                  "x": 0.015656,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 400,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w11",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "required_columns": [
+                  "part_sku",
+                  "quantity"
+                ]
+              },
+              "widget": "de_record_form",
+              "wires": {
+                "saved": {
+                  "actions": [
+                    {
+                      "do": "set",
+                      "key": "last_part",
+                      "value": ""
+                    }
+                  ]
+                },
+                "table_name": {
+                  "table": "[Sandbox].parts_used"
+                }
+              }
+            }
+          ],
+          "id": "c9",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 76,
+              "w": 0.3425,
+              "x": 0.0,
+              "y": 712
+            },
+            "phone": {
+              "h": 76,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1084
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.961071,
+                  "x": 0.019465,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w12",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "file_name": "field-service.xlsx",
+                "sheet_names": [
+                  "Work orders",
+                  "Parts used"
+                ]
+              },
+              "widget": "excel_download",
+              "wires": {
+                "tables": {
+                  "tables": [
+                    {
+                      "table": "[Sandbox].work_orders"
+                    },
+                    {
+                      "table": "[Sandbox].parts_used"
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "id": "c10",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 76,
+              "w": 0.3425,
+              "x": 0.349167,
+              "y": 712
+            },
+            "phone": {
+              "h": 76,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1168
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.961071,
+                  "x": 0.019465,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w13",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "disabled": true,
+                "label": "Last visit marked done"
+              },
+              "widget": "input_text",
+              "wires": {
+                "default_from": {
+                  "page": "last_visit"
+                }
+              }
+            }
+          ],
+          "id": "c11",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        }
+      ],
+      "id": "p2",
+      "name": "Work order"
+    },
+    {
+      "children": [
+        {
+          "at": {
+            "desktop": {
+              "h": 144,
+              "w": 0.258333,
+              "x": 0.0,
+              "y": 0
+            },
+            "phone": {
+              "h": 144,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 128,
+                  "w": 0.948387,
+                  "x": 0.025806,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 128,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w14",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "GET /reconcile/invoices-work_orders",
+                "field": "differing",
+                "label": "Invoices that differ"
+              },
+              "widget": "api_metric"
+            }
+          ],
+          "id": "c12",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.51,
+              "x": 0.265,
+              "y": 0
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 152
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.973856,
+                  "x": 0.013072,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w15",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "GET /reconcile/invoices-work_orders/rows"
+              },
+              "widget": "api_table"
+            }
+          ],
+          "id": "c13",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.51,
+              "x": 0.0,
+              "y": 288
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 440
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.973856,
+                  "x": 0.013072,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w16",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "name_column": "part_name"
+              },
+              "widget": "ops_low_stock_table",
+              "wires": {
+                "table_name": {
+                  "table": "[Sandbox].stock"
+                }
+              }
+            }
+          ],
+          "id": "c14",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 144,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 576
+            },
+            "phone": {
+              "h": 144,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 728
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 128,
+                  "w": 0.993333,
+                  "x": 0.006667,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 128,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w17",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "currency": "£",
+                "date_column": "opened_on",
+                "margin_column": "",
+                "revenue_column": "amount",
+                "units_column": "hours"
+              },
+              "widget": "sales_kpi_row",
+              "wires": {
+                "table_name": {
+                  "table": "[Sandbox].work_orders"
+                }
+              }
+            }
+          ],
+          "id": "c15",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 348,
+              "w": 0.6775,
+              "x": 0.0,
+              "y": 728
+            },
+            "phone": {
+              "h": 348,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 880
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 332,
+                  "w": 0.98032,
+                  "x": 0.00984,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 332,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w18",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "active_only": false,
+                "role_column": "skill"
+              },
+              "widget": "admin_user_list",
+              "wires": {
+                "table_name": {
+                  "table": "[Sandbox].technicians"
+                }
+              }
+            }
+          ],
+          "id": "c16",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 76,
+              "w": 0.3425,
+              "x": 0.516667,
+              "y": 288
+            },
+            "phone": {
+              "h": 76,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1236
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.961071,
+                  "x": 0.019465,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w19",
+              "kind": "widget",
+              "show": "both",
+              "values": {},
+              "widget": "form_picker"
+            }
+          ],
+          "id": "c17",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 552,
+              "w": 0.51,
+              "x": 0.0,
+              "y": 1084
+            },
+            "phone": {
+              "h": 552,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1320
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 536,
+                  "w": 0.973856,
+                  "x": 0.013072,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 536,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w20",
+              "kind": "widget",
+              "show": "both",
+              "values": {},
+              "widget": "form_fill"
+            }
+          ],
+          "id": "c18",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 348,
+              "w": 0.6775,
+              "x": 0.0,
+              "y": 1644
+            },
+            "phone": {
+              "h": 348,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1880
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 332,
+                  "w": 0.98032,
+                  "x": 0.00984,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 332,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w21",
+              "kind": "widget",
+              "show": "both",
+              "values": {},
+              "widget": "form_submissions"
+            }
+          ],
+          "id": "c19",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.51,
+              "x": 0.0,
+              "y": 2000
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 2236
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.973856,
+                  "x": 0.013072,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "hidden": true,
+              "id": "w22",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "GET /price_lists/{key}/versions",
+                "path_values": {
+                  "key": "FLT-100"
+                }
+              },
+              "widget": "api_table"
+            }
+          ],
+          "id": "c20",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.51,
+              "x": 0.0,
+              "y": 2288
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 2524
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.973856,
+                  "x": 0.013072,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w23",
+              "kind": "widget",
+              "show": "both",
+              "values": {},
+              "widget": "data_table",
+              "wires": {
+                "table_name": {
+                  "out": "w22.rows"
+                }
+              }
+            }
+          ],
+          "id": "c21",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 280,
+              "w": 0.51,
+              "x": 0.0,
+              "y": 2576
+            },
+            "phone": {
+              "h": 280,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 2812
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 264,
+                  "w": 0.973856,
+                  "x": 0.013072,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 264,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w24",
+              "kind": "widget",
+              "show": "both",
+              "values": {},
+              "widget": "data_table",
+              "wires": {
+                "table_name": {
+                  "table": "[Orders].list_orders"
+                }
+              }
+            }
+          ],
+          "id": "c22",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 144,
+              "w": 0.258333,
+              "x": 0.516667,
+              "y": 372
+            },
+            "phone": {
+              "h": 144,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 3100
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 128,
+                  "w": 0.948387,
+                  "x": 0.025806,
+                  "y": 8
+                },
+                "phone": {
+                  "h": 128,
+                  "w": 1.0,
+                  "x": 0.0,
+                  "y": 0
+                }
+              },
+              "id": "w25",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "[Orders] GET /orders/{order_id}",
+                "field": "amount",
+                "label": "Order 3 (another API)",
+                "path_values": {
+                  "order_id": "3"
+                }
+              },
+              "widget": "api_metric"
+            }
+          ],
+          "id": "c23",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": ""
+          },
+          "show": "both"
+        }
+      ],
+      "id": "p3",
+      "name": "Parts and billing"
+    }
+  ],
+  "sizing": {
+    "columns": 12,
+    "gap": 8,
+    "row_height": 60,
+    "snap": true,
+    "step": 4
+  }
+}

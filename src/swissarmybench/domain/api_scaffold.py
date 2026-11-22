@@ -161,33 +161,43 @@ def with_imports(text: str, needs: str) -> tuple[str, str]:
             last = i
     if last < 0:
         return text, needs
-    for need in needs.strip("\n").split("\n"):
-        line = need.replace("  # noqa: E402", "")
-        at = _import_place(lines, last, line)
-        lines.insert(at, line)
-        last += 1
+    added = [n.replace("  # noqa: E402", "") for n in needs.strip("\n").split("\n")]
+    # A standard library module's line goes among the file's first import block (the standard library's, as
+    # isort orders a file), in its place by module name; any other after the file's last import.
+    standard = [n for n in added if _module(n).split(".")[0] in sys.stdlib_module_names]
+    others = [n for n in added if n not in standard]
+    lines = lines[: last + 1] + others + lines[last + 1 :]
+    for line in standard:
+        lines.insert(_place(lines, line), line)
     return "\n".join(lines), ""
 
 
-def _import_place(lines: Sequence[str], last: int, line: str) -> int:
-    """Where one `from <module> import` line goes among a file's leading imports (the last at `last`), as a
-    sorter of imports would put it: a standard-library module before the first `from` import of a later
-    standard-library module, else after the last standard-library import; any other after the last import."""
-    module = line.split()[1].split(".")[0]
-    if module not in sys.stdlib_module_names:
-        return last + 1
-    after = -1
-    for i, here in enumerate(lines[: last + 1]):
-        found = re.match(r"(from|import)\s+([\w.]+)", here)
-        if not found or found.group(2).split(".")[0] not in sys.stdlib_module_names:
-            continue
-        if found.group(2) == "__future__":
-            after = i
-            continue
-        if found.group(1) == "from" and found.group(2) > line.split()[1]:
-            return i
-        after = i
-    return after + 1 if after >= 0 else last + 1
+_IMPORT = re.compile(r"(from\s+([\w.]+)\s+import|import\s+([\w.]+))\s?")
+
+
+def _module(line: str) -> str:
+    found = _IMPORT.match(line)
+    return (found.group(2) or found.group(3) or "") if found else ""
+
+
+def _place(lines: list[str], line: str) -> int:
+    """Where a standard library import line goes: in the first block of top-level imports, plain `import x`
+    lines first, then `from x import` lines by module name (isort's order); its end when none sorts after."""
+    start = end = 0
+    while True:  # the first block that is not `from __future__` alone (that one stands by itself)
+        start = next((i for i in range(end, len(lines)) if _IMPORT.match(lines[i])), -1)
+        if start < 0:
+            return end
+        end = start
+        while end < len(lines) and _IMPORT.match(lines[end]):
+            end += 1
+        if any(_module(text) != "__future__" for text in lines[start:end]):
+            break
+    key = (line.startswith("from "), _module(line).casefold())
+    for at in range(start, end):
+        if (lines[at].startswith("from "), _module(lines[at]).casefold()) > key:
+            return at
+    return end
 
 
 def model_name(table: str) -> str:

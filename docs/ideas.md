@@ -8799,3 +8799,34 @@ Blades side by side, two columns, not stacked).
   out from the path each time), so every older project opens as before. The violet app kind stays for the
   Canvas's apps (kindColours.ts); the Power Apps extension's "data notebook" (its TypeScript notebook) is that
   extension's own word and was left.
+## Test app two: field service, 2026-11-22 (decisions and open notes)
+
+Decisions made while building examples/field_service (confirm or change):
+- **The example is the saved project folder, compared with the build** (unlike test app one's builder):
+  tests/test_field_service_app.py builds Brightline Field Services' app into a temporary folder through the
+  agent's commands and checks that its kept files are examples/field_service's, byte for byte
+  (`SAB_FIELD_SERVICE_KEEP=1` writes it again); .sab/project.json is compared without its app_version (a
+  release changes it and nothing else). Left out of a copy: the sandbox and its mirror, adapter.py and
+  connections.py (made again as the project opens), builds/, exports/, .sab's stats, change log, learned
+  shapes and Discover's Allow.
+- **The app's data is its own source/ files** (six CSVs from tests/field_service_data.py, deterministic, no
+  clock) plus a made-up SQLite Depot as a real connection (its password in the keyring in the build test; the
+  browser test's server has no keyring, so its Depot has none).
+- **The visit card reads the work orders through the API** (`GET /work_orders`), not as `[Sandbox].work_orders`:
+  a table property in Play is the table as Play read it, so the card's own Mark done (an Event calling
+  `POST /visits/done`) did not show until the next Play. See the open note.
+- **The KPI row has no margin column** (work orders have none): the builder first picked `amount`, which drew
+  "17221%". A dash is right.
+- The bug fixes are listed in docs/verified.md under the same heading.
+
+Open notes:
+- **A table property is a snapshot in Play and Launch** (data/<name>.parquet written as the run starts) and is
+  kept with cache_resource in an export: an app whose Event writes the sandbox (or the source) and whose other
+  widget reads the same table as a table property shows the old rows until the next Play. Wiring the reader to
+  a GET endpoint works today; a "read again after an Event" (or a short cache in the export) would make the
+  table property follow writes. The owner's call.
+- **The headless check (AppTest) has a 60 s budget per page**: on a loaded machine (several leftover preview
+  photographers of other runs) the field service's third page (14 widgets) once timed out; it passed again
+  once the load was gone. A budget that grows with the page's widgets, or the check's time said, may help.
+- **Preview photographers left by earlier runs** (before the fix in this branch) keep running until killed:
+  `pkill -f sab-preview` clears them on a test machine.

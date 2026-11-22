@@ -1227,6 +1227,10 @@ def _coerce(value: Any, kind: str, name: str) -> Any:
             return as_table(value, name)
         if kind == "File":
             return as_file(value)
+        if kind == "str" and isinstance(value, (int, float, _dt.date)):
+            # A page value an Event set from a number (an id) read by a text In: its text (st.text_input
+            # refused the number: "bad argument type"; test app two, 2026-11-22).
+            return value.isoformat() if isinstance(value, _dt.date) else str(value)
         if kind in ("int", "float") and isinstance(value, str):
             return int(value) if kind == "int" else float(value)
         if kind == "bool" and isinstance(value, str):

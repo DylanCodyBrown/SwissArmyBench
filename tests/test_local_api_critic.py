@@ -147,9 +147,19 @@ def test_a_crud_set_with_a_date_column_brings_its_import() -> None:
     text, rest = scaffold.with_imports(rules.scaffold("clinic"), needs)
     assert rest == "" and text.count("\n") == rules.scaffold("clinic").count("\n") + 1
     at = text.split("\n").index("from datetime import date, datetime")
+    # In its place as isort orders a file: the standard library's block, by module name (it stood after
+    # sab_api's line, which the editor's Ruff marked "Import block is un-sorted": I001; 2026-11-22).
     assert text.split("\n")[at + 1] == "from typing import TypedDict" and "noqa" not in text.split("\n")[at]
     assert text.split("\n")[at + 2] == "" and text.split("\n")[at + 3].startswith("from sab_api import")
     compile(text + block, "API.py", "exec")
+    after_future = "from __future__ import annotations\n\nimport os\nfrom typing import Any\n\nx = 1\n"
+    placed, _ = scaffold.with_imports(after_future, "from datetime import date\nfrom yaml import safe_load\n")
+    assert placed.split("\n")[2:6] == [
+        "import os",
+        "from datetime import date",
+        "from typing import Any",
+        "from yaml import safe_load",
+    ]
     # A later standard-library module goes after the file's own; another module's after the last import.
     own = "import os\nfrom typing import TypedDict\n\nfrom sab_api import endpoint\n\nx = 1\n"
     assert scaffold.with_imports(own, "from zoneinfo import ZoneInfo\n")[0].split("\n")[:3] == [
