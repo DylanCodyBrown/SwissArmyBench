@@ -22,12 +22,21 @@ from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain import variables as rules
 from swissarmybench.domain.blades import Blade, BladeCodeError, detect_settings, env_settings
 from swissarmybench.domain.python_connections import TEMPLATE as PYTHON_TEMPLATE
+from swissarmybench.domain.python_connections import env_reads
 from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Refused, Workspace
 
 AGENT_REFUSED = (
     "A secret's value is shown to the user only (Show on the Environment's Settings and secrets tab)."
 )
+
+
+def _field_reads(blade: Blade, files: Iterable[tuple[str, str, str]]) -> tuple[str, ...]:
+    """The variables a connection's code reads by name besides its passwords and certificate files: a form's
+    box of `${NAME}` is written into the code as os.environ["NAME"] (12.7), and that connection uses NAME
+    (test app one, 2026-11-22: a folder connection's ${LARKFIELD_DIR} was used by nothing)."""
+    others = set(blade.secrets) | {variable for variable, _, _ in files}
+    return tuple(dict.fromkeys(r.name for r in env_reads(blade.code) if r.name not in others))
 
 
 class Kept(Protocol):
@@ -190,15 +199,14 @@ class Variables:
             except Exception:
                 status = {}
             python = blade.template == PYTHON_TEMPLATE
+            files = tuple((m["variable"], m["setting"], m["default"]) for m in env_settings(blade.code))
             out.append(
                 rules.ConnectionFacts(
                     blade.name,
                     secrets=tuple(blade.secrets),
                     saved=frozenset(s for s, ok in status.items() if ok),
-                    files=tuple(
-                        (m["variable"], m["setting"], m["default"]) for m in env_settings(blade.code)
-                    ),
-                    reads=tuple(r.name for r in blade.env_reads) if python else (),
+                    files=files,
+                    reads=tuple(r.name for r in blade.env_reads) if python else _field_reads(blade, files),
                     sources=dict(blade.variables),
                     read_only=read_only,
                 )
