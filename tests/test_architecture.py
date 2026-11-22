@@ -209,6 +209,8 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         # 2026-11-22 (adapter phase 3): the Dataverse, SharePoint list and lake Write starters are the
         # adapter's write; client/writes.py imports it only when a write runs (the plain client stays stdlib).
         "client/writes.py",
+        # 2026-11-22 (phase 4): the SQL Write starters' write is the adapter's Sql, imported when one runs.
+        "client/write_sql.py",
         "starters/write_to_dataverse.blade.py",
         "starters/write_to_sharepoint_list.blade.py",
         "starters/write_to_delta.blade.py",
@@ -236,7 +238,9 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 
 # 2026-11-22 (adapter phase 3): sab_adapter.py is one file by design (Plans/adapter.plan.md: an export copies
 # it as it is, standard library + duckdb + pyarrow only), so it is allowed more than the others.
-ONE_FILE = {"sab_adapter.py": 2400}
+# 3,000 (2026-11-22, phase 4): the file writes' formats and options, a partitioned folder, a write's batch,
+# rows of any shape (arrow_of), the widened catalogs and the open tables' view as a source.
+ONE_FILE = {"sab_adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

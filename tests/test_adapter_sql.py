@@ -143,9 +143,11 @@ def test_each_write_mode_counts_and_a_failure_writes_nothing(shop: sqlite3.Conne
     rows = shop.execute("SELECT id, amount, placed FROM orders ORDER BY id").fetchall()
     assert rows == [(1, 13.0, "2026-01-03"), (2, 41.0, "2026-01-04"), (4, 1.5, "2026-03-01"), (5, 2.0, None)]
     clash = pa.table({"id": [6, 1], "region": ["West", "North"]})
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(sqlite3.IntegrityError) as failed:
         sab.write(source, "orders", clash)
     assert len(shop.execute("SELECT id FROM orders").fetchall()) == 4  # the 6 was rolled back
+    assert sab.batch_of(failed.value) == sab.Batch(1, 0, 2)  # added in phase 4: the batch beside its error
+    assert "batch 1 (rows 1 to 2)" in failed.value.__notes__[0]
     with pytest.raises(sab.AdapterError, match="names the key"):
         sab.write(source, "orders", both, mode="merge")
 

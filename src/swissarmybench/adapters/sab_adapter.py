@@ -65,6 +65,26 @@ class AdapterError(ValueError):
     """A plan, a table or a write the source cannot take, said in one sentence."""
 
 
+@dataclass(frozen=True)
+class Batch:
+    """Which batch of a SQL write the source refused (the write rolled back): its number, the rows before
+    it, its size. The source's own error is raised as it was, this beside it as `error.sab_batch` and in
+    its notes, so a caller catching the driver's error still does."""
+
+    number: int
+    before: int
+    size: int
+
+    def where(self) -> str:
+        return f"batch {self.number} (rows {self.before + 1:,} to {self.before + self.size:,})"
+
+
+def batch_of(error: BaseException) -> Batch | None:
+    """The batch a SQL write's error came from (None: not from one)."""
+    found = getattr(error, "sab_batch", None)
+    return found if isinstance(found, Batch) else None
+
+
 # ===== 1. The plan =====
 
 
@@ -831,11 +851,19 @@ class Sql:
     the whole plan folded into one query in its dialect, the answer streamed as Arrow batches as the cursor
     fetches them; a write in its own statements, in one transaction (all or none)."""
 
-    def __init__(self, connection: Any, dialect: str | Dialect, name: str = "", style: str = "") -> None:
+    def __init__(
+        self,
+        connection: Any,
+        dialect: str | Dialect,
+        name: str = "",
+        style: str = "",
+        value: Callable[[Any], Any] | None = None,
+    ) -> None:
         self.connection = connection
         self.dialect = dialect if isinstance(dialect, Dialect) else DIALECTS[dialect]
         self.name = name or self.dialect.name
         self.style = style or paramstyle(getattr(connection, "raw", connection))
+        self._value = value  # a value as the driver takes it, when the caller knows better (a Write starter)
 
     def tables(self) -> list[Table]:
         keys = (
@@ -934,6 +962,8 @@ class Sql:
 
     def value(self, value: Any) -> Any:
         """A value as the driver takes it (SQLite: a decimal as a number, a date or time as text)."""
+        if self._value is not None:
+            return self._value(value)
         if self.dialect.name != "sqlite":
             return value
         import datetime as dt
@@ -953,6 +983,19 @@ def _quietly(close: Callable[[], Any]) -> None:
         close()
 
 
+@dataclass(frozen=True)
+class _Statements:
+    """A SQL write's statements over one target, its values bound by the driver's marks."""
+
+    target: str
+    names: list[str]  # the rows' columns, as an insert binds them
+    key: list[str]
+    order: list[str]  # an update's values: the columns it sets, then the key
+    insert: str
+    update: str
+    delete: str
+
+
 def _sql_written(
     db: Sql,
     cursor: Any,
@@ -962,11 +1005,11 @@ def _sql_written(
     mode: str,
     batches: pa.RecordBatchReader,
 ) -> Counts:
-    """The rows into `target` by `mode`, on one cursor of the open transaction. A merge asks which keys are
-    there first, a batch at a time, then updates those and inserts the rest."""
+    """The rows into `target` by `mode`, on one cursor of the open transaction, a batch at a time (a batch
+    the source refuses raises its own error, its Batch beside it). A merge asks which keys are there first,
+    then    updates those and inserts the rest."""
     q, style = db.dialect.quote, db.style
     marks = ", ".join(_mark(style, i) for i in range(1, len(names) + 1))
-    insert = f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({marks})"  # noqa: S608
     sets = [n for n in names if n not in key]
     if mode in ("update", "merge"):
         missing = [k for k in key if k not in names]
@@ -974,39 +1017,61 @@ def _sql_written(
             raise AdapterError(f"The rows have no {missing[0]} column to match by.")
         if not sets:
             raise AdapterError("The rows have nothing to change but their key.")
-    order = sets + key
     assigned = ", ".join(f"{q(n)} = {_mark(style, i)}" for i, n in enumerate(sets, 1))
     matched = " AND ".join(f"{q(k)} = {_mark(style, len(sets) + i)}" for i, k in enumerate(key, 1))
-    update = f"UPDATE {target} SET {assigned} WHERE {matched}"  # noqa: S608 (names quoted, values bound)
     gone = " AND ".join(f"{q(k)} = {_mark(style, i)}" for i, k in enumerate(key, 1))
-    delete = f"DELETE FROM {target} WHERE {gone}"  # noqa: S608
+    said = _Statements(
+        target,
+        names,
+        key,
+        sets + key,
+        f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({marks})",  # noqa: S608
+        f"UPDATE {target} SET {assigned} WHERE {matched}",  # noqa: S608 (names quoted, values bound)
+        f"DELETE FROM {target} WHERE {gone}",  # noqa: S608
+    )
     counts = {"inserted": 0, "updated": 0, "deleted": 0}
-
-    def many(sql: str, rows: list[list[Any]]) -> int:
-        if not rows:
-            return 0
-        cursor.executemany(sql, [_bound(style, [db.value(v) for v in r]) for r in rows])
-        return len(rows)
-
     if mode == "truncate":
         cursor.execute(f"DELETE FROM {target}")  # noqa: S608 (the name quoted)
         counts["deleted"] = max(int(getattr(cursor, "rowcount", 0) or 0), 0)
-    for batch in batches:
-        rows = batch.to_pylist()
-        if mode in ("insert", "truncate"):
-            counts["inserted"] += many(insert, [[r[n] for n in names] for r in rows])
-        elif mode == "delete":
-            for r in rows:
-                cursor.execute(delete, _bound(style, [db.value(r[k]) for k in key]))
-                counts["deleted"] += max(int(getattr(cursor, "rowcount", 0) or 0), 0)
-        else:
-            there = _present(db, cursor, target, key, rows)
-            found = [r for r in rows if tuple(r[k] for k in key) in there]
-            counts["updated"] += many(update, [[r[n] for n in order] for r in found])
-            if mode == "merge":
-                new = [r for r in rows if tuple(r[k] for k in key) not in there]
-                counts["inserted"] += many(insert, [[r[n] for n in names] for r in new])
+    before = 0
+    for number, batch in enumerate(batches, 1):
+        try:
+            _sql_batch(db, cursor, batch.to_pylist(), mode, said, counts)
+        except Exception as error:
+            failed = Batch(number, before, batch.num_rows)
+            with contextlib.suppress(AttributeError, TypeError):  # a driver's error that takes no attribute
+                error.sab_batch = failed  # type: ignore[attr-defined]
+            error.add_note(f"{failed.where()} of the write to {target}")
+            raise
+        before += batch.num_rows
     return Counts(counts["inserted"], counts["updated"], counts["deleted"])
+
+
+def _many(db: Sql, cursor: Any, sql: str, rows: list[list[Any]]) -> int:
+    if rows:
+        cursor.executemany(sql, [_bound(db.style, [db.value(v) for v in r]) for r in rows])
+    return len(rows)
+
+
+def _sql_batch(
+    db: Sql, cursor: Any, rows: list[dict[str, Any]], mode: str, said: _Statements, counts: dict[str, int]
+) -> None:
+    """One batch of a write's rows by `mode`, its counts added."""
+    names, key = said.names, said.key
+    if mode in ("insert", "truncate"):
+        counts["inserted"] += _many(db, cursor, said.insert, [[r[n] for n in names] for r in rows])
+        return
+    if mode == "delete":
+        for r in rows:
+            cursor.execute(said.delete, _bound(db.style, [db.value(r[k]) for k in key]))
+            counts["deleted"] += max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+        return
+    there = _present(db, cursor, said.target, key, rows)
+    found = [r for r in rows if tuple(r[k] for k in key) in there]
+    counts["updated"] += _many(db, cursor, said.update, [[r[n] for n in said.order] for r in found])
+    if mode == "merge":
+        new = [r for r in rows if tuple(r[k] for k in key) not in there]
+        counts["inserted"] += _many(db, cursor, said.insert, [[r[n] for n in names] for r in new])
 
 
 def _present(
@@ -1727,7 +1792,6 @@ def _lake_written(source: Rows, table: str, data: pa.Table, key: list[str], mode
 FILE_FORMATS = {".csv": "csv", ".tsv": "csv", ".txt": "csv", ".parquet": "parquet", ".json": "json",
                 ".jsonl": "json", ".ndjson": "json"}  # fmt: skip
 _READERS = {"csv": "read_csv", "parquet": "read_parquet", "json": "read_json"}
-_COPY = {"csv": "(FORMAT csv, HEADER)", "parquet": "(FORMAT parquet)", "json": "(FORMAT json)"}
 
 
 class Files:
@@ -1735,13 +1799,19 @@ class Files:
     by its path below the folder without its suffix (sales/orders). A read is DuckDB over the file (the whole
     plan folded, streamed); query is DuckDB SQL with every file a view by its name; a write puts a file
     in its place whole (truncate) or adds to it (insert, the file read and written again), in its suffix's
-    format: a new name takes a suffix (orders.parquet)."""
+    format: a new name takes a suffix (orders.parquet). A write may say its file's format (a name with no
+    suffix of one), DuckDB COPY's options (DELIMITER ';', ARRAY true, COMPRESSION zstd) and, for a folder of
+    Parquet files, its partition columns (a write then fills the folder: truncate replaces it, insert
+    adds)."""
 
-    def __init__(self, path: str, name: str = "") -> None:
+    def __init__(
+        self, path: str, name: str = "", format: str = "", options: str = "", partition_by: Sequence[str] = ()
+    ) -> None:
         import pathlib
 
         self.path = pathlib.Path(path)
         self.name = name or self.path.name
+        self.format, self.options, self.partition_by = format, options, tuple(partition_by)
 
     def _files(self) -> dict[str, Any]:
         if self.path.is_file():
@@ -1813,6 +1883,8 @@ class Files:
         import pathlib
 
         _checked_write(mode, key)
+        if self.partition_by:
+            return self._folder_written(batches, mode)
         try:
             file = self._file(table)
         except AdapterError:
@@ -1820,7 +1892,7 @@ class Files:
                 raise
             base = self.path if self.path.is_dir() else self.path.parent
             file = base / pathlib.Path(str(table).replace("\\", "/"))
-            if file.suffix.lower() not in FILE_FORMATS:
+            if file.suffix.lower() not in FILE_FORMATS and not self.format:
                 raise AdapterError(
                     f"A new file is named with its format: {table}.parquet, .csv or .json."
                 ) from None
@@ -1828,25 +1900,69 @@ class Files:
             raise AdapterError(
                 f"{table} is one file: it is written whole (truncate) or added to (insert), not {mode}d."
             )
+        fmt = self.format or FILE_FORMATS[file.suffix.lower()]
+        copy = (
+            f"(FORMAT {fmt}{', HEADER' if fmt == 'csv' else ''}{', ' + self.options if self.options else ''})"
+        )
         data = batches.read_all()
         before = 0
+        relation = f"{_READERS[fmt]}('{str(file).replace(chr(39), chr(39) * 2)}')"
         with self._duck(True) as con:
             existing = file.exists()
             if existing:
-                before = int(con.sql(f"SELECT count(*) FROM {self._relation(file)}").fetchall()[0][0])  # noqa: S608
+                before = int(con.sql(f"SELECT count(*) FROM {relation}").fetchall()[0][0])  # noqa: S608
             if not data.num_columns and existing:  # a truncate with no rows: the file's own columns
-                data = con.sql(f"SELECT * FROM {self._relation(file)} LIMIT 0").to_arrow_table()  # noqa: S608
-            con.register("sab_incoming", data)
-            rows = "SELECT * FROM sab_incoming"
+                data = con.sql(f"SELECT * FROM {relation} LIMIT 0").to_arrow_table()  # noqa: S608
+            con.register("sab_rows", data)
+            rows = "SELECT * FROM sab_rows"
             if mode == "insert" and existing:
-                rows = f"SELECT * FROM {self._relation(file)} UNION ALL BY NAME SELECT * FROM sab_incoming"  # noqa: S608
+                rows = f"SELECT * FROM {relation} UNION ALL BY NAME SELECT * FROM sab_rows"  # noqa: S608
             file.parent.mkdir(parents=True, exist_ok=True)
             partial = file.with_name(f".{file.name}.sab-writing")
-            target = str(partial).replace("'", "''")
-            fmt = _COPY[FILE_FORMATS[file.suffix.lower()]]
-            con.execute(f"COPY ({rows}) TO '{target}' {fmt}")
-            os.replace(partial, file)
+            try:
+                con.execute(f"COPY ({rows}) TO '{str(partial).replace(chr(39), chr(39) * 2)}' {copy}")
+                os.replace(partial, file)
+            finally:
+                if partial.exists():
+                    partial.unlink()
         return Counts(inserted=data.num_rows, deleted=before if mode == "truncate" else 0)
+
+    def _folder_written(self, batches: pa.RecordBatchReader, mode: str) -> Counts:
+        """A folder of Parquet files, a folder for each value of the partition columns: written beside, then
+        put in the folder's place (truncate) or its files moved in (insert); a failure leaves it as it was."""
+        import os
+        import shutil
+
+        if mode not in ("insert", "truncate"):
+            raise AdapterError(
+                f"{self.name} is a folder of files: it is replaced (truncate) or added to (insert)."
+            )
+        data = batches.read_all()
+        missing = [c for c in self.partition_by if c not in data.column_names]
+        if missing:
+            raise AdapterError(f"The rows have no {missing[0]} column to partition by.")
+        partial = self.path.with_name(f".{self.path.name}.sab-writing")
+        parts = ", ".join(quote(c) for c in self.partition_by)
+        options = f", {self.options}" if self.options else ""
+        try:
+            with self._duck(True) as con:
+                con.register("sab_rows", data)
+                con.execute(
+                    f"COPY (SELECT * FROM sab_rows) TO '{str(partial).replace(chr(39), chr(39) * 2)}' "  # noqa: S608 (the path and columns quoted)
+                    f"(FORMAT parquet{options}, PARTITION_BY ({parts}), FILENAME_PATTERN 'data_{{uuid}}')"
+                )
+            if mode == "insert" and self.path.exists():
+                for made in sorted(p for p in partial.rglob("*") if p.is_file()):
+                    place = self.path / made.relative_to(partial)
+                    place.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(made, place)
+            else:
+                if self.path.exists():
+                    shutil.rmtree(self.path)
+                os.replace(partial, self.path)
+        finally:
+            shutil.rmtree(partial, ignore_errors=True)
+        return Counts(inserted=data.num_rows)
 
 
 # ===== 3. The calls =====
@@ -2278,6 +2394,27 @@ def to_ipc(data: pa.Table | pa.RecordBatchReader) -> bytes:
 
 def is_arrow(value: Any) -> bool:
     return isinstance(value, pa.Table | pa.RecordBatchReader)
+
+
+def arrow_of(rows: Any) -> pa.Table:
+    """Rows as an Arrow table: Arrow (a table or a reader), a DataFrame (pandas, polars), a DuckDB relation,
+    or a list of dicts (records: each key a column, the first record's order)."""
+    if isinstance(rows, pa.RecordBatchReader):
+        return rows.read_all()
+    if isinstance(rows, pa.Table):
+        return rows
+    if isinstance(rows, list) and all(isinstance(r, Mapping) for r in rows):
+        return pa.Table.from_pylist([dict(r) for r in rows])
+    made = getattr(rows, "to_arrow_table", None) or getattr(rows, "to_arrow", None)  # DuckDB, polars
+    if callable(made):
+        found = made()
+        return found.read_all() if isinstance(found, pa.RecordBatchReader) else found
+    if type(rows).__module__.split(".")[0] == "pandas":
+        return pa.Table.from_pandas(rows, preserve_index=False)
+    raise AdapterError(
+        "The rows are a DataFrame, an Arrow table, a list of dicts or an open table's name, "
+        f"not {type(rows).__name__}."
+    )
 
 
 # ===== 5. Tables =====

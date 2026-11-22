@@ -97,3 +97,44 @@ def test_one_file_is_a_source_of_one_table(folder: Path) -> None:
     source = sab.source_from(str(folder / "customers.parquet"))
     assert [t.name for t in sab.tables(source)] == ["customers"]
     assert sab.read(source, "customers", Plan(limit=1))[0].read_all().num_rows == 1
+
+
+def test_a_write_takes_its_format_and_copys_options(tmp_path: Path) -> None:
+    """Phase 4 (the file Write starters): a file named with no suffix of a format says its format; COPY's
+    options go after it (a delimiter, JSON as one record a line)."""
+    rows = pa.table({"region": ["North", "South"], "amount": [1.5, 2.0]})
+    semi = sab.Files(str(tmp_path / "regions.dat"), format="csv", options="DELIMITER ';'")
+    assert sab.write(semi, "regions.dat", rows, mode="truncate") == Counts(inserted=2)
+    assert (tmp_path / "regions.dat").read_text(encoding="utf-8").splitlines()[:2] == [
+        "region;amount",
+        "North;1.5",
+    ]
+    lines = sab.Files(str(tmp_path / "regions.json"), options="ARRAY false")
+    sab.write(lines, "regions.json", rows, mode="truncate")
+    assert (tmp_path / "regions.json").read_text(encoding="utf-8").count("\n") == 2  # one record a line
+    assert not list(tmp_path.glob(".*sab-writing"))  # nothing left beside
+
+
+def test_a_partitioned_folder_is_replaced_or_added_to(tmp_path: Path) -> None:
+    folder = tmp_path / "orders"
+    source = sab.Files(str(folder), partition_by=["region"])
+    rows = pa.table({"region": ["North", "South", "North"], "amount": [1.0, 2.0, 3.0]})
+    assert sab.write(source, "orders", rows, mode="truncate") == Counts(inserted=3)
+    assert sorted(p.name for p in folder.iterdir()) == ["region=North", "region=South"]
+    sab.write(source, "orders", pa.table({"region": ["West"], "amount": [4.0]}), mode="insert")
+    assert sorted(p.name for p in folder.iterdir()) == ["region=North", "region=South", "region=West"]
+    sab.write(source, "orders", pa.table({"region": ["East"], "amount": [5.0]}), mode="truncate")
+    assert [p.name for p in folder.iterdir()] == ["region=East"]
+    with pytest.raises(sab.AdapterError, match="no area column to partition by"):
+        sab.write(sab.Files(str(folder), partition_by=["area"]), "orders", rows, mode="truncate")
+
+
+def test_rows_of_every_shape_are_arrow() -> None:
+    import pandas as pd
+
+    want = pa.table({"id": [1, 2], "name": ["a", "b"]})
+    assert sab.arrow_of([{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]).equals(want)
+    assert sab.arrow_of(pd.DataFrame({"id": [1, 2], "name": ["a", "b"]})).to_pylist() == want.to_pylist()
+    assert sab.arrow_of(want.to_reader()).equals(want)
+    with pytest.raises(sab.AdapterError, match="a list of dicts or an open table's name, not int"):
+        sab.arrow_of(42)
