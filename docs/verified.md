@@ -4916,3 +4916,40 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
 - The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,032 passed, 45 skipped, none failed.
 - Not checked: Edge; Windows; a real outside API (only the stand-ins and recorded payloads); YAML answers (no PyYAML
   in this venv); the canvas's Events and API widgets through api_adapter (not built).
+
+## The API adapter, the owner's answers after the first build (branch api-adapter-2, 2026-11-22)
+- api_adapter.py 1.0.1 (tests/test_api_adapter.py: 37 passed, 1 skipped, YAML: no PyYAML here): a whole float is an
+  integer input, a fraction, nan, inf and a boolean refused naming it. Speed and memory as 1.0.0 (aa_speed, 10
+  recorded pages of 1,000 made-up records: run 0.75 s, 1.35 s with a known shape, peak 16.5 MB).
+- The canvas through api_adapter (tests/test_canvas_actions.py: 6 passed; test_api_widgets.py,
+  test_api_widget_paths.py, test_canvas_gaps.py): an action named one way for any API and checked; the picker's
+  list holds the local sandbox API's endpoints and a library API's actions; an export carries api_adapter.py with
+  the app's bytes, sab_actions.json (only the actions it calls; a learned shape with no value; the same bytes) and
+  API_Orders.py; a built page run headless with Streamlit's AppTest reads the made-up orders service through its
+  client (the records found under `items`, one record's field, a 404's words in the widget's place); the four API
+  widgets against a running local sandbox API (rows, a metric, a count, a form's boxes from the body's fields).
+- Keep as its example gone (tests/test_sandbox_gaps.py, tests/test_actions.py): the route answers 404 or 405, no
+  file is written, an older `.sab/api_examples.json` is not read, the agent's api(example) says it went; Try it's
+  form after a live call names the fields it was sent with made-up values, and no sent value is in the kept shape
+  or the state.
+- Build inserts (tests/test_actions_build.py: 4 passed): a cell at the end with its own number and the rest of the
+  notebook kept; a function into a new or an existing script (its import among the script's, a taken name refused);
+  paths outside the project, API.py and made files refused; no project or `insert: false` the code alone; the
+  agent's build the same, `opened` false with no page open; the Session log's words.
+- Discover's Allow (tests/test_actions.py: 10 passed): asked once, kept beside the API with the same bytes on a
+  second discovery, the user's discovery not asked after the agent's Allow, given by no call, taken back by the
+  agent or the user (the file gone, asked again), the local sandbox API's in the project's .sab.
+- The browser (Chromium; Edge not checked): test_api_learned_page (Discover with Allow, the Allow said and
+  taken back, Build's cell opened on Notebooks and its function on Scripts through the script picker, a drift),
+  test_add_api_page, test_local_apis_page, test_sandbox_gaps_page (Try it with no Keep as its example),
+  test_widget_wiring_page, test_forms_recon_app (api_bridge on action()), test_canvas_page: 18 passed.
+  test_real_world with the test bed up (its drivers, keyrings.alt and nbclient in this worktree's venv only):
+  13 passed, 1 failed in two runs of three, a different one each time (use case 5, then 10): each copies the
+  notebook right after Save here and does not find it yet; both passed on a rerun. Not this branch's code.
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): after step 1, 5,044 passed, 35 skipped,
+  3 failed under load and passed alone (test_sharing, test_api_editor, test_performance million rows); after
+  steps 2 to 4, 5,053 passed, 38 skipped, none failed. ruff, ruff format, mypy, the page's typecheck and build:
+  clean.
+- Not checked: Edge; Windows and macOS; a real outside API (only the stand-in); a library API whose sign-in needs
+  the keyring or a browser, in a built app; a hosted Streamlit app actually deployed with a carried API client;
+  the stress test (tests/stress, SWISSARMYBENCH_STRESS=1) with api_bridge on action().

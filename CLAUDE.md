@@ -173,7 +173,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
   `.sab/api-shapes/` as its local sandbox API's endpoints are called (each one's learned shape: paths and
   types, never a value; Try it's Keep as its example and its `.sab/api_examples.json` went, the owner,
-  2026-11-22: "No need to ever keep values"):
+  2026-11-22: "No need to ever keep values"), `.sab/api-discover.json` on the user's Allow for its discovery
+  (a library API's Allow beside it: `apis/<name>/discover.json`; each until taken back), `data.ipynb` and a
+  script the user picks on Build's Notebook cell and Script function:
   the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
   sandbox API never touches live data, its process gets only the sandbox, through the adapter's door, and no
   connection's code, variable or secret), the audit log and, in beta mode,
@@ -650,7 +652,12 @@ src/swissarmybench/
     api_actions.py       an API's actions in the app (Plans/api-adapter.plan.md): `local` (the project's local sandbox
                          API), the shapes' folders (apis/<name>/shapes/, .sab/api-shapes/), Build's text (a notebook
                          cell, a script function: sab.run, sab.records) and widget plan (data_table on [API].action,
-                         the local API's endpoint wired; api_form, api_metric), why one cannot be built
+                         the local API's endpoint wired; api_form, api_metric: any API's action), why one
+                         cannot be built; ref() (an action as the canvas names it: "GET /orders", "[Orders] GET
+                         /orders"); tried() (Try it's form from the learned shape: made-up values by type);
+                         with_cell, script_path, with_function (Build's cell into data.ipynb, its function into
+                         a script); allow_text, allowed_since (Discover's Allow: apis/<name>/discover.json, the
+                         local API's .sab/api-discover.json)
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -735,7 +742,11 @@ src/swissarmybench/
     actions.py           every API's actions through api_adapter (the module handed in): list, describe, run (a
                          library API's in a child process through its API blade; the local API's through its
                          process; a write by the agent on Allow), the shape kept (types only, said once), offer,
-                         discover (Allow once per API this session; reads only), build (hooks.canvas_put for a widget)
+                         discover (Allow asked once per API, kept with it until taken back: allow; reads
+                         only), build (a cell into data.ipynb, a function into a script, each opened there;
+                         hooks.canvas_put for a widget); refs (every action as the canvas's one picker names it),
+                         carried (what a built app carries: api_adapter.py, sab_actions.json, an API's client),
+                         local_learned (Try it's form)
     api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
                          Structures, its origin the call; Run again), save a web call (Return as table), the
                          API blade's tables made again, Refresh then apply, rename, delete (the agent's on Allow)
@@ -1156,7 +1167,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the
                          APIs page; apisPage.ts the APIs page (open=apis: cards, search, the explorer, Author a
                          call, Refresh's diff); apiLearned.ts each operation's What it answers (api_adapter's learned
-                         shape, maps to, drift marks, rename offers, Run, Build) and Discover; structuresPage.ts the Structures page (open=structures: tabs, the
+                         shape, maps to, drift marks, rename offers, Run, Build: a cell into data.ipynb, a
+                         function into a picked script, opened there) and Discover (its Allow said, Take it
+                         back); actionPicker.ts the one action picker for any API (the canvas's endpoint
+                         property, In source and Event call: grouped by API); structuresPage.ts the Structures page (open=structures: tabs, the
                          tree and the text, steps, Open as grid, Save, Run again, Lineage) and structureTree.ts
                          its tree and text view (shared with the APIs page);
                          pythonConnectionForm.ts is its form for Python (your own code): three code
@@ -1399,6 +1413,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          one's problem in a sentence; a typed payload (Event[Order]) and Table[Row] from the widget's own
                          TypedDict or dataclass (records: schema, fields); fits, fits_value; declarations made pass
     domain/canvas_wiring.py  the canvas's wiring (an instance's `wires`): an In's source (a table, an Out, a page value,
+                         (an endpoint is any API's action through api_adapter: "GET /orders" the local sandbox
+                         API's, "[Orders] GET /orders" a library API's: action_ref)
                          a GET endpoint, a variable, a value, tables), an Event's actions (call, set, rerun), each
                          checked with the reason; any page's Outs (every_out: an app-wide value, a wire from another
                          page `cross`) and the app's own app.viewer; automatic wires by name (this page), readers,
@@ -1416,6 +1432,9 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          pixels for the engine and written back; an item new to one placed in the other (phone:
                          stacked full width); format 1 read as desktop; problems in both
     domain/canvas_build.py  the ONE page builder (Play, Launch, a widget run alone, a preview, Export): app.py,
+                         (every built app carries api_adapter.py, sab_actions.json and a library API's client:
+                         `carried`; the runtime's action(endpoint, inputs) is api_adapter's run, its envelope;
+                         said, data, takes; api_call the older form)
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
                          of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
                          place, its failure there, its Ins, Outs and Events wired; table, sample(kind), var, key, choices,

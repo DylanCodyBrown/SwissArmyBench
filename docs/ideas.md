@@ -8119,10 +8119,26 @@ thing now sees:
   app canvas needs it); streamlit_use.py (still used); the server's VS Code opener path in live_updates; the rest of
   bootstrap's split and cleanup 4 (after the adapter).
 
-## The API adapter (the owner, 2026-11-22): built (branch api-adapter)
+## The API adapter (the owner, 2026-11-22): built (branches api-adapter, api-adapter-2)
 api_adapter.py: any API's answer in, one envelope out, with active payload detection (format, envelope, paging, types)
 and drift handling (fields bound by path; added, missing, retyped and moved fields adapt; an unsure rename offered once,
 never guessed). Plan: Plans/api-adapter.plan.md.
+
+The owner's answers after the first build (branch api-adapter-2), with the decisions made while building:
+- **The canvas goes through api_adapter.** An action is named one way everywhere: `GET /orders` (the local sandbox
+  API's) or `[Orders] GET /orders` (a library API's), so existing canvases read unchanged and one picker lists both.
+  Every built app carries api_adapter.py, sab_actions.json (definitions and learned shapes of the actions it calls,
+  types only) and a library API's own client file. Decided: one request a call for a wire and a widget (as before;
+  `pages=` follows more); one retry (a failing GET does not hold a page for seven seconds); the older `api_call`
+  kept as the same call; a library API's sign-in in a built app is its client's own variables.
+- **api_adapter.py 1.0.1**: a whole float is an integer input (Play's first run showed a form's 3.0 refused).
+- **Keep as its example went**; Try it's form is made up from the learned shape (what the endpoint was last sent:
+  paths and types). An older project's `.sab/api_examples.json` is left where it is, never read.
+- **Build inserts**: the cell into data.ipynb by writing the file (every window follows it), the function into a
+  script the user picks; with no project, or `insert: false`, the code alone as before.
+- **Discover's Allow** is one small file beside the API (`discover.json`), not a field of source.json (Refresh
+  rewrites that); the call that changes it only takes it back.
+- The Session log had no words for the adapter's audit entries (a run, a new shape, a discovery): added.
 
 ## Real-time statistics (the owner, 2026-11-22): decided
 Every call through either adapter records time in parts, size, outcome and who, never values; calls kept this session,

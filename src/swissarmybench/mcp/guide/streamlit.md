@@ -102,8 +102,16 @@ says so in one line.
   (`{"endpoint": "GET /orders"}`), a variable, a typed value, or for a list[Table] `{"tables": [...]}`. An
   unwired In takes the page's one Out of its name and a fitting type by itself (`auto`). An Event's wire is
   `{"actions": [...]}`, its actions in order: `{"do": "call", "endpoint": "POST /visits", "body": "values" or {field: "values.x"},
-  "params": {name: path}}` (the local sandbox API; an export reads SAB_API_URL, SAB_API_KEY, SAB_API_BASE,
-  listed in its README.md), `{"do": "set", "key", "value": path}`, `{"do": "rerun"}`. `canvas_state`'s
+  "params": {name: path}}`, `{"do": "set", "key", "value": path}`, `{"do": "rerun"}`. **An endpoint is any
+  API's action, called through the API adapter:** `GET /orders` is the project's local sandbox API's, `[Orders] GET
+  /orders` the library API Orders' (`actions(action="list")` names them; an endpoint property takes
+  the same). Every built app (Play, Launch, Export) carries the API adapter's own file, `sab_actions.json` (the actions it
+  calls: definitions and learned shapes, types only) and a library API's client `API_<name>.py`; an export's
+  README.md names the variables to set (SAB_API_URL, SAB_API_KEY, SAB_API_BASE for the local API's deployed
+  copy; a client's own). In a widget's code: `from sab_canvas import action, said, data, takes`;
+  `answer = action("GET /orders/{id}", {"id": 7})` is the adapter's envelope (`ok`, `kind`, `records`,
+  `record`, `value`, `paging`, `error`); `said(answer)` its error in a line; one request a call (`pages=`
+  follows more). The older two-value call still works (the same call). `canvas_state`'s
   `wiring`: each instance's ports, `sources`, `readers` of each Out, `wires`, `columns` (each Out[Table]'s
   columns: declared Table[Row], else as Play or Launch last ran it), and `broken` (a deleted widget
   or Out, a type changed: both ends; `canvas_play` lists them too). The page runs each widget after what it

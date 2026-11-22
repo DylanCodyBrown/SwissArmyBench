@@ -35,10 +35,16 @@ one refusal shape), `facts` (times and sizes, never a value).
 - `actions(action="run", api, name, args={"inputs": {...}, "required"?: [paths]})`: inputs checked first;
   a call that writes waits for the user's Allow. Only a `required` path fails a call when the answer drifts.
 - `actions(action="discover", api)`: one read-only GET per read endpoint (the smallest page), on the user's
-  Allow once per API this session; never a write. The shapes are kept (types only), never a value.
+  Allow, asked once per API and remembered with it (`list`'s `allowed`, `allowed_since`) until it is taken
+  back: `actions(action="allow", api, args={"allow": false})` (it only takes back; giving it is the user's
+  answer). Never a write. The shapes are kept (types only), never a value.
 - `actions(action="offer", api, name, args={"from", "to", "take"})`: answer a rename offered once.
-- `actions(action="build", api, name, args={"as": "cell"|"function"|"widget"})`: a cell's or a function's
-  code (`sab.run`, `sab.records`), or a widget put on the project's canvas.
+- `actions(action="build", api, name, args={"as": "cell"|"function"|"widget"})`: `cell` is put at the end of
+  the open project's data.ipynb (`path`, `cell`: its number); `function` with `"path": "scripts/orders.py"` at
+  the end of that script (`path`, `line`, `name`; made when not there; never API.py or a file the app
+  writes); `opened` says whether its page showed it. No project, no `path`, or `"insert": false`: the `code`
+  alone. `widget`: put on the project's canvas (records a data table, a value or record an API metric, a
+  write an API form: any API's action).
 
 ## Return as table: the one gate to DuckDB SQL
 - `apis_save_call(name, operation, inputs?, body?)` saves the web call blade. `as_table=true` makes it one
