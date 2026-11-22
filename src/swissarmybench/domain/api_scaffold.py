@@ -1,5 +1,6 @@
-"""New endpoint from a table: the CRUD set over one sandbox table, appended to API.py, through the adapter
-(Plans/adapter.plan.md: the per-source styles of 2026-11-21 went with the mock clients, 2026-11-22).
+"""The Table pattern (the endpoint wizard's first: domain/api_patterns.py has the registry and the other
+eight): the CRUD set over one sandbox table, appended to API.py, through the adapter (Plans/adapter.plan.md:
+the per-source styles of 2026-11-21 went with the mock clients, 2026-11-22).
 
   list    GET    /<table>?limit=&offset=      its rows, a page at a time (the API table widget pages with
   them)
@@ -15,6 +16,7 @@ Pure text: standard library only.
 
 from __future__ import annotations
 
+import ast
 import keyword
 import re
 from collections.abc import Mapping, Sequence
@@ -50,23 +52,31 @@ def stem(table: str) -> str:
     return _ident(table)
 
 
-_NEEDED = {"TypedDict": "from typing import TypedDict", "ApiError": "sab_api", "connection": "sab_api",
-           "endpoint": "sab_api", "records": "sab_api"}  # fmt: skip
+_SAB_API = ("ApiError", "Download", "connection", "download", "endpoint", "records")
+
+
+def _used(block: str) -> set[str]:
+    """The names a block of code reads (its annotations too)."""
+    try:
+        tree = ast.parse(block)
+    except SyntaxError:
+        return set(re.findall(r"[A-Za-z_]\w*", block))
+    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
 
 
 def imports_missing(text: str, block: str = "") -> str:
-    """The import lines a CRUD set needs that API.py does not have yet ("" when it has them). `block`: the
-    set's text: a date or datetime field needs its import too (API.py would not start without it)."""
+    """The import lines a pattern's block needs that API.py does not have yet ("" when it has them): what
+    the block reads of sab_api, TypedDict, and date or datetime (API.py would not start without them)."""
     imported = set(re.findall(r"^\s*from\s+[\w.]+\s+import\s+([^\n#]+)", text, re.M))
     names = {n.strip().split(" as ")[-1] for line in imported for n in line.strip("() ").split(",")}
+    used = _used(block) if block else {"TypedDict", "ApiError", "connection", "endpoint", "records"}
     lines = []
-    if "TypedDict" not in names:
+    if "TypedDict" in used and "TypedDict" not in names:
         lines.append("from typing import TypedDict  # noqa: E402")
-    used = re.findall(r"^    \w+: (date|datetime)$", block, re.M)
     dates = [n for n in ("date", "datetime") if n in used and n not in names]
     if dates:
         lines.append(f"from datetime import {', '.join(dates)}  # noqa: E402")
-    wanted = [n for n in ("ApiError", "connection", "endpoint", "records") if n not in names]
+    wanted = [n for n in _SAB_API if n in used and n not in names]
     if wanted:
         lines.append(f"from sab_api import {', '.join(wanted)}  # noqa: E402")
     return "\n".join(lines) + ("\n" if lines else "")
@@ -80,6 +90,23 @@ def with_imports(text: str, needs: str) -> tuple[str, str]:
     if not needs:
         return text, ""
     lines = text.split("\n")
+    rest = []
+    for need in needs.strip("\n").split("\n"):  # a module API.py imports from already: its line takes them
+        module, _, wanted = need.replace("  # noqa: E402", "").partition(" import ")
+        at = next(
+            (i for i, line in enumerate(lines) if re.fullmatch(rf"{re.escape(module)} import [\w, ]+", line)),
+            -1,
+        )
+        if at < 0:
+            rest.append(need)
+            continue
+        names = sorted(
+            {n.strip() for n in (lines[at].partition(" import ")[2] + "," + wanted).split(",") if n.strip()}
+        )
+        lines[at] = f"{module} import {', '.join(names)}"
+    text, needs = "\n".join(lines), "\n".join(rest) + ("\n" if rest else "")
+    if not needs:
+        return text, ""
     last = -1
     for i, line in enumerate(lines):
         if re.match(r"(def|class|async def|@)\b|@", line):
@@ -138,7 +165,8 @@ def crud(
     head = [
         "",
         "",
-        f"# ===== {table}: {_style_words(source)} (New endpoint from a table) =====",
+        f"# ===== {table}: Table ({_style_words(source)}) =====",
+        f"# pattern: table of {table}",
         "",
         "",
         f"class {model}(TypedDict, total=False):",

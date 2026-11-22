@@ -92,6 +92,7 @@ class Endpoint:
     returns: str
     connections: list[str] = field(default_factory=list)
     sql: list[dict[str, Any]] = field(default_factory=list)  # each SQL string it sends: {text, line}
+    streams: bool = False  # DuckDB does part of its work over the stream (it calls duckdb.connect itself)
 
     @property
     def writes(self) -> bool:
@@ -110,6 +111,7 @@ class Endpoint:
             "returns": self.returns,
             "connections": self.connections,
             "sql": self.sql,
+            "streams": self.streams,
             "writes": self.writes,
         }
 
@@ -373,6 +375,9 @@ def parse(text: str) -> Api:
             )
             doc = ast.get_docstring(node) or ""
             connections, sql = _connections_and_sql(node)
+            streams = any(
+                isinstance(n, ast.Call) and ast.unparse(n.func) == "duckdb.connect" for n in ast.walk(node)
+            )
             endpoints.append(
                 Endpoint(
                     node.name,
@@ -386,6 +391,7 @@ def parse(text: str) -> Api:
                     _annotation(node.returns),
                     connections,
                     sql,
+                    streams,
                 )
             )
     return Api(settings, endpoints, models, problems)

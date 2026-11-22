@@ -19,6 +19,8 @@
                           over the connection's own portable code (its variables set where it runs)
   records(rows)           Arrow (a read's or a query's answer) or a DB-API cursor's rows as dicts
   ApiError(status, msg)   an answer with that status and {"error": msg}
+  download(rows, name)    rows (Arrow, or a list of dicts) answered as a file to save: "orders.csv", or
+                          "orders.xlsx" (one sheet, written here: no library)
   The body is checked against its model before the endpoint runs (a TypedDict's or a dataclass's fields,
   nested ones and lists of them): a wrong type, a missing required field or an unknown one is a 422 naming
   the field ({"error": "order.amount is a number, not '12'.", "field": "order.amount"}).
@@ -29,18 +31,23 @@ Standard library only: this file is copied as sab_api.py into each exported proj
 
 from __future__ import annotations
 
+import csv
 import dataclasses
 import datetime
 import decimal
 import inspect
+import io
 import json
 import re
+import types
 import typing
 import uuid
+import zipfile
 from collections.abc import Callable, Mapping
 from typing import Any
 
-__all__ = ["ENDPOINTS", "ApiError", "Endpoint", "connection", "endpoint", "handle", "records", "use_clients"]
+__all__ = ["ENDPOINTS", "ApiError", "Download", "Endpoint", "connection", "download", "endpoint", "handle",
+           "records", "use_clients"]  # fmt: skip
 
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 BASE_PATH = ""  # the API's base path (its header's base_path), set by the target that runs it
@@ -142,6 +149,136 @@ def records(rows: Any) -> list[dict[str, Any]]:
     return [dict(zip(names, row, strict=False)) for row in rows.fetchall()]
 
 
+# ===== a file to save (the Export pattern's answer) =====
+
+CSV = "text/csv; charset=utf-8"
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@dataclasses.dataclass(frozen=True)
+class Download:
+    """An endpoint's answer as a file to save: its name, its bytes, its media type."""
+
+    name: str
+    content: bytes
+    media: str = CSV
+
+
+def _batches(rows: Any) -> typing.Iterator[tuple[list[str], list[list[Any]]]]:
+    """Rows a batch at a time as (the column names, the rows' values): an Arrow reader stays a stream."""
+    if hasattr(rows, "read_next_batch") or hasattr(rows, "to_batches"):
+        names = list(rows.schema.names)
+        for batch in rows if hasattr(rows, "read_next_batch") else rows.to_batches():
+            columns = [c.to_pylist() for c in batch.columns]
+            yield names, [list(r) for r in zip(*columns, strict=True)]
+        yield names, []
+        return
+    listed = [dict(r) for r in rows]
+    names = list(dict.fromkeys(k for r in listed for k in r))
+    yield names, [[r.get(n) for n in names] for r in listed]
+
+
+def _cell_text(value: Any) -> Any:
+    if value is None:
+        return ""
+    return json.dumps(plain(value)) if isinstance(value, (list, dict)) else plain(value)
+
+
+def _column_letters(index: int) -> str:
+    letters = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        letters = chr(65 + rest) + letters
+    return letters
+
+
+def _xml(text: str) -> str:
+    cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    return cleaned.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_PACKAGE = "http://schemas.openxmlformats.org/package/2006"
+_OFFICE = "application/vnd.openxmlformats-officedocument.spreadsheetml"
+
+
+def _xlsx(rows: Any) -> bytes:
+    """One sheet of an Excel workbook, written with the standard library: a header row, numbers as numbers,
+    everything else as text (a date as 2026-01-15)."""
+    sheet = io.StringIO()
+    sheet.write(f'<worksheet xmlns="{_MAIN}"><sheetData>')
+    at = 0
+
+    def line(values: list[Any]) -> None:
+        nonlocal at
+        at += 1
+        sheet.write(f'<row r="{at}">')
+        for i, value in enumerate(values):
+            ref = f"{_column_letters(i)}{at}"
+            if value is None or value == "":
+                continue
+            if isinstance(value, (int, float, decimal.Decimal)) and not isinstance(value, bool):
+                sheet.write(f'<c r="{ref}"><v>{value}</v></c>')
+            else:
+                sheet.write(f'<c r="{ref}" t="inlineStr"><is><t>{_xml(str(_cell_text(value)))}</t></is></c>')
+        sheet.write("</row>")
+
+    first = True
+    for names, batch in _batches(rows):
+        if first:
+            line(list(names))
+            first = False
+        for values in batch:
+            line(values)
+    sheet.write("</sheetData></worksheet>")
+    parts = {
+        "[Content_Types].xml": (
+            f'<Types xmlns="{_PACKAGE}/content-types">'
+            '<Default Extension="rels" '
+            'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            f'<Override PartName="/xl/workbook.xml" ContentType="{_OFFICE}.sheet.main+xml"/>'
+            f'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="{_OFFICE}.worksheet+xml"/></Types>'
+        ),
+        "_rels/.rels": (
+            f'<Relationships xmlns="{_PACKAGE}/relationships"><Relationship Id="rId1" '
+            f'Type="{_REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>'
+        ),
+        "xl/workbook.xml": (
+            f'<workbook xmlns="{_MAIN}" xmlns:r="{_REL}"><sheets><sheet name="Sheet1" sheetId="1" '
+            'r:id="rId1"/></sheets></workbook>'
+        ),
+        "xl/_rels/workbook.xml.rels": (
+            f'<Relationships xmlns="{_PACKAGE}/relationships"><Relationship Id="rId1" '
+            f'Type="{_REL}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'
+        ),
+        "xl/worksheets/sheet1.xml": sheet.getvalue(),
+    }
+    made = io.BytesIO()
+    with zipfile.ZipFile(made, "w", zipfile.ZIP_DEFLATED) as book:
+        for name, text in parts.items():
+            book.writestr(name, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + text)
+    return made.getvalue()
+
+
+def download(rows: Any, name: str) -> Download:
+    """Rows (Arrow: a read's or a query's answer, read a batch at a time; or a list of dicts) as a file to
+    save, by the name's ending: .csv (UTF-8, a header row), or .xlsx (one sheet)."""
+    if name.lower().endswith(".xlsx"):
+        return Download(name, _xlsx(rows), XLSX)
+    text = io.StringIO()
+    writer = csv.writer(text, lineterminator="\r\n")
+    first = True
+    for names, batch in _batches(rows):
+        if first:
+            writer.writerow(names)
+            first = False
+        writer.writerows([_cell_text(v) for v in values] for values in batch)
+    return Download(name, text.getvalue().encode("utf-8"), CSV)
+
+
 # ===== values in and out =====
 
 
@@ -207,7 +344,7 @@ def _arrow_body(value: Any, model: Any, at: str) -> Any:
 
 def _is_body(kind: Any) -> bool:
     origin = typing.get_origin(kind)
-    if origin is typing.Union or str(origin) == "types.UnionType":
+    if origin is typing.Union or origin is types.UnionType:
         args = [a for a in typing.get_args(kind) if a is not type(None)]
         return bool(args) and _is_body(args[0])
     if origin in (list, dict) or kind in (list, dict):
@@ -219,7 +356,7 @@ def _convert(value: Any, kind: Any, name: str) -> Any:
     if value is None or kind in (inspect.Parameter.empty, Any, str):
         return value
     origin = typing.get_origin(kind)
-    if origin is typing.Union or str(origin) == "types.UnionType":
+    if origin is typing.Union or origin is types.UnionType:
         args = [a for a in typing.get_args(kind) if a is not type(None)]
         return _convert(value, args[0], name) if args else value
     try:
@@ -321,7 +458,7 @@ def checked(value: Any, kind: Any, at: str) -> Any:
     if kind in (inspect.Parameter.empty, Any, object) or isinstance(kind, (str, typing.TypeVar)):
         return value
     origin = typing.get_origin(kind)
-    if origin is typing.Union or str(origin) == "types.UnionType":
+    if origin is typing.Union or origin is types.UnionType:
         args = [a for a in typing.get_args(kind) if a is not type(None)]
         if value is None and len(args) < len(typing.get_args(kind)):
             return None
@@ -459,17 +596,23 @@ def describe() -> list[dict[str, Any]]:
 
 def find(method: str, path: str) -> tuple[Endpoint | None, dict[str, str], bool]:
     """The endpoint for a request (and its path's values), and whether the path is known for another
-    method."""
+    method. Where two paths fit, the one with the fewest {names} answers: /orders/search before
+    /orders/{key}, whichever was written first."""
     path = path or "/"
     if BASE_PATH and path.startswith(BASE_PATH.rstrip("/") + "/"):
         path = path[len(BASE_PATH.rstrip("/")) :]
     other = False
+    best: tuple[Endpoint, dict[str, str]] | None = None
     for e in ENDPOINTS:
         m = e.pattern.match(path)
         if m:
             if e.method == method.upper():
-                return e, m.groupdict(), False
-            other = True
+                if best is None or len(e.names) < len(best[0].names):
+                    best = (e, m.groupdict())
+            else:
+                other = True
+    if best is not None:
+        return best[0], best[1], False
     return None, {}, other
 
 
@@ -508,6 +651,10 @@ ARROW = "application/vnd.apache.arrow.stream"
 def answered(status: int, result: Any, accept: str = "") -> tuple[int, dict[str, str], bytes]:
     """An endpoint's result as its answer: Arrow (a table or a reader) through the adapter, as JSON records
     or, when the caller accepts it (a widget), an Arrow IPC stream; anything else as JSON (plain)."""
+    if isinstance(result, Download):
+        name = re.sub(r"[^A-Za-z0-9._ -]+", "_", result.name) or "download"
+        saved = {"Content-Type": result.media, "Content-Disposition": f'attachment; filename="{name}"'}
+        return status, saved, result.content
     adapter = _adapter()
     if adapter is not None and adapter.is_arrow(result):
         if ARROW in accept:

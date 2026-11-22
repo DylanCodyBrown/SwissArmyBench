@@ -377,7 +377,12 @@ def render_lambda(bundle: Bundle) -> dict[str, str]:
         '    if body is not None and event.get("isBase64Encoded"):\n'
         "        body = base64.b64decode(body)\n"
         "    status, headers, payload = sab_api.handle(method, path, query, body)\n"
-        '    return {"statusCode": status, "headers": headers, "body": payload.decode("utf-8"), "isBase64Encoded": False}\n'
+        '    kind = headers.get("Content-Type", "application/json")\n'
+        '    if kind.startswith(("application/json", "text/")):\n'
+        '        return {"statusCode": status, "headers": headers, "body": payload.decode("utf-8"), "isBase64Encoded": False}\n'
+        "    # A file to save that is not text (an Excel workbook): API Gateway takes it as base64.\n"
+        '    packed = base64.b64encode(payload).decode("ascii")\n'
+        '    return {"statusCode": status, "headers": headers, "body": packed, "isBase64Encoded": True}\n'
     )
     env = "\n".join(f'          {v}: ""' for v in bundle.variables) or '          SAB_NOTHING_TO_SET: ""'
     template = (

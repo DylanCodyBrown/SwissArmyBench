@@ -4223,6 +4223,8 @@ _API = {
     "targets": ("GET", "/local-api/targets"),
     "export": ("POST", "/local-api/export"),
     "scaffold": ("POST", "/local-api/scaffold"),
+    "patterns": ("GET", "/local-api/patterns"),
+    "plan": ("POST", "/local-api/plan"),
     "check": ("POST", "/local-api/check"),
     "shapes": ("GET", "/local-api/shapes"),
 }
@@ -4234,14 +4236,17 @@ _API = {
     "the session)",
     req(
         "action",
-        "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, scaffold, "
-        "check, shapes.",
+        "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, patterns, "
+        "plan, scaffold, check, shapes.",
     ),
     opt(
         "args",
         'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
         'writes: {"allow": bool} (the agent writing this session); settings: {"name", '
-        '"target", "base_path"}.',
+        '"target", "base_path"}; plan: {"table", "pattern"?, "fields"?, "other"?} (the patterns ranked for '
+        'the table, a pattern\'s steps and its code; writes nothing); scaffold: {"table", "pattern": table|'
+        'choices|search|summary|bulk|action|versions|reconcile|export, "fields"?, "other"?, "dry_run"?} '
+        "(its endpoints appended to API.py; dry_run: the code only).",
         "json",
     ),
 )

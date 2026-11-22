@@ -14,7 +14,11 @@ GET   /local-api/log         its requests: method, path, status, ms, rows       
 GET   /local-api/address     where it runs and its key (this computer's own callers)              api(address)
 GET   /local-api/openapi.json  its OpenAPI document
 GET   /local-api/targets     the framework targets (the base's three, each extension's)        api(targets)
-POST  /local-api/scaffold    {table, key?}: New endpoint from a table (the CRUD set, appended)   api(scaffold)
+POST  /local-api/scaffold    {table, pattern?, fields?, other?, dry_run?}: the endpoint wizard's Add to
+                            API.py (a pattern's endpoints appended; dry_run: the code only)   api(scaffold)
+GET   /local-api/patterns    the wizard's patterns as data (steps, widget pairings)            api(patterns)
+POST  /local-api/plan        {table?, pattern?, fields?, other?}: the wizard's one read: the tables,
+                            the patterns ranked by the table's shape, a pattern's steps, the code  api(plan)
 POST  /local-api/check       Will this work for real? each endpoint's SQL against its connection's loaded
                              catalog (never a query, never a load)                              api(check)
 GET   /local-api/shapes      Payload shapes: each canvas widget using an endpoint, what it expects beside
@@ -62,6 +66,8 @@ def routes(api: LocalApi, export: ApiExport) -> list[BaseRoute]:
         Route("/local-api/targets", with_actor(lambda who: _answered(export.targets(None, who)))),
         Route("/local-api/export", with_body(export.export), methods=["POST"]),
         Route("/local-api/scaffold", with_body(api.scaffold), methods=["POST"]),
+        Route("/local-api/patterns", with_actor(lambda who: api.pattern_list(None, who))),
+        Route("/local-api/plan", with_body(api.plan), methods=["POST"]),
         Route("/local-api/check", with_body(api.check), methods=["POST"]),
         Route("/local-api/shapes", with_actor(lambda who: api.shapes(None, who))),
     ]

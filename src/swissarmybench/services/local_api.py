@@ -31,6 +31,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import api_actions
+from swissarmybench.domain import api_patterns as pattern_rules
 from swissarmybench.domain import api_scaffold as scaffold_rules
 from swissarmybench.domain import local_api as rules
 from swissarmybench.domain import sandbox_dialects as dialects
@@ -82,6 +83,9 @@ class Mocks(Protocol):
     async def listing(self) -> dict[str, Any]: ...
 
     async def set_key(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
+
+STREAM_WORDS = "DuckDB does part of it over the stream (its source cannot)"
 
 
 def data_words(name: str, client: dict[str, Any] | None) -> str:
@@ -141,6 +145,8 @@ class LocalApi:
         self.publish: Callable[[dict[str, str]], None] = lambda values: None
         # The canvases' widget instances that name an endpoint (the Streamlit extension's; none without it).
         self.api_uses: Callable[[], list[dict[str, Any]]] = lambda: []
+        # The endpoint wizard's patterns: the base's nine and each extension's (its API_PATTERNS; bootstrap).
+        self.patterns = pattern_rules.Registry()
 
     # ===== the file =====
 
@@ -229,13 +235,29 @@ class LocalApi:
         endpoints = []
         for e in api.endpoints:
             words = [data_words(n, mocks.get(n.casefold())) for n in e.connections]
+            if e.streams:  # its source cannot do part of the work: said, never hidden
+                words.append(STREAM_WORDS)
+            made_by, of = pattern_rules.pattern_at(text, e.line)
+            known_pattern = self.patterns.patterns.get(made_by)
+            pattern = (
+                {"id": made_by, "label": known_pattern.label if known_pattern else made_by, "of": of,
+                 "role": self.patterns.role(made_by, e.name)}
+                if made_by
+                else None
+            )  # fmt: skip
             # Its contract, read by every door from the one definition (domain/local_api.py): the body's
             # fields, and the made-up request Try it starts from, filled from the endpoint's learned shape
             # (what it was last sent: paths and types; made-up values, never a kept one).
             known = learned.get(f"{e.method} {e.path}") or {}
             start = api_actions.tried(rules.made_up(e, api.models), known.get("contract"), known.get("sent"))
             endpoints.append(
-                e.to_json() | {"data": words, "fields": rules.body_fields(e, api.models), "try": start}
+                e.to_json()
+                | {
+                    "data": words,
+                    "fields": rules.body_fields(e, api.models),
+                    "try": start,
+                    "pattern": pattern,
+                }
             )
         return {
             "project": folder,
@@ -397,21 +419,12 @@ class LocalApi:
             "tables": tables,
         }
 
-    # ===== New endpoint from a table =====
+    # ===== the endpoint wizard: a pattern over a sandbox table, appended to API.py =====
 
-    async def scaffold(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"table", "key"?}: the CRUD set over a sandbox table appended to API.py, in its source's own style
-        (domain/api_scaffold.py); API.py made first when the project has none."""
-        given = body if isinstance(body, dict) else {}
-        wanted = str(given.get("table") or "").strip()
-        listed = await self._sandbox_tables()
-        table = next((t for t in listed if t["name"].casefold() == wanted.casefold()), None)
-        if table is None:
-            raise NotFound(f"The sandbox has no table named {wanted}: Add to sandbox first.")
-        if self._text() is None:
-            await self.new(None, who)
-        text = self._text() or ""
-        api = rules.parse(text)
+    @staticmethod
+    def _target(table: dict[str, Any]) -> pattern_rules.Target:
+        """A sandbox table as the patterns read it: its columns, its row count, how it is reached (the
+        connection it is mocked as, its schema there)."""
         client = table.get("client") or {}
         place = (table.get("source") or {}).get("place") or {}
         kind = str(client.get("kind") or "duckdb")
@@ -421,34 +434,143 @@ class LocalApi:
             str(client.get("dialect") or "duckdb"),
             str(place.get("schema") or ""),
         )
-        taken = [e.name for e in api.endpoints] + list(api.models) + _defined(text)
-        block = scaffold_rules.crud(
-            table["name"],
-            table["columns"],
+        rows = table.get("rows")
+        return pattern_rules.Target(
+            str(table["name"]),
+            tuple(table.get("columns") or ()),
             source,
-            given.get("key") or None,
-            taken,
-            [e.path for e in api.endpoints],
+            rows if isinstance(rows, int) else None,
         )
-        text, needs = scaffold_rules.with_imports(text, scaffold_rules.imports_missing(text, block))
+
+    @staticmethod
+    def _named(listed: list[dict[str, Any]], wanted: Any) -> dict[str, Any] | None:
+        name = str(wanted or "").strip().casefold()
+        return next((t for t in listed if str(t["name"]).casefold() == name), None)
+
+    def _taken(self, text: str) -> pattern_rules.Taken:
+        api = rules.parse(text)
+        names = [e.name for e in api.endpoints] + list(api.models) + _defined(text)
+        return pattern_rules.Taken(tuple(names), tuple(e.path for e in api.endpoints))
+
+    async def pattern_list(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """The patterns as data: each one's question, its own steps, the widgets that pair with it."""
+        return {"patterns": self.patterns.listed()}
+
+    async def plan(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """The wizard's one read (the agent's too): {"table"?, "pattern"?, "fields"?, "other"?}. With no
+        table: the sandbox's tables. With a table: every pattern ranked by its shape, each with one sentence
+        why. With a pattern too: that pattern's own steps (the columns each offers, its value: the one sent,
+        else what the shape suggests), and the code as it would be added, or the one thing still missing.
+        Nothing is written."""
+        given = body if isinstance(body, dict) else {}
+        listed = await self._sandbox_tables()
+        tables = [
+            {"name": t["name"], "rows": t.get("rows"), "columns": t.get("columns") or [],
+             "data": data_words(str(t["name"]), t.get("client") or {"kind": "duckdb"})}
+            for t in listed
+        ]  # fmt: skip
+        answer: dict[str, Any] = {"tables": tables, "patterns": self.patterns.listed()}
+        if not str(given.get("table") or "").strip():
+            return answer
+        table = self._named(listed, given.get("table"))
+        if table is None:
+            raise NotFound(f"The sandbox has no table named {given.get('table')}: Add to sandbox first.")
+        target = self._target(table)
+        others = [self._target(t) for t in listed]
+        answer |= {"table": target.name, "ranked": self.patterns.ranked(target, others)}
+        if not str(given.get("pattern") or "").strip():
+            return answer
+        pattern = self.patterns.get(given.get("pattern"))
+        other = None
+        if pattern.tables == 2:
+            second = self._named(listed, given.get("other"))
+            other = self._target(second) if second is not None else pattern_rules.partner(target, others)
+        fields = given.get("fields") if isinstance(given.get("fields"), dict) else {}
+        answer["plan"] = self.patterns.planned(pattern.id, target, fields, other)
+        answer["others"] = [t["name"] for t in tables if t["name"] != target.name]
+        text = (self._text() if self._project() is not None else None) or rules.scaffold("api")
+        try:
+            made = self.patterns.make(pattern.id, target, fields, self._taken(text), other)
+        except scaffold_rules.ScaffoldError as error:
+            return answer | {"problem": str(error), "code": "", "added": []}
+        needs = scaffold_rules.imports_missing(text, made.text)
+        paired = [
+            w | {"function": name} for name in made.added for w in self.patterns.pairings(pattern.id, name)
+        ]
+        code = {"problem": None, "code": made.text.lstrip("\n"), "imports": needs, "added": made.added}
+        return answer | code | {"streams": made.streams, "words": made.words, "paired": paired}
+
+    async def scaffold(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"table", "pattern"? (table), "fields"?, "other"? (Reconcile's second table), "dry_run"?}: a
+        pattern's endpoints over a sandbox table appended to API.py (domain/api_patterns.py); API.py made
+        first when the project has none. "dry_run": the code and its endpoints, nothing written. The older
+        {"table", "key"} is the Table pattern with that key."""
+        given = body if isinstance(body, dict) else {}
+        wanted = str(given.get("table") or "").strip()
+        listed = await self._sandbox_tables()
+        table = self._named(listed, wanted)
+        if table is None:
+            raise NotFound(f"The sandbox has no table named {wanted}: Add to sandbox first.")
+        pattern = self.patterns.get(given.get("pattern"))
+        fields = dict(given.get("fields") or {}) if isinstance(given.get("fields"), dict) else {}
+        if given.get("key") and "key" not in fields:
+            fields["key"] = given["key"]
+        target = self._target(table)
+        other = None
+        if pattern.tables == 2:
+            second = self._named(listed, given.get("other"))
+            if second is None:
+                raise NotFound(f"{pattern.label} compares two sandbox tables: name the second one (other).")
+            other = self._target(second)
+        dry = bool(given.get("dry_run"))
+        if self._text() is None and not dry:
+            await self.new(None, who)
+        text = self._text() or rules.scaffold("api")
+        made = self.patterns.make(pattern.id, target, fields, self._taken(text), other)
+        block = made.text
+        needs = scaffold_rules.imports_missing(text, block)
+        if dry:
+            return {"dry_run": True, "pattern": pattern.id, "code": block.lstrip("\n"), "imports": needs,
+                    "added": made.added, "streams": made.streams, "words": made.words}  # fmt: skip
+        text, needs = scaffold_rules.with_imports(text, needs)
         written = text.rstrip("\n") + "\n" + ("\n" + needs if needs else "") + block
         self._files.write(self.path(), written)
-        await self._told(who, "local_api_scaffold", table=table["name"])
+        await self._told(who, "local_api_scaffold", table=table["name"], pattern=pattern.id)
         note = ""
-        if not any(c.get("key") for c in table["columns"]):  # the endpoint's key: the sandbox keeps it too
-            key = scaffold_rules.chosen_key(table["columns"], given.get("key") or None)
-            try:
-                await self._mocks.set_key({"table": table["name"], "key": [key]}, who)
+        if made.key and not any(c.get("key") for c in table["columns"]):
+            try:  # the endpoint's key: the sandbox keeps it too
+                await self._mocks.set_key({"table": table["name"], "key": made.key}, who)
             except (ValueError, LookupError, Conflict) as error:
                 note = f"{table['name']} has no primary key in the sandbox: {error}"
         state = await self.state()
-        made = [
-            e
-            for e in state.get("endpoints") or []
-            if e["name"].endswith("_" + scaffold_rules.stem(table["name"]))
+        by = {e["name"]: e for e in state.get("endpoints") or []}
+        paired = [
+            w | {"endpoint": f"{by[name]['method']} {by[name]['path']}"}
+            for name in made.added
+            if name in by
+            for w in self.patterns.pairings(pattern.id, name)
         ]
-        done = state | {"added": [e["name"] for e in made], "line": text.count("\n") + 2}
+        line = text.count("\n") + 2 + (needs.count("\n") + 1 if needs else 0)
+        done = state | {"added": [n for n in made.added if n in by], "line": line, "pattern": pattern.id,
+                        "paired": paired}  # fmt: skip
         return done | ({"note": note} if note else {})
+
+    def paired(self) -> list[dict[str, Any]]:
+        """Each endpoint a pattern made, with the widgets that pair with it ("GET /orders": api_table's
+        endpoint): what a widget dropped on the Canvas wires itself to (the Streamlit extension reads it)."""
+        text = self._text() if self._project() is not None else None
+        if text is None:
+            return []
+        try:
+            api = rules.parse(text)
+        except Exception:  # API.py's own trouble: nothing to pair
+            return []
+        found: list[dict[str, Any]] = []
+        for e in api.endpoints:
+            made_by, of = pattern_rules.pattern_at(text, e.line)
+            for w in self.patterns.pairings(made_by, e.name) if made_by else []:
+                found.append(w | {"endpoint": f"{e.method} {e.path}", "pattern": made_by, "of": of})
+        return found
 
     # ===== run, stop =====
 
@@ -545,10 +667,17 @@ class LocalApi:
         started = time.perf_counter()
         status, answer, headers = await self._runner.request(method, path, dict(query or {}), sent)
         ms = round((time.perf_counter() - started) * 1000, 1)
+        kinds = {k.lower(): v for k, v in headers.items()}
+        saved = re.search(r'filename="([^"]+)"', kinds.get("content-disposition", ""))
         try:
             parsed = json.loads(answer) if answer else None
         except ValueError:
             parsed = answer.decode("utf-8", "replace")
+        if saved:  # a file to save (the Export pattern): said as one, its text only when it is text
+            kind = kinds.get("content-type", "")
+            parsed = {"download": saved.group(1), "type": kind, "bytes": len(answer)}
+            if kind.startswith("text/"):
+                parsed["text"] = answer.decode("utf-8", "replace")[:20000]
         rows = len(parsed) if isinstance(parsed, list) else None
         self.ws.audit.write(who, "local_api_call", f"{method} {path}", status=status, rows=rows)
         done: dict[str, Any] = {"status": status, "ms": ms, "rows": rows, "body": parsed}
