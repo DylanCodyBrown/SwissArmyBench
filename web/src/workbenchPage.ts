@@ -71,7 +71,6 @@ import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
 import { mountExplorerPane } from "./workbenchExplorer";
 import { type ExplorerResult, type ExplorerState, openDataWindow } from "./dataExplorer";
-import { openVariables } from "./variablesPage";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
 import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
 import { mountLayout } from "./workbenchLayout";
@@ -92,8 +91,9 @@ import { updateCommands } from "./updates";
 import { claudeCommands } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
-import { environmentPane } from "./environmentPage";
-import { Kernel, WINDOW_ID } from "./workbenchKernel";
+import { openEnvironment, environmentPane } from "./environmentPage";
+import { Kernel, sessionHeard, WINDOW_ID } from "./workbenchKernel";
+import { heardProjectPython, inProject, loadProjectPython, offerMoved, projectPython, type Offer } from "./projectSession";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLineage, lineageNoticed, openLineage } from "./workbenchLineage";
@@ -976,13 +976,25 @@ async function takeDocument(id: string): Promise<void> {
 
 const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => errorHere(e));
 
+/** One Python per project (projectSession.ts): a document of the open project holds the project's one
+ *  session (taken at once while it runs: its variables and completions are live before its first Run). */
+function joinSession(doc: Doc): void {
+  const project = projectPython();
+  if (!doc.kernel || !project?.session || !inProject(doc.path)) return;
+  doc.kernel.join({ shared: true, words: project.session, kernel: project.kernel }, project.python);
+}
+
+/** Whether a document runs in the project's one session (said before its first Run, too). */
+const inSession = (doc: Doc | null | undefined): boolean => Boolean(doc?.kernel && (doc.kernel.shared || (projectPython()?.session && inProject(doc.path))));
+
 function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified: number | null): Doc {
   const refused = wrongPage(kind, PAGE); // a notebook never opens on the Scripts page, nor a script here
   if (refused) throw new Error(refused);
   const doc: Doc = { id: ++counter, kind, title, path, modified, dirty: false, kernel: null, python: null, element: h("div", { class: `wb-doc-body kind-${kind}` }) };
   if (kind === "notebook" || kind === "script") {
-    const kernel = new Kernel(() => doc.path, () => doc.python);
+    const kernel = new Kernel(() => doc.path, () => doc.python, true);
     doc.kernel = kernel;
+    joinSession(doc); // a project's document runs in the project's one Python session
     kernel.onState(() => {
       if (doc === current) drawStatus();
       if (kernel.state === "idle") lineageNoticed(); // a run ended: the lineage's values may have changed
@@ -1328,7 +1340,8 @@ function focused(doc: Doc | null): void {
 function close(doc: Doc, moved = false): void {
   // (A document that moved to another window took its changes with it.)
   if (!moved && doc.dirty && !confirm(`${doc.title} has changes that are not saved. Close it anyway?`)) return;
-  doc.kernel?.stop();
+  doc.kernel?.stop(); // its own kernel; the project's one session goes on for its other documents
+  doc.kernel?.forget();
   doc.workbook?.close();
   // Its Monaco editors and design frames go too (they were kept alive, detached, before).
   doc.notebook?.dispose();
@@ -1578,7 +1591,7 @@ async function open(path?: string): Promise<void> {
   // An old app canvas (2026-11-21: app notebooks and their canvases were replaced by widgets): one line.
   if (chosen.toLowerCase().endsWith(APP_ENDING)) return void errorHere(OLD_APP);
   try {
-    const found = await api<{ path: string; kind: "notebook" | "script"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; dictionary?: Descriptions; hash?: string | null }>("/workbench/open", "POST", { path: chosen });
+    const found = await api<{ path: string; kind: "notebook" | "script"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; dictionary?: Descriptions; hash?: string | null; moved_environment?: Offer }>("/workbench/open", "POST", { path: chosen });
     if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell, found.dictionary);
     else openScript(found.path, found.text ?? "", found.modified);
     if (current?.path === found.path) current.hash = found.hash ?? null;
@@ -1588,6 +1601,8 @@ async function open(path?: string): Promise<void> {
       if (!pythons.some((p) => p.python === found.python)) pythons.push({ python: found.python, version: "", ipykernel: true, swissarmybench: true });
       drawStatus();
     }
+    // It had an environment of its own and now runs in the project's one Python: said once, in one line.
+    offerMoved(found.moved_environment);
     void refreshHome();
   } catch (e) {
     errorHere(e);
@@ -1787,7 +1802,8 @@ function folderOf(path: string | null): string {
   return at > 0 ? path.slice(0, at) : homeFolder;
 }
 
-/** Run in another Python from the next Run on (a running kernel is stopped first). */
+/** Run in another Python from the next Run on (a running kernel is stopped first). A loose file's only:
+ *  a project's documents run in the project's one Python (the Environment's Libraries tab). */
 function useEnvironment(doc: Doc, python: string): void {
   doc.python = python;
   if (!pythons.some((p) => p.python === python)) pythons.push({ python, version: "", ipykernel: true, swissarmybench: true });
@@ -1806,6 +1822,12 @@ function pythonName(python: string): string {
 }
 
 function pythonPicker(doc: Doc): HTMLElement {
+  if (inSession(doc)) {
+    // One Python per project: nothing to pick. What it is, and the way to its libraries.
+    const project = projectPython();
+    const words = project?.own ? "The project's Python" : project?.status === "making" ? "This app's Python (the project's is being made)" : "This app's Python";
+    return button(words, () => openProjectLibraries(), { class: "ghost wb-env-project", title: `${project?.words ?? ""} Libraries: the Environment page.`.trim() });
+  }
   const select = h("select", { class: "wb-env-pick", "aria-label": "Environment", title: "Environment" }) as HTMLSelectElement;
   const own = pythons[0];
   const label = (p: PythonChoice): string => `${pythonName(p.python)}${p.version ? ` (${p.version})` : ""}${p.ipykernel ? "" : ", no ipykernel"}`;
@@ -1969,12 +1991,7 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
         ]
       : []),
     null,
-    ...(kernel
-      ? [
-          { label: "Interrupt", icon: "stop", run: () => void kernel.interrupt() },
-          { label: "Restart", icon: "back", run: () => void restartKernel(kernel) },
-        ]
-      : []),
+    ...(kernel ? sessionEntries(kernel, inSession(doc)) : []),
     null,
     ...moveEntries(doc),
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "right") },
@@ -2023,9 +2040,44 @@ function drawControls(): void {
 }
 
 async function restartKernel(kernel: Kernel): Promise<boolean> {
+  // The project's one session: every notebook's and script's variables go, so it is asked first.
+  if (kernel.shared && kernel.id && !confirm("Restart the project's Python session? Every variable is cleared, for every notebook and script of the project.")) return false;
   const did = await kernel.restart();
-  toast(did ? "Restarted" : "Nothing to restart");
+  toast(did ? (kernel.shared ? "The project's Python session was restarted: every variable is cleared." : "Restarted") : "Nothing to restart");
   return did;
+}
+
+/** The session's entries (the status bar's menu and a document's "…"): for a project's document they say
+ *  whose they are, and one more stops the session for all of them. */
+function sessionEntries(kernel: Kernel, shared: boolean): { label: string; icon: string; title?: string; run: () => void }[] {
+  if (!shared) {
+    return [
+      { label: "Interrupt", icon: "stop", run: () => void kernel.interrupt() },
+      { label: "Restart", icon: "back", run: () => void restartKernel(kernel) },
+    ];
+  }
+  const words = kernel.sessionWords || projectPython()?.session || "";
+  return [
+    { label: "Interrupt the project's Python session", icon: "stop", title: words, run: () => void kernel.interrupt() },
+    { label: "Restart the project's Python session", icon: "back", title: words, run: () => void restartKernel(kernel) },
+    { label: "Libraries…", icon: "settings", title: "The project's Python and its libraries (the Environment page)", run: () => openProjectLibraries() },
+  ];
+}
+
+/** Stop the document's Python: its own kernel, or (asked first) the project's one session for every
+ *  document of the project. The next Run starts a new one. */
+function stopSession(): { stopped: boolean } {
+  const kernel = kernelOf();
+  if (!kernel.id) return { stopped: false };
+  if (kernel.shared && !confirm("Stop the project's Python session? Every variable is gone, for every notebook and script of the project. The next Run starts a new one.")) return { stopped: false };
+  kernel.stop(false, kernel.shared);
+  toast(kernel.shared ? "The project's Python session stopped" : "Kernel stopped");
+  return { stopped: true };
+}
+
+/** The Environment's Libraries tab, over this page (the project's Python, requirements.txt). */
+function openProjectLibraries(): void {
+  openEnvironment("library");
 }
 
 // ----- the status bar: for the focused document
@@ -2105,19 +2157,21 @@ function drawStatus(): void {
   const doc = current;
   const kernel = doc?.kernel;
   if (kernel) {
-    const words = STATE_WORDS[kernel.state];
+    // A project's document: the project's one Python session (busy while any of its documents runs).
+    const shared = inSession(doc);
+    const elsewhere = kernel.state === "idle" && kernel.othersRunning() > 0;
+    const look = elsewhere ? "busy" : kernel.state;
+    const words = elsewhere ? "running another document's code…" : STATE_WORDS[kernel.state];
+    const name = shared ? "Python session" : "Kernel";
     const knob = h(
       "button",
-      { type: "button", class: `btn ghost wb-kernel ${kernel.state}`, "aria-label": "Kernel", title: "Kernel: Interrupt, Restart" },
+      { type: "button", class: `btn ghost wb-kernel ${look}${shared ? " shared" : ""}`, "aria-label": name, title: shared ? kernel.sessionWords || projectPython()?.session || "" : "Kernel: Interrupt, Restart" },
       h("span", { class: "wb-dot", "aria-hidden": "true" }),
-      h("span", {}, "Kernel"),
-      words ? h("span", { class: `wb-state ${kernel.state}` }, words, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "") : null,
+      h("span", {}, name),
+      words ? h("span", { class: `wb-state ${look}` }, words, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "") : null,
       icon("down"),
     ) as HTMLButtonElement;
-    menuButton(knob, "Kernel", () => [
-      { label: "Interrupt", icon: "stop", run: () => void kernel.interrupt() },
-      { label: "Restart", icon: "back", run: () => void restartKernel(kernel) },
-    ], { above: true });
+    menuButton(knob, name, () => sessionEntries(kernel, shared), { above: true });
     clear(kernelHost, knob);
     // Not drawn again while the picker is in use (a run's state changes would close it).
     if (!envHost.contains(document.activeElement) || envHost.dataset.doc !== String(doc.id)) {
@@ -2195,7 +2249,7 @@ const explorerPane = mountExplorerPane({
     return t.document ? (t.cell ? `cell ${t.cell} of ${t.document}` : t.document) : "a notebook or a script (none is in front)";
   },
   showGrid: (grid) => showGridAtHome(grid),
-  openVariable: () => openVariables(),
+  openVariable: (name?: string) => openEnvironment("setting", name),
   addTable: (anchor) => void openMenu(anchor, "Add a table", tableEntries()),
   toggled: () => {
     remember();
@@ -2910,6 +2964,7 @@ const COMMANDS: Command[] = [
   { id: "run.cell", group: "Run", title: "Run the selected cell", keys: "Ctrl+Enter", args: "index: a cell, from 0 (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().runCell(num(a, "index")) },
   { id: "run.above", group: "Run", title: "Run the cells above", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().runAbove() },
   { id: "run.below", group: "Run", title: "Run this cell and the ones below", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().runBelow() },
+  { id: "run.stopSession", group: "Run", title: "Stop the Python session", when: isCode, whyNot: "no notebook or script is in front", run: () => stopSession() },
   { id: "run.interrupt", group: "Run", title: "Interrupt", when: isCode, whyNot: "no notebook or script is in front", run: () => kernelOf().interrupt() },
   { id: "run.restart", group: "Run", title: "Restart the kernel", when: isCode, whyNot: "no notebook or script is in front", run: () => restartKernel(kernelOf()) },
   // Cells
@@ -3341,6 +3396,17 @@ onNotice((notice) => {
     void codex.refresh(); // the explorer follows the project's files
   }
   if (notice.type === "project_changed") void refreshMode();
+  // One Python per project: the project's Python as it is made, and its one session's restart and end.
+  if (heardProjectPython(notice as unknown as { type: string })) {
+    for (const d of docs) joinSession(d);
+    envHost.dataset.doc = "";
+    drawStatus();
+  }
+  if (notice.type === "session_restarted" || notice.type === "session_ended") {
+    const said = notice as unknown as { type: string; kernel?: string; python?: string; words?: string };
+    if (sessionHeard(said) && said.words) toast(said.words);
+    drawStatus();
+  }
   if (notice.type === "workbook_changed") for (const d of docs) d.workbook?.noticed(String((notice as unknown as { id: string }).id));
   // The agent's workbench_window: a command run here, as the palette would, and answered.
   // A document moved back to this (the main) window from one it was popped out into.
@@ -3411,6 +3477,7 @@ void Promise.all([
   loadConnections(),
   whenMode(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),
+  loadProjectPython(), // before any document opens: a project's document joins the project's one session
 ]).then(() => {
   drawEmpty();
   // A document popped out into this window starts it fresh (a new window copies its opener's session).

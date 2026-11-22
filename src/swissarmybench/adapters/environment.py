@@ -3,6 +3,7 @@ requirements.txt, and the package index's newest versions.
 
   python_of      the project's own Python (its `.venv` at its top), else this app's own
   installed      a Python's libraries by name and version, read from its site-packages' metadata: nothing runs
+  requires       each of them with what it says it needs (a notebook's older environment: what was chosen)
   requirements   the project's requirements.txt, read and written atomically, only when its bytes change
   latest         each library's newest version on the index: one GET a library, only when the Libraries
                  tab opens or the user asks (never in the background), carrying only the library's name.
@@ -74,6 +75,23 @@ def installed(python: str) -> dict[str, str]:
         name = distribution.metadata.get("Name") if distribution.metadata else None
         if name:
             out.setdefault(str(name), str(distribution.version))
+    return out
+
+
+def requires(python: str) -> dict[str, list[str]]:
+    """A Python's libraries, each with what it says it needs (its metadata's Requires-Dist names, an extra's
+    left out): how the libraries someone chose are told from the ones they brought (domain/project_python.py).
+    Read from the metadata folders in its site-packages: nothing runs."""
+    if os.path.realpath(python) == os.path.realpath(sys.executable):
+        found = metadata.distributions()
+    else:
+        found = metadata.distributions(path=[str(p) for p in _site_packages(python)])
+    out: dict[str, list[str]] = {}
+    for distribution in found:
+        name = distribution.metadata.get("Name") if distribution.metadata else None
+        if name:
+            needs = [r for r in (distribution.requires or []) if "extra ==" not in r.replace("'", '"')]
+            out.setdefault(str(name), needs)
     return out
 
 

@@ -660,7 +660,8 @@ def setting_item(variable: Mapping[str, Any], used: Sequence[Used]) -> Item:
     else:
         value = short(str(variable.get("value") or "")) if is_set else "not set"
     if source == "vault":
-        origin = f"key vault · {variable.get('vault') or ''}"
+        # The vault and the secret's name, never a value (the Variables page's line, kept as it folded in).
+        origin = f"key vault · {variable.get('vault') or ''} · {variable.get('vault_secret') or ''}"
         where = f"key vault {variable.get('vault') or ''}, entry {variable.get('vault_secret') or ''}"
     else:
         origin = SETTING_SOURCES.get(source, source)
@@ -697,7 +698,10 @@ def setting_uses(uses: Iterable[Mapping[str, Any]]) -> list[Used]:
     for use in uses:
         kind, name = str(use.get("kind")), str(use.get("name"))
         if kind == "connection":
-            out.append(Used("connection", name, {"to": "connection", "name": name}))
+            # The connection and the box the setting fills (Warehouse · Password).
+            how = str(use.get("how") or "")
+            words = f"{name} · {how[:1].upper()}{how[1:]}" if how else name
+            out.append(Used("connection", words, {"to": "connection", "name": name}))
         elif kind == "run_settings":
             out.append(
                 Used("settings", f"Run settings · {name}", {"to": "document", "path": use.get("path")})

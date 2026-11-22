@@ -27,6 +27,9 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
                                             Markdown cell's text), its names filled
   POST   /workbench/kernels/{id}/html-marks {"names"}: a mark of what each name would draw now
   POST   /workbench/kernels/{id}/interrupt, /restart       DELETE /workbench/kernels/{id}
+         (a document of the open project runs in the project's ONE session: start answers the same
+         kernel for each, Interrupt and Restart are the session's, DELETE leaves it running for the
+         others; DELETE ?session=1 stops it)
   POST   /workbench/handoffs  {"document", "kernel"?, "to"?}   a document moving to another window
   GET    /workbench/handoffs/{id}  taken yet?   POST .../take {"window"}   DELETE: not taken, it stays
 """
@@ -158,8 +161,9 @@ def routes(
         return json_response({"ok": True})
 
     async def stop(request: Request) -> Response:
-        await workbench.stop(request.path_params["kernel"])
-        return json_response({"ok": True})
+        # A document closed: its own kernel stops; the project's one session goes on (?session=1 stops it).
+        everything = request.query_params.get("session") in ("1", "true")
+        return json_response(await workbench.leave(request.path_params["kernel"], everything))
 
     async def hand_off(request: Request) -> Response:
         return json_response(await workbench.hand_off(await read_json(request)))

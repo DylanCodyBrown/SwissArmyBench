@@ -112,7 +112,7 @@ from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
 from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.desktop import SystemShell, qt_version
-from swissarmybench.server.environments import ProjectLibraries
+from swissarmybench.server.environments import ProjectLibraries, make_venv
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.text_process import run_text
@@ -170,6 +170,7 @@ from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
 from swissarmybench.services.project_outline import BothTables, CardPortability, ProjectOutline
+from swissarmybench.services.project_python import ProjectPython
 from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
@@ -261,6 +262,7 @@ class Services:
     session_log: SessionLog
     variables: Variables
     environment: Environment
+    project_python: ProjectPython
     explorer: Explorer
     connection_swap: ConnectionSwap
     navigation: Navigation
@@ -797,6 +799,7 @@ class Built:
     local_api: LocalApi
     sessions: Sessions
     environment: Environment
+    project_python: ProjectPython
     actions: Actions
     update_helper: UpdateHelper
     extensions: Extensions
@@ -1217,6 +1220,8 @@ async def _use_project(b: Built, folder: str | None) -> None:
     await b.live.broadcast({"type": "blades_changed"})
     if b.has("structures"):
         await b.structures.project_changed(folder)  # the closed project's structures go with it
+    if b.has("project_python"):
+        await b.project_python.project_changed(folder)  # its one Python session, and its own .venv
 
 
 async def _library_moved(b: Built) -> None:
@@ -1532,6 +1537,16 @@ def _variables_part(b: Built) -> None:
         _variables_once(state_dir, b.library, variables)
     # The Environment (the owner, 2026-11-21/22): everything the project holds (services/environment.py).
     b.sessions = Sessions(b.processes, b.store, b.live)
+    # One Python per project (the owner, 2026-11-21): the project's own .venv, made in the background, and
+    # the one session every document of the project runs in (the Workbench's; ended when the project changes).
+    b.project_python = project_python = ProjectPython(
+        ws, environment_files, make_venv, b.settings.project_venv
+    )
+    project_python.end_session = b.workbench.end_session
+    project_python.session_kernel = b.workbench.session_kernel
+    project_python.forget_environment = b.documents.forget_environment
+    b.workbench.project = project_python.session
+    b.workbench.moved_environment = project_python.moved
     b.environment = Environment(
         ws,
         sources_from(
@@ -1544,6 +1559,7 @@ def _variables_part(b: Built) -> None:
         ProjectLibraries(environment_files),
         b.approvals,
     )  # fmt: skip
+    b.environment.project_python = project_python
     b.live.listeners.append(b.environment.heard)
     # Set up from the meta store: what this computer needs before the team's connections work.
     b.library_setup = LibrarySetup(
@@ -2141,6 +2157,7 @@ def _services(b: Built) -> Services:
         session_log=b.session_log,
         variables=b.variables,
         environment=b.environment,
+        project_python=b.project_python,
         explorer=b.explorer,
         connection_swap=b.connection_swap,
         navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if b.audit_log else None)),

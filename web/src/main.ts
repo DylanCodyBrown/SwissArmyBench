@@ -31,6 +31,7 @@ import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas 
 import { mountContextMenus } from "./cellMenu";
 import { watchConnectionColours } from "./connectionColours";
 import { libraryNotices } from "./library";
+import { projectPythonNotices } from "./projectSession";
 import { api, connect, failure, gridId, onNotice, openedWith, requireSession, token, type Notice } from "./api";
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
@@ -290,6 +291,7 @@ async function start(): Promise<void> {
     void activateGrid(grid);
   });
   libraryNotices(); // the move into the library, said once (library.ts)
+  projectPythonNotices(); // a project's own Python being made, said in one line (projectSession.ts)
   // Beta mode (the beta log and Leave a note…): on every window of this page; nothing while it is off.
   mountBeta("grid", {
     window: popout ? "steps" : keysWindow ? "keys" : sqlWindow ? "sql" : "main",

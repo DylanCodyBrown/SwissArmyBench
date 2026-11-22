@@ -25,7 +25,7 @@ from swissarmybench.domain.codegen import variable_name, view_query
 from swissarmybench.domain.connection_usage import connection_named
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.grids import Grid
-from swissarmybench.domain.steps import describe_step
+from swissarmybench.domain.steps import ViewSettings, describe_step
 from swissarmybench.domain.table_cells import Origin, PlanCell, TableSpec
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.workspace import Workspace
@@ -160,32 +160,50 @@ class TableCells:
 
         return {"tables": await ws.workers.run(BACKGROUND, read) if pairs else []}
 
-    def _open(self, name: str) -> tuple[DatasetInfo, Grid]:
-        """The open table `name` (any case, as DuckDB reads a name) and the grid that shows it."""
+    def _open(self, name: str) -> tuple[DatasetInfo, Grid | None]:
+        """The table `name` (any case, as DuckDB reads a name) and the grid that shows it. A table is shared
+        at once (the owner, 2026-11-21: every table in the Environment is read by name): one no grid
+        shows yet is read as it is (None: no steps to apply), never opened as a grid first."""
         ws = self.ws
-        infos = [i for i in ws.store.all() if ws.grids.first_for(i.name) is not None]
+        infos = list(ws.store.all())
         info = next((i for i in infos if i.name == name), None) or next(
             (i for i in infos if i.name.lower() == name.lower()), None
         )
-        grid = ws.grids.first_for(info.name) if info is not None else None
-        if info is None or grid is None:
-            raise LookupError(f"No table named {name} is open in Grids.")
-        return info, grid
+        if info is None:
+            raise LookupError(f"No table named {name} is in the Environment.")
+        return info, ws.grids.first_for(info.name)
+
+    async def _read(self, info: DatasetInfo, grid: Grid | None, fn: Callable[[SqlSession, str], Any]) -> Any:
+        """`fn(cursor, rows)` over a table as its grid shows it (its steps applied), or as it is when no
+        grid shows it."""
+        ws = self.ws
+        steps, settings = (grid.steps, grid.settings) if grid is not None else ([], ViewSettings())
+
+        def read(cursor: SqlSession) -> Any:
+            with ws.views.reading(cursor, info, steps, settings, ordered=True) as rows:
+                return fn(cursor, rows)
+
+        if grid is not None:
+            return await ws.grid_query(grid, None, BACKGROUND, read)
+        return await ws.workers.run(BACKGROUND, lambda: read(ws.views.adapted(ws.store.cursor())))
 
     # ===== the open tables as a source of the adapter (Plans/adapter.plan.md, Order 3) =====
 
     async def adapter_tables(self) -> dict[str, Any]:
-        """The open tables as the adapter lists a source's: each one's name and its grid view's columns
-        (its steps applied) with their DuckDB types."""
+        """The Environment's tables as the adapter lists a source's: each one's name and its grid view's
+        columns (its steps applied) with their DuckDB types; a table no grid shows yet, its own columns."""
         ws = self.ws
-        pairs = [(i, g) for i in ws.store.all() if (g := ws.grids.first_for(i.name)) is not None]
+        pairs = [(i, ws.grids.first_for(i.name)) for i in ws.store.all()]
 
         def listed() -> list[dict[str, Any]]:
             cursor = ws.store.cursor()
             out = []
             for info, grid in pairs:
-                compiled = ws.views.compile(cursor, info, grid.steps, grid.settings)
-                columns = [{"name": c.name, "type": c.type} for c in compiled.columns_at(None)]
+                if grid is None:
+                    columns = [{"name": c.name, "type": c.type} for c in info.columns]
+                else:
+                    compiled = ws.views.compile(cursor, info, grid.steps, grid.settings)
+                    columns = [{"name": c.name, "type": c.type} for c in compiled.columns_at(None)]
                 out.append({"name": info.name, "columns": columns})
             return out
 
@@ -196,15 +214,12 @@ class TableCells:
         answer as an Arrow IPC stream, and the parts folded (DuckDB folds them all); nothing kept."""
         info, grid = self._open(name)
         if self._planned_bytes is None:
-            raise LookupError(f"No table named {name} is open in Grids.")
+            raise LookupError(f"No table named {name} is in the Environment.")
         planned = self._planned_bytes
         ws = self.ws
-
-        def read(cursor: SqlSession) -> tuple[bytes, tuple[str, ...]]:
-            with ws.views.reading(cursor, info, grid.steps, grid.settings, ordered=True) as rows:
-                return planned(cursor, rows, plan)
-
-        found: tuple[bytes, tuple[str, ...]] = await ws.grid_query(grid, None, BACKGROUND, read)
+        found: tuple[bytes, tuple[str, ...]] = await self._read(
+            info, grid, lambda cursor, rows: planned(cursor, rows, plan)
+        )
         ws.audit.write("app", "table_read_by_adapter", info.name, rows=None)
         return found
 
@@ -214,14 +229,8 @@ class TableCells:
         ws = self.ws
         info, grid = self._open(name)
         if self._view_bytes is None:
-            raise LookupError(f"No table named {name} is open in Grids.")
-        to_bytes = self._view_bytes
-
-        def read(cursor: SqlSession) -> bytes:
-            with ws.views.reading(cursor, info, grid.steps, grid.settings, ordered=True) as rows:
-                return to_bytes(cursor, rows)
-
-        found: bytes = await ws.grid_query(grid, None, BACKGROUND, read)
+            raise LookupError(f"No table named {name} is in the Environment.")
+        found: bytes = await self._read(info, grid, self._view_bytes)
         ws.audit.write("app", "table_read_by_sql", info.name, rows=None)
         return found
 

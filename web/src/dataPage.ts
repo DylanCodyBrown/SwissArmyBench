@@ -21,7 +21,7 @@ import { api } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { EMPTY_STATE, type Explorer, type ExplorerState, mountExplorer } from "./dataExplorer";
 import { dismissDialog, HOME_WINDOW, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
-import { openVariables } from "./variablesPage";
+import { openEnvironment } from "./environmentPage";
 import { errorHere } from "./errorNote";
 
 /** The page's name, in one place: the rail, the title. */
@@ -88,7 +88,7 @@ function drawPage(state: ExplorerState): void {
       }
       if (!window.open(`/g/${encodeURIComponent(grid)}`, HOME_WINDOW)) errorHere("The browser blocked the grid's window. Allow pop-ups for this address.");
     },
-    openVariable: () => openVariables(),
+    openVariable: (name?: string) => openEnvironment("setting", name),
   });
   shown = explorer;
   body.append(explorer.element);

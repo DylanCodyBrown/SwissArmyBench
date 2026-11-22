@@ -153,6 +153,12 @@ class Documents:
         python = self._chosen().get(str(Path(path).expanduser().resolve()))
         return python if python and Path(python).is_file() else None
 
+    def forget_environment(self, path: str) -> None:
+        """A document's own Python is no longer remembered (it runs in its project's one Python now)."""
+        chosen = self._chosen()
+        if chosen.pop(str(Path(path).expanduser().resolve()), None) is not None:
+            self._environments.write_text(json.dumps(chosen, indent=1), encoding="utf-8")
+
     def remember_environment(self, path: str, python: str) -> None:
         chosen = self._chosen()
         chosen[str(Path(path).expanduser().resolve())] = python

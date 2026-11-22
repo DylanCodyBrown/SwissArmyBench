@@ -317,7 +317,7 @@ def test_the_agents_one_tool_names_every_action() -> None:
     tool = commands.REGISTRY["environment"]
     assert set(commands._ENVIRONMENT) == {
         "list", "show", "libraries", "open", "rename", "keep", "insert", "remove", "clear", "install",
-        "update", "pin",
+        "update", "pin", "python", "set_python",
     }  # fmt: skip
     assert "Allow" in tool.summary
     with pytest.raises(commands.CommandError, match="action is one of"):

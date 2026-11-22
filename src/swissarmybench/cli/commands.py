@@ -4344,8 +4344,10 @@ _ENVIRONMENT = {
     "install": ("POST", "/environment/libraries/install"),
     "update": ("POST", "/environment/libraries/update"),
     "pin": ("POST", "/environment/libraries/pin"),
+    "python": ("GET", "/environment/python"),
+    "set_python": ("POST", "/environment/python"),
 }
-_ENVIRONMENT_ASKS = {"list": ("search",), "show": ("kind", "name"), "libraries": ("check",)}
+_ENVIRONMENT_ASKS = {"list": ("search",), "show": ("kind", "name"), "libraries": ("check",), "python": ()}
 
 
 @command(
@@ -4359,7 +4361,9 @@ _ENVIRONMENT_ASKS = {"list": ("search",), "show": ("kind", "name"), "libraries":
         'list: {"search"}; show, open, insert: {"kind": table|variable|structure|setting|library, "name"}; '
         'rename: + {"to"}; remove: + {"python": true} (a table: also delete it in Python); keep: {"name", '
         '"keep"}; clear: {"tables", "variables", "structures", "dry_run"}; libraries: {"check": true} (ask '
-        'the index); install: {"name"}; update: {"name"} or {"all": true}; pin: {"name", "pinned"}.',
+        'the index); install: {"name"} or {"names": [...]}; update: {"name"} or {"all": true}; pin: {"name", '
+        '"pinned"}; python: the project\'s own Python (.venv: making, ready, failed), its one session, a '
+        'notebook\'s older environment offered; set_python: {"make": true} or {"offer": document, "add"}.',
         "json",
     ),
 )
