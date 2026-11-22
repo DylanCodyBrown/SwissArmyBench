@@ -283,7 +283,12 @@ def test_copy_project_leaves_kept_rows_and_caches_behind_unless_ticked(tmp_path:
     (source / ".sab" / "project.json").write_text("{}")
     (source / "__pycache__").mkdir()
     (source / "data.ipynb").write_text("{}")
+    (source / "sandbox").mkdir()
+    (source / "sandbox" / "sandbox.duckdb").write_bytes(b"made-up")
+    (source / "sandbox_data.py").write_text("TABLES = []\n")
     archive.copy_project(str(source), str(tmp_path / "copy"), data=False)
+    # The sandbox's rows wait for the same tick; its mirror (names only) goes.
+    assert not (tmp_path / "copy" / "sandbox").exists() and (tmp_path / "copy" / "sandbox_data.py").is_file()
     assert (tmp_path / "copy" / "data.ipynb").is_file() and (
         tmp_path / "copy" / ".sab" / "project.json"
     ).is_file()
@@ -293,6 +298,7 @@ def test_copy_project_leaves_kept_rows_and_caches_behind_unless_ticked(tmp_path:
     )
     archive.copy_project(str(source), str(tmp_path / "whole"), data=True)
     assert (tmp_path / "whole" / ".sab" / "data" / "t.parquet").is_file()
+    assert (tmp_path / "whole" / "sandbox" / "sandbox.duckdb").is_file()
     with pytest.raises(FileExistsError):
         archive.copy_project(str(source), str(source / "inside"), data=False)
 

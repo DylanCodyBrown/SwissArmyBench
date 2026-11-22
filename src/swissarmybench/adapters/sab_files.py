@@ -5,7 +5,7 @@ list.
   state     .sab/project.json, visualizations.json, model.json, data/<table>.parquet: each written
             atomically (a temporary file beside it, then one replace), and only when its bytes differ
   files     the project's own documents (code and text: never data, never .sab/, no environments)
-  copy      Copy project to: the folder copied (.sab/data/ only on a tick; caches and environments left)
+  copy      Copy project to: the folder copied (.sab/data/ and sandbox/ only on a tick; no environments)
   recent    recent_projects.json in the state folder: folder paths and times only
 
 Nothing here is written but at the user's word (Save, Autosave, New project, Copy project to, Import)
@@ -265,8 +265,9 @@ class SabArchive:
 
     @staticmethod
     def copy_project(source: str, target: str, data: bool, git: bool = True, copied_from: str = "") -> str:
-        """Copy project to: the whole folder into `target` (a new or empty folder), its .sab/data only when
-        `data`; environments and caches stay behind (they are this computer's). `git` False: its .git too
+        """Copy project to: the whole folder into `target` (a new or empty folder), its .sab/data and its
+        sandbox/ (the sandbox's rows) only when `data`; environments and caches stay behind (they are this
+        computer's). `git` False: its .git too
         (Share and Make a local copy). `copied_from`: written into the copy's .sab/project.json."""
         root = Path(source).expanduser().resolve()
         into = Path(target).expanduser().resolve()
@@ -283,6 +284,8 @@ class SabArchive:
             skipped = {n for n in names if n in leave or n.endswith(".saving")}
             if not data and here == root / APP_FOLDER:
                 skipped.add("data")
+            if not data and here == root and "sandbox" in names:
+                skipped.add("sandbox")  # the sandbox's rows travel only on the same tick as .sab/data
             return skipped
 
         into.parent.mkdir(parents=True, exist_ok=True)

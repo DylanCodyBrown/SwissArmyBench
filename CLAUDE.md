@@ -241,7 +241,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   and README.md only when absent), by Autosave (on by default) and by the Autosave switch, each file only
   when its bytes change. Rows only on the user's "Keep its rows" tick, into `.sab/data/` (Git-ignored);
   the agent's save or Copy project to with rows waits for the user's Allow. Copy project to copies the
-  folder (`.sab/data/` on a tick). **Launch's builds (the owner, 2026-11-19: "think Visual Studio"; "we just have
+  folder (`.sab/data/` and `sandbox/` on a tick). **Launch's builds (the owner, 2026-11-19: "think Visual Studio"; "we just have
   apps in folders"):** each launch of a Streamlit app writes `builds/<app>/<n>/` at the project's top (code,
   canvas.json, build.json; never rows or a secret; shared in Git), and a saved analyzer session goes beside it
   (perf-<time>.json: names, times, sizes, counts only). `recent_projects.json` holds the projects' folder paths and times only;

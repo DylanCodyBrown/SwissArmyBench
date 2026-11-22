@@ -8830,3 +8830,10 @@ Open notes:
   once the load was gone. A budget that grows with the page's widgets, or the check's time said, may help.
 - **Preview photographers left by earlier runs** (before the fix in this branch) keep running until killed:
   `pkill -f sab-preview` clears them on a test machine.
+
+## Copies and the sandbox's rows, 2026-11-22
+
+Decided (closing the sweep's open item): Copy project to, Share and Make a local copy leave `sandbox/` (the
+sandbox's DuckDB files, its rows) behind unless "Keep its rows" is ticked, the same tick as `.sab/data/`; the
+agent's copy with rows still waits for Allow. The sandbox mirror (sandbox_data.py, sandbox_connections.py: names
+only) always goes. A copy without the tick opens with an empty sandbox; Add to sandbox fills it again.
