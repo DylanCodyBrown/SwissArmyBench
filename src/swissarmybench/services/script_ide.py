@@ -20,8 +20,10 @@ import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+from swissarmybench.domain import changes as change_rules
 from swissarmybench.domain import code_tree
 from swissarmybench.domain import script_ide as rules
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, Refused, Workspace
 
 
@@ -202,6 +204,16 @@ class ScriptIde:
                 ref["text"] = ""
         return {"references": found}
 
+    def _changed(self, who: str, path: str, before: str | None, after: str | None) -> None:
+        """The change log (services/changes.py): a script this page wrote, made or took away, by its
+        functions and classes (their text fingerprinted), as a document's own Save says it."""
+        name = path.replace("\\", "/").rsplit("/", 1)[-1]
+        was = change_rules.document_shape("script", before) if before is not None else None
+        now = change_rules.document_shape("script", after) if after is not None else None
+        change = raised("script", name, was, now)
+        if change:
+            self.ws.audit.write(who, "changed", path, **change)
+
     # ===== rename =====
 
     async def rename(self, body: Any, who: str = "user") -> dict[str, Any]:
@@ -233,6 +245,7 @@ class ScriptIde:
             if self._code.write(changed_path, new_text):
                 written.append(changed_path)
                 await self._touched(changed_path, who)
+                self._changed(who, changed_path, before.get(changed_path), new_text)
         self.ws.audit.write(who, "script_rename", path, to=str(to), files=len(written))
         return plan | {"applied": True, "written": written}
 
@@ -278,6 +291,7 @@ class ScriptIde:
             if self._code.write(changed_path, new_text):
                 written.append(changed_path)
                 await self._touched(changed_path, who)
+                self._changed(who, changed_path, texts.get(changed_path), new_text)
         self.ws.audit.write(who, "script_replace", None, files=len(written), count=plan["count"])
         return {
             "count": plan["count"],
@@ -398,6 +412,7 @@ class ScriptIde:
         copy_full = f"{full[: -len(relative)]}{copy_relative}"
         self._code.write(copy_full, text)
         await self._touched(copy_full, who)
+        self._changed(who, copy_full, None, text)
         self.ws.audit.write(who, "script_duplicate", relative, to=copy_relative)
         return {"path": copy_full}
 
@@ -413,8 +428,11 @@ class ScriptIde:
         self._editable(relative, files, full)
         if not self._code.exists(full):
             raise Refused(f"{relative} is not there.")
+        gone = self._code.read(full) if relative.endswith(".py") else None
         went = await asyncio.to_thread(self._trash, full)
         await self._touched(full, who)
+        if gone is not None:
+            self._changed(who, full, gone, None)
         await self.ws.live.broadcast({"type": "code_file_moved", "from": full, "to": None, "by": who})
         self.ws.audit.write(who, "script_delete", relative)
         return {"deleted": full, "to": went}
