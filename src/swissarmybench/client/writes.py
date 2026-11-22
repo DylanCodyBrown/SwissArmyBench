@@ -1,7 +1,8 @@
 """What every Write starter shares (docs/ideas.md, "Writing data", the owner, 2026-11-17: "writes are
 meant to be handled with blades and cells in notebooks"): the rows, the dry run's plan and the write's
-counts. Each target's own helper builds on it (client/write_sql.py, write_dataverse.py); the statements
-and calls themselves stay written out in each blade's cell.
+counts. Each target's own helper builds on it (client/write_sql.py); since the adapter's phase 3 the
+Dataverse, SharePoint list and lake starters are its write (by_adapter: the dry run counted by its reads,
+then sab_adapter.write).
 
     rows      the rows to write (a DataFrame of any kind, an Arrow table, a DuckDB relation), staged in a
               DuckDB of their own: their columns and types, counts, keys and batches are DuckDB SQL
@@ -215,6 +216,11 @@ class Rows:
         for batch in self.batches(self.names, size, value):
             yield [dict(zip(self.names, row, strict=True)) for row in batch]
 
+    def arrow(self) -> Any:
+        """The staged rows as an Arrow table (DuckDB 2's to_arrow_table, 1's fetch_arrow_table)."""
+        found = self.db.sql("FROM sab_rows")
+        return (getattr(found, "to_arrow_table", None) or found.fetch_arrow_table)()
+
     def check_keys(self, keys: Sequence[str], unique: bool) -> list[str]:
         """The key columns, checked: columns of the rows, never empty; with `unique`, no two rows share
         one (an upsert would write the second over the first)."""
@@ -244,6 +250,60 @@ class Rows:
     def distinct(self, keys: Sequence[str]) -> int:
         picked = ", ".join(quote(k) for k in keys)
         return int(self.one(f"SELECT count(*) FROM (SELECT DISTINCT {picked} FROM sab_rows)"))
+
+
+# ===== a write by the adapter (Plans/adapter.plan.md, phase 3: the Write starters call its write) =====
+
+_COUNTED = {
+    "insert": ("inserted",),
+    "update": ("updated",),
+    "merge": ("updated", "inserted"),
+    "delete": ("deleted",),
+    "truncate": ("deleted", "inserted"),
+}
+
+
+def by_adapter(
+    w: Write,
+    source: Any,
+    table: str,
+    mode: str,
+    key: Sequence[str] = (),
+    *,
+    said: str = "",
+    written: bool = False,
+) -> Write:
+    """The write's dry run and the write itself by the adapter on `source` (the connection's own client in
+    its backend: sab_adapter.source_from): what it would do counted by sab_adapter.planned (reads, nothing
+    written), then, with dry_run False, sab_adapter.write. An update changes only rows that are there: a key
+    that is not stops it (merge adds them). `written`: the counts said as rows written (a file, an append)."""
+    from swissarmybench.adapters import sab_adapter  # imported when a write runs: this module stays stdlib
+
+    data = None if w.rows is None else w.rows.arrow()
+    try:
+        plan = sab_adapter.planned(source, table, data, tuple(key), mode)
+    except sab_adapter.AdapterError as error:
+        raise WriteError(str(error)) from None
+    given = 0 if data is None else data.num_rows
+    if mode == "update" and plan.updated < given:
+        raise WriteError(
+            f"{given - plan.updated:,} of the rows' keys are not in {table}: an update only changes rows "
+            "that are there (merge adds the others)."
+        )
+    w.would(said, **_counts(plan, mode, written))
+    if not w.dry_run:
+        try:
+            done = sab_adapter.write(source, table, data, tuple(key), mode)
+        except sab_adapter.AdapterError as error:
+            raise WriteError(str(error)) from None
+        w.done(**{k: int(v or 0) for k, v in _counts(done, mode, written).items()})
+    return w
+
+
+def _counts(counts: Any, mode: str, written: bool) -> dict[str, int | None]:
+    if written:
+        return {"written": int(counts.inserted)}
+    return {name: int(getattr(counts, name)) for name in _COUNTED[mode]}
 
 
 def quote(name: str) -> str:

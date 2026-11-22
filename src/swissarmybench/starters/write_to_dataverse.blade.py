@@ -8,114 +8,79 @@
 # variable = "write_dataverse"
 # ///
 """Dataverse: the rows written to a table through the Web API (its SQL endpoint is read-only), by
-`mode`: create, update, upsert, delete.
+`mode`: create, update, upsert, delete, truncate.
 
     write_dataverse = sab.blade("Write to Dataverse")  # the project's functions.py will hold it
     write_dataverse("CRM", "account", accounts, mode="upsert", key="accountnumber")  # a dry run
 
-Dry run first: dry_run=True (the default) only says what it would do and changes nothing;
-dry_run=False writes. An agent sets dry_run=False only after the user said to write, in their own
-words, in this conversation. It signs in through the connection's own sign-in (sab.connection): no
-secret here. Returns the write's report.
+Dry run first: dry_run=True (the default) only says what it would do and changes nothing (its counts are
+read from the table as it is); dry_run=False writes. An agent sets dry_run=False only after the user said
+to write, in their own words, in this conversation. It signs in through the connection's own sign-in
+(sab.connection): no secret here. Returns the write's report.
 
-Each batch is one $batch change set: all of its rows or none (a failure names the batch; the
-batches before it stay written). A throttled request (429) waits as Dataverse asks, then goes again.
-A choice column takes its labels (Won, not 1); a lookup is a column named <column>@odata.bind.
-
-Laid out top to bottom: one function per mode (create, update, upsert, delete), each checking the rows,
-saying what it would do, then writing; `write_dataverse`, the one you call, is last and picks the mode's
-function.
+The write is the adapter's (sab_adapter.write on the connection, Plans/adapter.plan.md): each batch is one
+$batch change set, all of its rows or none (a failure names the batch; the batches before it stay
+written); a throttled request (429) waits as Dataverse asks, then goes again; a choice column takes its
+labels (Won, not 1); a lookup is a column named <column>@odata.bind. truncate deletes every record, then
+makes the rows.
 """
 
 from typing import Any
 
-from swissarmybench.client.write_dataverse import DataverseWrite
-from swissarmybench.client.writes import WriteError
+from swissarmybench.adapters import sab_adapter
+from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
-
-# create: each row made as a new record.
-def _create(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
-    w.check_columns()  # each column is one of the table's
-    w.would(
-        f"POST {w.entity_set}: one record a row, in {w.change_sets()} $batch change sets",
-        inserted=w.need_rows().count,
-    )
-    if not dry_run:
-        answers = w.send(lambda row: ("POST", w.entity_set, w.body(row, skip_empty=True), {}))
-        w.done(inserted=len(answers))
-
-
-# update: each row changes the one its key finds.
-def _update(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
-    w.check_columns()  # each column is one of the table's
-    w.check_key(key)  # a value in each row, one row each
-    found = w.existing(key)  # the keys that are records
-    missing = [k for k in w.keys_of(key) if k not in found]
-    if missing:  # an update only updates: a key that is not a record stops it (the upsert starter makes them)
-        raise ValueError(f"{len(missing):,} keys are not records of {table}: {', '.join(missing[:5])}")
-    w.would(
-        f"PATCH {w.entity_set}(<key>) with If-Match: * (update only), in {w.change_sets()} change sets",
-        updated=len(found),
-    )
-    if not dry_run:
-        answers = w.send(
-            lambda row: ("PATCH", w.address(key, row), w.body(row, without=[key]), {"If-Match": "*"})
-        )
-        w.done(updated=len(answers))
-
-
-# upsert: a row whose keys find one is updated; any other is inserted.
-def _upsert(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
-    w.check_columns()  # each column is one of the table's
-    w.check_key(key)  # a value in each row, one row each
-    found = len(w.existing(key)) if dry_run else None  # the keys that are records already
-    w.would(
-        f"PATCH {w.entity_set}(<key>) (Dataverse makes the record when it is not there), in {w.change_sets()} change sets",
-        updated=found,
-        inserted=None if found is None else w.need_rows().count - found,
-    )
-    if not dry_run:
-        prefer = {"Prefer": "return=representation"}  # answered 201 when made, 200 when updated
-        answers = w.send(lambda row: ("PATCH", w.address(key, row), w.body(row, without=[key]), prefer))
-        w.done(inserted=answers.count(201), updated=answers.count(200))
-
-
-# delete: the table's rows that the keys find are deleted.
-def _delete(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
-    w.check_columns([key])  # the key is one of the table's columns
-    found = w.existing(key)  # only the keys that are records are deleted
-    w.would(f"DELETE {w.entity_set}(<key>), in {w.change_sets()} change sets", deleted=len(found))
-    if not dry_run:
-
-        def gone(
-            row: dict[str, Any],
-        ) -> tuple[str, str, None, dict[str, str]] | None:  # a key that is a record: DELETE it; else nothing
-            return ("DELETE", w.address(key, row), None, {}) if str(row[key]).lower() in found else None
-
-        answers = w.send(gone)
-        w.done(deleted=len(answers))
-
-
-_MODES = {"create": _create, "update": _update, "upsert": _upsert, "delete": _delete}
+# The starter's words for each mode, and the adapter's mode it is.
+_MODES = {
+    "create": "insert",
+    "update": "update",
+    "upsert": "merge",
+    "delete": "delete",
+    "truncate": "truncate",
+}
+_SAID = {
+    "create": "POST {set}: one record a row, in $batch change sets",
+    "update": "PATCH {set}(<key>) with If-Match: * (update only), in $batch change sets",
+    "upsert": "PATCH {set}(<key>) (Dataverse makes the record when it is not there), in $batch change sets",
+    "delete": "DELETE {set}(<key>) of the keys that are records, in $batch change sets",
+    "truncate": "DELETE every record of {set}, then POST the rows, in $batch change sets",
+}
 
 
 def write_dataverse(
     connection: str,
     table: str,
-    rows: Any,
+    rows: Any = None,
     mode: str = "create",
     key: str = "",
     batch_size: int = 1000,
     dry_run: bool = True,
-) -> DataverseWrite:
+) -> Write:
     """The rows written to `table` (its logical name, entity set or display name) on the Dataverse
     connection named `connection`.
 
-    mode: create, update, upsert, delete. key: the column that finds each record (update, upsert, delete): its id
-    (accountid) or an alternate key's column. rows: a DataFrame (pandas, polars, Arrow) or a DuckDB relation.
+    mode: create, update, upsert, delete, truncate. key: the column that finds each record (update, upsert,
+    delete): its id (accountid) or an alternate key's column. rows: a DataFrame (pandas, polars, Arrow) or a
+    DuckDB relation (truncate with none only clears the table).
     """
     if mode not in _MODES:
-        raise WriteError(f"mode is one of create, update, upsert, delete, not {mode!r}.")
-    w = DataverseWrite(connection, table, mode, rows, dry_run=dry_run, batch_size=batch_size)
-    _MODES[mode](w, table, key, dry_run)
-    return w
+        raise WriteError(f"mode is one of {', '.join(_MODES)}, not {mode!r}.")
+    name, conn = live(connection)
+    if not (hasattr(conn, "api") and hasattr(conn, "access_token") and hasattr(conn, "described")):
+        raise WriteError(f"{name} is not a Dataverse connection: these starters write to Dataverse.")
+    try:
+        found = conn.table(table)
+    except RuntimeError as error:  # the connection's own DataverseError, in plain words
+        raise WriteError(str(error)) from None
+    w = Write(name, table, mode, rows, dry_run=dry_run)
+    w.fact("Table", f"{found['table']} (the Web API's {found['set']})")
+    kinds = {str(c["name"]).lower(): str(c["type"]) for c in conn.described(found["table"])}
+    named = [] if w.rows is None else w.rows.names
+    choices = [n for n in named if kinds.get(n.lower()) in sab_adapter.DV_CHOICES]
+    if choices:
+        w.fact("Choices", f"{', '.join(choices)}: labels sent as their numbers")
+    keys = [key] if key and _MODES[mode] in ("update", "merge", "delete") else []
+    if keys:
+        w.fact("Key", key)
+    source = sab_adapter.OData(conn, name, batch_size=batch_size)
+    return by_adapter(w, source, table, _MODES[mode], keys, said=_SAID[mode].format(set=found["set"]))

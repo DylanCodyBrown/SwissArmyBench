@@ -21,23 +21,18 @@ the write's report.
 Azure and OneLake: the ADLS Gen2 API's create, append and flush (the file appears whole, at the flush);
 a folder here: a new file put in the old one's place.
 
-Laid out top to bottom: its helpers, each under a line saying what it is for; `write_lake_file`, the one
-you call, is last.
+The write is the adapter's (sab_adapter.write on the connection, truncate: the file written whole,
+Plans/adapter.plan.md).
 """
 
 from typing import Any
 
 import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
 
-from swissarmybench.client.writes import Write, WriteError, live
+from swissarmybench.adapters import sab_adapter
+from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
 FORMATS = ("parquet", "csv")
-
-
-def _arrow(given: Any) -> Any:
-    """The staged rows as an Arrow table (DuckDB 2's to_arrow_table, 1's fetch_arrow_table)."""
-    found = given.db.sql("FROM sab_rows")
-    return (getattr(found, "to_arrow_table", None) or found.fetch_arrow_table)()
 
 
 def write_lake_file(
@@ -59,9 +54,6 @@ def write_lake_file(
     if not hasattr(conn, "write_file"):
         raise WriteError(f"{name} is not a lake connection (Azure Data Lake Storage, OneLake, Delta Lake).")
     w = Write(name, path, f"{kind} file", rows, dry_run=dry_run)
-    given = w.need_rows()
-    w.would(f"PUT {path} ({kind}, one file: created, written, flushed)", written=given.count)
-    if not dry_run:
-        done = conn.write_file(path, _arrow(given), kind)
-        w.done(written=int(done["rows"]))
-    return w
+    target = path if path.lower().endswith("." + kind) else f"{path}.{kind}"
+    said = f"PUT {path} ({kind}, one file: created, written, flushed)"
+    return by_adapter(w, sab_adapter.Rows(conn, name), target, "truncate", said=said, written=True)

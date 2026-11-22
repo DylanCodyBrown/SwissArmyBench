@@ -76,5 +76,6 @@ def test_tables_come_from_the_metadata_with_duckdb_types(standin: made_up.StandI
     assert {"account", "contact", "opportunity"} <= set(listed)
     kinds = {c.name: c.type for c in listed["opportunity"].columns}
     assert kinds["estimatedvalue"] == "DOUBLE" and kinds["estimatedclosedate"] == "TIMESTAMP"
-    with pytest.raises(sab.AdapterError, match="Write starter"):
-        sab.write(sab.OData(connect(standin)), "account", mode="truncate")
+    # Its writes are the adapter's since phase 3 (tests/test_adapter_writes.py).
+    with pytest.raises(sab.AdapterError, match="takes the rows it writes"):
+        sab.write(sab.OData(connect(standin)), "account", mode="merge")

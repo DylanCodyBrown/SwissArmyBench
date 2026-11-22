@@ -57,7 +57,6 @@ CLIENT_MODULES = (
     "swissarmybench.client.context_hook",
     "swissarmybench.client.writes",
     "swissarmybench.client.write_sql",
-    "swissarmybench.client.write_dataverse",
     "swissarmybench.cli",
     "swissarmybench.cli.api",
     "swissarmybench.cli.commands",
@@ -207,6 +206,13 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         "server/api_host.py",
         "client/blades_client.py",
         "client/standalone.py",
+        # 2026-11-22 (adapter phase 3): the Dataverse, SharePoint list and lake Write starters are the
+        # adapter's write; client/writes.py imports it only when a write runs (the plain client stays stdlib).
+        "client/writes.py",
+        "starters/write_to_dataverse.blade.py",
+        "starters/write_to_sharepoint_list.blade.py",
+        "starters/write_to_delta.blade.py",
+        "starters/write_to_lake_file.blade.py",
     }
     named: set[str] = set()
     for path in PACKAGE.rglob("*.py"):
@@ -230,7 +236,7 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 
 # 2026-11-22 (adapter phase 3): sab_adapter.py is one file by design (Plans/adapter.plan.md: an export copies
 # it as it is, standard library + duckdb + pyarrow only), so it is allowed more than the others.
-ONE_FILE = {"sab_adapter.py": 2000}
+ONE_FILE = {"sab_adapter.py": 2400}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

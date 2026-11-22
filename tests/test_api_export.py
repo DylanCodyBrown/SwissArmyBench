@@ -56,7 +56,9 @@ class Customer(TypedDict):
 def customers(city: str = "") -> list[Customer]:
     db = connection("Shop")
     if city:
-        return records(db.query("SELECT customer_id, city FROM customers WHERE city = ? ORDER BY customer_id", [city]))
+        return records(
+            db.query("SELECT customer_id, city FROM customers WHERE city = ? ORDER BY customer_id", [city])
+        )
     return records(db.read("customers", columns=["customer_id", "city"], sort=[["customer_id", "asc"]]))
 
 

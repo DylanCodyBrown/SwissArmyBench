@@ -20,26 +20,21 @@ read from the table as it is); dry_run=False writes. An agent sets dry_run=False
 to write, in their own words, in this conversation. It signs in through the connection's own sign-in
 (sab.connection): no secret here. Returns the write's report.
 
-Each write is one Delta commit (all of it or none of it), made by the deltalake package. A vacuum keeps
+Each write is one Delta commit (all of it or none of it), made by the deltalake package. append,
+overwrite and merge are the adapter's write (sab_adapter.write on the connection: insert, truncate, merge,
+Plans/adapter.plan.md); delete by a condition, optimize and vacuum are the lake's own calls. A vacuum keeps
 at least 168 hours (7 days): less is refused unless allow_shorter=True is set here, in the cell.
-
-Laid out top to bottom: its helpers, each under a line saying what it is for; `write_delta`, the one you
-call, is last.
 """
 
 from typing import Any
 
 import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
 
-from swissarmybench.client.writes import Write, WriteError, live
+from swissarmybench.adapters import sab_adapter
+from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
 MODES = ("append", "overwrite", "merge", "delete", "optimize", "vacuum")
-
-
-def _arrow(given: Any) -> Any:
-    """The staged rows as an Arrow table (DuckDB 2's to_arrow_table, 1's fetch_arrow_table)."""
-    found = given.db.sql("FROM sab_rows")
-    return (getattr(found, "to_arrow_table", None) or found.fetch_arrow_table)()
+_ADAPTER = {"append": "insert", "overwrite": "truncate", "merge": "merge"}  # the adapter's modes
 
 
 def write_delta(
@@ -64,27 +59,19 @@ def write_delta(
     name, conn = live(connection)
     if not hasattr(conn, "write_delta"):
         raise WriteError(f"{name} is not a lake connection (Delta Lake, OneLake, Azure Data Lake Storage).")
-    w = Write(name, table, mode, rows if mode in ("append", "overwrite", "merge") else None, dry_run=dry_run)
+    w = Write(name, table, mode, rows if mode in _ADAPTER else None, dry_run=dry_run)
     path = conn.target_path(table)
-    if mode in ("append", "overwrite", "merge"):
+    if mode in _ADAPTER:
         given = w.need_rows()
-        data = _arrow(given)
         if mode == "merge":
             if not keys:
                 raise WriteError('A merge finds each row by its key columns: keys=["order_id"].')
             given.check_keys(keys, unique=True)
-            matched, _ = conn.count_matches(table, data, keys)
-            w.would(
-                f"MERGE INTO {path} ON {' AND '.join(keys)}: update when matched, insert when not",
-                updated=matched,
-                inserted=given.count - matched,
-            )
-        else:
-            w.would(f"{mode.upper()} {given.count:,} rows to {path}", written=given.count)
-        if not dry_run:
-            done = conn.write_delta(path, data, mode, keys or ())
-            w.done(**done)
-    elif mode == "delete":
+            said = f"MERGE INTO {path} ON {' AND '.join(keys)}: update when matched, insert when not"
+            return by_adapter(w, sab_adapter.Rows(conn, name), table, "merge", keys, said=said)
+        said = f"{mode.upper()} {given.count:,} rows to {path}"
+        return by_adapter(w, sab_adapter.Rows(conn, name), table, _ADAPTER[mode], said=said, written=True)
+    if mode == "delete":
         if not condition.strip():
             raise WriteError("A delete names its rows: condition=\"region = 'West'\".")
         w.would(f"DELETE FROM {path} WHERE {condition}", deleted=conn.count_where(table, condition))
