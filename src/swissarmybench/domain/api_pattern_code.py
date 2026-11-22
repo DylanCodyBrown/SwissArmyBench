@@ -233,8 +233,8 @@ def fit_table(target: Target, others: Sequence[Target]) -> tuple[int, str]:
     if key:
         return 90, f"{target.name} has a key ({_words(key)}): list, get, create, update and delete by it."
     return (
-        70,
-        f"{target.name}'s rows listed a page at a time, and one read, made, changed or deleted by a key.",
+        89,
+        f"The rows of {target.name} a page at a time, and one read, made, changed or deleted by a key.",
     )
 
 

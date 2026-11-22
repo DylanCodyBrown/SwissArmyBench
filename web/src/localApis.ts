@@ -5,12 +5,12 @@
  *
  *   [BAR]       one slim bar as the blade IDE's (design principle 8.14; the owner approved the critic's proposal 2,
  *               2026-11-21): its name, a dot and where it runs, "The agent may write" with Stop while the agent's
- *               writes are allowed for the session, Run / Stop, Open API.py, Properties, "…" (New endpoint from a
- *               table…, Will this work for real?, Export…). PROPERTIES (closed until asked for): its target
+ *               writes are allowed for the session, Run / Stop, Open API.py, Properties, "…" (New endpoint…: the
+ *               wizard, endpointWizard.ts; Will this work for real?, Export…). PROPERTIES (closed until asked for): its target
  *               (FastAPI, Azure Functions, AWS Lambda: asked here and at New, never again at Export), its base
  *               path, its description. New local sandbox API… (with its target) while the project has none
  *   [PROBLEMS]  API.py's problems with their lines (Go to line), a start that failed with its line
- *   [ENDPOINTS] each one: method, path, summary, its data ("Mock of Warehouse (sqlserver)"); Try it: the path's and
+ *   [ENDPOINTS] each one: method, path, the pattern that made it (Table, Search…: its marker comment), summary, its data ("Mock of Warehouse (sqlserver)"); Try it: the path's and
  *               the query's boxes, the body prefilled with a made-up example from its model, Send: status, time,
  *               rows and the answer as a tree; a refusal as the one error note (its sentence, API.py's line, Go to
  *               line, the answer behind Details). The made-up request is the server's (the endpoint's `try`)
@@ -26,7 +26,8 @@
  *          GET /local-api/log, /local-api/targets
  */
 import { api, onNoticeWhile } from "./api";
-import { button, h, openDialog, showMenu, toast } from "./dom";
+import { button, h, openDialog, showMenu } from "./dom";
+import { newEndpoint } from "./endpointWizard";
 import { errorHere, errorNote } from "./errorNote";
 import { busyClick, loadingBlock } from "./loading";
 import { mountTree, type Value } from "./structureTree";
@@ -43,6 +44,8 @@ interface Endpoint {
   returns: string;
   data: string[];
   writes: boolean;
+  /** The pattern the wizard made it by (API.py's marker comment); null for one written by hand. */
+  pattern?: { id: string; label: string; of: string; role: string } | null;
   /** A made-up request from the endpoint's definition and its learned shape (the server's; no kept value). */
   try?: { path: Record<string, Value>; query: Record<string, Value>; body: Value };
 }
@@ -137,7 +140,7 @@ export function localApisSection(): HTMLElement {
     const more = small("More", (e) => {
       const at = (e.currentTarget as HTMLElement).getBoundingClientRect();
       showMenu(at.left, at.bottom + 2, "More", [
-        ["plus", "New endpoint from a table…", () => void newEndpoint()],
+        ["plus", "New endpoint…", () => void newEndpoint()],
         ["check", "Will this work for real?", () => void checkReal(more, got)],
         ["export", "Export…", () => openExport(got)],
       ]);
@@ -172,7 +175,7 @@ export function localApisSection(): HTMLElement {
       head,
       ...problemNotes,
       shapes,
-      endpoints.length ? h("div", { class: "local-api-endpoints", role: "list" }, ...endpoints) : h("p", { class: "empty-note" }, "API.py has no endpoints yet: write one with @endpoint, or New endpoint from a table."),
+      endpoints.length ? h("div", { class: "local-api-endpoints", role: "list" }, ...endpoints) : h("p", { class: "empty-note" }, "API.py has no endpoints yet: write one with @endpoint, or New endpoint… (the bar's …)."),
       log,
     );
     if (held?.box.isConnected) {
@@ -242,6 +245,7 @@ function endpointRow(e: Endpoint, got: State, tries: TryKept): HTMLElement {
     h("div", { class: "local-api-endpoint-head" },
       badge(e.method),
       h("code", {}, (got.settings?.base_path ?? "") + e.path),
+      e.pattern ? h("span", { class: "local-api-pattern", title: `Made by the ${e.pattern.label} pattern over ${e.pattern.of}; the code is yours to change` }, e.pattern.label) : null,
       h("span", {}, e.summary),
       ...e.data.map((d) => h("span", { class: "local-api-data" }, d)),
       button("Try it", () => {
@@ -437,6 +441,7 @@ export function endpointsPane(body: HTMLElement): void {
       h("span", { class: `local-api-status${got.running ? " on" : ""}`, role: "status" }, got.running ? `Running on ${got.running.url}` : "Not running"),
       agentMark(got, () => void draw()),
       h("span", { class: "ide-bar-gap" }),
+      small("New endpoint…", () => void newEndpoint(), "plus"),
       got.running ? small("Stop", act("/local-api/stop"), "stop") : small("Run", act("/local-api/run"), "play", { class: "primary" }),
     );
     const rows = (got.endpoints ?? []).map((e) => endpointRow(e, got, kept));
@@ -455,48 +460,6 @@ export function endpointsPane(body: HTMLElement): void {
 }
 
 const paneTries = new WeakMap<HTMLElement, TryKept>();
-
-/** New endpoint from a table: the CRUD set over a sandbox table, appended to API.py in its source's own style.
- *  `table`: the one to start on (the sandbox panel's row). */
-export async function newEndpoint(table?: string): Promise<void> {
-  const { body, foot, close } = openDialog("New endpoint from a table");
-  let listed: { tables: { name: string; columns: { name: string; type: string; key: boolean }[]; client: { kind: string; connection?: string } }[] };
-  try {
-    listed = await api("/sandbox");
-  } catch (e) {
-    close();
-    errorHere(e);
-    return;
-  }
-  if (!listed.tables.length) {
-    body.append(h("p", { class: "empty-note" }, "The sandbox has no tables yet: Add to sandbox first."));
-    foot.append(button("Close", () => close()));
-    return;
-  }
-  const pick = h("select", { "aria-label": "Table" }, ...listed.tables.map((t) => h("option", { value: t.name, selected: t.name === table }, t.name))) as HTMLSelectElement;
-  const key = h("select", { "aria-label": "Its key" }) as HTMLSelectElement;
-  const fill = (): void => {
-    const t = listed.tables.find((x) => x.name === pick.value) ?? listed.tables[0]!;
-    key.replaceChildren(...t.columns.map((c) => h("option", { value: c.name, selected: c.key }, `${c.name} (${c.type})`)));
-  };
-  pick.addEventListener("change", fill);
-  fill();
-  body.append(
-    h("label", { class: "field" }, h("span", {}, "Table"), pick),
-    h("label", { class: "field" }, h("span", {}, "Its key (get, update and delete by it)"), key),
-    h("p", { class: "muted" }, "List (with limit and offset), get, create, update and delete, in the source's own style."),
-  );
-  foot.append(button("Cancel", () => close()), button("Add to API.py", busyClick("Adding…", async (b) => {
-    try {
-      const done = await api<{ added: string[]; line: number; file: string }>("/local-api/scaffold", "POST", { table: pick.value, key: key.value });
-      close();
-      toast(`API.py has ${done.added.length} new endpoints for ${pick.value}.`);
-      if (done.file) void openOnPage(done.file, { line: done.line });
-    } catch (e) {
-      errorHere(e, {}, b);
-    }
-  }), { class: "primary" }));
-}
 
 /** Will this work for real?: each endpoint's SQL against its connection's catalog as loaded here (no query). */
 async function checkReal(b: HTMLElement, got: State): Promise<void> {

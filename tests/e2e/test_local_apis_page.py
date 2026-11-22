@@ -3,7 +3,7 @@
 out
 and then reset the data changes and try again"): a made-up table added to the sandbox from its grid's Table
 row;
-the APIs page's sandbox and Local sandbox APIs; New endpoint from a table; Run; Try it a POST; the change log
+the APIs page's sandbox and Local sandbox APIs; New endpoint (the wizard's Table); Run; Try it a POST; the change log
 counting it; Reset back to the baseline; then an API table widget on a canvas, played, showing the endpoint's
 rows.
 Screenshots (scale 2) when SAB_API_SHOTS names a folder. Made-up data."""
@@ -95,12 +95,14 @@ def test_sandbox_new_endpoint_run_try_a_post_and_reset(
     expect(apis.locator(".local-api-props").get_by_label("Its target")).to_be_visible()
     shot(page, "api-slim-bar-properties", ".local-apis")
     bar.get_by_role("button", name="Properties").click()
-    # New endpoint from a table (the bar's "…"): the CRUD set in API.py.
+    # New endpoint (the bar's "…"): the wizard, on its first pattern, Table: the CRUD set in API.py.
     bar.get_by_role("button", name="More").click()
-    page.get_by_role("menuitem", name="New endpoint from a table…").click()
-    made = page.get_by_role("dialog", name="New endpoint from a table")
+    page.get_by_role("menuitem", name="New endpoint…").click()
+    made = page.get_by_role("dialog", name="New endpoint")
+    expect(made.locator(".wizard-pattern[data-pattern='table'] input")).to_be_checked(timeout=20000)
     expect(made.get_by_label("Its key", exact=True)).to_be_visible()
     made.get_by_label("Its key", exact=True).select_option("order_id")
+    expect(made.locator(".wizard-code")).to_contain_text("def create_orders(", timeout=20000)
     made.get_by_role("button", name="Add to API.py").click()
     expect(apis.locator(".local-api-endpoint")).to_have_count(5, timeout=20000)
     assert "def create_orders" in (shop / "API.py").read_text(encoding="utf-8")
