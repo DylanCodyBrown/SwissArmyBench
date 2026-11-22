@@ -9,7 +9,7 @@
  *   [KEPT]    shown and width per pane, under the host's key (this browser's: a convenience), as
  *             `{<id>: true, <id>Width: "280px"}`: the Canvas's own format before this file.
  */
-import { button, h } from "./dom";
+import { button, dragResize, h } from "./dom";
 
 export interface SidePaneSpec {
   id: string;
@@ -64,21 +64,14 @@ export function sidePanes(key: () => string, specs: SidePaneSpec[], options: { t
     spec.pane.dataset.sidePane = spec.id;
     toggles.set(spec.id, button(spec.label, () => void show(spec.id), { icon: spec.icon, class: `ghost side-toggle ${options.toggleClass ?? ""}`.trim(), pressed: spec.shown !== false, title: spec.title ?? spec.label }));
     const grip = h("div", { class: `side-grip ${options.gripClass ?? ""}`.trim(), role: "separator", "aria-orientation": "vertical", "aria-label": `${spec.label} width`, title: "Drag to resize", tabindex: 0 });
-    grip.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      const start = e.clientX;
-      const width = spec.pane.getBoundingClientRect().width;
-      const move = (m: PointerEvent): void => {
-        spec.pane.style.width = `${Math.max(MIN, Math.min(MAX, width - (m.clientX - start)))}px`;
-      };
-      const up = (): void => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
+    let width = 0;
+    dragResize(grip, {
+      start: () => void (width = spec.pane.getBoundingClientRect().width),
+      move: (dx) => void (spec.pane.style.width = `${Math.max(MIN, Math.min(MAX, width - dx))}px`),
+      end: () => {
         remember();
         window.dispatchEvent(new Event("resize"));
-      };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
+      },
     });
     grip.addEventListener("keydown", (e) => {
       const by = e.key === "ArrowLeft" ? 16 : e.key === "ArrowRight" ? -16 : 0;

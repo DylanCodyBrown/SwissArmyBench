@@ -28,7 +28,7 @@
  */
 import { api, gridId, gridPath, type ColumnInfo, type GridInfo, type Notice } from "./api";
 import { contextOf, gridList, onAgentView } from "./panes";
-import { button, clear, forget, formatCount, h, icon, isDateType, isNumericType, openDialog, recall, remember, toast } from "./dom";
+import { button, clear, dragResize, forget, formatCount, h, icon, isDateType, isNumericType, openDialog, recall, remember, toast } from "./dom";
 import { renderMarkdown } from "./markdown";
 import { saveBlob } from "./profileView";
 import { state } from "./state";
@@ -155,26 +155,22 @@ function resizeGrip(card: Card, element: HTMLElement): HTMLElement {
     }
   };
   set(sizeOf(card), false, hasOwnSize(card));
-  grip.addEventListener("pointerdown", (down) => {
-    down.preventDefault();
-    grip.setPointerCapture(down.pointerId);
-    const list = element.parentElement!;
-    const column = (list.clientWidth - GAP * (COLUMNS - 1)) / COLUMNS;
-    const box = element.getBoundingClientRect();
-    element.classList.add("resizing");
-    const move = (event: PointerEvent): void => {
+  let column = 0;
+  let box = element.getBoundingClientRect();
+  dragResize(grip, {
+    dragging: "resizing",
+    on: element,
+    start: () => {
+      const list = element.parentElement!;
+      column = (list.clientWidth - GAP * (COLUMNS - 1)) / COLUMNS;
+      box = element.getBoundingClientRect();
+    },
+    move: (_dx, _dy, event) => {
       const w = (event.clientX - box.left + GAP) / (column + GAP);
       const hh = (event.clientY - box.top + GAP) / (ROW_HEIGHT + GAP);
       set(clampSize(w, hh), false);
-    };
-    const up = (): void => {
-      element.classList.remove("resizing");
-      grip.removeEventListener("pointermove", move);
-      grip.removeEventListener("pointerup", up);
-      set(clampSize(Number(element.dataset.w), Number(element.dataset.h)), true);
-    };
-    grip.addEventListener("pointermove", move);
-    grip.addEventListener("pointerup", up);
+    },
+    end: () => set(clampSize(Number(element.dataset.w), Number(element.dataset.h)), true),
   });
   grip.addEventListener("keydown", (event) => {
     const now = { w: Number(element.dataset.w), h: Number(element.dataset.h) };
@@ -244,23 +240,16 @@ export function mountAiPanel(space: HTMLElement, host: HTMLElement, splitter: HT
   splitter.setAttribute("role", "separator");
   splitter.setAttribute("tabindex", "0");
   splitter.setAttribute("aria-label", "Resize the panel");
-  splitter.addEventListener("pointerdown", (down) => {
-    if (workspace.dataset.panel !== "open") return;
-    splitter.setPointerCapture(down.pointerId);
-    splitter.classList.add("dragging");
-    const rect = workspace.getBoundingClientRect();
-    const move = (event: PointerEvent): void => {
-      const size = workspace.dataset.layout === "bottom" ? rect.bottom - event.clientY : rect.right - event.clientX;
-      setSize(size, false);
-    };
-    const up = (): void => {
-      splitter.classList.remove("dragging");
-      splitter.removeEventListener("pointermove", move);
-      splitter.removeEventListener("pointerup", up);
-      setSize(currentSize(), true);
-    };
-    splitter.addEventListener("pointermove", move);
-    splitter.addEventListener("pointerup", up);
+  let rect = workspace.getBoundingClientRect();
+  dragResize(splitter, {
+    dragging: "dragging",
+    start: () => {
+      if (workspace.dataset.panel !== "open") return false;
+      rect = workspace.getBoundingClientRect();
+      return undefined;
+    },
+    move: (_dx, _dy, event) => setSize(workspace.dataset.layout === "bottom" ? rect.bottom - event.clientY : rect.right - event.clientX, false),
+    end: () => setSize(currentSize(), true),
   });
   splitter.addEventListener("keydown", (event) => {
     const grow = workspace.dataset.layout === "bottom" ? ["ArrowUp"] : ["ArrowLeft"];

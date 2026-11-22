@@ -23,7 +23,7 @@
  *          POST /workbench/kernels/{id}/html-marks {names}: what each name would draw now, as a mark
  */
 import { api } from "./api";
-import { button, h } from "./dom";
+import { button, dragResize, h } from "./dom";
 import type { Kernel, RunItem } from "./workbenchKernel";
 import type { Output } from "./workbenchOutputs";
 
@@ -264,23 +264,13 @@ export function designPane(options: {
   };
   panes.add(self);
 
-  grip.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    grip.setPointerCapture(e.pointerId);
-    element.classList.add("dragging"); // the frame lets the pointer through while it drags
-    const start = e.clientY;
-    const from = now();
-    const move = (m: PointerEvent): void => size(from + m.clientY - start, false);
-    const up = (): void => {
-      element.classList.remove("dragging");
-      grip.removeEventListener("pointermove", move);
-      grip.removeEventListener("pointerup", up);
-      grip.removeEventListener("pointercancel", up);
-      options.resized(saved);
-    };
-    grip.addEventListener("pointermove", move);
-    grip.addEventListener("pointerup", up);
-    grip.addEventListener("pointercancel", up);
+  let from = 0;
+  dragResize(grip, {
+    dragging: "dragging", // the frame lets the pointer through while it drags
+    on: element,
+    start: () => void (from = now()),
+    move: (_dx, dy) => size(from + dy, false),
+    end: () => options.resized(saved),
   });
   grip.addEventListener("keydown", (e) => {
     const step = e.shiftKey ? 80 : 16;

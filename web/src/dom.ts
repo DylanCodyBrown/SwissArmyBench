@@ -502,6 +502,52 @@ export function setMenuExtras(extras: (() => MenuExtra[]) | null): void {
 
 export const extraMenuItems = (): MenuExtra[] => menuExtras?.() ?? [];
 
+/** One drag of a handle (a splitter, a grip): what every drag-to-resize shares. */
+export interface DragOptions {
+  /** As the pointer goes down: measure here. Answering false: no drag (the handle is off). */
+  start?: (down: PointerEvent) => void | false;
+  /** The pointer's distance from where it went down, with the event itself. */
+  move: (dx: number, dy: number, event: PointerEvent) => void;
+  /** Once it lets go, or the drag is cancelled. */
+  end?: () => void;
+  /** A class worn while it drags, by `on` (default: the handle). */
+  dragging?: string;
+  on?: HTMLElement;
+  /** Keep the pointer's press from handlers further out (a grip inside something that itself drags). */
+  stop?: boolean;
+}
+
+/** Drag-to-resize, once (the craft review of 2026-11-22: nine hand-written copies): the handle captures the
+ *  pointer, so the drag follows it over frames and out of the window; `move` hears the distance from where
+ *  it went down; letting go or a cancelled pointer ends it, always, and the listeners go with it. The keys
+ *  stay each handle's own (they differ: a width, a fraction, a grid's cells). */
+export function dragResize(handle: HTMLElement, options: DragOptions): void {
+  handle.addEventListener("pointerdown", (down) => {
+    if (down.button !== 0 && down.pointerType === "mouse") return;
+    if (options.start?.(down) === false) return;
+    down.preventDefault();
+    if (options.stop) down.stopPropagation();
+    try {
+      handle.setPointerCapture(down.pointerId);
+    } catch {
+      // a pointer that is already gone: the drag ends on the next event
+    }
+    const worn = options.on ?? handle;
+    if (options.dragging) worn.classList.add(options.dragging);
+    const moved = (event: PointerEvent): void => options.move(event.clientX - down.clientX, event.clientY - down.clientY, event);
+    const up = (): void => {
+      if (options.dragging) worn.classList.remove(options.dragging);
+      handle.removeEventListener("pointermove", moved);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      options.end?.();
+    };
+    handle.addEventListener("pointermove", moved);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  });
+}
+
 /** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
 export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
   document.querySelector(".menu")?.remove();

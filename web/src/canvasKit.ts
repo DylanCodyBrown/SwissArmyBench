@@ -9,7 +9,7 @@
  *   [GRIP]     a resize grip: the pointer captured, each move given its distance from where it started,
  *              the end given once
  */
-import { button, h } from "./dom";
+import { button, dragResize, h } from "./dom";
 
 export interface History<T> {
   /** Keep the state before a change (Redo is cleared). */
@@ -129,20 +129,5 @@ export function pageTabs<P extends TabPage>(o: TabsOptions<P>): HTMLElement {
 
 /** A resize grip: `move` hears the pointer's distance from where it went down, `end` once it lets go. */
 export function resizeGrip(grip: HTMLElement, start: (down: PointerEvent) => void, move: (dx: number, dy: number) => void, end: () => void): void {
-  grip.addEventListener("pointerdown", (down) => {
-    down.preventDefault();
-    down.stopPropagation();
-    grip.setPointerCapture(down.pointerId);
-    start(down);
-    const moved = (event: PointerEvent): void => move(event.clientX - down.clientX, event.clientY - down.clientY);
-    const up = (): void => {
-      grip.removeEventListener("pointermove", moved);
-      grip.removeEventListener("pointerup", up);
-      grip.removeEventListener("pointercancel", up);
-      end();
-    };
-    grip.addEventListener("pointermove", moved);
-    grip.addEventListener("pointerup", up);
-    grip.addEventListener("pointercancel", up);
-  });
+  dragResize(grip, { start: (down) => void start(down), move: (dx, dy) => move(dx, dy), end, stop: true });
 }

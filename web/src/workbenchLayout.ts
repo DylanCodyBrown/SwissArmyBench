@@ -23,7 +23,7 @@
  * Pictures and charts stay in the run's output, each with Send to Analyze (the owner, 2026-11-14: the
  * Analyze is where they gather, so the Workbench has no Plots pane of its own).
  */
-import { button, h } from "./dom";
+import { button, dragResize, h } from "./dom";
 
 interface Sizes {
   left: number; // the source and console column's width, in % of the window's body
@@ -102,20 +102,12 @@ export function mountLayout(body: HTMLElement, main: HTMLElement, focusSource: (
       draw();
     };
     el.setAttribute("aria-valuenow", String(Math.round(get())));
-    el.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      el.setPointerCapture(e.pointerId);
-      el.classList.add("dragging");
-      const box = host().getBoundingClientRect();
-      const move = (m: PointerEvent): void => apply(orientation === "vertical" ? ((m.clientX - box.left) / box.width) * 100 : ((m.clientY - box.top) / box.height) * 100);
-      const up = (): void => {
-        el.classList.remove("dragging");
-        el.removeEventListener("pointermove", move);
-        el.removeEventListener("pointerup", up);
-        save();
-      };
-      el.addEventListener("pointermove", move);
-      el.addEventListener("pointerup", up);
+    let box = new DOMRect(); // measured as the drag begins
+    dragResize(el, {
+      dragging: "dragging",
+      start: () => void (box = host().getBoundingClientRect()),
+      move: (_dx, _dy, m) => apply(orientation === "vertical" ? ((m.clientX - box.left) / box.width) * 100 : ((m.clientY - box.top) / box.height) * 100),
+      end: save,
     });
     el.addEventListener("keydown", (e) => {
       const step = e.shiftKey ? 10 : 2;

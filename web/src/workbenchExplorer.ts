@@ -16,7 +16,7 @@
  *              (Ctrl+Shift+E opens it again); the Data page is the one place to browse tables
  */
 import { kindOfPath } from "./kindColours";
-import { button, h, icon } from "./dom";
+import { button, dragResize, h, icon } from "./dom";
 import { type Explorer, type ExplorerHost, type ExplorerState, mountExplorer } from "./dataExplorer";
 
 /** A project's file, as the files section lists it. */
@@ -168,19 +168,11 @@ export function mountExplorerPane(host: ExplorerPaneHost): ExplorerPane {
     element.style.width = `${width}px`;
     keep(WIDTH_KEY, String(width));
   };
-  grip.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = width;
-    grip.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent): void => setWidth(startW + ev.clientX - startX);
-    const up = (): void => {
-      grip.removeEventListener("pointermove", move);
-      grip.removeEventListener("pointerup", up);
-      window.dispatchEvent(new Event("resize")); // the editors measure again
-    };
-    grip.addEventListener("pointermove", move);
-    grip.addEventListener("pointerup", up);
+  let startW = width;
+  dragResize(grip, {
+    start: () => void (startW = width),
+    move: (dx) => setWidth(startW + dx),
+    end: () => void window.dispatchEvent(new Event("resize")), // the editors measure again
   });
   grip.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
