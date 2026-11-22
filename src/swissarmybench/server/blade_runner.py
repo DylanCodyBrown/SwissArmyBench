@@ -73,6 +73,7 @@ def payload(
         # A lake's or SharePoint's table, by the connection's own read: the columns and filters a DuckDB
         # query sends it, its rows as Arrow.
         python = {
+            "adapter": "rows",  # through the adapter's Rows (Plans/adapter.plan.md)
             "read": lakes.READ,
             "set": {},
             "keyring": [],
@@ -549,9 +550,12 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         raise BladeRunError(f"{job['label']} has no Read a table: open the connection and fill it in.")
     place = python.get("place") or {}
     value, names = run_code(job["code"], job["variable"], secrets, job["label"])
-    if python.get("adapter") == "odata" and callable(getattr(value, "described", None)):
+    adapter = python.get("adapter")
+    if (adapter == "odata" and callable(getattr(value, "described", None))) or (
+        adapter == "rows" and callable(getattr(value, "rows", None))
+    ):
         try:
-            return _odata_rows(value, str(place.get("table") or ""), python.get("limit"))
+            return _adapter_read(value, adapter, place, python)
         except Exception as error:
             raise BladeRunError(f"{job['label']}: {error}") from None
         finally:
@@ -579,14 +583,27 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     return {"arrow": _arrow_answer(table), "total": total} | ({"read_with": how} if how else {})
 
 
-def _odata_rows(connection: Any, table: str, limit: int | None) -> dict[str, Any]:
-    """A Dataverse table through the adapter: its limit folded into one OData read, the records typed by the
-    table's metadata, and the count Dataverse gave."""
+def _adapter_read(
+    connection: Any, adapter: str, place: dict[str, Any], python: dict[str, Any]
+) -> dict[str, Any]:
+    """A Dataverse table (OData) or a lake's or SharePoint's (Rows) through the adapter: the limit, and the
+    columns and filters a DuckDB query sends, folded into the connection's own read; the count it gave and,
+    for the lakes, how it read the files (the table's sab_read)."""
     from swissarmybench.adapters import sab_adapter as sab
 
-    source = sab.OData(connection)
-    made = sab.make_table(sab.TableSource(source, table, sab.Plan(limit=limit)))
-    return {"arrow": _arrow_answer(made), "total": source.total}
+    source: Any = sab.OData(connection) if adapter == "odata" else sab.Rows(connection)
+    table = str(place.get("table") or "")
+    if adapter == "rows" and place.get("schema"):
+        table = f"{place['schema']}/{table}"
+    filters = tuple(
+        sab.Filter(str(c), "!=" if op == "<>" else str(op).lower(), v)
+        for c, op, v in python.get("filters") or []
+    )
+    plan = sab.Plan(columns=tuple(python.get("columns") or ()), filters=filters, limit=python.get("limit"))
+    made = sab.make_table(sab.TableSource(source, table, plan))
+    meta = made.schema.metadata or {}
+    how = meta.get(b"sab_read", b"").decode("utf-8", "replace")
+    return {"arrow": _arrow_answer(made), "total": source.total} | ({"read_with": how} if how else {})
 
 
 def _plain(value: Any) -> Any:

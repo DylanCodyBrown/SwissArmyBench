@@ -1034,6 +1034,68 @@ class OData:
         )
 
 
+# ----- a connection that reads a table itself: the lakes and SharePoint -----
+
+_ROWS_OPS = {"!=": "<>"} | {
+    op: op for op in ("=", "<", "<=", ">", ">=", "in", "between", "is null", "is not null")
+}
+
+
+class Rows:
+    """A connection whose own code reads a table given its columns, filters and a limit, and answers Arrow
+    and the count (`rows(table, schema, limit, columns, filters)`: the lakes' and SharePoint's, each sending
+    what its service takes, $filter or a file's partitions, and applying the rest in DuckDB). A table is
+    named `schema/table` (its folders) or `table`. Filters, columns and limit are folded; `total` is the count
+    the last read gave."""
+
+    def __init__(self, connection: Any, name: str = "") -> None:
+        self.connection = connection
+        self.name = name or type(connection).__name__
+        self.total: int | None = None
+
+    def tables(self) -> list[Table]:
+        listed: dict[str, list[Column]] = {}
+        for row in self.connection.catalog():
+            schema, table = str(row.get("table_schema") or ""), str(row["table_name"])
+            columns = listed.setdefault(f"{schema}/{table}" if schema else table, [])
+            if row.get("column_name"):
+                columns.append(Column(str(row["column_name"]), str(row.get("data_type") or "VARCHAR")))
+        return [Table(name, tuple(columns)) for name, columns in listed.items()]
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        sendable = all(f.op in _ROWS_OPS for f in plan.filters)
+        foldable = {"columns", "limit"} | ({"filters"} if sendable else set())
+        folded: list[str] = []
+        for part in plan.parts():
+            if part not in foldable:
+                break
+            folded.append(part)
+        schema, _, name = str(table).rpartition("/")
+        filters = (
+            [[f.column, _ROWS_OPS[f.op], f.value] for f in plan.filters] if "filters" in folded else None
+        )
+        answer = self.connection.rows(
+            name,
+            schema=schema,
+            limit=plan.limit if "limit" in folded else None,
+            columns=list(plan.columns) if "columns" in folded else None,
+            filters=filters,
+            frame=False,
+        )
+        found, self.total = answer if isinstance(answer, tuple) else (answer, None)
+        if not isinstance(found, pa.Table):
+            pandas = type(found).__module__.startswith("pandas")
+            found = (
+                pa.Table.from_pandas(found, preserve_index=False)
+                if pandas
+                else pa.Table.from_pylist(list(found))
+            )
+        return found.to_reader(), Folded(tuple(folded))
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        raise AdapterError(f"{self.name}'s writes go through its Write starter for now.")
+
+
 # ===== 3. The calls =====
 
 _find: Callable[[str], Source] | None = None
