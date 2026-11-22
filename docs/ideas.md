@@ -8941,3 +8941,52 @@ Open:
   writing it again); today it reformats, as Format does.
 - The tree and the text could follow each other's place (the selected node's line revealed in the text, the
   cursor's node selected in the tree).
+
+## Review fixes B1, 2026-11-22 (branch review-b1; docs/reviews/craft-review-2026-11-22.md items 4, 5 and 7)
+
+Decisions:
+- **One way the agent asks for the user's Allow.** `services/ports.py Approvals.allowed(who, subject=, action=,
+  detail=, otherwise=)`: the user's request goes ahead at once; the agent's waits for the user's answer, and a no
+  (or no answer in three minutes) raises Refused with one sentence, "The user declined (or did not answer):
+  <otherwise>." (`domain/refusals.py declined`). The 44 call sites (31 in the base's services, counting the three
+  services whose own `_allow` holds theirs, and 13 in the extensions) keep what they asked and the detail the
+  user reads; only the refusal's words became one shape. Words that changed: "The user did not allow deleting
+  it." (an API), "The user did not allow cancelling their query.", "The user declined (or did not answer) this
+  export." and the eight "The user declined: ..." without "(or did not answer)" now read the one way. What needs
+  Allow and what is the user's only did not change.
+- **Discover's Allow asks the user too**, as before (`even_the_user=True`): it is remembered with the API, so the
+  user's first Discover is their Allow.
+- **NoOneToAsk** (services/agent.py): where no page is wired (a service built alone; the connections' write, the
+  relationship sets' delete and the connection slots' cancel, whose `approvals is None` meant "refuse the agent"),
+  the same: the user's go ahead, the agent's are declined in the same sentence.
+- **The concrete class keeps its name, Approvals, in services/agent.py** (bootstrap and tests build it); the port of
+  the same name is what every use case is typed by. Renaming the concrete one (say ApprovalPrompts) would touch
+  bootstrap.py, left to review-b2.
+- **Actions' port onto the API explorer**: `apis()`, `document(api)` made public, `read(path)` and
+  `run_in_api_blade(name, command)` added (Actions also reached into `_blades.run_read`, `_api_blade` and
+  `_library.read`). Its other arguments typed: LocalApi, Stats (small protocols in actions.py), Hooks, the API
+  adapter a module.
+- **The tests' stand-ins go in through public seams**: `LiveRuns.use_runner(runner)`, `Launches.recording(canvas)`,
+  `GitHubSync.forget_remote()`, `PowerApps.use_api_documents(fn)`.
+- **One rename rule for a blade's secrets (the owner's call, delegated):** a secret the renamed blade's code still
+  names is copied to its new name first; then each is removed from the old name, unless a blade that still answers
+  to the old name reads it. That last case is real: a saved blade shadows a blade folder's (or a starter's) of the
+  same name, and renaming the saved one shows the other again, reading the same keyring entries
+  (`blade/<name>/<secret>`); before, both paths deleted them. Before this, Properties' rename copied every secret
+  and Save's only those still named (the same outcome in practice, since a header change leaves the code as it
+  is); both now ask `domain/blade_tables.py secrets_after_rename`. A copy that fails stops before anything is
+  removed; with no keyring nothing is saved, so nothing moves (Save used to raise after writing the file).
+- **One sentence each for the save rules** (domain/blade_tables.py): a starter "is a starter (read-only): Copy as
+  your own (blades_copy) to change it." (it had three wordings), a secret blade "has no code, only its variables'
+  names.", a name "A blade named '<name>' already exists. Pick another name."
+- **BladeSecrets**: the keyring half of BladeStore, its own class in adapters/blades.py (get, has, set, delete,
+  move, copy, status, values); `BladeStore._keyring` stays (adapters/variables.py, Git's token, client/standalone.py
+  read the keyring through it, and the standalone client's subclass overrides it for a Python with no keyring).
+
+Open:
+- `who == "agent"` still appears around a few allowed() calls where the detail is built only for the agent (a
+  project with rows, a new project's pasted tables); harmless, and the test checks only that the call is there.
+- The remove rules (a starter "comes with the app and stays", a blade folder's file is the user's to delete) were
+  left in adapters/blades.py: they are not save rules. They could join the domain's the same way.
+- tests/test_server_caches.py still ages a secret's kept status through `store.secrets._saved_status`; a clock
+  handed to BladeSecrets would make that public too.

@@ -387,7 +387,9 @@ src/swissarmybench/
                          a connection, another blade's table, not a valid name), a connection's listing query from
                          its starter (listing_for), whether the adapter lists its tables (listed_by_adapter: its
                          listing not the user's own, a dialect in ADAPTER_LISTED), New blade's choices, a file's header rewritten (with_header:
-                         the code's bytes untouched)
+                         the code's bytes untouched); what a save may change, one sentence each (may_change: a
+                         starter read-only, a secret blade no code; may_take: a name taken; secrets_after_rename:
+                         a secret still named follows, one another blade still reads under the old name stays)
     blade_header.py      the blade tab's Properties: every header field (FIELDS) for the kinds it applies to, a
                          save's changes, the kind's required part before a save (its line), New blade's scaffold
                          per kind (table, code, analysis, connection, snippet, secret: made-up rows, Run at once)
@@ -770,7 +772,10 @@ src/swissarmybench/
                          keys by their paths ($.orders[].customer.id, the parts of one place). Names only
 
   services/              the use cases, one service class per feature, given their ports
-    ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
+    ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier; Approvals, the one
+                         way the agent asks for the user's Allow (allowed(who, subject=, action=, detail=,
+                         otherwise=): the user's at once; the agent's waits, a no raises Refused "The user
+                         declined (or did not answer): <otherwise>."; tests/test_approvals.py: no raw ask)
     workspace.py         Workspace (the ports every use case shares, grid lookups and queries) and the
                          outcomes Refused, NotFound, TimedOut, Conflict
     datasets.py          every way data arrives (push, file, paste, the "+" tab's query), list, close
@@ -790,7 +795,8 @@ src/swissarmybench/
     export.py            CSV, Excel, Parquet: a download, or saved (an agent's only with a ticket)
     codegen.py           copy as code: generate, then verify what the user will paste
     charts.py            the side panel's cards: charts, notes, tables, diagrams, cross-filtering
-    agent.py             the agent door: approvals, export tickets, its reads, the current table,
+    agent.py             the agent door: approvals (Approvals.allowed, the port's real one; NoOneToAsk where no
+                         page is wired), export tickets, its reads, the current table,
                          listing and proposing blades (saved on the user's Allow)
     catalogs.py          load, remove, the tree, search
     catalog_loading.py   catalogs that load themselves in the background: on save, at start-up (once the
@@ -884,10 +890,12 @@ src/swissarmybench/
                          where the learned shape keeps them; insert false: the plan alone); refs (every action
                          as the canvas's one picker names it),
                          carried (what a built app carries: api_adapter.py, sab_actions.json, an API's client),
-                         local_learned (Try it's form)
+                         local_learned (Try it's form); what it reads of others as small typed ports (Explorer:
+                         apis, document, read, run_in_api_blade, table_call; LocalApi; Stats)
     api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
                          Structures, its origin the call; Run again), save a web call (Return as table), the
-                         API blade's tables made again, Refresh then apply, rename, delete (the agent's on Allow)
+                         API blade's tables made again, Refresh then apply, rename, delete (the agent's on Allow);
+                         apis(), document(api), read(path), run_in_api_blade(name, command): Actions' port
     structures.py        Structures: open (a file, a paste, New, an API's answer, a kernel's value), the text
                          view, steps, Open as grid, Save and Save as (the project's structures/), the project's
                          files and the ones open (project.json), sab.structure's read, references, lineage; the
@@ -1079,7 +1087,9 @@ src/swissarmybench/
                          seam (named values only; winreg on Windows), pgAdmin's database read-only, the hint walk
     blades.py            saved blades (the library's connections/, vaults/, blades/<name>.blade.py: one portable
                          file each, written only when its text changes), blade folders (.blade.py files found
-                         by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
+                         by their header), an API's blades in apis/<name>/, favourites (the save rules asked of
+                         domain/blade_tables.py); BladeSecrets, the keyring half (blade/<name>/<secret>: get,
+                         has, set, delete, a rename's move, copy, status, values)
     shared_catalog.py    the catalog/ folder's files: stamps, read, written atomically only when the bytes change
     vault_names.py       local/vault-names/'s files: read, written atomically only when the bytes change, removed
     app_registrations.py app-registrations/ (a file each, its .access.json beside it) and the access report's

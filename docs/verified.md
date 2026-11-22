@@ -5954,3 +5954,29 @@ passed twice alone); after the structure tabs, the quick suite at four workers 5
 failed; browser suite in one process in Chromium 411 passed, 15 skipped, 0 failed (before the structure tabs;
 their own browser tests and the twelve files they touch pass); the locally built wheels pass
 tools/smoke_install.py on a fresh install. Release notes: .github/release-notes/v0.0.32.md.
+
+## Review fixes B1, 2026-11-22 (branch review-b1)
+
+The craft review's items 4, 5 and 7 (docs/reviews/craft-review-2026-11-22.md; decisions in docs/ideas.md).
+- **One Allow**: tests/test_approvals.py (11): an ast walk of src/swissarmybench and extensions/*/src finds no
+  `approvals.ask` outside services/agent.py, one declaration of the port (services/ports.py), every `approvals`
+  argument typed by it, and each of the 44 `allowed(...)` calls giving who, subject, action, detail and an
+  `otherwise` without its own "declined" or full stop; the user's request goes ahead with no question, the
+  agent's waits for the answer, a no and no answer (the timeout made short) both raise the one sentence,
+  Discover's `even_the_user` asks the user, NoOneToAsk declines the agent only. The services' and the
+  extensions' own tests of each Allow (agent export, extensions, folder extensions, updates, sharing, team,
+  library, project explorer, sab projects, environment, sandbox, local API, actions, connections' write, the
+  slots, relationship sets, Power BI, Power Apps, Copilot, Git, Accounting, the canvas, widgets): 797 passed.
+- **Actions' port and the seams**: mypy checks Actions against the explorer, LocalApi and Stats protocols; the ten
+  test files that set private fields use LiveRuns.use_runner, Launches.recording, GitHubSync.forget_remote and
+  PowerApps.use_api_documents: 121 passed.
+- **The blade save rules**: tests/test_blade_save_rules.py (13): the sentences; a rename through Properties and
+  through Save move the secrets the same way; a secret the renamed code no longer names goes; a secret a blade
+  folder's blade of the old name still reads stays under the old name (deleted before, on both paths); a taken
+  name says one sentence on both paths; a starter refused the same on all three paths; a secret blade takes no
+  code; BladeSecrets alone. The blade, starter, library, variables, connections and standalone tests: 885 passed.
+- The checks: ruff, ruff format, mypy (1,050 files), the page's typecheck: clean. The quick suite (`-n 4 --dist
+  loadfile --ignore=tests/e2e`, PYTHONPATH at this worktree's src): 5,414 passed, 60 skipped, 5 failed:
+  test_script_export's fresh Python and test_updater's uv tool (the run's PYTHONPATH, as recorded before), the
+  desktop shell's (fails the same on the branch's base, 7a551dc), and test_performance's million-row targets and
+  an intellisense kernel test, which pass alone (load under four workers).
