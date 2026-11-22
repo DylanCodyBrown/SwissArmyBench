@@ -51,11 +51,13 @@ class ApiExport:
         edited: Callable[[str], set[str]],
         approvals: Any,
         registry: Registry | None = None,
+        adapter_text: Callable[[], str] = str,  # sab_adapter.py, beside sab_api.py in every export
     ) -> None:
         self.ws = ws
         self._project = project
         self._read_api = read_api
         self._runtime = runtime_text
+        self._adapter = adapter_text
         self._connections = connections
         self._folder = folder
         self._edited = edited  # the project's made files edited by hand (services/project_scope.py)
@@ -99,6 +101,7 @@ class ApiExport:
                 tuple(code["notes"]),
                 rows and uses_sandbox,
                 uses_sandbox,
+                self._adapter(),
             ),
             api,
         )

@@ -251,9 +251,16 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
         done = ok(client.post("/local-api/export", json={"target": target}, headers=AUTH))
         place = Path(done["folder"])
         assert place == folder / "exports" / "api" / target
-        assert {"API.py", "sab_api.py", "connections.py", "README.md", "requirements.txt"} <= set(
-            done["files"]
-        )
+        assert {
+            "API.py",
+            "sab_api.py",
+            "sab_adapter.py",
+            "connections.py",
+            "README.md",
+            "requirements.txt",
+        } <= set(done["files"])
+        wanted = (place / "requirements.txt").read_text(encoding="utf-8").split()
+        assert "duckdb>=1.1" in wanted and "pyarrow>=15" in wanted  # the adapter's
         assert (place / "API.py").read_text(encoding="utf-8") == API_PY  # the endpoints never change
         assert "SHOP_PASSWORD" in done["variables"] and "SHOP_PASSWORD" in (place / "README.md").read_text(
             encoding="utf-8"
@@ -283,6 +290,19 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
         [200, {"customer_id": 2, "city": "Shelbyville"}],
         [404, {"error": "No customer 9."}],
     ]
+    # The copied adapter answers an Arrow endpoint in the export, with no app (Plans/adapter.plan.md).
+    arrow = _run(
+        exported["aws_lambda"],
+        """
+        import json, pyarrow as pa, sab_adapter, sab_api
+        @sab_api.endpoint("GET", "/arrow")
+        def arrow() -> pa.Table:
+            return pa.table({"n": [1, 2]})
+        status, _, body = sab_api.handle("GET", "/arrow")
+        print(json.dumps([status, json.loads(body), sab_adapter.__file__.endswith("sab_adapter.py")]))
+        """,
+    )
+    assert arrow == [200, [{"n": 1}, {"n": 2}], True]
     template = (exported["aws_lambda"] / "template.yaml").read_text(encoding="utf-8")
     assert "Runtime: python3.12" in template and "Handler: lambda_function.handler" in template
     # Azure Functions: each function called through azure.functions' names, stood in for.

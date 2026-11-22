@@ -56,6 +56,7 @@ class Bundle:
     notes: tuple[dict[str, Any], ...] = ()  # what only works on this computer (domain/portability.py)
     sandbox: bool = False  # data/sandbox.duckdb bundled
     uses_sandbox: bool = False  # an endpoint asks for connection("Sandbox")
+    adapter: str = ""  # sab_adapter.py (Plans/adapter.plan.md): every data call and payload goes through it
 
 
 @dataclass(frozen=True)
@@ -146,7 +147,14 @@ def warnings(bundle: Bundle) -> list[str]:
 
 def requirements_txt(base: Sequence[str], bundle: Bundle) -> str:
     wanted = list(
-        dict.fromkeys([*base, *bundle.requirements, *(["duckdb>=1.1"] if bundle.uses_sandbox else [])])
+        dict.fromkeys(
+            [
+                *base,
+                *bundle.requirements,
+                *(["duckdb>=1.1"] if bundle.uses_sandbox or bundle.adapter else []),
+                *(["pyarrow>=15"] if bundle.adapter else []),  # the adapter's Arrow
+            ]
+        )
     )
     return "\n".join(wanted) + "\n"
 
@@ -198,6 +206,7 @@ def _readme(bundle: Bundle, title: str, files: str, run: str, deploy: str, where
 _COMMON_FILES = (
     "- `API.py`: the endpoints, as written in the app (never changed by an export).\n"
     "- `sab_api.py`: `@endpoint`, `connection()`, `records()` and the one request handler.\n"
+    "- `sab_adapter.py`: the adapter every read, write and payload goes through (Arrow in and out).\n"
     "- `connections.py`: each connection's own code; it gives `connection(name)` the real client.\n"
     "- `openapi.json`: the API's OpenAPI document."
 )
@@ -207,6 +216,7 @@ def _common(bundle: Bundle) -> dict[str, str]:
     return {
         "API.py": bundle.api,
         "sab_api.py": bundle.runtime,
+        **({"sab_adapter.py": bundle.adapter} if bundle.adapter else {}),
         "connections.py": bundle.connections,
         "openapi.json": json.dumps(bundle.openapi, indent=2, sort_keys=True) + "\n",
     }
