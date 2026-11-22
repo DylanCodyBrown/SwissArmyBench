@@ -95,6 +95,11 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `blades_copy(code)`; Show its file stays the user's click (403 for the agent). The catalog checkbox and the
   blades page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its
   just tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
+- **Two things: the app and the project scaffold (the owner, 2026-11-22; design principle 12a).** The app is Swiss
+  Army Bench itself (`src/swissarmybench/`, `web/`, `extensions/`, the library); the project scaffold is what it writes
+  into a project folder and an export carries (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`,
+  `requirements.txt`, the type's deliverable, the sandbox mirror) and must run without the app. Say which one a change
+  is about.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
