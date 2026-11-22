@@ -618,9 +618,31 @@ dialog .dialog-body > h2:first-child {
 
 /* A connection's name in code (the Workbench): always there in notebooks and scripts. */
 .blade-code-name {
+  display: block;
+  overflow: hidden; /* a long name in code is cut with "...", never drawn over the row's copy button */
   margin-left: 6px;
   color: var(--muted);
   font-size: 0.85em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A narrow list (the Scripts page's Blades pane): a row's kind is its icon alone, so the name keeps the
+   room (the word took it: "Larkf..." beside "Database"). */
+.blade-list {
+  container-type: inline-size;
+}
+
+@container (max-width: 320px) {
+  .blade-list .blade-kind {
+    padding: 3px 5px;
+    font-size: 0;
+  }
+
+  .blade-list .blade-kind .icon-svg {
+    margin-right: 0;
+    vertical-align: 0;
+  }
 }
 
 

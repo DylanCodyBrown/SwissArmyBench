@@ -5555,3 +5555,36 @@ The checks before the push:
   another module in the same process, the same on the starting commit (docs/ideas.md "The sweep": the gate's
   cover on the Scripts page, left for the owner).
 - ruff, ruff format, mypy (1,036 files), the page's typecheck and build: clean.
+
+## Screens, 2026-11-22 (branch screens): the main pages photographed in both themes, and what they showed
+
+A real server from this checkout (its state in a temporary folder), filled the way the agent does it (its commands
+and routes): the sample store's nine tables, three projects (the open one a Streamlit project), two connections
+(a DuckDB file, a folder of files), a sandbox of four tables, eight endpoints from the endpoint wizard with the
+local sandbox API running, six widgets on a canvas, three analyses on the board, eight relationships, a notebook
+with a SQL cell and two Python cells run, a script. Seventeen pictures a theme in Chromium (1600 by 950, scale 2),
+kept outside the repository. Every picture looked at; fixed:
+
+- A table output in the dark theme was light text on a white box: the output's frame did not say its colour
+  scheme, so the browser gave it an opaque white backdrop (workbenchOutputs.ts; tests/e2e/test_workbench_feedback.py).
+- The Notebooks and Scripts pages' status bar ran off the window at 1600 wide (Beta and Launch Claude cut).
+- The Analyze page had an empty band above its toolbar (the panel's header, every control of it hidden there).
+- A canvas container's title was cut in half by a widget placed at the container's top.
+- The dark theme's widget previews stood as darker patches in their boxes.
+- The Scripts page's Blades pane cut names to "Larkf..." beside the word Database; a long name in code ran over
+  the row's copy button.
+- The wizard's `from datetime import ...` went after API.py's last import: "Import block is un-sorted" on a file
+  the app had just made (domain/api_scaffold.py; tests/test_local_api_critic.py).
+- "A sandbox variant of from Larkfield warehouse" (domain/sandbox.py; tests/test_sandbox_gaps.py); the sandbox
+  list's dates broke over two lines.
+- The Extensions page: "56 prebuilt" widgets (there are 113) and a raw "{slug}.canvas.json"; Settings' Join a
+  team and Start a team touched; the Widgets window's search box cut its own placeholder.
+
+Checks: ruff, ruff format, mypy (1,032 files), the page's typecheck and build: clean. tests/test_sandbox_gaps.py,
+test_local_api_critic.py, test_api_patterns.py, test_extensions.py, test_architecture.py: 378 passed. Browser tests
+in the Chromium that is here (no Edge on this computer: the launch swapped by a plug-in outside the repository),
+`-n 2`: test_analyze_page, test_canvas_page, test_catalog_page, test_extensions_page, test_team_page,
+test_local_apis_page, test_sandbox_gaps_page, test_widgets_page, test_scripts_ide_page, test_workbench_feedback,
+test_library_page: 56 passed, 2 failed, both this computer's Streamlit (unpacked beside the app's Python for the
+pictures, so a child Python started with `-I` does not find it): test_canvas_page's build and play, and
+test_widgets_page's failing preview. Without it they skip.

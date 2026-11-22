@@ -149,6 +149,25 @@ def test_data_ipynbs_table_cell_opens_unfolded_runs_and_shows_its_table_first(
     assert all(not c.get("outputs") for c in saved["cells"] if c["cell_type"] == "code")
 
 
+def test_a_table_output_is_readable_in_the_dark_theme(
+    browser: Browser, server: dict[str, Any], orchard: dict[str, Any]
+) -> None:
+    """A table's frame says the theme's colour scheme. A frame whose scheme differs from its page's is given
+    an opaque white backdrop by the browser: in the dark theme a DataFrame's light text stood on white."""
+    context = browser.new_context(viewport={"width": 1500, "height": 950}, color_scheme="dark")
+    page = context.new_page()
+    page.on("dialog", lambda d: d.accept())
+    opened = quote(str(orchard["data"]))
+    page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}&open={opened}")
+    cell = page.locator(".wb-tcell.role-transformations")
+    frame = cell.frame_locator("iframe.wb-html")
+    expect(frame.locator("table")).to_be_visible(timeout=90000)
+    assert frame.locator("html").evaluate("e => getComputedStyle(e).colorScheme") == "dark"
+    assert frame.locator("body").evaluate("e => getComputedStyle(e).color") == "rgb(232, 236, 239)"
+    assert frame.locator("body").evaluate("e => getComputedStyle(e).backgroundColor") == "rgba(0, 0, 0, 0)"
+    context.close()
+
+
 def test_a_cell_is_as_wide_as_its_pane(browser: Browser, server: dict[str, Any]) -> None:
     page = workbench(browser, server, "", width=2200)
     window(server, "file.newNotebook")

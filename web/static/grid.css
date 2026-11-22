@@ -2737,6 +2737,9 @@ button.link {
   height: auto;
 }
 
+/* On the Analyze page the panel is the page: nothing docks, grows or folds, so its header row (every
+   control of it hidden here) takes no room: it stood as an empty band above the toolbar. */
+.workspace[data-view="agent"] .ai-panel .panel-header,
 .workspace[data-view="agent"] .ai-panel .panel-header > button:not(.panel-dock),
 .workspace[data-view="agent"] .ai-panel .collapse-toggle {
   display: none;
@@ -6130,6 +6133,20 @@ body.wb-dragging-tab * {
 .wb-status {
   flex: none;
   white-space: nowrap;
+  /* It holds more than the grid page's bar (the session, the cursor, the panes' toggles): closer together,
+     and the app's name gives way first, so Beta and Launch Claude are never cut at the window's edge. */
+  column-gap: 10px;
+}
+
+.wb-status > .version-mark {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-status > .credit {
+  flex-shrink: 1000; /* the credit goes first, whole, before the app's name loses a letter */
 }
 
 .wb-status[hidden] {
@@ -15637,6 +15654,12 @@ body:has(> .tour) > .context-menu {
 .team-none {
   margin: 0 0 6px;
 }
+/* No team: Join a team… and Start a team… side by side, apart (they touched). */
+.team-fieldset .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .team-joined {
   display: flex;
   flex-wrap: wrap;
@@ -17264,6 +17287,7 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   background: var(--bg);
   color: var(--muted);
   pointer-events: none;
+  z-index: 1; /* over a widget placed at the container's top: the title is never cut by it */
 }
 .cvs-widget {
   border: 1px solid var(--border);
@@ -17567,6 +17591,12 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+/* A dark preview is a picture of the widget on Streamlit's dark page (#171614): its holder takes that
+   backdrop once the picture is there, so it is not a darker patch in a lighter box (the board, the cards). */
+html[data-theme="dark"] .cvs-preview:has(> img),
+html[data-theme="hc-dark"] .cvs-preview:has(> img) {
+  background: #171614;
 }
 .cvs-preview-wait {
   width: 100%;
@@ -19229,6 +19259,11 @@ body.wb-full .wb-col-right {
 .sandbox-tables td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+/* A date and its time on one line (they broke as "Nov 22, 2026, 10:57 / AM"), and their headings too. */
+.sandbox-tables td.when,
+.sandbox-tables th {
+  white-space: nowrap;
 }
 .sandbox-actions {
   white-space: nowrap;
