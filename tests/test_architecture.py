@@ -211,7 +211,7 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         "client/writes.py",
         # 2026-11-22 (phase 4): the SQL Write starters' write is the adapter's Sql, imported when one runs.
         "client/write_sql.py",
-        # 2026-11-22 (Plans/api-adapter.plan.md): sab.records, an envelope's records through api_adapter's table.
+        # 2026-11-22 (Plans/api-adapter.plan.md): sab.records: an envelope's records, api_adapter's table.
         "client/api_client.py",
         "starters/write_to_dataverse.blade.py",
         "starters/write_to_sharepoint_list.blade.py",

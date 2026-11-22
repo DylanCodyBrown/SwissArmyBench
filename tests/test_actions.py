@@ -266,3 +266,17 @@ def test_the_local_sandbox_apis_endpoints_are_actions_too(live: int, tmp_path: P
     )
     assert missing["status"] == 404 and missing["error"]["details"] == "No order 99."
     ask(live, "POST", "/local-api/stop", {})
+
+
+def test_build_a_widget_on_the_projects_canvas(live: int, service: Service, tmp_path: Path) -> None:
+    add_orders(live, service)
+    ask(live, "POST", "/project/new", {"path": str(tmp_path / "shop"), "type": "streamlit"})
+    if not ask(live, "GET", "/streamlit/canvases")["canvases"]:
+        ask(live, "POST", "/streamlit/canvases", {"name": "app"})
+    ask(live, "POST", "/actions/run", {"api": "Orders", "action": "list_orders"})
+    built = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "list_orders", "as": "widget"})
+    assert built["widget"] == "data_table" and built["id"]
+    canvas = json.dumps(ask(live, "GET", f"/streamlit/canvases/{built['canvas_id']}"))
+    assert "[Orders].list_orders" in canvas
+    with pytest.raises(AssertionError, match="no widget"):
+        ask(live, "POST", "/actions/build", {"api": "Orders", "action": "get_order", "as": "widget"})

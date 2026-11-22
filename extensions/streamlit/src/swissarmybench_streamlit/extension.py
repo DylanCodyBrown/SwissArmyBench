@@ -282,10 +282,11 @@ def routes(services: Any) -> list[Any]:
     async def canvas_put(body: dict[str, Any], who: str) -> dict[str, Any]:
         """Build's widget (the APIs page): put on the named canvas's page (else the project's first canvas
         and its first page), its values set, its In wired."""
-        listed = [c["name"] for c in canvases.listing()["canvases"]]
-        name = str(body.get("canvas") or (listed[0] if listed else ""))
-        if name not in listed:
+        listed = {c["name"]: c["path"] for c in canvases.listing()["canvases"]}
+        wanted = str(body.get("canvas") or next(iter(listed), ""))
+        if wanted not in listed:
             raise ValueError("The project has no canvas yet: New canvas on the Canvas page makes one.")
+        name = (await canvases.open({"path": listed[wanted]}, who))["canvas"]
         insert = {"kind": "insert_widget", "widget": body["widget"]} | (
             {"page": body["page"]} if body.get("page") else {}
         )
@@ -294,7 +295,7 @@ def routes(services: Any) -> list[Any]:
             await canvases.command(name, {"kind": "set_values", "id": made, "values": body["values"]}, who)
         if body.get("wire"):
             await canvases.wire(name, {"id": made, **body["wire"]}, who)
-        return {"canvas": name, "id": made}
+        return {"canvas": wanted, "canvas_id": name, "id": made}
 
     hooks.canvas_put = canvas_put
     web_root = getattr(settings, "web_root", Settings().web_root)
