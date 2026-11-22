@@ -30,7 +30,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.adapters import adapter
+from swissarmybench.adapters import adapter, api_adapter
 from swissarmybench.server import api_runtime as sab_api
 
 LOG_SIZE = 200
@@ -73,6 +73,7 @@ def _guard(connection: Any) -> None:
 def _load(path: Path) -> None:
     sys.modules["sab_api"] = sab_api
     sys.modules["adapter"] = adapter  # `from adapter import read, Plan`: the sandbox, by name
+    sys.modules["api_adapter"] = api_adapter  # `from api_adapter import run`: an export's same bytes
     sys.path.insert(0, str(path.parent))
     spec = importlib.util.spec_from_file_location("API", path)
     if spec is None or spec.loader is None:

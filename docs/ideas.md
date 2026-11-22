@@ -8119,7 +8119,7 @@ thing now sees:
   app canvas needs it); streamlit_use.py (still used); the server's VS Code opener path in live_updates; the rest of
   bootstrap's split and cleanup 4 (after the adapter).
 
-## The API adapter (the owner, 2026-11-22): proposed
+## The API adapter (the owner, 2026-11-22): built (branch api-adapter)
 api_adapter.py: any API's answer in, one envelope out, with active payload detection (format, envelope, paging, types)
 and drift handling (fields bound by path; added, missing, retyped and moved fields adapt; an unsure rename offered once,
 never guessed). Plan: Plans/api-adapter.plan.md.
@@ -8128,3 +8128,7 @@ never guessed). Plan: Plans/api-adapter.plan.md.
 Every call through either adapter records time in parts, size, outcome and who, never values; calls kept this session,
 running figures per endpoint and table kept with the project (.sab/stats.json). The agent's stats tool and plain-word
 hints. Plan: Plans/stats.plan.md.
+never guessed). Plan: Plans/api-adapter.plan.md (its "Built" and "Not yet" sections). Decided while building: the
+shapes are kept beside each API in the library (the local sandbox API's in .sab/api-shapes/); "seen" is a day so a
+same-shape call changes no byte most days; a rename is offered only when exactly one new field of the same type is alike;
+a write is never sent twice after a passing error (429 only); discovery's Allow is remembered for the session.

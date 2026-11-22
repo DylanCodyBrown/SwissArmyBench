@@ -4256,6 +4256,40 @@ def api_command(a: dict[str, Any]) -> Any:
     return api.call(method, path, None if method == "GET" else given, timeout=900)
 
 
+_ACTIONS = ("list", "describe", "run", "shape", "discover", "offer", "build")
+
+
+@command(
+    "actions",
+    "Every API's actions through api_adapter, one envelope (guide: apis); a run that writes and discover wait "
+    "for Allow",
+    req("action", ", ".join(_ACTIONS) + "."),
+    opt("api", "The API's name (the library's), or local (the project's sandbox API)."),
+    opt("name", "The action's name (describe, run, shape, offer, build)."),
+    opt(
+        "args",
+        'run: {"inputs": {...}, "required"?: [paths]}; offer: {"from", "to", "take": bool}; build: {"as": '
+        'cell|function|widget, "inputs"?, "canvas"?, "page"?}.',
+        "json",
+    ),
+)
+def actions_command(a: dict[str, Any]) -> Any:
+    action = str(a["action"])
+    if action not in _ACTIONS:
+        raise CommandError(f"action is one of: {', '.join(_ACTIONS)}.")
+    given = dict(a.get("args") or {})
+    which = {"api": a.get("api") or "", "action": a.get("name") or ""}
+    if action == "list":
+        return api.call("GET", "/actions" + (f"?api={_q(a['api'])}" if a.get("api") else ""))
+    if action in ("describe", "shape"):
+        found = api.call("GET", f"/actions/{_q(which['api'])}/{_q(which['action'])}")
+        return found if action == "describe" else {k: found[k] for k in ("api", "shape", "contract")}
+    if action == "discover":
+        return api.call("POST", "/actions/discover", {"api": which["api"]}, timeout=900)
+    posted = {"run": "/actions/run", "offer": "/actions/offer", "build": "/actions/build"}
+    return api.call("POST", posted[action], given | which, timeout=900)
+
+
 _SANDBOX = {
     "list": ("GET", "/sandbox"),
     "add": ("POST", "/sandbox/tables"),
@@ -5164,6 +5198,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("team", "Settings' Team box: join, start or leave a team (one GitHub repository, its projects/)"),
     ("sharing", "Share a running app with your organization (Microsoft Dev Tunnels)"),
     ("api", "The project's local sandbox API (API.py): run it, call it, export it for its target"),
+    ("actions", "Every API's actions through api_adapter: list, run, shapes and drift, discover, build"),
     ("sandbox", "The project's sandbox: the tables a local sandbox API reads and writes, Reset, checkpoints"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),

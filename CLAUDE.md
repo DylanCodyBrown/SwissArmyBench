@@ -645,6 +645,10 @@ src/swissarmybench/
                          delete by a key; a TypedDict of the columns), one style for every source: the adapter's
                          connection(name).read and .write (2026-11-22); the imports it needs (a date's too)
                          written among API.py's own (with_imports)
+    api_actions.py       an API's actions in the app (Plans/api-adapter.plan.md): `local` (the project's local sandbox
+                         API), the shapes' folders (apis/<name>/shapes/, .sab/api-shapes/), Build's text (a notebook
+                         cell, a script function: sab.run, sab.records) and widget plan (data_table on [API].action,
+                         the local API's endpoint wired; api_form, api_metric), why one cannot be built
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -726,6 +730,10 @@ src/swissarmybench/
                          a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
                          blade, a web call blade per operation, openapi.json, source.json), inline (the exporter)
+    actions.py           every API's actions through api_adapter (the module handed in): list, describe, run (a
+                         library API's in a child process through its API blade; the local API's through its
+                         process; a write by the agent on Allow), the shape kept (types only, said once), offer,
+                         discover (Allow once per API this session; reads only), build (hooks.canvas_put for a widget)
     api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
                          Structures, its origin the call; Run again), save a web call (Return as table), the
                          API blade's tables made again, Refresh then apply, rename, delete (the agent's on Allow)
@@ -856,6 +864,14 @@ src/swissarmybench/
                          JSON: COPY's options, a format, a partitioned folder); arrow_of (rows of any shape), a SQL
                          write's Batch beside the driver's error (batch_of); to_json and to_ipc (an endpoint's
                          Arrow answer). Allowed 3,000 lines (one file); it only grows (design principle 12b)
+    api_adapter.py       THE API adapter (Plans/api-adapter.plan.md; 12b), one file the app, the API's process and an
+                         export share (`api_adapter`), standard library only: actions(spec) (OpenAPI 3.x, Swagger
+                         2.0), run(action, inputs) -> one envelope (inputs checked first; http() or from_client()
+                         sign-in; 429 and passing retries; format, envelope, paging and types detected; drift against
+                         the known shape: added, missing, retyped, moved, a rename offered once; facts and observe()
+                         for the statistics), keep() and text() (an endpoint's shape, types only, byte-stable),
+                         learn() (the widgets' contract), discover() (read-only probe, the mapping, master and detail
+                         pairs), table(answer) (records through adapter). Allowed 3,000 lines; it only grows
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -940,7 +956,7 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
                          explorer, library,
-                         shared_catalog, team, found_connections, script_ide, debugger, sharing). Every route serves
+                         shared_catalog, team, found_connections, script_ide, debugger, sharing, actions). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -1009,7 +1025,9 @@ src/swissarmybench/
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box), sab.table (an open table as its grid
                          shows it, through the adapter: Arrow, a plan folded by the app)
-  client/api_client.py   sab.api(): the project's local sandbox API through the app (get, post, put, patch, delete)
+  client/api_client.py   sab.api(): the project's local sandbox API through the app (get, post, put, patch, delete);
+                         sab.run(api, action, inputs): any API's action through api_adapter (POST /actions/run), its
+                         envelope; sab.records(answer): its records as Arrow (api_adapter.table)
   client/connection_slot.py a Workbench kernel's query in one of its connection's slots (acquire, wait with its
                          place shown, renew, release); no gate outside a kernel or with no app
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,
@@ -1135,7 +1153,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          connectionsWindow.ts's forms (a form per type) open in the Connections page;
                          addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the
                          APIs page; apisPage.ts the APIs page (open=apis: cards, search, the explorer, Author a
-                         call, Refresh's diff); structuresPage.ts the Structures page (open=structures: tabs, the
+                         call, Refresh's diff); apiLearned.ts each operation's What it answers (api_adapter's learned
+                         shape, maps to, drift marks, rename offers, Run, Build) and Discover; structuresPage.ts the Structures page (open=structures: tabs, the
                          tree and the text, steps, Open as grid, Save, Run again, Lineage) and structureTree.ts
                          its tree and text view (shared with the APIs page);
                          pythonConnectionForm.ts is its form for Python (your own code): three code

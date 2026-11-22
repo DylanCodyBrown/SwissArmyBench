@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.adapters import api_adapter
 from swissarmybench.domain import api_targets as targets
 from tests.conftest import AUTH, make_client
 from tests.fake_keyring import memory_keyring
@@ -252,6 +253,7 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
             "API.py",
             "sab_api.py",
             "adapter.py",
+            "api_adapter.py",
             "connections.py",
             "README.md",
             "requirements.txt",
@@ -259,6 +261,8 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
         wanted = (place / "requirements.txt").read_text(encoding="utf-8").split()
         assert "duckdb>=1.1" in wanted and "pyarrow>=15" in wanted  # the adapter's
         assert (place / "API.py").read_text(encoding="utf-8") == API_PY  # the endpoints never change
+        made = Path(api_adapter.__file__).read_bytes()
+        assert (place / "api_adapter.py").read_bytes() == made  # the same bytes as the app's (12a)
         assert "SHOP_PASSWORD" in done["variables"] and "SHOP_PASSWORD" in (place / "README.md").read_text(
             encoding="utf-8"
         )

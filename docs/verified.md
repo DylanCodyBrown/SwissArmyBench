@@ -4882,3 +4882,37 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
 - color-mix() (the connection card's tint) is drawn by Chromium and Qt WebEngine 6.12's Chromium.
 - Not checked: Edge (the e2e ran in Chromium here); a Windows file with CRLF endings under the byte comparison of
   write_atomic(if_changed=True) (it writes once more, by design).
+
+## The API adapter (branch api-adapter, 2026-11-22)
+- api_adapter.py's own tests (tests/test_api_adapter.py: 36 passed, 1 skipped): recorded made-up payloads of every
+  format (JSON, JSON lines, XML, CSV, TSV, a file with its Content-Disposition name, text, empty, a scalar; YAML
+  skipped here: PyYAML is not installed in this venv), every envelope (a list, value, data, items, results, two levels
+  down, a lone wrapper, the one list beside count words, columns and rows), every paging style (an OData next link, a
+  Link header, a cursor into the action's token input, offset and limit, page numbers with total_pages; the call's page
+  and record limits, a repeated page, has_more false), types read from values (a leading zero stays text; an
+  impossible date stays text), inputs refused naming the one (path, boolean, body, a body field, choices, an unknown
+  name) with nothing sent, 429 with Retry-After and 503 retried and a POST never sent twice after a 503, the refusal
+  shape with the API's own words, sign-in headers hidden in `raw`; every drift case (added, missing as null, required
+  failing the call, retyped coerced or kept and marked, the envelope moved, paths in any case and style, a rename
+  offered once, taken, declined and never offered again, two alike never offered); the kept shape holds no value and
+  is the same bytes for the same shape; learn over the declared then the learned shape; OpenAPI 3.0 and Swagger 2.0;
+  discover (reads only, ids filled from another answer, a write skipped, the call limit, master and detail pairs, no
+  value in its answer); the facts handed to observe(); live against tests/api_standins.py (cursor, Link header, page
+  numbers, a 404's words, a 503 retried, a bearer sign-in from an environment variable); the file run alone in an
+  empty folder with `python -I` (nothing of the app imported).
+- Speed and memory (aa_speed: 10 recorded pages of 1,000 made-up records, 1.3 MB of JSON, nested and a number in
+  text): run 0.76 s, 1.3 s with a known shape (drift checked on every record), peak 16.5 MB (tracemalloc). Before
+  dates were checked from their parts: 1.33 s and 3.5 s (strptime was 60% of the time).
+- The app (tests/test_actions.py, a live server: 7 passed): a library API's actions named as the APIs page names
+  them, a run through its API blade's child process, the shape kept in the library without a value and with the same
+  bytes on a second run, a drift said and a required field failing, discover refused then allowed (the agent's), four
+  GETs only, its pairs and contracts, allowed once for the session; a write by the agent declined then allowed; Build's
+  cell and function (the function run against the stand-in), sab.run and sab.records; the local sandbox API's
+  endpoints as actions (its shape in .sab/api-shapes/); Build's widget on a Streamlit project's canvas.
+- The scaffold: every API export carries api_adapter.py with the app's bytes (tests/test_api_export.py).
+- The browser (Chromium; Edge not checked): test_api_learned_page (upload, Discover with Allow, the learned shapes,
+  Build a widget and a cell, a drift said and marked), test_add_api_page, test_structures_apis_page,
+  test_local_apis_page, test_widget_wiring_page, test_forms_recon_app: 15 passed.
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,032 passed, 45 skipped, none failed.
+- Not checked: Edge; Windows; a real outside API (only the stand-ins and recorded payloads); YAML answers (no PyYAML
+  in this venv); the canvas's Events and API widgets through api_adapter (not built).

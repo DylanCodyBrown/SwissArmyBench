@@ -27,7 +27,7 @@ import duckdb
 
 from swissarmybench import __version__
 from swissarmybench import extensions as extension_modules
-from swissarmybench.adapters import adapter, blade_run
+from swissarmybench.adapters import adapter, api_adapter, blade_run
 from swissarmybench.adapters import code_files as code_file_disk
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
@@ -117,6 +117,7 @@ from swissarmybench.server.text_process import run_text
 from swissarmybench.server.tunnels import DevTunnelProgram
 from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services import explorer as explorer_providers
+from swissarmybench.services.actions import Actions
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.analyze import Analyze
@@ -228,6 +229,7 @@ class Services:
     apis: Apis
     structures: Structures
     api_explorer: ApiExplorer
+    actions: Actions
     catalog_loading: CatalogLoading
     vault_names_at_start: VaultNamesAtStart
     connection_tables: ConnectionTablesService
@@ -1493,6 +1495,18 @@ def bootstrap(
         data_url=lambda key: f"http://127.0.0.1:{port}/sandbox/data/{key}",
     )
     explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
+    # Every API's actions through api_adapter (Plans/api-adapter.plan.md): the library's and the local one's.
+    actions = Actions(
+        ws,
+        api_explorer,
+        local_api,
+        ApiFiles(),
+        sandbox.folder,
+        approvals,
+        lambda: datetime.now(UTC).date().isoformat(),
+        hooks=hooks,
+        api_adapter=api_adapter,
+    )
 
     async def open_work() -> dict[str, Any]:
         """What is open and what an update would lose: the tables, the Workbench
@@ -1743,6 +1757,7 @@ def bootstrap(
         project_scope.edited_in,
         approvals,
         adapter_text=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
+        api_adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
     )
     for extension in on_extensions:
         for raw in getattr(extension, "API_TARGETS", ()) or ():
@@ -1791,6 +1806,7 @@ def bootstrap(
         apis=apis,
         structures=structures,
         api_explorer=api_explorer,
+        actions=actions,
         catalog_loading=catalog_loading,
         vault_names_at_start=vault_names_at_start,
         connection_tables=connection_tables,

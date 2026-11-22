@@ -57,6 +57,7 @@ class Bundle:
     sandbox: bool = False  # data/sandbox.duckdb bundled
     uses_sandbox: bool = False  # an endpoint asks for connection("Sandbox")
     adapter: str = ""  # adapter.py (Plans/adapter.plan.md): every data call and payload goes through it
+    api_adapter: str = ""  # api_adapter.py (Plans/api-adapter.plan.md): every API call goes through it
 
 
 @dataclass(frozen=True)
@@ -212,6 +213,7 @@ _COMMON_FILES = (
     "- `API.py`: the endpoints, as written in the app (never changed by an export).\n"
     "- `sab_api.py`: `@endpoint`, `connection()`, `records()` and the one request handler.\n"
     "- `adapter.py`: the adapter every read, write and payload goes through (Arrow in and out).\n"
+    "- `api_adapter.py`: every API call in and out: `run(action, inputs)` and its one envelope.\n"
     "- `connections.py`: each connection's own code; `connection(name)` is the adapter's calls on it.\n"
     "- `openapi.json`: the API's OpenAPI document."
 )
@@ -222,6 +224,7 @@ def _common(bundle: Bundle) -> dict[str, str]:
         "API.py": bundle.api,
         "sab_api.py": bundle.runtime,
         **({"adapter.py": bundle.adapter} if bundle.adapter else {}),
+        **({"api_adapter.py": bundle.api_adapter} if bundle.api_adapter else {}),
         "connections.py": bundle.connections,
         "openapi.json": json.dumps(bundle.openapi, indent=2, sort_keys=True) + "\n",
     }

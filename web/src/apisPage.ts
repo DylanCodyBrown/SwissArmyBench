@@ -43,6 +43,7 @@ import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
 import { APIS } from "./lazyPages";
 import { sandboxPanel } from "./dataSandbox";
 import { localApisSection } from "./localApis";
+import { discoverButton, learnedOf, learnedSection } from "./apiLearned";
 
 /** The page's name, in one place. */
 
@@ -122,6 +123,9 @@ interface Hit {
 }
 
 let shownPage: PageElement | null = null;
+/** An operation's saved inputs (its web call's), flat by name: what Run and Build start from. */
+const savedInputs = (op: Operation): Record<string, unknown> =>
+  Object.assign({}, ...Object.values(op.inputs ?? {})) as Record<string, unknown>;
 
 registerLayer("apis", {
   isOpen: () => Boolean(shownPage?.open),
@@ -358,11 +362,15 @@ function drawPage(): void {
   // ----- the explorer -----
 
   const explore = async (name: string, operation: string | null = null): Promise<void> => {
-    const got = await call<Explored>(`/apis/${encodeURIComponent(name)}`);
+    const [got, learned] = await Promise.all([call<Explored>(`/apis/${encodeURIComponent(name)}`), learnedOf(name)]);
     if (!got || !element.open) return;
     setHeading(APIS, ` › ${got.name}`);
     setOverTitle(`${APIS} › ${got.name}`);
-    foot.replaceChildren(button(`← ${APIS}`, () => void showCards(), { class: "ghost" }));
+    const current = (): string | null => body.querySelector<HTMLElement>(".api-op.current")?.dataset.operation ?? operation;
+    foot.replaceChildren(
+      button(`← ${APIS}`, () => void showCards(), { class: "ghost" }),
+      discoverButton(got.name, () => body, () => void explore(got.name, current())),
+    );
     const left = h("nav", { class: "api-ops", "aria-label": `${got.name}'s operations` });
     const right = h("div", { class: "api-detail" });
     const tags = new Map<string, Operation[]>();
@@ -378,7 +386,8 @@ function drawPage(): void {
     for (const [tag, ops] of tags) {
       const group = h("details", { class: "api-tag", open: true }, h("summary", {}, tag, h("span", { class: "count" }, String(ops.length))));
       for (const op of ops) {
-        const item = h("button", { type: "button", class: "api-op", "data-operation": op.id, title: op.name }, badge(op.method), h("code", {}, op.path), op.as_table ? icon("table") : null);
+        const known = learned.get(op.id);
+        const item = h("button", { type: "button", class: `api-op${known?.drift ? " drifted" : ""}`, "data-operation": op.id, title: known?.drift || op.name }, badge(op.method), h("code", {}, op.path), op.as_table ? icon("table") : null, known?.learned ? h("span", { class: "api-op-kind" }, known.kind) : null, known?.drift ? icon("warning") : null);
         item.addEventListener("click", () => pick(() => showOperation(got, op, right), item));
         group.append(item);
       }
@@ -425,6 +434,7 @@ function drawPage(): void {
       ),
       op.sql_name ? conversionBox(got, op) : "",
       h("section", { class: "api-inputs" }, h("h3", {}, "Inputs"), inputs, op.body ? h("div", { class: "api-two" }, treeBlock(`Body${op.body.required ? " (required)" : ""}`, op.body.schema, true), treeBlock("Example", op.body.example, false)) : ""),
+      learnedSection(got.name, op.id, ["POST", "PUT", "PATCH", "DELETE"].includes(op.method), () => savedInputs(op)),
       h("section", { class: "api-outputs" }, h("h3", {}, "Outputs"), ...op.responses.map((r) => h("div", { class: "api-answer" }, h("h4", {}, h("span", { class: `api-status s${r.status[0]}` }, r.status), " ", r.description), r.schema ? h("div", { class: "api-two" }, treeBlock("Schema", r.schema, true), treeBlock("Example", r.example, false)) : h("p", { class: "muted" }, "No body.")))),
       op.schemas.length ? h("p", { class: "muted" }, "Schemas: ", op.schemas.join(", ")) : "",
     );

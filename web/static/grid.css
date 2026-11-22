@@ -11883,6 +11883,72 @@ g.follow-pulse > path:first-of-type {
   background: var(--selected);
 }
 
+/* What api_adapter learned of an endpoint (apiLearned.ts): its kind on the list, the drift's mark. */
+.api-op-kind {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.api-op.drifted .icon-svg[data-icon="warning"] {
+  color: var(--warn);
+}
+
+.api-learned {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.api-learned-line {
+  margin: 0;
+  color: var(--muted);
+}
+
+.api-learned-kind {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text, inherit);
+}
+
+.api-learned-kind.declared {
+  border-style: dashed;
+}
+
+.api-learned-fields {
+  border-collapse: collapse;
+  max-width: 640px;
+}
+
+.api-learned-fields td,
+.api-learned-fields th {
+  padding: 2px 10px 2px 0;
+  text-align: left;
+}
+
+.api-learned-mark {
+  color: var(--warn);
+}
+
+.api-learned-fields .mark-missing td:first-child {
+  text-decoration: line-through;
+}
+
+.api-learned-offer,
+.api-learned-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-built-code {
+  max-height: 50vh;
+  overflow: auto;
+  white-space: pre;
+}
+
 .api-detail {
   display: flex;
   flex-direction: column;

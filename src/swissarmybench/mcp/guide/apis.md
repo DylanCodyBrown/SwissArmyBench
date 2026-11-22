@@ -23,6 +23,23 @@ from, when). APIs are not on the Connections page: the APIs page is their home.
   would start with; never switched on by itself.
 - Making one: `connections_api_add` (an OpenAPI document by address, file or text, or a form).
 
+## Any call through the API adapter: `actions(action)`
+Every API's actions (the library's by name, the project's local sandbox API as `local`), read from its
+specification only, one envelope for every call: `ok`, `status`, `kind` (records, record, value, file, empty,
+text), the answer in that shape (records flattened by path: `customer.id`), `paging`, `shape` (each field's
+detected type; `drift`: added, missing, retyped, moved; `offers`: a rename offered once), `raw`, `error` (the
+one refusal shape), `facts` (times and sizes, never a value).
+- `actions(action="list", api?)`: each action's learned kind, drift line and what it maps to.
+- `actions(action="describe"|"shape", api, name)`: inputs, the learned contract (`learn`), the kept shape,
+  the last call this session.
+- `actions(action="run", api, name, args={"inputs": {...}, "required"?: [paths]})`: inputs checked first;
+  a call that writes waits for the user's Allow. Only a `required` path fails a call when the answer drifts.
+- `actions(action="discover", api)`: one read-only GET per read endpoint (the smallest page), on the user's
+  Allow once per API this session; never a write. The shapes are kept (types only), never a value.
+- `actions(action="offer", api, name, args={"from", "to", "take"})`: answer a rename offered once.
+- `actions(action="build", api, name, args={"as": "cell"|"function"|"widget"})`: a cell's or a function's
+  code (`sab.run`, `sab.records`), or a widget put on the project's canvas.
+
 ## Return as table: the one gate to DuckDB SQL
 - `apis_save_call(name, operation, inputs?, body?)` saves the web call blade. `as_table=true` makes it one
   of the API's tables: `SELECT * FROM [Orders].list_orders` (a SQL cell on the API, `sab.read`).

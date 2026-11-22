@@ -52,12 +52,14 @@ class ApiExport:
         approvals: Any,
         registry: Registry | None = None,
         adapter_text: Callable[[], str] = str,  # adapter.py, beside sab_api.py in every export
+        api_adapter_text: Callable[[], str] = str,  # api_adapter.py beside it (Plans/api-adapter.plan.md)
     ) -> None:
         self.ws = ws
         self._project = project
         self._read_api = read_api
         self._runtime = runtime_text
         self._adapter = adapter_text
+        self._api_adapter = api_adapter_text
         self._connections = connections
         self._folder = folder
         self._edited = edited  # the project's made files edited by hand (services/project_scope.py)
@@ -102,6 +104,7 @@ class ApiExport:
                 rows and uses_sandbox,
                 uses_sandbox,
                 self._adapter(),
+                self._api_adapter(),
             ),
             api,
         )

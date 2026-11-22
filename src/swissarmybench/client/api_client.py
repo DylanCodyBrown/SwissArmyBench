@@ -79,3 +79,37 @@ class LocalApi:
 def api(name: str | None = None) -> LocalApi:
     """The project's local sandbox API (one per project: API.py; a name is for what is said only)."""
     return LocalApi(name)
+
+
+def run(
+    api: str, action: str, inputs: dict[str, Any] | None = None, required: list[str] | tuple[str, ...] = ()
+) -> dict[str, Any]:
+    """Any API's action through api_adapter (Plans/api-adapter.plan.md), through the app (POST /actions/run):
+    the library's APIs by name, the project's local sandbox API as "local". Its one envelope: ok, status,
+    kind, records / record / value / file, paging, shape (with its drift), raw, error. `required`: field paths
+    that must be there (only these fail a call when the API's answer changes)."""
+    info = ensure_server()
+    sent = {"api": api, "action": action, "inputs": inputs or {}, "required": list(required)}
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{info['port']}/actions/run",
+        data=json.dumps(sent, default=str).encode("utf-8"),
+        method="POST",
+        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310 (127.0.0.1)
+            answer: dict[str, Any] = json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as error:
+        try:
+            said = json.loads(error.read() or b"{}").get("error") or error.reason
+        except ValueError:
+            said = error.reason
+        raise ApiCallError(int(error.code), str(said)) from None
+    return answer
+
+
+def records(answer: dict[str, Any]) -> Any:
+    """An envelope's records as an Arrow table, through the adapter (api_adapter's table)."""
+    from swissarmybench.adapters import adapter, api_adapter
+
+    return api_adapter.table(answer, adapter)

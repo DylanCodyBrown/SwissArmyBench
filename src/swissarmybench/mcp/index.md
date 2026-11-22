@@ -23,9 +23,9 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
 | `compare_` | two grids | `compare_create` |
-| `connections_`, `variables_` | connections; variables; app registrations' access | `connections_list`, `variables_resolve`, `app_registration_check` |
+| `connections_`, `variables_` | connections; variables; access | `connections_list`, `variables_resolve`, `app_registration_check` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
-| `apis_`; `sandbox_`, `api_` | APIs; local sandbox APIs | `apis_call`; `sandbox`, `api` |
+| `apis_`, `actions_`; `sandbox_`, `api_` | APIs, any API call; local APIs | `actions`, `apis_call`; `sandbox`, `api` |
 | `structures_` | JSON, YAML, XML, TOML | `structures_open`, `structures_show` |
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_` | saved code, starters | `blades_list`, `blades_new` |
