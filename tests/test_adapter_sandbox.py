@@ -144,3 +144,44 @@ def test_api_py_reads_and_writes_the_sandbox_through_the_adapter_in_its_own_proc
     again = _ask(live, "POST", "/local-api/call", {"method": "GET", "path": "/open"})
     assert [r["id"] for r in again["body"]] == [1]
     _ask(live, "POST", "/local-api/stop", {})
+
+
+# ----- adapter 1.6.0: several writes through the door, all or none -----
+
+
+@pytest.fixture
+def two_tables(tmp_path: Path) -> Iterator[TestClient]:
+    with memory_keyring(), make_client(tmp_path) as client:
+        made = client.post("/project/new", json={"path": str(tmp_path / "garden")}, headers=AUTH)
+        assert made.status_code == 200, made.text
+        _put(client, tmp_path, "tasks", pa.table({"id": [1, 2, 3], "status": ["Open", "Open", "Open"]}))
+        _put(client, tmp_path, "audit", pa.table({"id": [9], "task_id": [3], "said": ["Made"]}))
+        key = client.post("/sandbox/tables/key", json={"table": "audit", "key": ["id"]}, headers=AUTH)
+        assert key.status_code == 200, key.text
+        yield client
+
+
+def test_the_sandbox_through_remote_writes_two_tables_all_or_none(two_tables: TestClient) -> None:
+    source = TestRemote(two_tables, "Sandbox")
+
+    def statuses() -> list[str]:
+        plan = adapter.Plan(columns=("status",), sort=(("id", False),))
+        return list(adapter.read(source, "tasks", plan)[0].read_all().column("status").to_pylist())
+
+    def audit() -> int:
+        return adapter.read(source, "audit")[0].read_all().num_rows
+
+    done = pa.table({"id": [1, 2], "status": ["Done", "Done"]})
+    taken = pa.table({"id": [9], "task_id": [1], "said": ["the id is taken"]})
+    with pytest.raises(adapter.AdapterError, match=r"(?i)key"):
+        adapter.write_all(source, [("tasks", done, ["id"], "update"), ("audit", taken)])
+    assert statuses() == ["Open", "Open", "Open"] and audit() == 1  # the update rolled back with it
+    noted = pa.table({"id": [10, 11], "task_id": [1, 2], "said": ["Closed", "Closed"]})
+    counted = adapter.write_all(source, [("tasks", done, ["id"], "update"), ("audit", noted)])
+    assert counted == [adapter.Counts(updated=2), adapter.Counts(inserted=2)]
+    assert statuses() == ["Done", "Done", "Open"] and audit() == 3
+    log = two_tables.get("/sandbox", headers=AUTH).json()["log"]
+    assert (log["tasks"]["updated"], log["audit"]["inserted"]) == (2, 2)  # counted as any API write is
+    broken = two_tables.post("/sandbox/adapter/write_all", content=b'{"writes": [{"bytes": 9}]}\nabc',
+                             headers=AUTH)  # fmt: skip
+    assert broken.status_code == 422 and "not what the JSON line said" in broken.json()["error"]

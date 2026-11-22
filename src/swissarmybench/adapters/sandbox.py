@@ -431,6 +431,18 @@ class SandboxFiles:
         done = adapter.write(self.source(), name, reader, key, mode)
         return {"inserted": done.inserted, "updated": done.updated, "deleted": done.deleted}
 
+    def write_all_arrow(
+        self, writes: Sequence[tuple[str, bytes, Sequence[str], str]]
+    ) -> list[dict[str, int]]:
+        """Several writes, each (table, an Arrow IPC stream's bytes, key, mode), in one transaction: all or
+        none (adapter.write_all over the sandbox's file)."""
+        made = [
+            adapter.Write(name, pa.ipc.open_stream(pa.BufferReader(data)), tuple(key), mode)
+            for name, data, key, mode in writes
+        ]
+        done = adapter.write_all(self.source(), made)
+        return [{"inserted": d.inserted, "updated": d.updated, "deleted": d.deleted} for d in done]
+
     def query_arrow(self, sql: str, params: Any) -> pa.RecordBatchReader:
         """The adapter's query for a read (DuckDB SQL, the source's made so): streamed under the gate."""
         return adapter.query(self.source(), sql, params)

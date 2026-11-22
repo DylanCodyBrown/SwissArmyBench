@@ -73,6 +73,9 @@ class Files(Protocol):
 
     def write_arrow(self, name: str, data: bytes, key: Any, mode: str) -> dict[str, int]: ...
 
+    # several of those in one transaction, all or none: each one's counts
+    def write_all_arrow(self, writes: Any) -> list[dict[str, int]]: ...
+
     def query(
         self, statement: rules.Statement, limit: int
     ) -> tuple[list[str], list[str], list[list[Any]], bool]: ...
@@ -874,6 +877,36 @@ class Sandbox:
         await self._told([table], "", "")
         self.ws.audit.write(who, "sandbox_write", table, rows=rows)
         return counts
+
+    async def write_all_arrow(
+        self, connection: Any, writes: list[dict[str, Any]], who: str = "api"
+    ) -> list[dict[str, int]]:
+        """The adapter's write_all: several writes ({"table", "key", "mode", "data": an Arrow IPC stream's
+        bytes}) in one transaction, all or none; each counted in the change log as any API write is."""
+        planned = []
+        for given in writes:
+            table = await self._one_of(connection, given.get("table"))
+            key = [str(k) for k in given.get("key") or []]
+            planned.append((table, given["data"], key, str(given.get("mode") or "insert")))
+        files = self._files()
+        async with self._lock:
+            try:
+                done: list[dict[str, int]] = await self._run(files.write_all_arrow, planned)
+            except ValueError:
+                raise
+            except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
+                raise SandboxError(rules.db_words(error)) from error
+            meta = files.read_meta()
+            for (table, _, _, _), counts in zip(planned, done, strict=True):
+                for op, counted in (("insert", "inserted"), ("update", "updated"), ("delete", "deleted")):
+                    rules.noted(meta.log, table, op, counts[counted])
+            changed = [t for (t, _, _, _), c in zip(planned, done, strict=True) if sum(c.values())]
+            rules.touched(meta, list(dict.fromkeys(changed)), _stamp(self._now()))
+            files.write_meta(meta)
+        await self._told(list(dict.fromkeys(t for t, _, _, _ in planned)), "", "")
+        for (table, _, _, _), counts in zip(planned, done, strict=True):
+            self.ws.audit.write(who, "sandbox_write", table, rows=sum(counts.values()))
+        return done
 
     # ===== edited in its grid (the owner approved "Edit sandbox rows in a grid", 2026-11-21) =====
 

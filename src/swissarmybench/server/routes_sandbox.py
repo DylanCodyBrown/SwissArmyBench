@@ -14,7 +14,7 @@ POST  /sandbox/drop                  Remove the sandbox: sandbox/, its two files
 POST  /sandbox/baseline              the sandbox as it is now made the baseline     sandbox_checkpoint
 POST  /sandbox/checkpoints           {"name", "action": save | delete}                      sandbox_checkpoint
 POST  /sandbox/checkpoints/restore   {"name"}                                                 sandbox_restore
-POST  /sandbox/adapter/{tables|read|query|write}  the four below with the token (an in-app caller, a test)
+POST  /sandbox/adapter/{tables|read|query|write|write_all}  the five below with the token (an in-app caller)
 POST  /sandbox/data/{key}/tables     adapter.Remote's tables(source): {"connection"}; a running local
                                      sandbox API's own key in the path instead of the token
                                      (server/security.py's secret paths)
@@ -23,11 +23,14 @@ POST  /sandbox/data/{key}/read       its read: {"connection", "table", "plan"}; 
 POST  /sandbox/data/{key}/query      its query: {"connection", "sql", "params"}: the connection's own SQL made
                                      DuckDB SQL over its sandbox tables; an Arrow IPC stream
 POST  /sandbox/data/{key}/write      its write: an Arrow IPC stream; ?connection&table&key&mode; the counts
+POST  /sandbox/data/{key}/write_all  several writes all or none: a JSON line {"connection", "writes":
+                                     [{"table", "key", "mode", "bytes"}]}, then each one's Arrow IPC stream
 """
 
 from __future__ import annotations
 
 import io
+import json
 import secrets
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -84,6 +87,29 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         given = {k: str(v) for k, v in request.query_params.items()}
         return json_response(await sandbox.write_arrow(given, await request.body(), "api"))
 
+    async def adapter_write_all(request: Request) -> Response:
+        """adapter.Remote's write_all: a JSON line naming each write and its stream's bytes, then the Arrow
+        IPC streams one after another; all of them or none."""
+        if not allowed(request):
+            return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
+        body = await request.body()
+        head, _, rest = body.partition(b"\n")
+        try:
+            said = json.loads(head or b"{}")
+            writes, at = [], 0
+            for one in said.get("writes") or []:
+                size = int(one["bytes"])
+                writes.append({**one, "data": rest[at : at + size]})
+                at += size
+        except (ValueError, KeyError, TypeError):
+            return error_as(
+                ValueError("A write_all is a JSON line naming each write, then its streams."), 422
+            )
+        if at != len(rest):
+            return error_as(ValueError("The streams' bytes are not what the JSON line said."), 422)
+        counts = await sandbox.write_all_arrow(said.get("connection"), writes, "api")
+        return json_response({"counts": counts})
+
     async def listing(request: Request) -> Response:
         return json_response(await sandbox.listing(dict(request.query_params)))
 
@@ -105,10 +131,12 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         Route(ADAPTER + "/read", adapter_read, methods=["POST"]),
         Route(ADAPTER + "/query", adapter_query, methods=["POST"]),
         Route(ADAPTER + "/write", adapter_write, methods=["POST"]),
+        Route(ADAPTER + "/write_all", adapter_write_all, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/tables", adapter_tables, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/read", adapter_read, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/query", adapter_query, methods=["POST"]),
         Route(DATA_PREFIX + "{key}/write", adapter_write, methods=["POST"]),
+        Route(DATA_PREFIX + "{key}/write_all", adapter_write_all, methods=["POST"]),
     ]
 
 

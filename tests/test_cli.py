@@ -243,6 +243,8 @@ NOT_COMMANDS = {
     "/sandbox/data/{}/read": "adapter's read from that process, as Arrow (the agent calls the API)",
     "/sandbox/data/{}/query": "adapter's query from that process, as Arrow (the agent calls the API)",
     "/sandbox/data/{}/write": "adapter's write from that process, as Arrow (the agent calls the API)",
+    "/sandbox/adapter/write_all": "adapter's write_all with the token, as Arrow: an in-app caller's",
+    "/sandbox/data/{}/write_all": "adapter's write_all from that process, as Arrow (the agent calls the API)",
     "/environment/columns": "a table's columns for the row that unfolds: environment's show answers them",
     "/sharing/install": "devtunnel's download: sharing_start does it for the agent, on the user's Allow",
     "/sharing/sign-in": "signing in to share (Microsoft Entra) is the user's own (403 for the agent)",
