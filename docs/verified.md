@@ -5415,5 +5415,11 @@ touches; the test bed's real PostgreSQL 16 and MariaDB were up for 1.8.0 and 1.9
   after). LibreOffice 24 (soffice --convert-to csv) opened it and read each value as meant. The adapter's own
   sheet write (keeping the other sheets: openpyxl's normal mode) was not changed: 100,000 rows by 3 in 3.6 s,
   +108 MB (the workbook in memory).
+- **The suites** (with this branch's code in every child process, `python -I` included: a venv whose .pth names the
+  worktree's src first): the quick suite 5,313 passed, 37 skipped, 3 failed under load, each passing alone
+  (test_workbench's kernel run and busy reader; test_desktop_shell, which needed the page built in the worktree);
+  ruff, ruff format, mypy (1,032 files), npm run typecheck clean. In Chromium: tests/e2e/test_local_apis_page.py 3
+  passed; tests/e2e/test_endpoint_wizard_page.py past its pattern steps (the Summary by period's plan, its run, its
+  Reconcile) to the Scripts page opening API.py from its address, which fails the same way on the base branch here.
 - **Not checked here**: SQL Server's, Oracle's, Snowflake's, Trino's and Databricks' period and contains SQL against
   real servers (sqlglot only); Excel itself opening the new export (LibreOffice did); the export on Windows.
