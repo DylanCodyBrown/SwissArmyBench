@@ -16,7 +16,7 @@ dry_run=False writes. An agent sets dry_run=False only after the user said to wr
 words, in this conversation. Returns the write's report.
 
 Written to a new file beside the target, then put in its place: a failure leaves the old file as it was.
-The rows are written by DuckDB's COPY.
+The rows are written by the adapter (sab_adapter.write on its Files: DuckDB's COPY, Plans/adapter.plan.md).
 
 Laid out top to bottom: the imports, then `write_json`, the one function, which you call.
 """
@@ -38,8 +38,4 @@ def write_json(
 ) -> FileWrite:
     """The rows written to a JSON file: one array of records, or one record a line."""
     w = FileWrite(path, "json", rows, dry_run=dry_run, overwrite=overwrite)
-    copy = "COPY sab_rows TO '{file}' (FORMAT json, ARRAY " + ("false" if one_a_line else "true") + ")"
-    w.would(w.statement(copy), written=w.need_rows().count)
-    if not dry_run:
-        w.done(written=w.copy(copy))
-    return w
+    return w.by_adapter("ARRAY " + ("false" if one_a_line else "true"))

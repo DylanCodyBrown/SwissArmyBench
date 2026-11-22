@@ -157,6 +157,34 @@ def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None
     assert known | {"duckdb"} == set(connections.ADAPTER_DIALECTS)
 
 
+WRITES_OWN = {  # the Write starters that still write themselves, and why (docs/ideas.md "One adapter")
+    "write_to_sql_server": "typed #temp staging, MERGE WITH (HOLDLOCK), Azure's passing errors retried",
+    "write_to_trino": "no transactions: a statement at a time, MERGE where the connector has it",
+    "write_to_excel_sheet": "moves with the Excel module (Plans/excel.plan.md)",
+}
+STATEMENTS = {"execute", "executemany", "copy", "each_batch", "each_values", "each_where", "transaction"}
+
+
+def test_the_write_starters_write_only_through_the_adapter() -> None:
+    """Phase 4, step 1: every Write function but the three above is a thin caller of the adapter's write
+    (by_adapter: its planned() for the dry run, then sab_adapter.write); none runs a statement itself."""
+    functions = sorted((PACKAGE / "starters").glob("write_to_*.blade.py"))
+    assert len(functions) == 16
+    for path in functions:
+        stem = path.name.removesuffix(".blade.py")
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        calls = [n.func for n in ast.walk(tree) if isinstance(n, ast.Call)]
+        called = {f.attr for f in calls if isinstance(f, ast.Attribute)} | {
+            f.id for f in calls if isinstance(f, ast.Name)
+        }
+        if stem in WRITES_OWN:
+            continue
+        assert "by_adapter" in called or {"write", "planned"} <= called, f"{stem} writes through the adapter"
+        assert stem in ("write_to_delta",) or not called & STATEMENTS, (
+            f"{stem} runs statements itself: {sorted(called & STATEMENTS)}"
+        )
+
+
 def test_a_kernel_reaches_an_open_table_only_through_the_adapter() -> None:
     """Phase 2, Order 3: a kernel's DuckDB SQL naming an open table, and sab.table, read it as the adapter's
     source (the open tables' door); only sab.table's plain-client fallback names the view's address."""

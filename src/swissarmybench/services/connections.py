@@ -7,7 +7,8 @@ the Add connection form: each database and file starter as fields, passwords and
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import base64
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -20,6 +21,7 @@ from swissarmybench.domain.catalogs import count_sql, select_sql
 from swissarmybench.domain.datasets import Opened
 from swissarmybench.domain.relationships import Model
 from swissarmybench.services.blades import BladeService
+from swissarmybench.services.workspace import Refused
 
 
 class ConnectionService:
@@ -51,6 +53,10 @@ class ConnectionService:
         # The Variables page (services/variables.py, set once built): a setting's ${NAME} checked before a
         # Test runs, so a name not set here is the one error (12.7), not the driver's.
         self.variable_check: CodeCheck | None = None
+        # sab.write for the agent (connections_write), set once built: the user's Allow (services/agent.py)
+        # and an open table's grid view as an Arrow IPC stream (services/table_cells.py).
+        self.approvals: Any = None
+        self.open_view: Callable[[str], Awaitable[bytes]] | None = None
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -339,6 +345,31 @@ class ConnectionService:
             # A Power BI workspace's table lives in one of its datasets: named as the schema or as dataset.
             place["schema"] = str(where.get("dataset") or "")
         return blade, str(kind), place
+
+    async def write(self, name: str, body: Any, who: str) -> dict[str, Any]:
+        """sab.write for the agent (connections_write): rows (records, or an open table by its name: its
+        grid's view) written to a connection's table through the adapter, in a child process. A dry run
+        counts and writes nothing; the agent's write to the live source waits for the user's Allow."""
+        table, mode, key, dry_run = write_capability.write_request(body)
+        blade = self._blades.get(name)
+        if not rules.has_catalog(rules.connection_kind(blade.kind, blade.template)):
+            raise BladeError(f"{blade.name} has no tables to write to.")
+        request: dict[str, Any] = {"table": table, "mode": mode, "key": key, "dry_run": dry_run}
+        count = "no rows"  # a truncate's: the table cleared
+        if isinstance(body.get("from_table"), str) and body.get("rows") is None:
+            if self.open_view is None:
+                raise BladeError("Writing an open table needs the open tables.")
+            request["ipc"] = base64.b64encode(await self.open_view(body["from_table"])).decode("ascii")
+            count = f"every row of {body['from_table']}"
+        elif body.get("rows") is not None:
+            request["records"] = body["rows"]
+            count = f"{len(body['rows']):,} row{'' if len(body['rows']) == 1 else 's'}"
+        if who == "agent" and not dry_run:
+            if self.approvals is None or not await self.approvals.ask(
+                blade.name, "write_connection", f"Write {count} to {table} on {blade.name} ({mode})"
+            ):
+                raise Refused(f"The user declined (or did not answer): nothing was written to {table}.")
+        return await self._blades.write(blade, request)
 
     async def open_table(self, name: str, body: Any, who: str) -> dict[str, Any]:
         """A connection's table as a grid: a database's first Rows to open rows (every row with

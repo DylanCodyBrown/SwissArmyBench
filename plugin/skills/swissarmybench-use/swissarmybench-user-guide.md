@@ -1183,10 +1183,17 @@ version never touches your copy.
 
 ![The blade list's Starters: a line for each family with its count, Streamlit open on its pieces.](images/22-starters.png)
 
-### Writing data: the Write starters
+### Writing data: sab.write and the Write starters
 
-Writes are cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
-for the connections that take writes. Each connection says which: its card on the Connections page reads
+One line writes rows to any connection that takes writes, from a Python cell:
+`sab.write("Shop", "orders", orders, "merge", key="order_id")`. The rows are a DataFrame, an Arrow table, a
+list of dicts, or an open table's name (its grid's rows); the mode is **insert**, **update**, **merge**
+(update where the key is there, insert the rest), **delete** (by the key) or **truncate** (the table
+emptied, then the rows: with none, only emptied). `dry_run=True` only says what it would do. It is the same
+write an exported API's `connection(name).write(...)` makes, so it works the same once deployed.
+
+Writes are also cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
+for the connections that take writes, with each target's own words. Each connection says which: its card on the Connections page reads
 **Writes** or **Read-only** (hover for the starters, or the reason), and its page says it in full. A
 Power BI model is read-only (write its source, then refresh it: Power BI refresh dataset); so are a
 DuckDB file the app opens read-only and the warehouses that load through their own tools (Snowflake,
@@ -1195,9 +1202,11 @@ BigQuery, Redshift, Databricks), and a key vault.
 - **Databases** (SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite, Oracle, Trino, ODBC):
   append, create table (the rows' types made the database's), replace (every row, in one transaction),
   upsert (insert, or update where a key matches) and delete (the rows whose keys are the rows' keys).
-  SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
-  passing errors run the whole write again. PostgreSQL uses COPY and ON CONFLICT. Trino writes where the
-  catalog's connector does (Iceberg, Delta Lake, Hive), a statement at a time.
+  PostgreSQL, MySQL and MariaDB, SQLite, Oracle and ODBC write as sab.write does: their own INSERT,
+  UPDATE and DELETE in one transaction (an upsert updates the rows whose keys are there and inserts the
+  others). SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
+  passing errors run the whole write again. Trino writes where the catalog's connector does (Iceberg,
+  Delta Lake, Hive), a statement at a time.
 - **Dataverse** through its Web API (its SQL endpoint is read-only): create, update, upsert (by an
   alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
   labels (Won, not 1).

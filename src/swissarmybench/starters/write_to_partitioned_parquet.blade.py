@@ -17,7 +17,7 @@ dry_run=False writes. An agent sets dry_run=False only after the user said to wr
 words, in this conversation. Returns the write's report.
 
 Written to a new file beside the target, then put in its place: a failure leaves the old file as it was.
-The rows are written by DuckDB's COPY.
+The rows are written by the adapter (sab_adapter.write on its Files: DuckDB's COPY, Plans/adapter.plan.md).
 
 Laid out top to bottom: the imports, then `write_partitioned_parquet`, the one function, which you call.
 """
@@ -43,11 +43,4 @@ def write_partitioned_parquet(
         path, "folder", rows, dry_run=dry_run, overwrite=if_there == "replace", add=if_there == "add"
     )
     w.check_columns(partition_by)
-    copy = (
-        "COPY sab_rows TO '{file}' "
-        f"(FORMAT parquet, COMPRESSION zstd, PARTITION_BY ({w.names(partition_by)}), FILENAME_PATTERN 'data_{{uuid}}')"
-    )
-    w.would(w.statement(copy), written=w.need_rows().count)
-    if not dry_run:
-        w.done(written=w.copy(copy))
-    return w
+    return w.by_adapter("COMPRESSION zstd", partition_by)

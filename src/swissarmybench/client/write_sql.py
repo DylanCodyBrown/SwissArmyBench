@@ -25,6 +25,7 @@ Standard library only; the driver is the connection's own (sab.connection signs 
 
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
 import decimal
 import re
@@ -339,6 +340,15 @@ ENGINES: dict[str, Engine] = {
         drivers=("pyodbc",),
     ),
 }
+
+
+def writable(conn: Any) -> Any:
+    """A connection as the adapter's write takes it (sab.write): SQL Server's without read-only intent, a
+    SQLite file opened again to write, in transactions the adapter commits or rolls back."""
+    conn = _writable(for_writes(conn))
+    if isinstance(conn, sqlite3.Connection):
+        conn.isolation_level = "DEFERRED"  # begun by the first statement: the adapter's one transaction
+    return conn
 
 
 def for_writes(conn: Any) -> Any:
@@ -680,6 +690,119 @@ class SqlWrite(Write):
         said = words(error)
         hint = next((h for found, h in self.engine.hints if found.lower() in str(error).lower()), "")
         return f"{said} {hint}".strip()
+
+    # ===== the write, by the adapter =====
+
+    def by_adapter(self, keys: Sequence[str] = ()) -> SqlWrite:
+        """The write by the adapter's Sql (sab_adapter.write: one transaction, its own INSERT, UPDATE and
+        DELETE; Plans/adapter.plan.md), the dry run its planned(): the rows checked against the table first,
+        what it would run said, then, with dry_run False, written (a failure rolls every row back and names
+        its batch). Modes: append, create (the table made from the rows' types first), replace, upsert,
+        delete."""
+        from swissarmybench.adapters import (
+            sab_adapter,
+        )  # imported when a write runs: this module stays stdlib
+
+        keys = [k for k in keys if k]
+        mode = ADAPTER_MODES[self.what]
+        columns = self._checked(keys)
+        data = self.need_rows().arrow()
+        data = data.rename_columns([columns.get(n.casefold(), n) for n in data.column_names])
+        if mode == "delete":
+            data = data.select([columns.get(k.casefold(), k) for k in keys])
+        names = [columns.get(k.casefold(), k) for k in keys]
+        dialect = sab_adapter.DIALECTS.get(self.engine.key) or sab_adapter.Dialect(self.engine.key)
+        if isinstance(self.conn, sqlite3.Connection):
+            self.conn.isolation_level = "DEFERRED"  # the adapter's one transaction, begun by the first write
+        source = sab_adapter.Sql(self.conn, dialect, self.connection, self._paramstyle, self._value)
+        target = ".".join(self._bare(p) for p in self._parts())
+        create = f"CREATE TABLE {self.table} (\n{self.column_types()}\n)" if self.what == "create" else ""
+        if create:
+            planned: dict[str, int | None] = {"inserted": data.num_rows}
+        else:
+            try:
+                counted = sab_adapter.planned(source, target, data, names, mode)
+            except Exception as error:
+                raise WriteError(
+                    f"{self.target} cannot be read on {self.connection}: {self._said(error)}"
+                ) from None
+            planned = {k: int(getattr(counted, k)) for k in _COUNTED[mode]}
+        self.would(*self._statements(create, mode, keys), **planned)
+        if self.dry_run:
+            return self
+        done = sab_adapter.Counts()
+        try:
+            if create:
+                sab_adapter.query(source, create).read_all()
+                self.on_failure(f"DROP TABLE {self.table}")  # a write that fails takes its new table away
+            done = sab_adapter.write(
+                source, target, data.to_reader(max_chunksize=self.batch_size), names, mode
+            )
+        except Exception as error:
+            batch = sab_adapter.batch_of(error)
+            said = f"{batch.where()} failed: {self._said(error)}" if batch else self._said(error)
+            self._failed(said, batch.before if batch else 0)
+        finally:
+            with contextlib.suppress(Exception):
+                self.conn.close()
+        self.done(**{k: int(getattr(done, k)) for k in _COUNTED[mode]})
+        return self
+
+    def _checked(self, keys: list[str]) -> dict[str, str]:
+        """The checks before a write (the table there or not, its columns, the keys); the table's own name
+        for each of the rows' columns by its case-folded name (Region writes region)."""
+        if self.what == "create":
+            self.check_new()
+            return {n.casefold(): self._bare(n) for n in self.need_rows().names}
+        if self.what == "delete":
+            self.check_columns(keys)
+        else:
+            self.check_columns()
+        if self.what in ("upsert", "delete"):
+            if self.what == "upsert" and not keys:
+                raise WriteError('An upsert finds each row by its key columns: keys=["order_id"].')
+            self.check_keys(keys, unique=self.what == "upsert")
+        return {c.casefold(): c for c in self.target_columns()}
+
+    def _parts(self) -> list[str]:
+        quotes = self.engine.quote + '"'
+        return [p.strip().strip(quotes) for p in str(self.target).split(".")]
+
+    def _bare(self, name: str) -> str:
+        """A name as the database holds it: a plain one the way it reads one unquoted."""
+        return self.engine.fold(name) if self.engine.fold and _PLAIN.fullmatch(name) else name
+
+    def _statements(self, create: str, mode: str, keys: list[str]) -> list[str]:
+        """What the adapter will run, in this database's SQL, for the report."""
+        insert = f"INSERT INTO {self.table} ({self.columns}) VALUES ({self.marks()})"
+        if mode == "delete":
+            where = " AND ".join(f"{self.name(k)} = {self.mark(i)}" for i, k in enumerate(keys))
+            return [f"DELETE FROM {self.table} WHERE {where}"]
+        if mode == "merge":
+            others = [c for c in self.need_rows().names if c not in keys]
+            sets = ", ".join(f"{self.name(c)} = {self.mark(i)}" for i, c in enumerate(others))
+            where = " AND ".join(f"{self.name(k)} = {self.mark(len(others) + i)}" for i, k in enumerate(keys))
+            return [
+                f"UPDATE {self.table} SET {sets} WHERE {where}  -- the rows whose keys are there",
+                f"{insert}  -- the others",
+            ]
+        return [s for s in (create, f"DELETE FROM {self.table}" if mode == "truncate" else "", insert) if s]
+
+
+# A starter's mode -> the adapter's (create: the table made, then an insert).
+ADAPTER_MODES: dict[str, str] = {
+    "append": "insert",
+    "create": "insert",
+    "replace": "truncate",
+    "upsert": "merge",
+    "delete": "delete",
+}
+_COUNTED: dict[str, tuple[str, ...]] = {
+    "insert": ("inserted",),
+    "truncate": ("deleted", "inserted"),
+    "merge": ("updated", "inserted"),
+    "delete": ("deleted",),
+}
 
 
 # ===== SQL Server and Azure SQL: staged, typed from the target, merged, retried =====

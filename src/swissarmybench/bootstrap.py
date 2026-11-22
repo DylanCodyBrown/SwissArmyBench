@@ -860,6 +860,9 @@ def bootstrap(
         catalogs=catalogs,
         colours=connection_colours,
     )
+    # sab.write for the agent (connections_write): its Allow, and an open table's grid view as rows.
+    connections.approvals = approvals
+    connections.open_view = table_cells.view
     # The Connections page: each connection's references, configuration and calls this session.
     connection_usage = ConnectionUsage(
         ws,

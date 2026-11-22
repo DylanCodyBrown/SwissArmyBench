@@ -368,7 +368,9 @@ def test_a_dry_run_changes_nothing_and_says_what_it_would_do(shop: Path) -> None
     assert "Target    orders on Warehouse" in said and "Database  SQLite" in said
     assert "Rows      3: order_id (BIGINT), region (VARCHAR), amount (DOUBLE)" in said
     assert "Would     update 1 row, insert 2 rows" in said
-    assert 'ON CONFLICT ("order_id") DO UPDATE SET "region" = excluded."region"' in said
+    assert (
+        'UPDATE "orders" SET "region" = ?, "amount" = ? WHERE "order_id" = ?' in said
+    )  # the adapter's write
     assert "The first 3 rows:" in said
     assert rows_of(shop) == [(1, "North", 10.0), (9, "North", 90.0)]
 
