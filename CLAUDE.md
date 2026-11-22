@@ -359,7 +359,9 @@ src/swissarmybench/
                          joins in use managed (delete, kind, Run, a deleted connection's taken out) and the
                          relationship finder's rules (judge, suggest, implied joins, paths between tables)
     catalogs.py          catalog rules: dialects (DAX among them: 'Table'[Column], EVALUATE TOPN, COUNTROWS),
-                         names, which source column is read as what
+                         names, which source column is read as what; THE one table of a dialect's name in
+                         sqlglot and its other names (sqlglot_name, dialect_word: connection_tables, query_text,
+                         sandbox_dialects, api_pattern_code and intellisense ask it; tests/test_dialect_names.py)
     dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
                          API's OData reads, paging, choice labels, the metadata as the catalog, FetchXML; SQL
                          on the read-only SQL endpoint, TDS port 5558, python-tds with the Entra token), its three
@@ -396,7 +398,14 @@ src/swissarmybench/
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
-                         placeholders, suggestions, written back), Blade, parse_blade, Template
+                         placeholders, suggestions, written back: blade_settings.py's, re-exported), Blade,
+                         parse_blade, Template
+    blade_settings.py    a blade's settings (moved out of blades.py, 2026-11-22): detect_settings (found with
+                         ast, never run), apply_settings (a value written into only its own characters),
+                         env_settings, is_placeholder; parse_code and BladeCodeError
+    project_paths.py     THE one rule for "is this path inside that folder?" (relative_in, inside): either
+                         separator, letters without case, never the folder itself nor a path that climbs out;
+                         a caller's port (real) resolves links, asked only when the text says no
     sql_server.py        SQL Server and Azure SQL made robust: the connection's code as text (a SqlServer object on
                          mssql-python, no ODBC driver: eight sign-ins, the Entra token beside the string and
                          refreshed, errors in plain words by number or words, passing errors tried again, a paused
@@ -570,7 +579,8 @@ src/swissarmybench/
                          requirements.txt's plain lines), the libraries someone chose in an older environment (the
                          ones no other needs) and what they offer the project, the states (none, making, ready,
                          missing, failed) and every word said (the session's Interrupt and Restart, ready, failed)
-    errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
+    errors.py            the error panel's words: an ordered table of rules (RULES: one entry an error, the
+                         first match says it): what an error means and the fixes (replace, import, install,
                          run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
                          the missing table (DuckDB's own-table "Did you mean" dropped)
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
@@ -673,9 +683,12 @@ src/swissarmybench/
     changes.py           the change log (Plans/changes.plan.md): one change (the object, a difference by name, types
                          the only thing shown, words, fingerprints before and after; never a value), a notebook's or
                          a script's parts (document_shape), .sab/changes.jsonl's lines, last, history, since, search
-    write_capability.py  what each connection kind writes (its operations, how) or why it is read-only; the Write
+    write_capability.py  what each connection kind writes (its operations: its Write starters' own words; its
+                         modes: the adapter's, what sab.write takes; how) or why it is read-only; OPERATION_MODES
+                         (which mode does each operation) and STARTER_ONLY (optimize, vacuum); the Write
                          starters each kind has (by their tags); a kind is connection_tables' (TABLE_KINDS), a
                          database's or file's its template: the Connections page's Writes / Read-only
+                         (tests/test_write_vocabulary.py holds the three vocabularies together)
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
                          this session by kind, a card's status word, the settings it may show (no password)
@@ -1042,7 +1055,16 @@ src/swissarmybench/
                          and writes: Delta, a file, a list's Graph calls), Files (a file connection's CSV, Parquet,
                          JSON: COPY's options, a format, a partitioned folder); arrow_of (rows of any shape), a SQL
                          write's Batch beside the driver's error (batch_of); to_json and to_ipc (an endpoint's
-                         Arrow answer). Allowed 3,000 lines (one file); it only grows (design principle 12b)
+                         Arrow answer); observe(hook) (each read's, query's and write's facts as it ends, for the
+                         statistics; no hook, nothing wrapped); Trino's replace one CREATE OR REPLACE TABLE ... AS
+                         (Iceberg); Excel (a workbook, a path or its bytes: its sheets and named tables
+                         listed, read as Arrow by one set of type rules with columns and a limit folded,
+                         rows written into a sheet by insert or truncate, the other sheets kept, the file
+                         replaced safely; openpyxl imported only when a workbook is used, missing said in
+                         one sentence; header_names, typed, sheet_value: the same answers as
+                         sab_excel.cell_value, tests/test_cell_value_copies.py). Version 1.9.2. One file; it
+                         only grows (design principle 12b); no function over 80 lines, and one generous
+                         ceiling (6,000 lines) that is the owner's to raise (tests/test_architecture.py)
     api_adapter.py       THE API adapter (Plans/api-adapter.plan.md; 12b), one file the app, the API's process and an
                          export share (`api_adapter`), standard library only: actions(spec) (OpenAPI 3.x, Swagger
                          2.0), run(action, inputs) -> one envelope (inputs checked first; http() or from_client()
@@ -1050,15 +1072,8 @@ src/swissarmybench/
                          the known shape: added, missing, retyped, moved, a rename offered once; facts and observe()
                          for the statistics), keep() and text() (an endpoint's shape, types only, byte-stable),
                          learn() (the widgets' contract), discover() (read-only probe, the mapping, master and detail
-                         pairs), table(answer) (records through adapter). Allowed 3,000 lines; it only grows
-                         Arrow answer); observe(hook) (each read's, query's and write's facts as it ends, for the
-                         statistics; no hook, nothing wrapped); Trino's replace one CREATE OR REPLACE TABLE ... AS
-                         (Iceberg); Excel (a workbook, a path or its bytes: its sheets and named tables
-                         listed, read as Arrow by one set of type rules with columns and a limit folded,
-                         rows written into a sheet by insert or truncate, the other sheets kept, the file
-                         replaced safely; openpyxl imported only when a workbook is used, missing said in
-                         one sentence; header_names, typed, sheet_value). Version 1.9.1. Allowed 4,450
-                         lines (one file); it only grows (design principle 12b)
+                         pairs), table(answer) (records through adapter). Version 1.0.2. One file; it only
+                         grows; no function over 80 lines; its ceiling 3,000 lines, the owner's to raise
     call_stats.py        the open project's .sab/stats.json read, and written atomically only when it changes
     changes.py           the open project's .sab/changes.jsonl read, and one line appended per change
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
@@ -1226,8 +1241,9 @@ src/swissarmybench/
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
                          write_sql.py each database's quoting, marks, values, types and checks (SqlWrite;
                          SqlServerWrite: the columns from the adapter's sys.columns read, computed and identity
-                         columns, triggers, keys defaulting to the primary key; its write the adapter's, a copy of
-                         the old starter refused in one line: GONE_METHODS); by_adapter (the Dataverse, SharePoint list, Delta and lake file
+                         columns, triggers, keys defaulting to the primary key; its write the adapter's; a copy of
+                         an old starter that still runs its own statements (each_batch, transaction, SQL Server's
+                         stage, merge...) refused in one line: GONE_METHODS); by_adapter (the Dataverse, SharePoint list, Delta and lake file
                          starters: the dry run the adapter's planned(), then its write; SqlWrite.by_adapter (the
                          adapter's statements and notes said; SQL Server and Trino count in a dry run only) and
                          FileWrite.by_adapter the SQL databases' and files'); write (sab.write: any connection, rows
@@ -1247,6 +1263,10 @@ src/swissarmybench/
   client/structures_client.py sab.structure (a saved structure's value), sab.structure_table (its records as a
                          DataFrame), sab.show_structure (a dict or list as a Structures tab)
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sab.complete)
+  client/kernel_variables.py the kernel's variables read inside the kernel (snapshot(): each variable the user's
+                         code made with its type, size and a short preview; the connections and blades by their
+                         names in code; the environment variables vaults and secrets use, by name only; a value
+                         never read whole, a secret's never leaves the kernel). Standard library only
   client/kernel_values.py what the kernel-side helpers share: a value's type name, is it a table, the user's
                          namespace (lineage_values.py keeps its own: a live page carries it as a file)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
@@ -1572,7 +1592,10 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          Print to PDF, outside links, the server stopping with it; test_desktop_shell.py runs it),
                          copilot_standin.py (GitHub's Copilot Language Server stood in for: stdio LSP, a made-up
                          device flow and made-up suggestions),
-                         test_architecture.py (the layers, the depth, the plain client),
+                         test_architecture.py (the layers, the depth, the plain client; adapter.py's and
+                         api_adapter.py's function cap), test_extension_layers.py (every extension package held to
+                         the same layers; Accounting's flat layout declared file by file),
+                         test_architecture_map.py (no import cycle while loading; docs/architecture-map.md current),
                          driver_check.py (stdlib only: every starter's code against its installed client: calls,
                          keywords, SQL Server's connection strings; test_connection_drivers.py runs it, again in
                          SWISSARMYBENCH_DRIVERS_PYTHON),
@@ -1594,7 +1617,9 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          and Git Data APIs and the device flow over in-memory repositories of made-up files),
                          folder_extension_example/stockroom/ (a made-up folder extension, never shipped: a project
                          type with one deliverable, one route, one command; test_folder_extensions.py proves it)
-tools/                   screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
+tools/                   architecture_map.py (standard library only: the components, their couplings and the
+                         import cycles from the real imports, written to docs/architecture-map.md, byte-stable;
+                         `python tools/architecture_map.py`, `--check`); screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
                          tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity; 11: a widget on

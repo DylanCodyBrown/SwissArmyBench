@@ -53,7 +53,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import absolute_coordinate, get_column_letter, quote_sheetname, range_boundaries
 from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
 
-VERSION = "1.1.0"  # 1.1.0: the plain export writes its data rows' XML itself (openpyxl the rest)
+VERSION = "1.1.1"  # 1.1.0: the plain export writes its data rows' XML itself; 1.1.1: a numpy float as a float
 
 MAX_ROWS = 1_000_000  # one block's rows (a sheet holds 1,048,576)
 SHEET_ROWS = 1_048_576  # the rows one sheet holds, its header too
