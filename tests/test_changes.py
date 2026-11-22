@@ -140,5 +140,5 @@ def test_a_canvas_page_and_api_pys_endpoints_as_the_log_names_them() -> None:
         '\n\n@endpoint("GET", "/orders/{region}")\ndef orders_in(region: str) -> list[dict]:\n    return []\n'
     )
     shapes = _endpoint_shapes(local_api.scaffold("Orders") + endpoint)
-    assert list(shapes) == ["GET /orders/{region}"]
+    assert shapes is not None and list(shapes) == ["GET /orders/{region}"]
     assert all("line" not in s["endpoint"] for s in shapes.values())

@@ -113,7 +113,12 @@ def test_a_streamlit_projects_code_pages_open_without_asking_for_its_canvas(
         for path, tab in (("/notebooks", "data.ipynb"), ("/scripts", "Local sandbox API")):
             page = open_page(browser, full, path)
             refused: list[str] = []
-            page.on("response", lambda r, seen=refused: seen.append(r.url) if r.status >= 400 else None)
+
+            def note(response: Any, seen: list[str] = refused) -> None:
+                if response.status >= 400:
+                    seen.append(response.url)
+
+            page.on("response", note)
             if tab == "data.ipynb":
                 expect(page.locator(".wb-tab", has_text=tab)).to_be_visible(timeout=20000)
             else:
