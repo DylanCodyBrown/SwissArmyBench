@@ -101,3 +101,8 @@ type". So Libraries is a fifth tab (not a dropdown), with a search box (by name)
 notebook or script, the adapter, the canvas, a connection, API.py; or "not imported yet"), and Install a library…
 (the one missing-package prompt's install into the project's .venv; requirements.txt updated so a teammate gets it;
 the agent's waits for Allow). Its columns: name, version, what it is for, imported in, from (requirements.txt); a row's actions: Upgrade, Insert import, Remove.
+- **Pin and update** (the owner: "With a pin and update option"): a Pinned column (Pin keeps the library at its
+  version, written `name==version` in requirements.txt; Unpin writes it unpinned); the Version column shows "→ x.y"
+  when a newer one exists (checked when the tab opens, never in the background), a click updates that one; Update all
+  not pinned updates the rest in one go; a pinned library is never updated by Update all. Updating and installing go
+  through the one install prompt and the agent's wait for Allow.
