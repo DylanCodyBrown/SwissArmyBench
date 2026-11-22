@@ -917,6 +917,123 @@ def _rows_batch(names: list[str], rows: Sequence[Sequence[Any]], schema: pa.Sche
     return pa.RecordBatch.from_arrays(arrays, names=names) if names else pa.RecordBatch.from_pylist([])
 
 
+# ----- Dataverse's Web API: OData folded into its connection's own read -----
+
+ODATA_TYPES = {
+    "String": "VARCHAR",
+    "Memo": "VARCHAR",
+    "Integer": "BIGINT",
+    "BigInt": "BIGINT",
+    "Double": "DOUBLE",
+    "Decimal": "DOUBLE",
+    "Money": "DOUBLE",
+    "Boolean": "BOOLEAN",
+    "DateTime": "TIMESTAMP",
+}  # fmt: skip  every other kind (a lookup's id, a choice's label, an id) is text
+_ODATA_OPS = {"=": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge"}
+
+
+def odata_literal(value: Any) -> str:
+    """A value as an OData literal: text quoted ('' inside), true/false, null, a number or a date as is."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return repr(value)
+    if hasattr(value, "isoformat"):
+        return str(value.isoformat())
+    if type(value).__name__ == "Decimal":
+        return str(value)
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def odata_filter(filters: Sequence[Filter], fields: Mapping[str, str]) -> str | None:
+    """The filters as one OData $filter over the Web API's field names (`fields`: a column's name ->
+    its field); None when one cannot be said in OData (a pattern with a % inside, a choice's label)."""
+    said = []
+    for f in filters:
+        field = fields.get(f.column.casefold())
+        if field is None:
+            return None
+        if f.op in _ODATA_OPS:
+            said.append(f"{field} {_ODATA_OPS[f.op]} {odata_literal(f.value)}")
+        elif f.op in ("is null", "is not null"):
+            said.append(f"{field} {'eq' if f.op == 'is null' else 'ne'} null")
+        elif f.op == "in":
+            said.append("(" + " or ".join(f"{field} eq {odata_literal(v)}" for v in f.value) + ")")
+        elif f.op == "between":
+            low, high = f.value
+            said.append(f"({field} ge {odata_literal(low)} and {field} le {odata_literal(high)})")
+        else:  # like: a leading and/or trailing % only
+            text = str(f.value)
+            inner = text.strip("%")
+            if "%" in inner or "_" in inner or not inner:
+                return None
+            fn = (
+                "contains"
+                if text.startswith("%") and text.endswith("%")
+                else ("endswith" if text.startswith("%") else "startswith" if text.endswith("%") else "")
+            )
+            said.append(
+                f"{fn}({field},{odata_literal(inner)})" if fn else f"{field} eq {odata_literal(inner)}"
+            )
+    return " and ".join(said)
+
+
+class OData:
+    """A Dataverse environment through its Web API, by its connection's own calls (rows, described,
+    catalog): filters, columns, sort and limit folded into one OData read ($filter, $select, $orderby, $top),
+    the records typed by the table's metadata. The rest (offset, group, totals, a filter OData cannot say) is
+    done by DuckDB over the answer. `total` is the row count the last read's source gave (None: not said)."""
+
+    def __init__(self, connection: Any, name: str = "Dataverse") -> None:
+        self.connection = connection
+        self.name = name
+        self.total: int | None = None
+
+    def tables(self) -> list[Table]:
+        listed: dict[str, list[Column]] = {}
+        for row in self.connection.catalog():
+            columns = listed.setdefault(str(row["table_name"]), [])
+            if row.get("column_name"):
+                columns.append(
+                    Column(str(row["column_name"]), ODATA_TYPES.get(str(row["data_type"]), "VARCHAR"))
+                )
+        return [Table(name, tuple(columns)) for name, columns in listed.items()]
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        described = list(self.connection.described(table))
+        types = {str(c["name"]): ODATA_TYPES.get(str(c["type"]), "VARCHAR") for c in described}
+        plain = {str(c["name"]).casefold(): str(c["field"]) for c in described if not c.get("label")}
+        filter_text = odata_filter(plan.filters, plain) if plan.filters else None
+        sortable = all(c.casefold() in plain for c, _ in plan.sort)
+        foldable = {"columns", "limit"} | ({"filters"} if filter_text is not None else set())
+        foldable |= {"sort"} if sortable else set()
+        folded: list[str] = []
+        for part in plan.parts():
+            if part not in foldable:
+                break
+            folded.append(part)
+        by_name = {n.casefold(): n for n in types}
+        picked = [by_name.get(c.casefold(), c) for c in plan.columns] if "columns" in folded else []
+        order = ", ".join(f"{plain[c.casefold()]}{' desc' if d else ''}" for c, d in plan.sort)
+        records, self.total = self.connection.rows(
+            table,
+            columns=picked or None,
+            filter=filter_text if "filters" in folded else None,
+            order_by=order if "sort" in folded else None,
+            limit=plan.limit if "limit" in folded else None,
+        )
+        given = {n: types[n] for n in (picked or list(types)) if n in types}
+        return from_json([records], given), Folded(tuple(folded))
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        raise AdapterError(
+            f"{self.name}'s writes go through its Write starter (a $batch change set) for now."
+        )
+
+
 # ===== 3. The calls =====
 
 _find: Callable[[str], Source] | None = None

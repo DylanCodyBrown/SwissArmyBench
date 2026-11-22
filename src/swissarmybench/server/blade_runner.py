@@ -82,8 +82,10 @@ def payload(
             "filters": (extra or {}).get("filters"),
         }
     elif dataverse.is_dataverse(blade.dialect) and mode == "read":
-        # A Dataverse environment's table, through its Web API: the connection's own read.
+        # A Dataverse environment's table, through its Web API: the adapter's OData read over the connection's
+        # own calls (Plans/adapter.plan.md).
         python = {
+            "adapter": "odata",
             "read": dataverse.READ,
             "set": {},
             "keyring": [],
@@ -547,6 +549,13 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         raise BladeRunError(f"{job['label']} has no Read a table: open the connection and fill it in.")
     place = python.get("place") or {}
     value, names = run_code(job["code"], job["variable"], secrets, job["label"])
+    if python.get("adapter") == "odata" and callable(getattr(value, "described", None)):
+        try:
+            return _odata_rows(value, str(place.get("table") or ""), python.get("limit"))
+        except Exception as error:
+            raise BladeRunError(f"{job['label']}: {error}") from None
+        finally:
+            close_quietly(value)
     try:
         limit = python.get("limit")
         result, total = read_table(
@@ -568,6 +577,16 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     finally:
         close_quietly(value)
     return {"arrow": _arrow_answer(table), "total": total} | ({"read_with": how} if how else {})
+
+
+def _odata_rows(connection: Any, table: str, limit: int | None) -> dict[str, Any]:
+    """A Dataverse table through the adapter: its limit folded into one OData read, the records typed by the
+    table's metadata, and the count Dataverse gave."""
+    from swissarmybench.adapters import sab_adapter as sab
+
+    source = sab.OData(connection)
+    made = sab.make_table(sab.TableSource(source, table, sab.Plan(limit=limit)))
+    return {"arrow": _arrow_answer(made), "total": source.total}
 
 
 def _plain(value: Any) -> Any:
