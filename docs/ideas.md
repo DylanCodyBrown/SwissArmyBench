@@ -9164,3 +9164,65 @@ Open:
 - Run from a worktree with `PYTHONPATH` set (the environment's editable install points at the main checkout),
   `test_script_export`'s fresh-Python test and `test_updater`'s uv test fail because the new Python inherits
   the path; both pass without it.
+
+## Review fix D, 2026-11-22 (decisions and open notes)
+
+One record per connection kind (`domain/connection_kinds.py`; docs/verified.md "Review fix D").
+
+Decisions:
+- **A kind is a word; one record can play three parts.** The app has three vocabularies that overlap: the
+  tables kinds (database, powerbi, dataverse_web...), the dialects (sqlserver, dax, onelake...) and the
+  starters' ids (azuresql, csv, odbc...). One record a word, with the fields of each part it plays, rather
+  than three registries: `onelake` is all three at once, and that is where the tables disagreed.
+- **A dialect's facts are said once, by the first record that names it** (its other names, its sqlglot name,
+  its filters, the adapter's, its count, the mock's marks). `azuresql` and `sybase` name `sqlserver` and say
+  nothing more; `problems()` refuses a second saying. A Power BI workspace's dialect is `dax` on the `powerbi`
+  record: no separate `dax` record.
+- **Views are functions over the records**, and each module's table is one call of its view. So a test can add
+  a made-up kind to a copy and ask every view, without reloading modules.
+- **The record holds words and switches, never code.** A kind's code stays in its module (lakes.py,
+  dataverse.py, sql_server.py); where the service needs a function for a record's word it keeps a small table
+  of its own (`_COUNTERS`: "partitions" is `sql_server.count_sql`). So the records import nothing and the
+  plain client can load them.
+- **Portability's notes stay portability's** (its rules compare a note by identity); a record names its note
+  by the note's key.
+- **The adapter's `DIALECTS` and `_DRIVERS` stay its own** (an export carries adapter.py alone). A test ties
+  them: every dialect the adapter folds is a declared kind, and the ones the app reads through it are the
+  records' `adapter`.
+- **Same behaviour.** Nothing a user or the agent sees changed; every derived table equals the one it replaced.
+
+How many files a new kind touches:
+- Before (the review's count on the lakes' commit): 18 existing Python files and 4 in web/.
+- Now, for a kind like the lakes' or SharePoint's: 3 existing files (its entry in connection_kinds.py, its
+  code in its module, its starter in server/blade_templates.py), plus 2 if an app registration's access
+  report checks it (the domain's `_app_code` and `lake_place`, the adapter's probe). Nothing in web/ (review
+  fix C made the pages draw the listing's facts).
+- For a SQL database with a dialect of its own: its entry and its starter; adapter.py's `DIALECTS` if the
+  adapter is to fold a plan into its SQL, and client/write_sql.py's `ENGINES` if it writes: 2 to 4.
+
+Not done, and why:
+- **The plain client's tables** (`client/write_sql.py` ENGINES, `client/sql_cell.py` _SCANNED) are by driver
+  module, not by kind, and the client imports only the standard library and the three domain files it is
+  allowed; they were left. connection_kinds.py is standard library only, so they could read it later.
+- **`app_registrations._app_code` and `lake_place`** still branch on five kinds: each returns its kind
+  module's own code or parses its own address. They are a kind's code, not a table; they would move into the
+  kind modules behind one function each.
+- **The access report's probes** (services/app_registrations.py) are picked by whose refusal the record names
+  (sql, dataverse, graph, storage), not by kind; a fifth family still needs its probe written there.
+- **Dataverse's two faces** (`tables_kind`: SQL endpoint or Web API by the catalog's language) stay one branch
+  in connection_tables.py, and Switch to the SQL endpoint stays the service's own (3 comparisons).
+- **Other services still name a kind where they run its code**: services/blades.py and server/blade_runner.py
+  (which run a lake's read), script_export.py (Dataverse's READ), sandbox.py (Dataverse's mock refusing
+  writes). `sqlserver`, `dataverse` and `powerbi` are quoted in 19 domain and service files (22 before): most
+  are the kinds' own modules and their forms.
+- **The starters' text** (server/blade_templates.py) still repeats each label and group; a test holds them to
+  the records. Building the Template from the record would remove the repeat.
+
+Open notes:
+- Sybase's starter has dialect `sqlserver`, so its count is SQL Server's `sys.partitions` query, which SAP ASE
+  does not have. It was so before and is unchanged (the count is by dialect); the record could say
+  `count="query"` for the starter if the service looked the count up by template first.
+- Databricks is in `adapter.DIALECTS` but its starter says dialect "other", so the app does not read it
+  through the adapter (the test says so by name). Making it a dialect is now its record's `dialect`,
+  `sqlglot` and `adapter`, and its starter's `dialect`.
+- `lakes.LAKE_KINDS` was read by nothing and went.
