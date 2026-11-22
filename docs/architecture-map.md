@@ -93,7 +93,7 @@ flowchart TB
     server -.->|1| bootstrap
     server -->|10| client
     server -->|47| domain
-    server -->|9| root
+    server -->|10| root
     server -->|82| services
     server -->|2| settings
     services -->|328| domain
