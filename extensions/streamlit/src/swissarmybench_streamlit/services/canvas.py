@@ -62,6 +62,10 @@ def canvas_id(path: str) -> str:
 
 
 class Canvases:
+    # Each endpoint a wizard's pattern made, with the widget that pairs with it (the base's
+    # local_api.paired; nothing without a local sandbox API): what a dropped widget wires itself to.
+    paired: Callable[[], list[dict[str, Any]]] = staticmethod(lambda: [])
+
     def __init__(
         self,
         ws: Any,
@@ -349,12 +353,44 @@ class Canvases:
             raise ValueError(str(error)) from None
         if after == opened.canvas:
             return self.state(canvas) | {"made": made}
+        wired = self._pair(after, made) if kind == "insert_widget" and made else None
+        if wired is not None:  # near a matching endpoint: wired as part of the same change (one Undo)
+            after = wired.pop("canvas")
+            opened.notes.append(wired["words"])
         opened.back.append(opened.canvas)
         del opened.back[:-HISTORY]
         opened.forward.clear()
         await self._keep(opened, after, window)
         self.ws.audit.write(who, f"canvas_{kind}", f"{opened.path} {made or body.get('id') or ''}".strip())
-        return self.state(canvas) | {"made": made}
+        return self.state(canvas) | {"made": made} | ({"wired": wired} if wired else {})
+
+    def _pair(self, canvas: dict[str, Any], made: str) -> dict[str, Any] | None:
+        """A widget just inserted, wired to the endpoint a wizard's pattern made for its kind (the pairing
+        is the pattern's data: the base's local_api.paired), when one is near: its endpoint property set, or
+        its In given the endpoint as its source. None: nothing pairs, or it is the user's to pick."""
+        try:
+            pairings = list(self.paired())
+        except Exception:  # API.py's own trouble: nothing to pair
+            return None
+        if not pairings:
+            return None
+        _page, _parent, node = model.find(canvas, made)
+        known = self._facts().get(node.get("widget", ""))
+        if known is None:
+            return None
+        found = wiring.pair_for(canvas, made, pairings, list(known.properties), list(dict(known.ins)))
+        if found is None:
+            return None
+        try:
+            if found["as"] == "property":
+                body = {"id": made, "values": {"endpoint": found["endpoint"]}}
+                after = model.apply(canvas, "set_values", body, self._facts())[0]
+            else:
+                wire = {"endpoint": found["endpoint"]}
+                after = wiring.set_wire(canvas, {"id": made, "port": found["port"], "wire": wire})
+        except (model.CanvasError, ValueError):
+            return None
+        return found | {"canvas": after}
 
     async def _keep(self, opened: Open, canvas: dict[str, Any], window: str) -> None:
         opened.canvas = canvas

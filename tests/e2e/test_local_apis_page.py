@@ -3,7 +3,8 @@
 out
 and then reset the data changes and try again"): a made-up table added to the sandbox from its grid's Table
 row;
-the APIs page's sandbox and Local sandbox APIs; New endpoint (the wizard's Table); Run; Try it a POST; the change log
+the APIs page's sandbox and Local sandbox APIs; New endpoint (the wizard's Table); Run; Try it a POST; the
+change log
 counting it; Reset back to the baseline; then an API table widget on a canvas, played, showing the endpoint's
 rows.
 Screenshots (scale 2) when SAB_API_SHOTS names a folder. Made-up data."""
