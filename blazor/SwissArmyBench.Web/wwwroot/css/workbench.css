@@ -164,3 +164,4 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .wb-debug-out { flex: 1; margin: 0; min-height: 2em; overflow: auto; font-size: 0.9em; white-space: pre-wrap; }
 .wb-debug-in { color: var(--muted, inherit); }
 .wb-script > .wb-debug { flex: 0 0 auto; max-height: 40%; overflow: auto; }
+.wb-elsewhere { display: flex; flex: none; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--warn); background: var(--warn-soft, var(--surface-2)); }

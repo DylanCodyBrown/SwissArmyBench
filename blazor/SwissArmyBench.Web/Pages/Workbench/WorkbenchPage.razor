@@ -137,9 +137,25 @@
 
     private RenderFragment<OpenDocument> DocumentFragment => doc =>
         @<text>
+            @if (doc.Elsewhere is { } elsewhere)
+            {
+                <div class="wb-elsewhere" role="status">
+                    <Icon Name="warning" /> <span>@(elsewhere == "gone" ? "This file is gone." : "Changed elsewhere.")</span>
+                    @if (elsewhere == "gone")
+                    {
+                        <button type="button" class="btn small line" @onclick="() => SaveAsAsync(doc)">Save as…</button>
+                        <button type="button" class="btn small ghost" @onclick="() => CloseAsync(doc.Key)">Close</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn small primary" @onclick="() => GuardAsync(() => ReloadAsync(doc))">Reload</button>
+                        <button type="button" class="btn small line" @onclick="() => GuardAsync(() => KeepMineAsync(doc))">Keep mine</button>
+                    }
+                </div>
+            }
             @if (doc.IsNotebook)
             {
-                <NotebookView @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
+                <NotebookView @key="doc.Version" @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" />
             }
             else

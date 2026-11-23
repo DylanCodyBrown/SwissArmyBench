@@ -202,3 +202,28 @@ def test_the_debugger_stops_at_a_breakpoint(browser: Browser, server: dict[str, 
     expect(debug.locator(".wb-debug-status")).to_contain_text("Ended", timeout=60_000)
     expect(debug.locator(".wb-debug-program")).to_contain_text("made up 3")
     page.close()
+
+
+def test_a_file_changed_elsewhere_is_followed_or_asked_about(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    path = str(server["tmp"] / "workbench" / "made_up_followed.py")
+    call(server, "POST", "/workbench/save", {"path": path, "text": "first = 1\n"})
+    page = open_page(browser, server, f"scripts?path={path}")
+    lines = page.locator(".wb-script-editor .view-lines")
+    expect(lines).to_contain_text("first = 1")
+    # Changed elsewhere with nothing unsaved here: followed in place.
+    call(server, "POST", "/workbench/save", {"path": path, "text": "second = 2\n"})
+    expect(lines).to_contain_text("second = 2", timeout=20_000)
+    # With unsaved edits here: the bar asks.
+    page.click(".wb-script-editor .monaco-editor .view-lines")
+    page.keyboard.press("End")
+    page.keyboard.type("  # mine")
+    expect(page.locator(".wb-tab.active .wb-tab-dirty")).to_have_text("●")
+    call(server, "POST", "/workbench/save", {"path": path, "text": "third = 3\n"})
+    bar = page.locator(".wb-elsewhere")
+    expect(bar).to_contain_text("Changed elsewhere.", timeout=20_000)
+    bar.locator("button:has-text('Keep mine')").click()
+    expect(bar).to_have_count(0)
+    expect(lines).to_contain_text("# mine")
+    page.close()

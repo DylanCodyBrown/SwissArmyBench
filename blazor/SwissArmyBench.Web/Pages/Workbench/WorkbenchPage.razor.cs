@@ -106,6 +106,7 @@ public partial class WorkbenchPage
         _showFiles = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.files") != "0";
         _showBlades = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.blades") == "1";
         Live.NoticeArrived += OnInlineNotice;
+        Live.NoticeArrived += OnFileNotice;
         await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync());
     }
 
@@ -317,6 +318,7 @@ public partial class WorkbenchPage
         Session.Changed -= Redraw;
         Project.Changed -= Redraw;
         Live.NoticeArrived -= OnInlineNotice;
+        Live.NoticeArrived -= OnFileNotice;
         try
         {
             if (_keys is not null)

@@ -34,12 +34,12 @@ public partial class WorkbenchPage
             if (notebook)
             {
                 doc.Notebook = await Workbench.OpenNotebookAsync(path);
-                (doc.Path, doc.Modified) = (doc.Notebook.Path, doc.Notebook.Modified);
+                (doc.Path, doc.Modified, doc.Hash) = (doc.Notebook.Path, doc.Notebook.Modified, doc.Notebook.Hash);
             }
             else
             {
                 var script = await Workbench.OpenScriptAsync(path);
-                (doc.Path, doc.Modified, doc.ScriptText) = (script.Path, script.Modified, script.Text);
+                (doc.Path, doc.Modified, doc.ScriptText, doc.Hash) = (script.Path, script.Modified, script.Text, script.Hash);
             }
             AddDocument(doc);
             _error = null;
@@ -185,7 +185,7 @@ public partial class WorkbenchPage
         {
             var renamed = path != doc.Path;
             var saved = await SaveCallAsync(doc, path, renamed ? null : doc.Modified, force);
-            (doc.Path, doc.Modified, doc.Dirty) = (saved.Path, saved.Modified, false);
+            (doc.Path, doc.Modified, doc.Dirty, doc.Hash, doc.Elsewhere) = (saved.Path, saved.Modified, false, saved.Hash, null);
             _error = null;
             _ = Notes.SayAsync($"Saved {doc.Title}.");
             if (renamed && doc == Front)

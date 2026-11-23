@@ -34,6 +34,15 @@ public sealed class OpenDocument
 
     public bool Dirty { get; set; }
 
+    /// <summary>The file's text's hash when read or saved: a file_changed notice with the same one is this page's own.</summary>
+    public string? Hash { get; set; }
+
+    /// <summary>Its file changed elsewhere while it was edited here ("changed"), or went away ("gone"); else null.</summary>
+    public string? Elsewhere { get; set; }
+
+    /// <summary>Drawn again from the file (a notebook read again in place): its view's key.</summary>
+    public int Version { get; set; }
+
     /// <summary>The number its new untitled kind gets ("Untitled notebook 2").</summary>
     public int Untitled { get; init; }
 
