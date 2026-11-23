@@ -63,6 +63,11 @@ public partial class CodeEditor
     [Parameter]
     public EventCallback OnFocus { get; set; }
 
+    /// <summary>The Scripts page's IDE moves (F12, Shift+F12, F2, Shift+Alt+F) at the cursor; set, the editor offers
+    /// them in its keys and its right-click menu.</summary>
+    [Parameter]
+    public EventCallback<IdeMove> OnIde { get; set; }
+
     /// <summary>The lint's problems at warning or worse, as they change.</summary>
     [Parameter]
     public EventCallback<int> OnProblems { get; set; }
@@ -78,7 +83,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
@@ -152,6 +157,13 @@ public partial class CodeEditor
     {
         _known = text;
         return OnKey.InvokeAsync(new EditorKey(name, text));
+    }
+
+    [JSInvokable]
+    public Task Ide(string name, string text, int line, int column, string word)
+    {
+        _known = text;
+        return OnIde.InvokeAsync(new IdeMove(name, text, line, column, word));
     }
 
     [JSInvokable]

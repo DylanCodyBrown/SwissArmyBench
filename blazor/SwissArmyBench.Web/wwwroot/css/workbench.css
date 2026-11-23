@@ -116,3 +116,16 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .monaco-editor .wb-problem-line { background: color-mix(in srgb, var(--error) 9%, transparent); }
 
 .wb-err-send { margin-left: auto; }
+  margin-left: 0 !important; }
+.wb-elsewhere { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--warn-soft); color: var(--fg); border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+.ide-results-file { margin: 4px 0 10px; }
+.ide-results-file > strong { display: flex; align-items: center; gap: 6px; }
+.ide-result, .ide-change { display: flex; gap: 10px; width: 100%; padding: 2px 6px; border: 0; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.ide-result:hover { background: var(--row-hover); }
+.ide-result-line { min-width: 3em; color: var(--muted); text-align: right; }
+.ide-change del { color: var(--error); }
+.ide-change ins { color: var(--ok); text-decoration: none; }
+.ide-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ide-search { flex: 1; padding: 4px 8px; font: inherit; }
+.ide-skipped { color: var(--warn); }
+.ide-results { display: grid; gap: 8px; max-height: 60vh; overflow: auto; }

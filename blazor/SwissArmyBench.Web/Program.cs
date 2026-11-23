@@ -60,6 +60,7 @@ public static class Program
         services.AddScoped<WorkbenchClient>();
         services.AddScoped<ExportsClient>();
         services.AddScoped<AgentInboxClient>();
+        services.AddScoped<ScriptIdeClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();

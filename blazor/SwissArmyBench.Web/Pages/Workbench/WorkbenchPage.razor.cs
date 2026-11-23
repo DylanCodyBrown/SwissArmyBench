@@ -49,6 +49,9 @@ public partial class WorkbenchPage
     private ExportsClient Exports { get; set; } = default!;
 
     [Inject]
+    private ScriptIdeClient ScriptIde { get; set; } = default!;
+
+    [Inject]
     private ProjectsClient ProjectsApi { get; set; } = default!;
 
     [Inject]
@@ -125,6 +128,7 @@ public partial class WorkbenchPage
             _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/workbench.js");
             _keys = await _module.InvokeAsync<IJSObjectReference>("keys", _self);
         }
+        await RevealPendingAsync();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -171,6 +175,7 @@ public partial class WorkbenchPage
         "previousDoc" => ShowNextAsync(-1),
         "fullScreen" => FullScreenAsync(),
         "files" => ToggleFilesAsync(),
+        "searchScripts" when !IsNotebooks => Toggle(() => _searching = true),
         "escape" when _full => FullScreenAsync(),
         _ => Task.CompletedTask,
     };

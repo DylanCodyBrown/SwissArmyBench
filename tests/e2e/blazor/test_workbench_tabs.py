@@ -117,3 +117,30 @@ def test_an_error_panel_with_its_values_and_coloured_traceback(browser: Browser,
     inbox = call(server, "GET", "/agent/inbox")
     assert "TypeError" in json.dumps(inbox)
     page.close()
+
+
+def test_the_scripts_ide_definition_rename_format_and_search(browser: Browser, server: dict[str, Any]) -> None:
+    path = str(server["tmp"] / "workbench" / "made_up_tools.py")
+    text = "def double_it(x):\n    return x*2\n\n\nprint(double_it(21))\n"
+    call(server, "POST", "/workbench/save", {"path": path, "text": text})
+    page = open_page(browser, server, f"scripts?path={path}")
+    editor = page.locator(".wb-script-editor .monaco-editor")
+    expect(editor).to_be_visible()
+    page.wait_for_timeout(500)
+    # F12 on the call: the cursor goes to the definition's line.
+    editor.locator(".view-line", has_text="print(double_it(21))").locator("span", has_text="double_it").last.click()
+    page.keyboard.press("F12")
+    expect(page.locator(".monaco-editor .line-numbers.active-line-number")).to_have_text("1", timeout=15_000)
+
+    # Shift+Alt+F: Ruff's format, or why not (either way the page says so).
+    page.keyboard.press("Shift+Alt+F")
+    formatted = page.locator(".wb-script-editor .view-line", has_text="return x * 2")
+    said = page.locator(".note-corner .note, .error-note")
+    expect(formatted.or_(said).first).to_be_visible(timeout=30_000)
+
+    # Ctrl+Shift+F: Search in scripts, each result a line.
+    page.keyboard.press("Control+Shift+F")
+    dialog = page.locator(".dialog", has_text="Search in scripts")
+    dialog.locator("input[type=search]").fill("double_it")
+    expect(dialog.locator(".ide-count")).to_contain_text("result", timeout=15_000)
+    page.close()

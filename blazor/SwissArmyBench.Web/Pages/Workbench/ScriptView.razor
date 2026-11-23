@@ -6,7 +6,7 @@
 <ErrorNote Error="_error" OnClose="() => _error = null" />
 <div class="wb-script">
     <div class="wb-script-editor">
-        <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" />
+        <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" OnIde="OnIde" />
     </div>
     <section class="wb-console" aria-label="Console">
         <div class="wb-console-head">

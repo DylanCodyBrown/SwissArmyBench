@@ -1,0 +1,25 @@
+@* A rename's or a replace's preview (the classic workbenchIde.ts previewList): each file's changed lines, before
+   and after, and the files left alone with why. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<div class="ide-preview">
+    @foreach (var file in Plan.Preview)
+    {
+        <section class="ide-results-file" data-path="@file.Path">
+            <strong title="@file.Path">@System.IO.Path.GetFileName(file.Path)</strong>
+            @foreach (var line in file.Lines)
+            {
+                <div class="ide-change"><span class="ide-result-line">@line.Line</span><del class="mono">@line.Before</del><ins class="mono">@line.After</ins></div>
+            }
+        </section>
+    }
+    @foreach (var skipped in Plan.Skipped)
+    {
+        <p class="ide-skipped"><Icon Name="warning" /> <strong>@System.IO.Path.GetFileName(skipped.Path)</strong>: @skipped.Why</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IdePlan Plan { get; set; } = default!;
+}

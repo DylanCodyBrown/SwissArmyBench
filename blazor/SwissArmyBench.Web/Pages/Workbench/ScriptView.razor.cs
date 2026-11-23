@@ -42,6 +42,13 @@ public partial class ScriptView
     [Parameter]
     public EventCallback<string> OnPageKey { get; set; }
 
+    /// <summary>The IDE moves at the cursor (F12, Shift+F12, F2, Shift+Alt+F), for the page.</summary>
+    [Parameter]
+    public EventCallback<IdeMove> OnIde { get; set; }
+
+    /// <summary>The cursor to a line, with the focus (a definition, a reference, a search result).</summary>
+    public Task RevealLineAsync(int line) => _editor?.RevealLineAsync(line) ?? Task.CompletedTask;
+
     /// <summary>The lint's problems at warning or worse, as they change (the status bar's count).</summary>
     [Parameter]
     public EventCallback<int> OnProblems { get; set; }

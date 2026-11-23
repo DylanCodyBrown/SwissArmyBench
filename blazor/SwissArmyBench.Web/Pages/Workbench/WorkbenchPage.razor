@@ -86,6 +86,32 @@
     {
         <SwissArmyBench.Web.Pages.Home.NewProjectDialog Listing="listing" OnDone="NewProjectDoneAsync" />
     }
+    @if (_ideTitle is { } ideTitle)
+    {
+        <AppDialog Title="@ideTitle" OnClose="CloseIde">
+            <ChildContent>
+                @if (_idePlaces is { } places)
+                {
+                    <SwissArmyBench.Web.Pages.Workbench.Ide.IdeResults Places="places" Current="@Front?.Path" OnGo="GoToPlaceAsync" />
+                }
+                else if (_idePlan is { } plan)
+                {
+                    <SwissArmyBench.Web.Pages.Workbench.Ide.IdePreview Plan="plan" />
+                }
+            </ChildContent>
+            <Foot>
+                @if (_idePlan is not null)
+                {
+                    <button type="button" class="btn primary" @onclick="() => GuardAsync(ApplyRenameAsync)">Apply</button>
+                    <button type="button" class="btn ghost" @onclick="CloseIde">Cancel</button>
+                }
+            </Foot>
+        </AppDialog>
+    }
+    @if (_searching)
+    {
+        <SwissArmyBench.Web.Pages.Workbench.Ide.SearchScripts OnClose="() => _searching = false" OnGo="p => { _searching = false; return GoToPlaceAsync(p); }" />
+    }
     @if (_palette)
     {
         <CommandPalette Commands="Commands()" Recent="_recentCommands" OnClose="() => _palette = false" OnRun="RunCommandAsync" />
@@ -109,7 +135,8 @@
             else
             {
                 <ScriptView @ref="doc.ScriptView" Console="doc.Console" Text="@doc.ScriptText" Path="@doc.Path" Saved="!doc.Dirty && doc.Path is not null"
-                            OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" />
+                            OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)"
+                            OnIde="m => IdeAsync(doc, m)" />
             }
         </text>;
 

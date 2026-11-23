@@ -22,6 +22,7 @@ public partial class WorkbenchPage
         .. CellCommands(),
         .. DocumentCommands(),
         .. ViewCommands(),
+        .. (IsNotebooks ? [] : new List<WorkbenchCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
     ];
 
     private string? NeedsDocument => Front is null ? NoDocument : null;

@@ -1,0 +1,39 @@
+@* Search in scripts (the classic workbenchIde.ts searchScripts, Ctrl+Shift+F): across the project's scripts, with
+   a regular expression, case and whole word; Replace all… shows its preview, then Apply. Logic in
+   SearchScripts.razor.cs. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<AppDialog Title="Search in scripts" OnClose="OnClose">
+    <ChildContent>
+        <div class="ide-search-row">
+            <input type="search" class="ide-search" aria-label="Search" placeholder="Search" data-no-variables @bind="_query" @bind:event="oninput" @bind:after="LaterAsync" />
+            <label title="Use a regular expression"><input type="checkbox" aria-label="Regular expression" @bind="_regex" @bind:after="LaterAsync" />.*</label>
+            <label title="Match case"><input type="checkbox" aria-label="Match case" @bind="_case" @bind:after="LaterAsync" />Aa</label>
+            <label title="Match whole word"><input type="checkbox" aria-label="Whole word" @bind="_word" @bind:after="LaterAsync" />ab</label>
+        </div>
+        <div class="ide-search-row">
+            <input type="text" class="ide-search" aria-label="Replace" placeholder="Replace" data-no-variables @bind="_to" />
+            <button type="button" class="btn line" @onclick="PlanAsync">Replace all…</button>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <div class="ide-results-host">
+            @if (_plan is { } plan)
+            {
+                <p class="hint">@plan.Count replacement@(plan.Count == 1 ? string.Empty : "s"):</p>
+                <IdePreview Plan="plan" />
+            }
+            else if (_found is { } found)
+            {
+                <p class="hint ide-count">@found.Count result@(found.Count == 1 ? string.Empty : "s") in @found.Results.Count file@(found.Results.Count == 1 ? string.Empty : "s")</p>
+                <IdeResults Places="Places(found)" OnGo="OnGo" />
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        @if (_plan is not null)
+        {
+            <button type="button" class="btn primary" @onclick="ApplyAsync">Apply</button>
+            <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        }
+    </Foot>
+</AppDialog>

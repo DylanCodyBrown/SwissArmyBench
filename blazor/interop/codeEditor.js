@@ -270,6 +270,27 @@ export function create(host, dotnet, options) {
     editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
   }
 
+  // The Scripts page's IDE moves (the classic workbenchIde.ts): Go to Definition (F12), Find All References
+  // (Shift+F12), Rename Symbol (F2), Format Document (Shift+Alt+F), told to C# with the cursor's place and word;
+  // the first and the third also in the editor's right-click menu, as the classic editor has them.
+  if (options.ide) {
+    const ide = (name) => () => {
+      const at = editor.getPosition();
+      if (!at) return;
+      const word = model.getWordAtPosition(at)?.word ?? "";
+      dotnet.invokeMethodAsync("Ide", name, editor.getValue(), at.lineNumber, at.column, word).catch(() => {});
+    };
+    const moves = [
+      ["definition", "Go to Definition", [C.F12], "navigation", 1],
+      ["references", "Find All References", [K.Shift | C.F12], "navigation", 2],
+      ["rename", "Rename Symbol", [C.F2], "1_modification", 1],
+      ["format", "Format Document", [K.Shift | K.Alt | C.KeyF], "1_modification", 2],
+    ];
+    for (const [name, label, keybindings, group, order] of moves) {
+      editor.addAction({ id: `sab.ide.${name}`, label, keybindings, contextMenuGroupId: group, contextMenuOrder: order, run: ide(name) });
+    }
+  }
+
   return {
     getValue: () => editor.getValue(),
     /** Text from C#: the cursor kept where it was, and no Changed told back. */
