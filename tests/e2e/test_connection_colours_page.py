@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -225,9 +227,16 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     expect(page.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (2026-11-21)
 
     def window(command: str, **args: Any) -> Any:
-        return call(server, "POST", "/workbench/window", {"command": command, "args": args}, agent=True)[
-            "result"
-        ]
+        body = {"command": command, "args": args}
+        # A page just opened may not have its live socket yet: the server says "not open" (409) until it has.
+        for _ in range(50):
+            try:
+                return call(server, "POST", "/workbench/window", body, agent=True)["result"]
+            except urllib.error.HTTPError as refused:
+                if refused.code != 409:
+                    raise
+                time.sleep(0.2)
+        return call(server, "POST", "/workbench/window", body, agent=True)["result"]
 
     window("file.open", path=str(notebook))
     user_cells = page.locator(".wb-cell")

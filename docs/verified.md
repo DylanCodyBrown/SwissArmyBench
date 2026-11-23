@@ -6286,3 +6286,19 @@ Windows (the preview photographer's hidden-window way, the update's restart on t
   (inserted whole); and, in the app, a DAX cell's default dataset read before the page's first load of the
   dataset names (it waits for that load now: the agent's `cell.addDax` on a page just opened).
 - The quick suite before these: 5,840 passed, 0 failed.
+
+## 2026-11-23: the review fixes E merged (all four builders), both suites on the merged branch
+
+- Merged: the domain and adapters items (E1), the extensions' typed seams and the composition root's constructors
+  (E2), the Workbench and Canvas pages split, long lines wrapped and catalog quoting as data (E3), the notebook,
+  script, Environment and structure-tab closures in parts (E4). bootstrap.py's ceiling is the merged size, 2,016.
+- Quick suite on the merged branch: 5,929 passed, 1 failed: test_performance's million-row sort timing, run while
+  three builders loaded the machine; it passes alone (1 passed, load 4 to 5).
+- Browser suite in one process on the merged branch (the main checkout's own server and build, so it tests the merged
+  pages): 413 passed, 2 failed, 15 skipped.
+  - test_connection_colours_page: the agent's window command reached the Scripts page before its live socket did
+    (409, "page is not open"); the test's helper now waits for it: 4 of 4 runs pass.
+  - test_ui's keyboard-only test (focus on the tab row): fails only late in the full run, 3 of 3 alone; not changed.
+- A worktree's browser tests start the MAIN checkout's server through the shared .venv's editable install, so they
+  test the main checkout's pages unless PYTHONPATH names the worktree's src (found by the E4 builder; the Blazor tests
+  now fail loudly when the server is not the branch's).
