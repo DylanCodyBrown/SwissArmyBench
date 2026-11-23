@@ -6,8 +6,9 @@ namespace SwissArmyBench.Web.State;
 
 /// <summary>
 /// The live-updates socket (/ws, the same one the classic pages hold): every notice the server broadcasts, raised
-/// as <see cref="Changed"/>. The socket itself lives in shell.js (it opens again by itself after the server
-/// restarts); this side only hears it.
+/// as <see cref="NoticeArrived"/>. The socket itself lives in shell.js (it opens again by itself after the server
+/// restarts); this side only hears it. Its own value is whether the socket is open (<see cref="Connected"/>,
+/// raised as <see cref="Changed"/>, the shape of every state service).
 /// </summary>
 public sealed class LiveUpdates : IAsyncDisposable
 {
@@ -20,11 +21,11 @@ public sealed class LiveUpdates : IAsyncDisposable
         _js = js;
     }
 
-    /// <summary>A notice arrived.</summary>
-    public event Action<Notice>? Changed;
+    /// <summary>A notice arrived (the state services and pages refresh from it).</summary>
+    public event Action<Notice>? NoticeArrived;
 
     /// <summary>The socket opened or closed (the status bar says when the server cannot be reached).</summary>
-    public event Action? ConnectionChanged;
+    public event Action? Changed;
 
     public bool Connected { get; private set; }
 
@@ -53,21 +54,21 @@ public sealed class LiveUpdates : IAsyncDisposable
         {
             return; // not a notice: the server sends only JSON, so a bad frame is dropped
         }
-        Changed?.Invoke(notice);
+        NoticeArrived?.Invoke(notice);
     }
 
     [JSInvokable]
     public void Opened()
     {
         Connected = true;
-        ConnectionChanged?.Invoke();
+        Changed?.Invoke();
     }
 
     [JSInvokable]
     public void Closed()
     {
         Connected = false;
-        ConnectionChanged?.Invoke();
+        Changed?.Invoke();
     }
 
     public async ValueTask DisposeAsync()

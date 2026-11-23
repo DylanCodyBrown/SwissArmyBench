@@ -56,7 +56,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Live.Changed += OnNotice;
+        Live.NoticeArrived += OnNotice;
         await LoadAsync();
     }
 
@@ -93,5 +93,5 @@
         }
     }
 
-    public void Dispose() => Live.Changed -= OnNotice;
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
 }

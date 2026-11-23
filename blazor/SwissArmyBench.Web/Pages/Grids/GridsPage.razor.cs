@@ -53,7 +53,7 @@ public partial class GridsPage : IDisposable
 
     private bool IsNewQuery => NewParameter is not null;
 
-    protected override void OnInitialized() => Live.Changed += OnNotice;
+    protected override void OnInitialized() => Live.NoticeArrived += OnNotice;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -205,7 +205,7 @@ public partial class GridsPage : IDisposable
 
     public void Dispose()
     {
-        Live.Changed -= OnNotice;
+        Live.NoticeArrived -= OnNotice;
         Status.Set(null);
         GC.SuppressFinalize(this);
     }

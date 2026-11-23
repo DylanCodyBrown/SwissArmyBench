@@ -8,7 +8,7 @@ namespace SwissArmyBench.Web.State;
 /// The rail's shared state: its names on or off (this computer's choice, rail.json: every window follows), the
 /// areas the on extensions add (GET /app/areas), the canvas when a mode offers it, and the Session's unseen count.
 /// </summary>
-public sealed class RailState
+public sealed class RailState : IDisposable
 {
     private readonly AppClient _app;
     private readonly IJSRuntime _js;
@@ -19,7 +19,7 @@ public sealed class RailState
         _app = app;
         _js = js;
         _live = live;
-        _live.Changed += OnNotice;
+        _live.NoticeArrived += OnNotice;
     }
 
     public event Action? Changed;
@@ -91,4 +91,6 @@ public sealed class RailState
                 break;
         }
     }
+
+    public void Dispose() => _live.NoticeArrived -= OnNotice;
 }

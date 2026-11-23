@@ -5,14 +5,16 @@ namespace SwissArmyBench.Web.State;
 
 /// <summary>The open project, as every page shows it (the status bar's name and dot, Home's cards): read at start and
 /// again on each project_changed notice.</summary>
-public sealed class ProjectState
+public sealed class ProjectState : IDisposable
 {
     private readonly ProjectsClient _projects;
+    private readonly LiveUpdates _live;
 
     public ProjectState(ProjectsClient projects, LiveUpdates live)
     {
         _projects = projects;
-        live.Changed += OnNotice;
+        _live = live;
+        _live.NoticeArrived += OnNotice;
     }
 
     public event Action? Changed;
@@ -42,4 +44,6 @@ public sealed class ProjectState
             await RefreshAsync();
         }
     }
+
+    public void Dispose() => _live.NoticeArrived -= OnNotice;
 }

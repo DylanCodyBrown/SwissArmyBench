@@ -56,7 +56,7 @@ public partial class EnvironmentPage : IDisposable
     protected override async Task OnInitializedAsync()
     {
         await Js.InvokeVoidAsync("sab.setTitle", "Environment");
-        Live.Changed += OnNotice;
+        Live.NoticeArrived += OnNotice;
         await LoadAsync();
     }
 
@@ -160,7 +160,7 @@ public partial class EnvironmentPage : IDisposable
 
     public void Dispose()
     {
-        Live.Changed -= OnNotice;
+        Live.NoticeArrived -= OnNotice;
         _typing?.Dispose();
         GC.SuppressFinalize(this);
     }

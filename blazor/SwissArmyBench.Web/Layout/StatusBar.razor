@@ -40,7 +40,7 @@
     protected override void OnInitialized()
     {
         Project.Changed += Redraw;
-        Live.ConnectionChanged += Redraw;
+        Live.Changed += Redraw;
         Grid.Changed += Redraw;
     }
 
@@ -62,7 +62,7 @@
     public void Dispose()
     {
         Project.Changed -= Redraw;
-        Live.ConnectionChanged -= Redraw;
+        Live.Changed -= Redraw;
         Grid.Changed -= Redraw;
     }
 }

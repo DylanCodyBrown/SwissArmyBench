@@ -36,7 +36,7 @@ public partial class SessionPage : IDisposable
     {
         await Js.InvokeVoidAsync("sab.setTitle", "Session");
         _who = await Js.InvokeAsync<string?>("sab.recall", "sessionWho") ?? "agent";
-        Live.Changed += OnNotice;
+        Live.NoticeArrived += OnNotice;
         RailState.SessionSeen();
         await LoadAsync();
     }
@@ -120,7 +120,7 @@ public partial class SessionPage : IDisposable
 
     public void Dispose()
     {
-        Live.Changed -= OnNotice;
+        Live.NoticeArrived -= OnNotice;
         GC.SuppressFinalize(this);
     }
 }
