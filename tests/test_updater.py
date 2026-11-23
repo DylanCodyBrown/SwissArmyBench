@@ -267,6 +267,25 @@ def _wheel(version: str, out: Path) -> Path:
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def _stop_started_from(folder: Path) -> None:
+    """Stop every process whose command line runs a program inside folder (Linux only)."""
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            line = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+        except OSError:
+            continue
+        if str(folder) in line and int(entry.name) != os.getpid():
+            try:
+                os.kill(int(entry.name), 15)
+            except OSError:
+                pass
+
+
 def test_the_helper_upgrades_a_uv_tool_and_the_new_version_starts(tmp_path: Path) -> None:
     newer = f"{__version__}.post42"  # never on PyPI: only the local wheel has it
     wheels = tmp_path / "out"
@@ -332,6 +351,9 @@ def test_the_helper_upgrades_a_uv_tool_and_the_new_version_starts(tmp_path: Path
                     if not updater._alive(pid):
                         break
                     time.sleep(0.1)
+        # A run that failed before server.json was written still started a server from the test's own tools
+        # folder: stop whatever runs from there, so no server outlives the test (Linux's /proc).
+        _stop_started_from(tools)
 
 
 def test_an_extension_wheel_is_downloaded_by_the_helper_and_given_to_uv_as_a_file() -> None:
