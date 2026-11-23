@@ -31,6 +31,10 @@ jobs:
         with:
           node-version: "22"
       - uses: astral-sh/setup-uv@v6
+      # The Blazor front end (blazor/): build.py builds it when dotnet is on PATH, the SDK global.json names.
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: blazor/global.json
       - name: The version, and whether it is released yet
         id: version
         env:
@@ -61,6 +65,7 @@ jobs:
           uv run --no-sync ruff format --check .
           uv run --no-sync mypy
           npm run typecheck --prefix web
+          dotnet format blazor/SwissArmyBench.Web/SwissArmyBench.Web.csproj --verify-no-changes
       - name: Tests (the browser tests need Edge and run on a desktop before tagging)
         run: uv run --no-sync pytest -q --ignore=tests/e2e
       - name: Build

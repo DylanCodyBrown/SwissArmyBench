@@ -1,0 +1,7 @@
+# Built and fetched: never in the repository.
+bin/
+obj/
+.nuget/
+publish/
+SwissArmyBench.Web/wwwroot/js/
+*.user

@@ -1,0 +1,57 @@
+@* The one loading state (the classic loading.ts, design principle 8.12): what is busy is inert and covered (the cover
+   shows after 150 ms, in CSS), a spinner, the words at the body's size, the time once it passes 3 s, and Cancel. *@
+@implements IDisposable
+
+<div class="busy-host" aria-busy="@(IsBusy ? "true" : "false")" inert="@IsBusy">
+    @ChildContent
+    @if (IsBusy)
+    {
+        <div class="busy-cover" role="status">
+            <span class="busy-spinner" aria-hidden="true"></span>
+            <span class="busy-words">@Words@(_seconds >= ShowTimeAfterSeconds ? $" ({_seconds} s)" : string.Empty)</span>
+            @if (OnCancel.HasDelegate)
+            {
+                <button type="button" class="btn small" @onclick="OnCancel">Cancel</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const int ShowTimeAfterSeconds = 3;
+    private const int TickMilliseconds = 1000;
+
+    private System.Threading.Timer? _timer;
+    private int _seconds;
+
+    [Parameter]
+    public bool IsBusy { get; set; }
+
+    [Parameter]
+    public string Words { get; set; } = "Loading…";
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (IsBusy && _timer is null)
+        {
+            _seconds = 0;
+            _timer = new System.Threading.Timer(_ => InvokeAsync(() => { _seconds++; StateHasChanged(); }), null, TickMilliseconds, TickMilliseconds);
+        }
+        else if (!IsBusy)
+        {
+            Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+}

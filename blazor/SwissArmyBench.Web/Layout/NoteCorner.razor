@@ -1,0 +1,26 @@
+@* The page's notes in the corner: short lines that go by themselves, and background work's errors (each the one
+   error note, with Close). *@
+@implements IDisposable
+@inject Notes Notes
+
+<div class="note-corner" aria-live="polite">
+    @foreach (var note in Notes.Shown)
+    {
+        if (note.Error is not null)
+        {
+            <ErrorNote Error="note.Error" OnClose="() => Notes.Dismiss(note)" />
+        }
+        else
+        {
+            <div class="toast" role="status">@note.Words</div>
+        }
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Notes.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Notes.Changed -= Redraw;
+}

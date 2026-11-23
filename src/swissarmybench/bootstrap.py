@@ -2376,7 +2376,11 @@ def _services(b: Built) -> Services:
         project_python=b.project_python,
         explorer=b.explorer,
         connection_swap=b.connection_swap,
-        navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if b.audit_log else None)),
+        navigation=Navigation(
+            ws,
+            JsonFile(state_dir / "rail.json" if b.audit_log else None),
+            JsonFile(state_dir / "frontend.json" if b.audit_log else None),
+        ),
         script_runs=b.script_runs,
         connection_colours=b.connection_colours,
         beta=b.beta,

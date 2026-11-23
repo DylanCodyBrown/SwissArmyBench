@@ -1,0 +1,176 @@
+:root,
+html[data-theme="light"] {
+  /* Steel and Swiss army knife red: brushed-steel greys for the structure, one red for the brand and
+     the main action. Errors keep their own deeper red, always with an icon or words beside it. */
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #eef1f4;
+  --surface-2: #e1e6eb;
+  --raised: #ffffff;
+  --fg: #1c2228;
+  --muted: #525c66;
+  --border: #c8d0d8;
+  --border-strong: #7d8893;
+  --accent: #c8102e;
+  --accent-fg: #ffffff;
+  --accent-soft: #fbe6e9;
+  --focus: #38434e;
+  --ok: #17722f;
+  --ok-fg: #ffffff;
+  --warn: #855800;
+  --warn-soft: #fff4d6;
+  --error: #a3141f;
+  --error-soft: #fde8e7;
+  --agent: #6639ba;
+  --agent-soft: #efe9fb;
+  --highlight: #fff1b8;
+  --changed: #dcf4e3;
+  --selected: #dbe3ec;
+  --row-hover: #f2f4f7;
+  --shadow: 0 8px 24px rgba(28, 34, 40, 0.16);
+  --focus-width: 2px;
+  --cat-1: #c8102e; --cat-2: #3b6e96; --cat-3: #17722f; --cat-4: #a3248f;
+  --cat-5: #6a5c00; --cat-6: #0a7c86; --cat-7: #5b4bb7; --cat-8: #57606a;
+  /* Kind colours: app pages violet, notebooks blue, scripts green (domain/kind_colours.py holds the
+     same; Settings may choose others). A thin edge or a mark beside the icon, never a background. */
+  --kind-app: #7b3fc4; --kind-notebook: #1f63b0; --kind-script: #2b7238;
+  --method-get: #dff3ef; --method-get-fg: #0b5c50; --method-post: #e2edfa; --method-post-fg: #1d4f91;
+  --method-put: #fbefd6; --method-put-fg: #6e4500; --method-delete: #fbe3e5; --method-delete-fg: #a3141f;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(255, 255, 255, 0.72);
+  --busy-spin: #525c66;
+  --busy-track: #c8d0d8;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121518;
+  --surface: #191d22;
+  --surface-2: #21272d;
+  --raised: #21272d;
+  --fg: #e8ecef;
+  --muted: #a2acb6;
+  --border: #343c45;
+  --border-strong: #707b86;
+  --accent: #ff6b73;
+  --accent-fg: #1c0a0c;
+  --accent-soft: #3d1c21;
+  --focus: #c4ccd4;
+  --ok: #3fb950;
+  --ok-fg: #0b1220;
+  --warn: #d29922;
+  --warn-soft: #3a2e10;
+  --error: #ff8a80;
+  --error-soft: #3d1a19;
+  --agent: #b392f0;
+  --agent-soft: #2c2244;
+  --highlight: #4a3f10;
+  --changed: #133d24;
+  --selected: #253342;
+  --row-hover: #1d2228;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --focus-width: 2px;
+  --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
+  --cat-5: #e3b341; --cat-6: #39c5cf; --cat-7: #a99cf0; --cat-8: #b1bac4;
+  --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
+  --method-get: #123530; --method-get-fg: #7fdccb; --method-post: #172a43; --method-post-fg: #9cc6f2;
+  --method-put: #3a2d12; --method-put-fg: #f2c46d; --method-delete: #401b1f; --method-delete-fg: #ff9a94;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(18, 21, 24, 0.72);
+  --busy-spin: #a2acb6;
+  --busy-track: #343c45;
+}
+
+/* High contrast themes aim for 7:1 text, thick always-visible focus, strong borders. */
+html[data-theme="hc-light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f2f2f2;
+  --raised: #ffffff;
+  --fg: #000000;
+  --muted: #2b2b2b;
+  --border: #000000;
+  --border-strong: #000000;
+  --accent: #0033a0;
+  --accent-fg: #ffffff;
+  --accent-soft: #d6e0ff;
+  --focus: #b30000;
+  --ok: #005c00;
+  --ok-fg: #ffffff;
+  --warn: #6b4400;
+  --warn-soft: #ffefc2;
+  --error: #8a0000;
+  --error-soft: #ffe0e0;
+  --agent: #4b0082;
+  --agent-soft: #ece0ff;
+  --highlight: #ffe680;
+  --changed: #c8f0c8;
+  --selected: #c7d7ff;
+  --row-hover: #f0f0f0;
+  --shadow: 0 0 0 2px #000000;
+  --focus-width: 3px;
+  --cat-1: #0033a0; --cat-2: #8a3b00; --cat-3: #005c00; --cat-4: #7a0066;
+  --cat-5: #4d4000; --cat-6: #004d57; --cat-7: #9e0000; --cat-8: #2b2b2b;
+  --kind-app: #5a1a9e; --kind-notebook: #0a4a94; --kind-script: #0d5a1d;
+  --method-get: #ffffff; --method-get-fg: #004d40; --method-post: #ffffff; --method-post-fg: #0033a0;
+  --method-put: #ffffff; --method-put-fg: #5c3a00; --method-delete: #ffffff; --method-delete-fg: #8a0000;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(255, 255, 255, 0.85);
+  --busy-spin: #000000;
+  --busy-track: #c0c0c0;
+}
+
+html[data-theme="hc-dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #000000;
+  --surface-2: #121212;
+  --raised: #000000;
+  --fg: #ffffff;
+  --muted: #e0e0e0;
+  --border: #ffffff;
+  --border-strong: #ffffff;
+  --accent: #8cc8ff;
+  --accent-fg: #000000;
+  --accent-soft: #002a52;
+  --focus: #ffd400;
+  --ok: #7dff7d;
+  --ok-fg: #000000;
+  --warn: #ffd400;
+  --warn-soft: #332b00;
+  --error: #ff9a9a;
+  --error-soft: #3d0000;
+  --agent: #d9b8ff;
+  --agent-soft: #2a0f47;
+  --highlight: #524400;
+  --changed: #003d00;
+  --selected: #00305c;
+  --row-hover: #1a1a1a;
+  --shadow: 0 0 0 2px #ffffff;
+  --focus-width: 3px;
+  --cat-1: #8cc8ff; --cat-2: #ffb870; --cat-3: #7dff7d; --cat-4: #ff9ae0;
+  --cat-5: #ffd400; --cat-6: #6ff1ff; --cat-7: #ff9a9a; --cat-8: #e0e0e0;
+  --kind-app: #d4bfff; --kind-notebook: #a3cdff; --kind-script: #8ff09a;
+  --method-get: #000000; --method-get-fg: #6ff1ff; --method-post: #000000; --method-post-fg: #8cc8ff;
+  --method-put: #000000; --method-put-fg: #ffd400; --method-delete: #000000; --method-delete-fg: #ff9a9a;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(0, 0, 0, 0.85);
+  --busy-spin: #ffffff;
+  --busy-track: #4d4d4d;
+}
+
+/* Before theme.ts runs (or if it never does), follow the system. */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #121518; --surface: #191d22; --surface-2: #21272d; --raised: #21272d;
+    --fg: #e8ecef; --muted: #a2acb6; --border: #343c45; --border-strong: #707b86;
+    --accent: #ff6b73; --accent-fg: #1c0a0c; --accent-soft: #3d1c21; --focus: #c4ccd4;
+    --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
+    --method-get: #123530; --method-get-fg: #7fdccb; --method-post: #172a43; --method-post-fg: #9cc6f2;
+    --method-put: #3a2d12; --method-put-fg: #f2c46d; --method-delete: #401b1f; --method-delete-fg: #ff9a94;
+    --busy-cover: rgba(18, 21, 24, 0.72); --busy-spin: #a2acb6; --busy-track: #343c45;
+  }
+}
+

@@ -6,6 +6,8 @@
     swissarmybench open orders.csv        a file in the app: a table (CSV, Parquet, Excel, JSON), a notebook,
                                           a blade (Open with and the installers' registrations run this)
     swissarmybench open --browser         the app in the browser instead (a tab; the same server)
+    swissarmybench open --blazor          the Blazor front end's home page this once (Settings' Front end
+                                          makes it the one the app opens)
     swissarmybench start                  the server in this console, then the app's window (--no-window not)
     swissarmybench start --background     the server detached, no console, returns at once
     swissarmybench --port 8790 start      on exactly this port, or fail clearly
@@ -113,6 +115,7 @@ def main() -> None:
         "--no-window", "--no-browser", dest="no_window", action="store_true", help="No window when it starts."
     )
     parser.add_argument("--browser", action="store_true", help="open: in the browser instead of the app.")
+    parser.add_argument("--blazor", action="store_true", help="open: the Blazor front end, this once.")
     parser.add_argument("--no-tray", action="store_true", help=argparse.SUPPRESS)  # gone; one release
     parser.add_argument(
         "--background", action="store_true", help="Start detached, with no console, and return at once."
@@ -136,11 +139,12 @@ def main() -> None:
     if command == "open" and args.switch:
         sys.exit(open_target(args.switch, path, browser=args.browser))
     if command == "open":
+        home = BLAZOR_HOME if args.blazor else None  # --blazor: the Blazor front end this once
         if args.browser:
-            sys.exit(0 if open_in_browser(path) else 1)
+            sys.exit(0 if open_in_browser(path, home) else 1)
         if desktop.can_run():
-            sys.exit(desktop.main(None, path))
-        sys.exit(0 if open_in_browser(path) else 1)
+            sys.exit(desktop.main(home, path))
+        sys.exit(0 if open_in_browser(path, home) else 1)
     if command == "start" and args.background:
         start_in_background(args.port, window=not args.no_window)
         return
@@ -218,7 +222,7 @@ def open_in_browser(path: Path, page: str | None = None) -> bool:
     if info is None:
         print("Swiss Army Bench did not start.", file=sys.stderr)
         return False
-    address = page_address(info, page or "/workspace")
+    address = page_address(info, page)
     print(address)
     webbrowser.open(address)
     return True
@@ -234,6 +238,8 @@ def open_page(path: Path | None = None) -> bool:
     open_address(address)
     return True
 
+
+BLAZOR_HOME: str = "/blazor/"
 
 OLD_SAB_FILE: str = "{name}: this version opens project folders only."
 

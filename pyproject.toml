@@ -78,6 +78,9 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/swissarmybench"]
+# The Blazor front end's published files (build.py copies blazor/publish/wwwroot here when dotnet is on PATH):
+# ignored by Git, so named as artifacts to go in the wheel all the same.
+artifacts = ["src/swissarmybench/web_blazor/**"]
 
 # The plugin installs from the wheel, so the page ships inside it (built by build.py
 # with `npm run build:release`, which writes no source maps).

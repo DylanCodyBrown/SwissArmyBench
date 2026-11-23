@@ -20,7 +20,10 @@
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
+ *          [FRONT END]            Classic / Blazor (preview): the front end the app opens (GET/PUT /app/frontend;
+ *                                 frontend.json; the agent's app_frontend), and Open it now
  * */
+import { api } from "./api";
 import { betaSection } from "./betaNotes";
 import { extensionSettings } from "./extensionPanel";
 import { updatesSection } from "./updates";
@@ -64,6 +67,48 @@ registerLayer("settings", {
   },
 });
 
+/** Front end (the owner, 2026-11-23: the Blazor front end, side by side): the one the app opens, this computer's
+ *  choice; the Blazor one at /blazor/, a preview. */
+function frontendSection(): HTMLElement {
+  const choices: [string, string][] = [
+    ["classic", "Classic"],
+    ["blazor", "Blazor (preview)"],
+  ];
+  const open = h("a", { href: "/blazor/", class: "frontend-open" }, "Open it now");
+  const radios = choices.map(([value, label]) =>
+    h(
+      "label",
+      { class: "check" },
+      h("input", {
+        type: "radio",
+        name: "frontend",
+        value,
+        onchange: () =>
+          void api<{ frontend: string }>("/app/frontend", "PUT", { frontend: value })
+            .then((said) => (open.hidden = said.frontend !== "blazor"))
+            .catch((error: unknown) => errorHere(error)),
+      }),
+      label,
+    ),
+  );
+  void api<{ frontend: string }>("/app/frontend")
+    .then((said) => {
+      for (const radio of radios) {
+        const input = radio.querySelector("input")!;
+        input.checked = input.value === said.frontend;
+      }
+      open.hidden = said.frontend !== "blazor";
+    })
+    .catch(() => undefined);
+  return h(
+    "fieldset",
+    { class: "fieldset" },
+    h("legend", {}, icon("desktop"), "Front end"),
+    h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Front end" }, ...radios),
+    h("p", { class: "muted" }, "The one the app opens. The Blazor front end is a preview: a page it does not have yet links back here. ", open),
+  );
+}
+
 /** The Settings page, opened by the user (the rail's cog, the Workbench's "…"). */
 export function openSettings(): void {
   if (shown?.open) return;
@@ -95,6 +140,7 @@ function drawSettings(): void {
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     teamSection(),
+    frontendSection(),
     gatesSetting(), // a project type's gates: Open every feature in this project
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.
     h("fieldset", { class: "fieldset follow-fieldset" }, h("legend", {}, icon("session"), "Session"), followSwitch()),

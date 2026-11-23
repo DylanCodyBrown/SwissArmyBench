@@ -1,0 +1,24 @@
+@* Every page's frame: the rail down the left, the page, the status bar at the foot, the notes in the corner. It
+   opens the page's session first (the #token bought once for the cookie, as the classic api.ts does). *@
+@inherits LayoutComponentBase
+
+@switch (_state)
+{
+    case Opening:
+        <div class="boot">Opening Swiss Army Bench…</div>
+        break;
+    case SignedOut:
+        <main class="signed-out">Open Swiss Army Bench from its launcher, or run <code>swissarmybench open</code>.</main>
+        break;
+    default:
+        <FluentDesignTheme Mode="@(Theme.IsDark ? DesignThemeModes.Dark : DesignThemeModes.Light)" CustomColor="@AccentColour" />
+        <Rail />
+        <div class="page-frame">
+            <main class="page-main">
+                @Body
+            </main>
+            <StatusBar />
+        </div>
+        <NoteCorner />
+        break;
+}

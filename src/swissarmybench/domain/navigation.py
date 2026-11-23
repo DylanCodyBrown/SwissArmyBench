@@ -153,3 +153,30 @@ def rail_change(sent: Any) -> bool:
     if not isinstance(sent, dict) or not isinstance(sent.get("labels"), bool):
         raise NavigationError('Send {"labels": true} (the rail with its names) or {"labels": false}.')
     return bool(sent["labels"])
+
+
+# ===== the front end (the owner, 2026-11-23: the Blazor front end, side by side with the classic one) =====
+# Which front end the app opens: the classic one (web/, at /workspace) or the Blazor one (blazor/, /blazor/).
+# This computer's choice (frontend.json), the classic one until the user picks the other.
+
+FRONTENDS: tuple[str, ...] = ("classic", "blazor")
+HOME_PAGES: dict[str, str] = {"classic": "/workspace", "blazor": "/blazor/"}
+
+
+def frontend(saved: Any) -> str:
+    """The front end frontend.json kept, else the classic one."""
+    if isinstance(saved, dict) and saved.get("frontend") in FRONTENDS:
+        return str(saved["frontend"])
+    return "classic"
+
+
+def frontend_change(sent: Any) -> str:
+    """The switch as sent: {"frontend": "classic"} or {"frontend": "blazor"}."""
+    if not isinstance(sent, dict) or sent.get("frontend") not in FRONTENDS:
+        raise NavigationError('Send {"frontend": "classic"} or {"frontend": "blazor"} (the Blazor preview).')
+    return str(sent["frontend"])
+
+
+def home_page(saved: Any) -> str:
+    """The home page of the front end frontend.json names."""
+    return HOME_PAGES[frontend(saved)]
