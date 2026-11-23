@@ -4,6 +4,7 @@ command, a cell's More actions menu, and an HTML cell drawn as its design in its
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from playwright.sync_api import Browser, expect
@@ -94,4 +95,25 @@ def test_an_html_cell_draws_its_design(browser: Browser, server: dict[str, Any])
     assert cell.locator("iframe.wb-design-frame").get_attribute("sandbox") == "allow-scripts"
     cell.locator("button[aria-label='Edit HTML']").click()
     expect(cell.locator(".monaco-editor")).to_be_visible()
+    page.close()
+
+
+def test_an_error_panel_with_its_values_and_coloured_traceback(browser: Browser, server: dict[str, Any]) -> None:
+    source = "import json\ndef halve(x):\n    y = x * 2\n    return json.loads(y)\nhalve(3)"
+    path = made_up(server, "error.ipynb", source)
+    page = open_page(browser, server, f"notebooks?path={path}")
+    page.locator(".wb-cell").first.locator("button[aria-label='Run cell']").click()
+    panel = page.locator(".wb-err")
+    expect(panel.locator(".wb-err-type")).to_have_text("TypeError", timeout=60_000)
+    expect(panel).to_contain_text("In your code: cell [1], line 4")
+    expect(panel.locator(".wb-err-values").last).to_contain_text("y 6 int")
+    expect(panel.locator(".wb-err-stack .wb-err-lib")).to_contain_text("frame in json")
+    panel.locator("summary:has-text('Traceback')").click()
+    # Python's traceback keeps its terminal colours (spans the theme colours).
+    expect(panel.locator(".wb-error span[class^='ansi-']").first).to_be_visible()
+    panel.click(button="right")
+    expect(page.locator(".context-menu")).to_contain_text("Send it with a question…")
+    page.locator(".context-menu [role=menuitem]:has-text('Send this error to the agent')").click()
+    inbox = call(server, "GET", "/agent/inbox")
+    assert "TypeError" in json.dumps(inbox)
     page.close()

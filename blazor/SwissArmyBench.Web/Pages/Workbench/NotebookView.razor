@@ -17,7 +17,8 @@
     @foreach (var cell in _kept.Cells)
     {
         <NotebookCellView @key="cell" @ref="_views[cell]" Cell="cell" Selected="cell == _selected" Connections="Connections" IntelFor="IntelFor"
-                          OnRun="RunAsync" OnSelect="Select" OnChanged="ChangedAsync" OnKey="KeyAsync" OnMove="MoveAsync" OnDelete="DeleteCellAsync" OnMenu="ShowCellMenu" OnRunTo="RunToAsync" OnAnswer="AnswerAsync" />
+                          OnRun="RunAsync" OnSelect="Select" OnChanged="ChangedAsync" OnKey="KeyAsync" OnMove="MoveAsync" OnDelete="DeleteCellAsync" OnMenu="ShowCellMenu" OnRunTo="RunToAsync" OnAnswer="AnswerAsync"
+                          OnFix="FixAsync" OnGoTo="GoToFrameAsync" Document="@(Path is null ? "the notebook" : System.IO.Path.GetFileName(Path))" />
     }
 </div>
 @if (_menu is { } menu)

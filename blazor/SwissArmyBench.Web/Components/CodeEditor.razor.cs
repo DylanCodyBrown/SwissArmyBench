@@ -122,6 +122,15 @@ public partial class CodeEditor
         }
     }
 
+    /// <summary>The cursor to a line, scrolled into view, with the focus (an error's In your code, a definition).</summary>
+    public async Task RevealLineAsync(int line)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("revealLine", line);
+        }
+    }
+
     public async Task FocusAsync()
     {
         _focusWhenMade = _editor is null;

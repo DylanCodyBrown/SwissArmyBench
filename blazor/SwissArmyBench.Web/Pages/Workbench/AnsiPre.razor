@@ -1,0 +1,21 @@
+@* Text with the terminal's colours drawn (a traceback, a stream): each run of one colour a span. *@
+
+<pre class="@Class">@foreach (var piece in AnsiText.Pieces(Text))
+{
+    if (piece.Classes.Length == 0 && piece.Style.Length == 0)
+    {
+        @piece.Text
+    }
+    else
+    {
+        <span class="@piece.Classes" style="@(piece.Style.Length == 0 ? null : piece.Style)">@piece.Text</span>
+    }
+}</pre>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Class { get; set; } = "wb-text";
+}

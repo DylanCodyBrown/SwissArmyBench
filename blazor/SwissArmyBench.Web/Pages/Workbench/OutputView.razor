@@ -5,10 +5,10 @@
 @switch (OutputReader.Type(Output))
 {
     case "stream":
-        <pre class="wb-text @(OutputReader.Text(Output, "name") == "stderr" ? "wb-stderr" : string.Empty)">@OutputReader.Plain(OutputReader.Text(Output, "text"))</pre>
+        <AnsiPre Class="@($"wb-text {(OutputReader.Text(Output, "name") == "stderr" ? "wb-stderr" : string.Empty)}")" Text="@OutputReader.Text(Output, "text")" />
         break;
     case "error":
-        <pre class="wb-error">@OutputReader.Traceback(Output)</pre>
+        <AnsiPre Class="wb-error" Text="@OutputReader.ColouredTraceback(Output)" />
         break;
     case "execute_result" or "display_data":
         @if (Picture is { } picture)
@@ -29,7 +29,7 @@
         }
         else
         {
-            <pre class="wb-text">@OutputReader.Plain(OutputReader.Data(Output, "text/plain") ?? string.Empty)</pre>
+            <AnsiPre Text="@(OutputReader.Data(Output, "text/plain") ?? string.Empty)" />
         }
         break;
     default:

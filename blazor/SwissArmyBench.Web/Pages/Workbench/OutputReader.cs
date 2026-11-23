@@ -41,6 +41,12 @@ public static partial class OutputReader
             ? Plain(string.Join('\n', lines.EnumerateArray().Select(l => l.GetString())))
             : $"{Text(output, "ename")}: {Text(output, "evalue")}";
 
+    /// <summary>A traceback's lines as one text, its colours kept (AnsiPre draws them).</summary>
+    public static string ColouredTraceback(JsonElement output) =>
+        output.TryGetProperty("traceback", out var lines) && lines.ValueKind == JsonValueKind.Array
+            ? string.Join('\n', lines.EnumerateArray().Select(l => l.GetString()))
+            : $"{Text(output, "ename")}: {Text(output, "evalue")}";
+
     /// <summary>A record added to a cell's outputs: a stream's text joins the stream before it, as a notebook keeps it.</summary>
     public static void Add(List<JsonElement> outputs, JsonElement record)
     {

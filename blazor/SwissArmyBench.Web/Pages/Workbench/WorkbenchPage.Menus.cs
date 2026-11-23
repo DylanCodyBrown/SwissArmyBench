@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
 using SwissArmyBench.Web.Api;
-using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Api.Projects;
+using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.Pages.Workbench.Tabs;
 

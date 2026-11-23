@@ -67,3 +67,52 @@ body.wb-full .nav-rail, body.wb-full .wb-doc-bar, body.wb-full .side-pane { disp
 .wb-cell-name:placeholder-shown { opacity: 0; }
 .wb-cell:hover .wb-cell-name:placeholder-shown, .wb-cell-name:focus:placeholder-shown { opacity: 1; }
 .wb-output-hidden { margin: 2px 10px 6px; }
+/* The terminal's sixteen colours in each theme (the classic grid.css's --ansi-*). */
+.wb-outputs, .wb-console-body { --ansi-0: #3b4148; --ansi-1: #b3261e; --ansi-2: #1c7a33; --ansi-3: #8a6100; --ansi-4: #1f5fbf; --ansi-5: #8e3aa6; --ansi-6: #0f7480; --ansi-7: #5c6670; --ansi-8: #59626b; --ansi-9: #d0342c; --ansi-10: #23913d; --ansi-11: #9a6f00; --ansi-12: #2f6fd6; --ansi-13: #a447bd; --ansi-14: #138896; --ansi-15: #1c2228; }
+html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-dark"] :is(.wb-outputs, .wb-console-body) { --ansi-0: #8b949e; --ansi-1: #ff7b72; --ansi-2: #56d364; --ansi-3: #e3b341; --ansi-4: #79c0ff; --ansi-5: #d2a8ff; --ansi-6: #56d4dd; --ansi-7: #c9d1d9; --ansi-8: #8b949e; --ansi-9: #ffa198; --ansi-10: #7ee787; --ansi-11: #f2cc60; --ansi-12: #a5d6ff; --ansi-13: #e2c5ff; --ansi-14: #8be9f0; --ansi-15: #f0f6fc; }
+@media (prefers-color-scheme: dark) { html:not([data-theme]) :is(.wb-outputs, .wb-console-body) { --ansi-0: #8b949e; --ansi-1: #ff7b72; --ansi-2: #56d364; --ansi-3: #e3b341; --ansi-4: #79c0ff; --ansi-5: #d2a8ff; --ansi-6: #56d4dd; --ansi-7: #c9d1d9; --ansi-8: #8b949e; --ansi-9: #ffa198; --ansi-10: #7ee787; --ansi-11: #f2cc60; --ansi-12: #a5d6ff; --ansi-13: #e2c5ff; --ansi-14: #8be9f0; --ansi-15: #f0f6fc; } }
+.ansi-fg-0 { color: var(--ansi-0); } .ansi-bg-0 { background: var(--ansi-0); }
+.ansi-fg-1 { color: var(--ansi-1); } .ansi-bg-1 { background: var(--ansi-1); }
+.ansi-fg-2 { color: var(--ansi-2); } .ansi-bg-2 { background: var(--ansi-2); }
+.ansi-fg-3 { color: var(--ansi-3); } .ansi-bg-3 { background: var(--ansi-3); }
+.ansi-fg-4 { color: var(--ansi-4); } .ansi-bg-4 { background: var(--ansi-4); }
+.ansi-fg-5 { color: var(--ansi-5); } .ansi-bg-5 { background: var(--ansi-5); }
+.ansi-fg-6 { color: var(--ansi-6); } .ansi-bg-6 { background: var(--ansi-6); }
+.ansi-fg-7 { color: var(--ansi-7); } .ansi-bg-7 { background: var(--ansi-7); }
+.ansi-fg-8 { color: var(--ansi-8); } .ansi-bg-8 { background: var(--ansi-8); }
+.ansi-fg-9 { color: var(--ansi-9); } .ansi-bg-9 { background: var(--ansi-9); }
+.ansi-fg-10 { color: var(--ansi-10); } .ansi-bg-10 { background: var(--ansi-10); }
+.ansi-fg-11 { color: var(--ansi-11); } .ansi-bg-11 { background: var(--ansi-11); }
+.ansi-fg-12 { color: var(--ansi-12); } .ansi-bg-12 { background: var(--ansi-12); }
+.ansi-fg-13 { color: var(--ansi-13); } .ansi-bg-13 { background: var(--ansi-13); }
+.ansi-fg-14 { color: var(--ansi-14); } .ansi-bg-14 { background: var(--ansi-14); }
+.ansi-fg-15 { color: var(--ansi-15); } .ansi-bg-15 { background: var(--ansi-15); }
+.ansi-bold { font-weight: 700; }
+.ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+.wb-error .ansi-fg-0, .wb-error .ansi-fg-7 { color: var(--fg); }
+.wb-err { display: grid; gap: 6px; margin: 4px 0; padding: 8px 12px; border: 1px solid var(--error); border-left-width: 4px; border-radius: 6px; background: var(--raised); }
+.wb-err-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; overflow-wrap: anywhere; }
+.wb-err-type, .wb-err-message { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; }
+.wb-err-type { color: var(--error); font-weight: 700; }
+.wb-err-hint { color: var(--accent); font-style: italic; }
+.wb-err-where { justify-self: start; font-size: 0.92em; }
+.wb-err-explain { margin: 0; line-height: 1.45; }
+.wb-err-fixes { display: flex; flex-wrap: wrap; gap: 6px; }
+.wb-err-fixes .btn { border-color: var(--border-strong); }
+.wb-err-section > summary { color: var(--muted); font-size: 0.85em; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
+.wb-err-values { margin: 4px 0; border-collapse: collapse; font-size: 12.5px; }
+.wb-err-values th, .wb-err-values td { padding: 2px 10px 2px 0; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.wb-err-values th { font-weight: 400; white-space: nowrap; }
+.wb-err-stack { margin: 4px 0; padding-left: 22px; }
+.wb-err-stack > li { margin: 2px 0; }
+.wb-err-frame.current { font-weight: 700; }
+.wb-err-code { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+.wb-err-lib > summary { color: var(--muted); cursor: pointer; }
+.wb-err-lib ol { padding-left: 18px; font-size: 12px; }
+.wb-err-chained { margin: 4px 0; padding-left: 10px; border-left: 2px solid var(--border-strong); }
+.wb-err .wb-error { max-height: 360px; overflow: auto; }
+.monaco-editor .wb-problem-line { background: color-mix(in srgb, var(--error) 9%, transparent); }
+
+.wb-err-send { margin-left: auto; }

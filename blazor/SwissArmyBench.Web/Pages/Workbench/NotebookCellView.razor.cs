@@ -47,6 +47,18 @@ public partial class NotebookCellView
     [Parameter]
     public EventCallback<(CellModel Cell, MouseEventArgs At)> OnMenu { get; set; }
 
+    /// <summary>An error panel's fix, for the notebook to apply.</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, RunErrorFix Fix)> OnFix { get; set; }
+
+    /// <summary>An error panel's frame to go to (In your code, the call stack).</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, RunErrorFrame Frame)> OnGoTo { get; set; }
+
+    /// <summary>The notebook's name, for the agent's title.</summary>
+    [Parameter]
+    public string Document { get; set; } = "the notebook";
+
     /// <summary>Run up to here: every cell from the top to this one.</summary>
     [Parameter]
     public EventCallback<CellModel> OnRunTo { get; set; }
@@ -95,6 +107,14 @@ public partial class NotebookCellView
         if (_editor is not null)
         {
             await _editor.InsertAsync(text);
+        }
+    }
+
+    public async Task RevealLineAsync(int line)
+    {
+        if (_editor is not null)
+        {
+            await _editor.RevealLineAsync(line);
         }
     }
 

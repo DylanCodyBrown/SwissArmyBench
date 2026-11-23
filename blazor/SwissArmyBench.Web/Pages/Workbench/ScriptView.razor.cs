@@ -133,5 +133,22 @@ public partial class ScriptView
         _console.ErrorDetail = null;
     }
 
+    /// <summary>An error's frame in this script: its line shown.</summary>
+    private Task GoToAsync(RunErrorFrame frame) =>
+        frame.Where is "cell" or "file" && _editor is not null ? _editor.RevealLineAsync(frame.Line) : Task.CompletedTask;
+
+    /// <summary>An error panel's fix on the script's text: a text replaced, an import line added at the top.</summary>
+    private Task FixAsync(RunErrorFix fix)
+    {
+        var text = fix switch
+        {
+            { Kind: "replace", Target: { } target, Text: { } by } when Text.Contains(target, StringComparison.Ordinal) =>
+                string.Concat(Text.AsSpan(0, Text.IndexOf(target, StringComparison.Ordinal)), by, Text.AsSpan(Text.IndexOf(target, StringComparison.Ordinal) + target.Length)),
+            { Kind: "import", Line: { } line } => $"{line}\n{Text}",
+            _ => null,
+        };
+        return text is null ? Task.CompletedTask : OnTextChanged.InvokeAsync(text);
+    }
+
     private Task AnswerAsync(string line) => _runner?.AnswerAsync(_console, line) ?? Task.CompletedTask;
 }
