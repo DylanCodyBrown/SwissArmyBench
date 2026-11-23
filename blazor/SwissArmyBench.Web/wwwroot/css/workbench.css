@@ -129,3 +129,12 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .ide-search { flex: 1; padding: 4px 8px; font: inherit; }
 .ide-skipped { color: var(--warn); }
 .ide-results { display: grid; gap: 8px; max-height: 60vh; overflow: auto; }
+/* Notebook mode's panel beside the cells: the Outline (the classic .wb-outline measures). */
+.wb-notebook-main { display: flex; flex: 1 1 auto; min-height: 0; }
+.wb-notebook-main > .wb-cells { flex: 1 1 auto; min-width: 0; align-content: start; overflow: auto; }
+.wb-mode-panel { flex: 0 0 240px; overflow: auto; border-left: 1px solid var(--border); background: var(--surface); }
+.wb-outline { margin: 0; padding: 4px 0; list-style: none; }
+.wb-outline-item { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 10px; border: 0; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.wb-outline-item:hover, .wb-outline-item.active { background: var(--surface-2); }
+.wb-outline-item.heading { font-weight: 600; }
+.wb-outline-stale { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--warn); }

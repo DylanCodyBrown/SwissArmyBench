@@ -48,6 +48,9 @@ public sealed class WorkbenchClient
     /// <summary>An HTML cell's design: its names filled from its run's values (each as the kernel gave it).</summary>
     public Task<FilledHtml> FillHtmlAsync(string html, JsonElement values) => _api.PostAsync<FilledHtml>("/workbench/html/fill", new { html, values });
 
+    /// <summary>A notebook's run order and Outline, from its cells as they are on screen.</summary>
+    public Task<NotebookFlow> FlowAsync(IReadOnlyList<NotebookCell> cells) => _api.PostAsync<NotebookFlow>("/workbench/notebook/flow", new { cells });
+
     public Task<TableList> TablesAsync() => _api.GetAsync<TableList>("/workbench/tables");
 
     /// <summary>The notebook as it should be with its Tables group (the server's rules: domain/table_cells.py).</summary>

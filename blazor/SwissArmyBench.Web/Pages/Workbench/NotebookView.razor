@@ -6,6 +6,7 @@
 @implements IDisposable
 
 <ErrorNote Error="_error" OnClose="() => _error = null" />
+<div class="wb-notebook-main">
 <div class="wb-cells">
     @if (_kept.Cells.Count == 0)
     {
@@ -20,6 +21,11 @@
                           OnRun="RunAsync" OnSelect="Select" OnChanged="ChangedAsync" OnKey="KeyAsync" OnMove="MoveAsync" OnDelete="DeleteCellAsync" OnMenu="ShowCellMenu" OnRunTo="RunToAsync" OnAnswer="AnswerAsync"
                           OnFix="FixAsync" OnGoTo="GoToFrameAsync" Document="@(Path is null ? "the notebook" : System.IO.Path.GetFileName(Path))" />
     }
+</div>
+@if (OutlineShown)
+{
+    <NotebookOutline Flow="_flow" Selected="_selected?.Number" Tables="_kept.Cells.Any(c => c.IsAppCell)" OnGo="GoToNumberAsync" OnTables="GoToTablesAsync" OnClose="ToggleOutlineAsync" />
+}
 </div>
 @if (_menu is { } menu)
 {

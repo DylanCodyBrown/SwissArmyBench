@@ -115,6 +115,8 @@ public partial class WorkbenchPage
             new("cell.clearAll", "Cell", "Clear every output", () => now(nb.ClearAll)),
             new("cell.toggleOutput", "Cell", "Hide or show the cell's output", () => now(nb.ToggleSelectedOutput), "O", cell),
             new("cell.goTo", "Cell", "Go to a cell by its number", nb.GoToCellAsync),
+            new("notebook.outline", "Notebook", "The Outline: the Markdown headings and the named cells", nb.ToggleOutlineAsync),
+            new("view.panel", "View", "Show or hide a panel of the document in front (Outline)", nb.ToggleOutlineAsync),
         ];
     }
 

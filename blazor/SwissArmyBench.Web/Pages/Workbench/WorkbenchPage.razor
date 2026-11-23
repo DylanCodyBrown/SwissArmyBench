@@ -75,6 +75,11 @@
         {
             <span class="muted wb-problems" role="status">@ProblemWords(Front)</span>
         }
+        @if (Front is { IsNotebook: true } notebook)
+        {
+            <button type="button" class="btn small ghost wb-panel-toggle" aria-pressed="@(notebook.NotebookView?.OutlineShown == true ? "true" : "false")" title="The Markdown headings and the named cells"
+                    @onclick="() => notebook.NotebookView?.ToggleOutlineAsync() ?? Task.CompletedTask">Outline</button>
+        }
         <button type="button" class="btn small ghost" aria-pressed="@(_showFiles ? "true" : "false")" title="Files (Ctrl+B)" @onclick="ToggleFilesAsync">Files</button>
         <button type="button" class="btn small ghost" aria-pressed="@(_showBlades ? "true" : "false")" @onclick="ToggleBladesAsync">Blades</button>
     </footer>

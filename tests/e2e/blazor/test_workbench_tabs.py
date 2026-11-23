@@ -144,3 +144,22 @@ def test_the_scripts_ide_definition_rename_format_and_search(browser: Browser, s
     dialog.locator("input[type=search]").fill("double_it")
     expect(dialog.locator(".ide-count")).to_contain_text("result", timeout=15_000)
     page.close()
+
+
+def test_a_notebooks_outline(browser: Browser, server: dict[str, Any]) -> None:
+    path = str(server["tmp"] / "workbench" / "outline.ipynb")
+    cells = [
+        {"kind": "markdown", "source": "# Made-up report\n## Totals", "number": 1},
+        {"kind": "code", "source": "total = 1", "number": 2, "name": "made_up_loader"},
+    ]
+    call(server, "POST", "/workbench/save", {"path": path, "cells": cells, "next_cell": 3})
+    page = open_page(browser, server, f"notebooks?path={path}")
+    page.click(".wb-status button:has-text('Outline')")
+    outline = page.locator(".wb-mode-panel[aria-label=Outline]")
+    expect(outline.locator(".wb-outline-item.heading")).to_have_count(2)
+    expect(outline.locator(".wb-outline-item.cell")).to_have_text("made_up_loader")
+    outline.locator(".wb-outline-item.cell").click()
+    expect(page.locator(".wb-cell.selected")).to_have_attribute("data-number", "2")
+    outline.locator("button[aria-label='Close Outline']").click()
+    expect(outline).to_have_count(0)
+    page.close()

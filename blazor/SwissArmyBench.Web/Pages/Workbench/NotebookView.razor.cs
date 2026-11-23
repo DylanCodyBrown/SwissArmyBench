@@ -108,7 +108,11 @@ public partial class NotebookView
         await OnChanged.InvokeAsync();
     }
 
-    private Task ChangedAsync(CellModel cell) => OnChanged.InvokeAsync();
+    private async Task ChangedAsync(CellModel cell)
+    {
+        await OnChanged.InvokeAsync();
+        await ReadFlowAsync();
+    }
 
     private async Task MoveAsync((CellModel Cell, int By) move)
     {
@@ -193,6 +197,7 @@ public partial class NotebookView
             await _runner.RunAsync(cell, request, Path, () => InvokeAsync(StateHasChanged));
             cell.Editing = cell.Kind != "html" && cell.Editing; // an HTML cell shows its design once run
             _error = null;
+            await ReadFlowAsync();
         }
         catch (ApiException error)
         {
