@@ -57,6 +57,10 @@ public sealed class ProjectsClient
 
     public Task<ProjectAnswer> SaveAsync() => _api.PostAsync<ProjectAnswer>("/project/save");
 
+    /// <summary>Save with the tables' Keep its rows answers (only those asked).</summary>
+    public Task<SaveAnswer> SaveAsync(IReadOnlyDictionary<string, bool> keepRows) =>
+        _api.PostAsync<SaveAnswer>("/project/save", keepRows.Count > 0 ? new { keep_rows = keepRows } : new { });
+
     public Task<ProjectAnswer> CloseAsync(bool discard = false) => _api.PostAsync<ProjectAnswer>("/project/close", new { discard });
 
     public Task<ProjectAnswer> AutosaveAsync(bool on) => _api.PostAsync<ProjectAnswer>("/project/autosave", new { on });

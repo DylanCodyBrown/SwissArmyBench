@@ -25,9 +25,16 @@
         }
     </div>
 }
+@if (_keepRows is { } asking)
+{
+    <KeepRowsDialog Title="Save project" Action="Save" Tables="asking" OnDone="RowsChosen" />
+}
 
 @code {
+    private readonly HashSet<string> _askedRows = [];
     private string? _askedShown;
+    private IReadOnlyList<ProjectTable>? _keepRows;
+    private TaskCompletionSource<Dictionary<string, bool>?>? _rowsChosen;
 
     protected override void OnInitialized() => Project.Changed += Redraw;
 
@@ -43,12 +50,48 @@
         }
     });
 
-    private Task SaveAsync() => GuardAsync(async () =>
+    /// <summary>Save (Ctrl+S too): a table with no source to read again asks Keep its rows once (data is
+    /// sensitive), then .sab/ is written and its notes said.</summary>
+    public Task SaveAsync() => GuardAsync(async () =>
     {
-        await Projects.SaveAsync();
+        await Project.RefreshAsync();
+        if (Project.Current is not { } project)
+        {
+            return;
+        }
+        if (project.ReadOnly is { } readOnly)
+        {
+            _ = Notes.SayAsync(readOnly);
+            return;
+        }
+        var asking = project.Tables.Where(t => t.NeedsRows && !t.KeepRows && !_askedRows.Contains(t.Name)).ToList();
+        Dictionary<string, bool> keep = [];
+        if (asking.Count > 0)
+        {
+            _keepRows = asking;
+            _rowsChosen = new TaskCompletionSource<Dictionary<string, bool>?>();
+            StateHasChanged();
+            if (await _rowsChosen.Task is not { } chosen)
+            {
+                return;
+            }
+            _askedRows.UnionWith(asking.Select(t => t.Name));
+            keep = chosen;
+        }
+        var saved = await Projects.SaveAsync(keep);
+        foreach (var note in saved.Notes ?? [])
+        {
+            _ = Notes.SayAsync(note);
+        }
         await Project.RefreshAsync();
         _ = Notes.SayAsync("Saved");
     });
+
+    private void RowsChosen(Dictionary<string, bool>? chosen)
+    {
+        _keepRows = null;
+        _rowsChosen?.TrySetResult(chosen);
+    }
 
     private Task PrivateAsync(bool on) => GuardAsync(async () =>
     {

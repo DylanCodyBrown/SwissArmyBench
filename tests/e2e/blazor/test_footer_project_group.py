@@ -31,6 +31,8 @@ def test_the_footer_zooms_and_the_project_group_saves(browser: Browser, server: 
     group.get_by_role("button", name="Export outline").click()
     expect(page.locator(".note-corner")).to_contain_text("ARCHITECTURE.md")
     group.get_by_role("button", name="Save").click()
+    # The made-up store's tables were pushed (no source to read again): Keep its rows is asked, left unticked.
+    page.get_by_role("dialog", name="Save project").get_by_role("button", name="Save").click()
     expect(group).not_to_contain_text("●")
     expect(page.locator(".note-corner")).to_contain_text("Saved")
     group.get_by_label("Private").check()
@@ -40,4 +42,26 @@ def test_the_footer_zooms_and_the_project_group_saves(browser: Browser, server: 
     assert call(server, "GET", "/project")["project"]["autosave"] is False
     group.get_by_role("button", name="Close").click()
     expect(page.locator(".project-group")).to_have_count(0)
+    page.close()
+
+
+def test_save_asks_keep_its_rows_once(browser: Browser, server: dict[str, Any]) -> None:
+    """A pasted table has no source to read again: Save asks Keep its rows once (the classic chooseRows)."""
+    call(server, "POST", "/project/new", {"name": "made_up_rows_shop", "discard": True})
+    page = open_page(browser, server, "")
+    page.get_by_role("button", name="Paste data").click()
+    page.get_by_label("Pasted table").fill("city\tvisits\nNorthvale\t3\n")
+    page.locator(".dialog-foot").get_by_role("button", name="Open").click()
+    expect(page.locator(".grid-tab.tab-item.current")).to_contain_text("pasted_")
+    page.locator(".project-group").get_by_role("button", name="Save").click()
+    asked = page.get_by_role("dialog", name="Save project")
+    expect(asked).to_contain_text("Keep its rows")
+    asked.locator("input[type=checkbox]").first.check()
+    asked.get_by_role("button", name="Save").click()
+    expect(page.locator(".note-corner")).to_contain_text("Saved")
+    tables = call(server, "GET", "/project")["project"]["tables"]
+    assert any(t["keep_rows"] for t in tables if t["name"].startswith("pasted_"))
+    # Asked once: the next Save goes straight through.
+    page.locator(".project-group").get_by_role("button", name="Save").click()
+    expect(page.get_by_role("dialog", name="Save project")).to_have_count(0)
     page.close()

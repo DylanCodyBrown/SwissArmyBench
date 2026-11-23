@@ -348,7 +348,7 @@ public partial class GridsPage
         var key = e.Key.ToLowerInvariant();
         if (key == "s" && !e.ShiftKey)
         {
-            await Api.PostAsync("/project/save");
+            await (_projectGroup?.SaveAsync() ?? Task.CompletedTask);
             return;
         }
         if (await Js.InvokeAsync<bool>("sab.typing"))
@@ -364,6 +364,8 @@ public partial class GridsPage
             await UndoAsync();
         }
     }
+
+    private ProjectGroup? _projectGroup;
 
     private Task RedoAsync() => ChangedAsync(() => Grids.RedoAsync(_active!));
 }

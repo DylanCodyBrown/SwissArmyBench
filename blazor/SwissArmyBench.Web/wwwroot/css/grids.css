@@ -574,3 +574,8 @@ kbd { padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px
 
 /* A question's words keep their paragraphs (the classic confirm()'s blank line). */
 .question-words { white-space: pre-line; }
+
+/* Save's Keep its rows (the classic projectFile.ts chooseRows). */
+.keep-rows { display: flex; flex-direction: column; gap: 8px; min-width: min(340px, 100%); margin: 0; padding: 0; list-style: none; }
+.keep-rows li { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.keep-rows label { display: flex; align-items: center; gap: 6px; }

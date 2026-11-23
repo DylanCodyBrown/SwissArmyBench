@@ -11,4 +11,8 @@ public sealed record ProjectInfo(
     string? AutosaveError = null,
     string? Folder = null,
     string? ReadOnly = null,
-    IReadOnlyList<ProjectProblem>? Problems = null);
+    IReadOnlyList<ProjectProblem>? Problems = null)
+{
+    /// <summary>Its tables (a pasted one's Keep its rows asked once on Save).</summary>
+    public IReadOnlyList<ProjectTable> Tables { get; init; } = [];
+}
