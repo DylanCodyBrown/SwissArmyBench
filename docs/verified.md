@@ -6353,3 +6353,28 @@ Windows (the preview photographer's hidden-window way, the update's restart on t
   makes it again).
 - Not settled here: with Streamlit installed in this .venv, four data.py export tests and the drivers check fail
   (they assume no Streamlit; the release machine has none and passed them in 0.0.33).
+
+## 2026-11-23: a project opens, everything it needs installed at once, with a progress bar
+
+- What it finds (domain/project_needs.py, read with ast, nothing run): requirements.txt's lines (a pin kept), the
+  type's requirements, the app's machinery (ipykernel, openpyxl, xlrd), every import of the project's notebooks'
+  code cells (IPython's lines made Python, %%sql cells left out), its scripts, API.py and widgets (never .venv,
+  .sab, builds/, exports/, sandbox/, a hidden folder), mapped by domain/packages.py's table, the project's own
+  modules and the standard library left out; its connections' packages (ProjectUse.connections, each blade's
+  imports) and its canvases' widgets (hooks.project_code, the Streamlit extension's). Minus what its Python has
+  (by pip's name; a pin not met counts).
+- The progress is read from uv's own lines (Resolved, Downloading, Prepared, Installed, " + name==version") and
+  pip's (Collecting, Downloading, Installing collected packages, Successfully installed); a dependency pulled in
+  is not counted. Unit tests over captured made-up output: tests/test_project_needs.py 7 passed.
+- The service with the stand-in installer (tests/libraries_standin.py, now printing uv's lines, a delay per library,
+  broken-* failing): tests/test_project_installs.py 6 passed (open, made .venv first, a failure with Try again,
+  PROJECT_VENV=off with check and the agent's install on Allow, no project, the tool).
+- Related: test_project_python, test_cli, test_architecture (bootstrap.py's ceiling lowered 2016 to 2013),
+  test_architecture_map, test_environment*, test_extension_layers: 491 passed, 5 skipped.
+- C#: build with -warnaserror clean, dotnet format clean, bUnit 155 of 155 (7 new: ProjectSetupTests).
+- Blazor browser suite against the Release build, in its own process: 142 passed, 2 skipped (the new
+  test_project_installs: the bar with "installing 1 of 2", both libraries with why, done, requirements.txt both).
+- The whole suite without e2e: 5957 passed, 10 failed, 42 skipped. None touches this work: the four data.py export
+  tests and the drivers check (Streamlit in this .venv, as noted before), the updater's uv tool check and a fresh
+  Python's export check (this run's PYTHONPATH reaches the made venv), the desktop shell (Qt), the million-row
+  timings (passes alone). mypy: one error in sab_canvas.py, a file this work does not touch.

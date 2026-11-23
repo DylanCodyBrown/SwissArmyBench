@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from swissarmybench.adapters.atomic_files import write_atomic
+from swissarmybench.domain.project_needs import MAX_BYTES, MAX_FILES, SKIPPED_FOLDERS
 
 INDEX = "https://pypi.org/pypi"
 INDEX_SECONDS: float = 8.0
@@ -151,3 +152,27 @@ def remove_structure_file(path: str) -> None:
     if target.parent.name != "structures" or not target.is_file():
         raise FileNotFoundError(f"{path} is not a structure's file.")
     target.unlink()
+
+
+def project_code(folder: str) -> list[tuple[str, str]]:
+    """A project folder's own code as (path relative to it, text): every notebook and .py at its top and under
+    its folders, never its Python, the app's state, builds, exports, the sandbox nor a hidden folder (the
+    rule's SKIPPED_FOLDERS), a file too big or not UTF-8 left out; at most MAX_FILES, by path."""
+    top = Path(folder)
+    found: list[tuple[str, str]] = []
+    for here, folders, files in os.walk(top):
+        folders[:] = sorted(f for f in folders if f not in SKIPPED_FOLDERS and not f.startswith("."))
+        for name in sorted(files):
+            if not name.lower().endswith((".py", ".ipynb")):
+                continue
+            path = Path(here) / name
+            try:
+                if path.stat().st_size > MAX_BYTES:
+                    continue
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            found.append((path.relative_to(top).as_posix(), text))
+            if len(found) >= MAX_FILES:
+                return found
+    return found

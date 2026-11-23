@@ -54,6 +54,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_changes.py        the open project's change log: last, history, since, search
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_environment.py    the Environment: everything the project holds, where each is used, its libraries
+  routes_project_python.py what the open project needs, found as it opens and installed at once
   routes_script_runs.py    a script's run settings
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X
@@ -132,6 +133,7 @@ from swissarmybench.server import (
     routes_processes,
     routes_project_explorer,
     routes_project_outline,
+    routes_project_python,
     routes_project_scope,
     routes_projects,
     routes_regression,
@@ -485,6 +487,7 @@ def create_app(
                 *routes_changes.routes(ctx.changes),
                 *routes_variables.routes(ctx.variables),
                 *routes_environment.routes(ctx.environment),
+                *(routes_project_python.routes(i) if (i := ctx.project_python.installs) else []),
                 *routes_script_runs.routes(ctx.script_runs),
                 *routes_beta_log.routes(ctx.beta),
                 *routes_updates.routes(ctx.updates, ctx.extensions.names),

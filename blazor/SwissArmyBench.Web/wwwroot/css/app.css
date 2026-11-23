@@ -98,6 +98,30 @@ html.rail-names .nav-rail-toggle { padding-left: 22px; font-size: 12px; }
 .status-spacer { flex: 1; }
 .status-offline { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); }
 .dirty-dot { color: var(--accent); }
+.status-setup { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ===== the setup bar (Layout/ProjectSetupBar): what the open project needs, installed at once ===== */
+.setup-bar {
+  flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px 12px 4px;
+  border-bottom: 1px solid var(--border); background: var(--surface); color: var(--fg); font-size: 13px;
+}
+.setup-bar-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.setup-bar-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-bar-spacer { flex: 1; }
+.setup-bar-progress { width: 100%; }
+.setup-bar.done .setup-bar-head > .icon-svg { color: var(--ok); }
+.setup-bar.done { animation: setup-fade 1s ease 5s forwards; }
+@keyframes setup-fade { to { opacity: 0; } }
+.setup-bar-list {
+  list-style: none; margin: 2px 0 4px; padding: 0; max-height: 200px; overflow: auto;
+  display: grid; grid-template-columns: auto auto 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center;
+}
+.setup-bar-package { display: contents; }
+.setup-bar-name { font-family: var(--mono, monospace); }
+.setup-bar-why, .setup-bar-status { color: var(--muted); }
+.setup-bar-package.installed .icon-svg { color: var(--ok); }
+.setup-bar-package.failed .icon-svg, .setup-bar-package.failed .setup-bar-status { color: var(--error); }
+@media (prefers-reduced-motion: reduce) { .setup-bar.done { animation: none; } }
 
 /* ===== a page of the rail's (areaPage.ts): its head, its body ===== */
 .area-page { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }

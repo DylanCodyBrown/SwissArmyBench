@@ -269,3 +269,21 @@ def project_export_data(a: dict[str, Any]) -> Any:
 )
 def project_dictionary(a: dict[str, Any]) -> Any:
     return api.call("POST", "/projects/dictionary", {"folder": a["folder"]})
+
+
+@command(
+    "project_installs",
+    "What the open project needs installed, found as it opens and installed at once (the progress bar's "
+    "state): each package, why it is needed and its status; check looks again; install runs it (waits for "
+    "Allow)",
+    opt("action", "state (default), check or install."),
+)
+def project_installs(a: dict[str, Any]) -> Any:
+    action = str(a.get("action") or "state")
+    if action == "state":
+        return api.call("GET", "/project/installs")
+    if action == "check":
+        return api.call("POST", "/project/installs/check", {}, timeout=120)
+    if action == "install":
+        return api.call("POST", "/project/installs/run", {}, timeout=900)
+    raise CommandError("action is one of: state, check, install.")

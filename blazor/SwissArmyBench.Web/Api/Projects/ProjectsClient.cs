@@ -88,4 +88,10 @@ public sealed class ProjectsClient
     public Task<SyncSaid> SyncAsync(bool push, string path) => push
         ? _api.PostAsync<SyncSaid>("/git/push", new { which = "shared", path })
         : _api.PostAsync<SyncSaid>("/git/pull", new { which = "shared" });
+
+    /// <summary>What the open project needs installed, as the setup bar draws it.</summary>
+    public Task<ProjectInstalls> InstallsAsync() => _api.GetAsync<ProjectInstalls>("/project/installs");
+
+    /// <summary>Install what the open project lacks, in one install (Try again).</summary>
+    public Task<ProjectInstalls> RunInstallsAsync() => _api.PostAsync<ProjectInstalls>("/project/installs/run", new { });
 }

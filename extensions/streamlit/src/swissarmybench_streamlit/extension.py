@@ -249,6 +249,7 @@ def routes(seams: Seams) -> list[Any]:
     hooks.app_pages = canvas_pages
     hooks.canvas_put = canvases.put  # Build's widget on the APIs page
     hooks.api_uses = canvases.api_uses  # the local sandbox API's Payload shapes
+    hooks.project_code = canvases.code_placed  # what a project's canvases need installed as it opens
     web_root = settings.web_root
     # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
     from swissarmybench_streamlit.services import sharing_target

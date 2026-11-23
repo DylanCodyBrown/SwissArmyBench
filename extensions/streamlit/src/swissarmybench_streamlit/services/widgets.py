@@ -162,6 +162,11 @@ class Widgets:
     def names(self) -> set[str]:
         return set(self._all())
 
+    def code_of(self, name: str) -> str | None:
+        """A widget's file as it is, the first found (the project's, the library's, a prebuilt), or None."""
+        found = self._files.read(name) if isinstance(name, str) and rules.NAME.match(name) else None
+        return found[0] if found else None
+
     def _one(self, name: str) -> tuple[Widget, str]:
         found = self._files.read(name) if isinstance(name, str) and rules.NAME.match(name) else None
         if found is None:

@@ -55,6 +55,13 @@ by code; there is no add here. Interrupt and Restart are the Notebooks and Scrip
   `environment(action="set_python", args={"make": true})` makes it now (after a failure);
   `args={"offer": "<document>", "add": true}` installs an offer's libraries (waits for Allow), `"add": false`
   declines it.
+- `project_installs`: as a project opens (once its `.venv` is there), everything it needs is found (requirements.txt,
+  its type, the imports of its notebooks, scripts, API.py and widgets, its connections' and canvases' packages) and
+  what its Python lacks is installed in ONE install, then added to requirements.txt; the page shows a progress bar.
+  `action="state"` (default): `state` (`checking`, `installing`, `done`, `failed`, `none`), `total`, `done`,
+  `current`, `packages` (`name`, `why`, `status`), `words`, `problem` (Try again), `restart` (a running session
+  needs Restart, asked first, to use them). `action="check"` looks again (installs nothing); `action="install"`
+  runs it (waits for Allow).
 
 ## Settings and secrets, and key vaults
 - The `${NAME}` settings are this tab (`variables_list`, `variables_set`, `variables_rename`,

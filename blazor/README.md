@@ -76,7 +76,10 @@ blazor/
     State/                   ThemeState, LiveUpdates (the /ws notices), ProjectState, RailState, Notes, Dialogs:
                              small services shared by the pages, each raising one Changed event
     Navigation/              the rail's areas in the classic order (Areas.cs) and their classic addresses
-    Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost
+    Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost, ProjectSetupBar
+                             (the setup bar under every page's top: what the open project needs, installed at once
+                             as it opens; ProjectSetup its state service, from the project_installs notice; Hide keeps
+                             a mark in the status bar; the missing-package prompt keeps quiet for what it installs)
     Components/              ErrorNote (the one error note), Busy (the one loading state), AppDialog, NotYet,
                              Icon and IconSet (the classic line icons), AgGrid, MermaidDiagram; PaneDock (a
                              page's panes the user hides, moves to the left or right and stacks: DockLayout's rules,
