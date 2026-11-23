@@ -24,6 +24,8 @@ PAGES = [
     "notebooks?new=1",
     "scripts?new=1",
     "analyze",
+    "apis",
+    "structures",
 ]
 
 

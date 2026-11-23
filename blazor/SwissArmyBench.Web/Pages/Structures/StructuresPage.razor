@@ -1,0 +1,49 @@
+@* The Structures page (off the rail: the Environment's rows, an API's answer and a kernel's value open into it; the
+   classic structuresPage.ts): the open structures and the project's structure files on the left, New, Open a
+   file…, Paste…, and the one shown (?id=) as a tree or its text. Logic in StructuresPage.razor.cs. *@
+@page "/structures"
+@implements IDisposable
+
+<section class="area-page structures-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="structures" /> Structures</h1>
+        <div class="area-page-actions">
+            <button type="button" class="btn small" @onclick="NewAsync"><Icon Name="plus" /> New</button>
+            <button type="button" class="btn small" @onclick="OpenFileAsync"><Icon Name="folder" /> Open a file…</button>
+            <button type="button" class="btn small" @onclick="PasteAsync"><Icon Name="import" /> Paste…</button>
+            @if (_shown is { } shown)
+            {
+                <button type="button" class="btn small ghost" @onclick="() => CloseAsync(shown.Id)"><Icon Name="close" /> Close</button>
+            }
+        </div>
+    </header>
+    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+    <div class="structures-main">
+        <nav class="side-pane structures-list" aria-label="Open structures">
+            @if (_list is { Open.Count: 0 })
+            {
+                <p class="muted side-pane-note">Nothing open: New, Open a file…, Paste…, or an API's answer (APIs, Try it).</p>
+            }
+            <ul class="files-list" role="list">
+                @foreach (var entry in _list?.Open ?? [])
+                {
+                    <li>
+                        <a class="files-item @(entry.Id == _shown?.Id ? "current" : string.Empty)" href="@($"structures?id={Uri.EscapeDataString(entry.Id)}")" aria-current="@(entry.Id == _shown?.Id ? "page" : null)">
+                            <Icon Name="structures" /> @entry.Name <span class="chip">@entry.Format</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+        <div class="structures-shown">
+            @if (_shown is { } document)
+            {
+                <StructureView @key="document.Id + document.Version" Document="document" OnChanged="ChangedAsync" />
+            }
+            else if (_list is { Open.Count: > 0 })
+            {
+                <p class="muted structures-pick">Pick a structure on the left.</p>
+            }
+        </div>
+    </div>
+</section>

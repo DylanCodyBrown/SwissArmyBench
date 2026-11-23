@@ -1,0 +1,44 @@
+@* The APIs page (the classic apisPage.ts): the library's APIs as cards (their operations, sign-in, where their
+   document came from); ?name= an API's explorer: its operations by method and path, one operation's inputs, body
+   and answers, Try it (the call sent, its answer opened as a structure right here), its named schemas. Adding an API
+   is the classic page's for now. Logic in ApisPage.razor.cs. *@
+@page "/apis"
+
+<section class="area-page apis-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="apis" /> APIs</h1>
+        <div class="area-page-actions">
+            @if (NameParameter is not null)
+            {
+                <a class="btn small" href="apis"><Icon Name="back" /> All APIs</a>
+            }
+            <a class="btn small" href="/workspace?open=apis">Add API in the classic front end</a>
+        </div>
+    </header>
+    <div class="area-page-body">
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        @if (NameParameter is null)
+        {
+            @if (_cards is { Apis.Count: 0 })
+            {
+                <div class="empty-state">
+                    <p>No API yet: add one from its OpenAPI document or a form (the classic front end), and its operations show here.</p>
+                </div>
+            }
+            <div class="card-grid">
+                @foreach (var card in _cards?.Apis ?? [])
+                {
+                    <a class="card api-card" href="@($"apis?name={Uri.EscapeDataString(card.Name)}")" data-name="@card.Name">
+                        <span class="card-title"><Icon Name="apis" /> @card.Title</span>
+                        <span class="card-meta">@card.Operations operations · sign-in: @card.Auth · @card.Source.Kind</span>
+                        <span class="card-meta muted">@card.BaseUrl</span>
+                    </a>
+                }
+            </div>
+        }
+        else if (_explorer is { } explorer)
+        {
+            <ApiExplorerView Explorer="explorer" Operation="@OperationParameter" />
+        }
+    </div>
+</section>

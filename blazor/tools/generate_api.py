@@ -345,6 +345,133 @@ ANSWERS += [
     ),
 ]
 
+ANSWERS += [
+    Answer(
+        "Apis",
+        "ApiCards",
+        "GET",
+        "/apis",
+        "GET /apis: the library's APIs as cards (their operations, sign-in, tables, calls, where their "
+        "document came from) and older API connections.",
+        nested={"apis": "ApiCard", "source": "ApiSource"},
+        types={
+            "calls": JSON,
+            "tables": f"IReadOnlyList<{JSON}>",
+            "older": f"IReadOnlyList<{JSON}>",
+            "problem": "string?",
+            "file": "string?",
+            "version": "string?",
+        },
+    ),
+    Answer(
+        "Apis",
+        "ApiExplorer",
+        "GET",
+        "/apis/Store",
+        "GET /apis/{name}: an API read for people: each operation's inputs, body and answers (as schema "
+        "trees with made-up examples), and its named schemas with where each is used.",
+        nested={
+            "operations": "ApiOperation",
+            "parameters": "ApiParameter",
+            "responses": "ApiResponse",
+            "schemas": "ApiSchema",
+            "source": "ExplorerSource",
+        },
+        types={
+            "ApiOperation.schemas": "IReadOnlyList<string>",
+            "ApiOperation.body": f"{JSON}?",
+            "schema": f"{JSON}?",
+            "example": f"{JSON}?",
+            "default": f"{JSON}?",
+            "enum": f"IReadOnlyList<{JSON}>",
+            "table": f"{JSON}?",
+            "inputs": f"{JSON}?",
+            "body_saved": f"{JSON}?",
+            "sql_name": "string?",
+            "tags": "IReadOnlyList<string>",
+            "used_by": "IReadOnlyList<string>",
+            "uses": "IReadOnlyList<string>",
+            "folder": "string?",
+        },
+    ),
+    Answer(
+        "Structures",
+        "StructureList",
+        "GET",
+        "/structures",
+        "GET /structures: the structures open now and the project's structure files.",
+        nested={"open": "StructureEntry"},
+        types={
+            "files": f"IReadOnlyList<{JSON}>",
+            "path": "string?",
+            "origin": f"{JSON}?",
+            "steps": f"IReadOnlyList<{JSON}>",
+            "hash": "string?",
+            "text_error": "string?",
+        },
+    ),
+    Answer(
+        "Structures",
+        "StructureDocument",
+        "GET",
+        "/structures/{structure}",
+        "GET /structures/{id}: a structure's value (through its steps), its own text as typed and its parse "
+        "error, its format, where it came from and whether it is saved.",
+        types={
+            "path": "string?",
+            "origin": f"{JSON}?",
+            "steps": f"IReadOnlyList<{JSON}>",
+            "hash": "string?",
+            "text_error": "string?",
+            "error": "string?",
+            "value": f"{JSON}?",
+        },
+    ),
+]
+
+# A made-up API's OpenAPI document (Add API reads it as text): orders by status, one order, a new order.
+STORE_SPEC: dict[str, Any] = {
+    "openapi": "3.0.3",
+    "info": {"title": "Store", "version": "1.0"},
+    "servers": [{"url": "http://127.0.0.1:9/v1"}],
+    "paths": {
+        "/orders": {
+            "get": {
+                "operationId": "list_orders",
+                "summary": "The orders",
+                "parameters": [{"name": "status", "in": "query", "schema": {"type": "string"}}],
+                "responses": {
+                    "200": {
+                        "description": "The orders",
+                        "content": {
+                            "application/json": {
+                                "schema": {"type": "array", "items": {"$ref": "#/components/schemas/Order"}}
+                            }
+                        },
+                    }
+                },
+            },
+            "post": {
+                "operationId": "create_order",
+                "summary": "A new order",
+                "requestBody": {
+                    "required": True,
+                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Order"}}},
+                },
+                "responses": {"201": {"description": "Made"}},
+            },
+        }
+    },
+    "components": {
+        "schemas": {
+            "Order": {
+                "type": "object",
+                "properties": {"order_id": {"type": "integer"}, "amount": {"type": "number"}},
+            }
+        }
+    },
+}
+
 # Answers kept by hand, and why no sample pins their shape.
 HAND_WRITTEN: dict[str, str] = {
     "Workbench/StartedKernel": "needs a running IPython kernel (seconds to start; the answer is three "
@@ -355,6 +482,7 @@ HAND_WRITTEN: dict[str, str] = {
     "Workbench/BladeSummary": "a blade's fields depend on its kind (connection, vault, web call)",
     "Analyze/a table card's columns and rows": "only a card Python sends carries them (read from the card's "
     "body on the page)",
+    "Apis/ApiCallAnswer": "a call's answer needs the API's service to answer (the made-up API is offline)",
     "Grids/StepError": "null unless a step fails (the made-up data has no failing step)",
     "Grids/ConnectionSwap": "one of four answers (swapped, pick, review, failed), each free-form",
     "Grids/MadeTable": "shared by the query and the sandbox variant, each answering different fields",
@@ -528,6 +656,10 @@ def made_up(info: dict[str, Any], tmp: Path) -> dict[str, str]:
     ]
     call(info, "POST", "/workbench/save", {"path": notebook, "cells": cells, "next_cell": 3})
     call(info, "POST", "/workbench/save", {"path": script, "text": "print('made up')\n"})
+    # A made-up API (its document as text: no network) and a made-up structure.
+    call(info, "POST", "/apis", {"spec": json.dumps(STORE_SPEC), "auth": {"type": "none"}})
+    value = {"orders": [{"order_id": 1, "amount": 2.5}], "region": "North"}
+    made = call(info, "POST", "/structures", {"kind": "object", "name": "made_up", "value": value})
     # A run on the Analyze board, so its cards and its run's math and code have a sample.
     columns = {"column": "amount"}
     run = call(
@@ -539,6 +671,7 @@ def made_up(info: dict[str, Any], tmp: Path) -> dict[str, str]:
         "notebook": notebook,
         "script": script,
         "run": run["run"],
+        "structure": made["id"],
     }
 
 

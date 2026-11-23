@@ -20,6 +20,22 @@ if (!document.querySelector(`link[href="${css}"]`)) {
   document.head.append(link);
 }
 
+// JSON's and HTML's language services would need workers of their own, which this page does not ship: they are
+// switched off (the classic codeEditor.ts does the same); their colours stay. The server checks a structure's text.
+const OFF = {
+  completionItems: false,
+  hovers: false,
+  documentSymbols: false,
+  colors: false,
+  foldingRanges: false,
+  diagnostics: false,
+  selectionRanges: false,
+  documentFormattingEdits: false,
+  documentRangeFormattingEdits: false,
+};
+monaco.json.jsonDefaults.setModeConfiguration({ ...OFF, tokens: true });
+monaco.html.htmlDefaults.setModeConfiguration({ ...OFF, links: false, documentHighlights: false, rename: false });
+
 const THEMES = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
 const LANGUAGES = { dax: "msdax", toml: "ini", tsx: "typescript" };
 const TEXT_SETTLES_MS = 150;
