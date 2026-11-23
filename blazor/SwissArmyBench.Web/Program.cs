@@ -14,6 +14,8 @@ using SwissArmyBench.Web.Api.Extensions;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Git;
 using SwissArmyBench.Web.Api.Grids;
+using SwissArmyBench.Web.Api.Panels;
+using SwissArmyBench.Web.Api.PowerBi;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
 using SwissArmyBench.Web.Api.SessionLog;
@@ -71,6 +73,8 @@ public static class Program
         services.AddScoped<WidgetsClient>();
         services.AddScoped<SharingClient>();
         services.AddScoped<GitClient>();
+        services.AddScoped<PowerBiClient>();
+        services.AddScoped<PanelClient>();
     }
 
     private static void AddState(IServiceCollection services)

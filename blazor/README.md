@@ -59,6 +59,7 @@ blazor/
   interop/                   one plain JavaScript file per widget, bundled by build.mjs (esbuild, web's packages)
     shell.js                 the session, the theme, storage, the clipboard, the live-updates socket
     canvas.js                the Canvas's pointer capture, keys, zoom and windows; the Widgets window's keys
+    files.js                 a file saved from an answer's bytes (Export to Power BI's zip)
     agGrid.js                AG Grid: the infinite row model asking /grids/{id}/rows itself (rows never pass C#)
     mermaid.js               Mermaid: the ERD (strict security, the app's colours)
   SwissArmyBench.Web/
@@ -80,7 +81,7 @@ blazor/
 
 Addresses: `/blazor/` Home, `connections` (`?name=`, `?add=1`, `?kind=`, `?edit=`, `?find=1`), `catalog`,
 `environment?at=tables|variables|structures|settings|libraries`, `grids` (`?grid=`, `?table=`, `?new=1`), `erd`,
-`session`, `settings`, `canvas` (`?path=`), `perf` (`?canvas=`, `&build=&file=`), `widgets` (`?name=`), `x-scm`; every other area of the rail is its one line and the classic link.
+`session`, `settings`, `canvas` (`?path=`), `perf` (`?canvas=`, `&build=&file=`), `widgets` (`?name=`), `x-scm`, `x-<area>` (an extension's panel page); every other area of the rail is its one line and the classic link.
 
 ## Built better than the classic
 
@@ -131,7 +132,8 @@ No other package. The JavaScript widgets are the classic page's own npm packages
 | Canvas | done | The project's canvases and New canvas; the page tabs (New page, Rename…, Delete page); Play in place (Stop, Edit), its ▾ (Launch, Launch with the Performance Analyzer, the analyzer, Share… while launched, Builds…) and Export; the board (dots at the snap step, the grid's columns, a container drawn on the grid, items moved and sized with the snap to the step, the grid and the other items' edges with guides, dropped into containers, the preview width dragged at the frame's edge, Ctrl+wheel zoom); the right-click menus with the widget picker; Properties (a container's fields, a widget's properties by their masks checked by the server, Back to the default, Inputs with every source, Outputs and their readers, Events and their actions, SIZE, LAYOUT); the Widgets pane (rendered previews asked once in view, Try again, Install; search, drag, double-click, Insert); the bottom bar; the keys; the Wiring view; Builds (Compare in Monaco's diff editor, Open, Relaunch, Restore, a saved analyzer session); Share…; the Performance Analyzer (`perf?canvas=`). The snap and wiring rules are tested C# (CanvasRulesTests). |
 | Widgets | done | The list (This project, Library, the starter packs; search; New widget), Monaco with the server's intelligence over a kernel of its own (a prebuilt one read-only: Copy as your own; Copy to project or library), Code \| Preview (F5, Esc; a failure's error with Go to line), Properties (Name checked as typed, Description, each property by its mask written into the code, the contract, Upgrade to In/Out…, Delete widget), Ctrl+B and Ctrl+Alt+B. Missing: the Output \| Result \| Problems panel under the code (the lint shows in the editor), Copilot's ghost text. |
 | Source Control (Git extension) | done | VS Code's Source Control view and graph (`x-scm`) over GitHub sync, with VS Code's sizes, codicons, menus, keys and Modern colours: signed out, the welcome and a token or GitHub's device flow; Clone Repository and Connect Folder to Repository through VS Code's quick picks; each repository's message box (Ctrl+Enter), Commit and its menu (or Sync Changes), Merge Changes, Staged Changes and Changes with their counts, letters and colours, inline actions and right-click menus, list or tree; More Actions... with its submenus (what needs a local Git greyed out); VS Code's dialogs for discard and smart commit; the GRAPH's swimlanes (VS Code's scmHistory.ts in tested C#), refs, Incoming Changes, a commit's hover, its files and Load More...; Monaco's diff editor with its tab, Previous and Next Change (F7), Inline View, the files beside it; the side bar's sash. Settings' Team box gets the sign-in step as a component (TeamSignIn). |
-| Power BI, Code App | not yet | The classic pages' links. |
+| Power BI (extension) | done | The rail area drawn from its panel data (`x-powerbi`: any extension area with a panel route is, through ExtensionAreaPage and the generic ExtensionPanel: lines, switches, actions and notes, choices, rows, a code to copy and its page, busy words, a dry run to review, a plug-in opened); Export to Power BI… from the ERD (an on extension's page action, PageActions): the tables with their ticks, why Power Query cannot read one, Include its rows, notes and Only works on your machine, the relationships that go (inactive) and the ones left out, the parameters, the Name; Use an existing report's pages (Choose file… or a dropped .pbix, .pbit or .pbip: its fields mapped, Leave it); Export into the project's powerbi/ (Open in Power BI Desktop or Show its folder) or a zip to save. |
+| Code App | not yet | The classic pages' links. |
 
 ## Decisions for the owner
 

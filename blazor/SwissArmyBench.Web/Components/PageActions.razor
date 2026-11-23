@@ -1,0 +1,46 @@
+@* The buttons an extension that is on adds to a base page (the classic pageActions.ts actionButtons): each the mode's
+   page_actions for this page whose plug-in this front end draws; a click opens it with the page's own context. The
+   page never names the extension. *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.App
+@inject AppClient App
+
+@foreach (var action in _actions)
+{
+    <button type="button" class="btn" title="@(action.Title.Length > 0 ? action.Title : action.Label)" data-action="@action.Id" @onclick="() => _open = action.Id">
+        @if (action.Icon.Length > 0)
+        {
+            <Icon Name="@action.Icon" />
+        }
+        <span class="btn-label">@action.Label</span>
+    </button>
+}
+@if (_open is { } open)
+{
+    <PluginDialog Id="@open" Tables="Context()" OnClose="() => _open = null" />
+}
+
+@code {
+    private IReadOnlyList<PageActionInfo> _actions = [];
+    private string? _open;
+
+    [Parameter, EditorRequired]
+    public string Page { get; set; } = string.Empty;
+
+    /// <summary>The page's context when a button is pressed (the ERD: the tables it draws).</summary>
+    [Parameter]
+    public Func<IReadOnlyList<string>> Context { get; set; } = () => [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var mode = await App.ModeAsync();
+            _actions = (mode.Mode.PageActions ?? []).Where(a => a.Page == Page && PluginDialog.Known.Contains(a.Id)).ToList();
+        }
+        catch (ApiException)
+        {
+            // no extension's buttons: the page as it is
+        }
+    }
+}

@@ -1,0 +1,18 @@
+@* A rail area an extension that is on names with a panel route (the classic extensionArea.ts; GET /app/areas: the
+   Power BI page): a page of the rail's, its heading the area's name, its body the panel drawn from that route's data.
+   Generic: the page never names an extension. *@
+@using SwissArmyBench.Web.Api.App
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="@Area.Icon" /> @Area.Name</h1>
+    </header>
+    <div class="area-page-body">
+        <ExtensionPanel @key="Area.Panel" Route="@(Area.Panel ?? string.Empty)" />
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public AreaInfo Area { get; set; } = default!;
+}

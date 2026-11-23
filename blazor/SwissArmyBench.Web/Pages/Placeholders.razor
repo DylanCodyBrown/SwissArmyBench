@@ -1,7 +1,14 @@
-@* The rail's areas this front end does not draw yet: each its address, one line and its classic place. *@
+@* The rail's areas this front end does not draw yet: each its address, one line and its classic place. An extension's
+   area with a panel route (GET /app/areas) is drawn from that panel's data (ExtensionAreaPage). *@
 @page "/{Area}"
+@implements IDisposable
+@inject SwissArmyBench.Web.State.RailState RailState
 
-@if (Found is { } area)
+@if (Panel is { } panel)
+{
+    <ExtensionAreaPage Area="panel" />
+}
+else if (Found is { } area)
 {
     <NotYet Title="@area.Name" Classic="@area.Classic" />
 }
@@ -16,4 +23,15 @@ else
 
     private RailArea? Found => Areas.All.FirstOrDefault(a => a.Route == Area)
         ?? (Area.StartsWith("x-", StringComparison.Ordinal) ? new RailArea(Area[2..], Area[2..], "extensions", Area, $"/workspace?open={Area[2..]}") : null);
+
+    /// <summary>An extension's area that names a panel route: its page is drawn from data.</summary>
+    private SwissArmyBench.Web.Api.App.AreaInfo? Panel => Area.StartsWith("x-", StringComparison.Ordinal)
+        ? RailState.ExtensionAreas.FirstOrDefault(a => a.Area == Area[2..] && !string.IsNullOrEmpty(a.Panel))
+        : null;
+
+    protected override void OnInitialized() => RailState.Changed += OnRailChanged;
+
+    private void OnRailChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => RailState.Changed -= OnRailChanged;
 }

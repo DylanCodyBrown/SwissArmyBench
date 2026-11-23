@@ -13,6 +13,8 @@
             </div>
             <button type="button" class="btn primary" @onclick="FindAsync"><Icon Name="zoom" /> Find relationships</button>
             <button type="button" class="btn" disabled="@(!(_model?.CanUndo ?? false))" @onclick="UndoAsync"><Icon Name="undo" /> Undo</button>
+            @* An on extension's buttons (Export to Power BI…), given the tables drawn. *@
+            <PageActions Page="erd" Context="@(() => _erd?.Tables ?? Array.Empty<string>())" />
         </div>
     </header>
     <div class="area-page-body">

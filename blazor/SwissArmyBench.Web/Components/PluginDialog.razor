@@ -1,0 +1,31 @@
+@* A plug-in an extension opens on a base page (the classic pageActions.ts openPlugin): its id names the dialog, the
+   context is the page's own (the ERD's tables). The ids are the extensions' PAGE_ACTIONS; one this app does not draw
+   is not offered (Known). *@
+@using SwissArmyBench.Web.Pages.PowerBi
+
+@switch (Id)
+{
+    case "powerbi_export":
+        <PowerBiExportDialog Tables="Tables" OnClose="OnClose" />
+        break;
+    case "powerbi_report_pages":
+        <PowerBiExportDialog Tables="Tables" ReportFirst="true" OnClose="OnClose" />
+        break;
+    default:
+        break;
+}
+
+@code {
+    /// <summary>The plug-ins this front end draws.</summary>
+    public static readonly IReadOnlySet<string> Known = new HashSet<string> { "powerbi_export", "powerbi_report_pages" };
+
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>The page's own context: a list of table names (or none).</summary>
+    [Parameter]
+    public IReadOnlyList<string> Tables { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}

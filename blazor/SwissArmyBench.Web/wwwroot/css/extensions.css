@@ -1,0 +1,160 @@
+/* extensions.css: the extensions' own pages and dialogs (Export to Power BI, an extension's panel, the Code App
+   page, the Excel canvas): the classic grid.css's rules for their classes, each with its line there. */
+/* grid.css line 3056 */
+.pbi-export .pbi-name-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+/* grid.css line 3062 */
+.pbi-export .pbi-name {
+  flex: 1;
+}
+/* grid.css line 3065 */
+.pbi-export .pbi-tables,
+.pbi-export .pbi-rels {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+/* grid.css line 3071 */
+.pbi-export .pbi-table {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+/* grid.css line 3075 */
+.pbi-export .pbi-table > label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+/* grid.css line 3080 */
+.pbi-export .pbi-why,
+.pbi-export .pbi-note,
+.pbi-export .pbi-rows,
+.pbi-export .pbi-local {
+  margin: 2px 0 0 24px;
+}
+/* grid.css line 3086 */
+.pbi-export .pbi-not > label strong {
+  text-decoration: line-through;
+}
+/* grid.css line 3089 */
+.pbi-export .pbi-local {
+  color: var(--warn);
+  background: var(--warn-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+/* grid.css line 3095 */
+.pbi-export .pbi-out li {
+  color: var(--muted);
+}
+/* grid.css line 3098 */
+.pbi-export .pbi-drop {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0 10px;
+}
+/* grid.css line 3108 */
+.pbi-export .pbi-drop.over {
+  border-color: var(--accent);
+}
+/* grid.css line 3111 */
+.pbi-export .pbi-report-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+/* grid.css line 3117 */
+.pbi-export .pbi-fields {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+/* grid.css line 3122 */
+.pbi-export .pbi-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+/* grid.css line 3128 */
+.pbi-export .pbi-unmapped > span:first-child {
+  color: var(--warn);
+}
+/* grid.css line 3131 */
+.pbi-export .pbi-written {
+  margin: 10px 0 6px;
+  overflow-wrap: anywhere;
+}
+/* grid.css line 8938 */
+.autosave-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+/* grid.css line 8985 */
+.project-group .autosave-switch {
+  padding: 0 6px;
+  font-size: 0.92em;
+}
+/* grid.css line 14205 */
+.extension-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+/* grid.css line 14212 */
+.extension-panel-line {
+  margin: 0;
+}
+/* grid.css line 14215 */
+.extension-panel-line.tone-ok {
+  color: var(--ok);
+}
+/* grid.css line 14218 */
+.extension-panel-line.tone-warn {
+  color: var(--warn);
+}
+/* grid.css line 14221 */
+.extension-panel-line.tone-error {
+  color: var(--error);
+}
+/* grid.css line 14224 */
+.extension-panel-controls,
+.extension-panel-code,
+.extension-panel-busy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* grid.css line 14232 */
+.extension-panel-usercode {
+  font-size: 18px;
+  letter-spacing: 2px;
+  user-select: all;
+}
+/* grid.css line 16908 */
+.extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
+/* grid.css line 16909 */
+.extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+/* grid.css line 16910 */
+.extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+
+/* ===== Export to Power BI's drop zone: the browser's own file box lies over it (a dropped file lands there) ===== */
+.pbi-drop { position: relative; }
+.pbi-drop .pbi-drop-input { position: absolute; inset: 0; opacity: 0; cursor: default; }
+.pbi-drop .btn { position: relative; z-index: 2; }

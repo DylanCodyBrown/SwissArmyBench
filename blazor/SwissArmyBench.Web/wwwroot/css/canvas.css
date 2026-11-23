@@ -2266,3 +2266,4 @@ body:has(.cat-main > .blade-host > .code-ide) .cat-top {
 }
 :is(.cvs, .wg-page) input.cvs-num { padding: 1px 4px; border-radius: 4px; }
 :is(.cvs, .wg-page) select.cvs-step { padding: 1px 4px; border-radius: 4px; }
+

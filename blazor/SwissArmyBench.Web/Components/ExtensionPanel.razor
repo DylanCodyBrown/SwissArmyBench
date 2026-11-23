@@ -1,0 +1,121 @@
+@* An extension's own panel drawn from its data (the classic extensionPanel.ts): its choices, a dry run to review
+   (Apply, Cancel), rows to work through with their fixes, its lines, a code to copy with its page to open, busy words
+   (read again every two seconds), its switches and actions with their notes; a plug-in it opens right there. It
+   follows extension_panel_changed. Nothing here names an extension. Logic in ExtensionPanel.razor.cs. *@
+@using SwissArmyBench.Web.Api.Panels
+
+<div class="extension-panel" data-panel="@Route">
+    @if (_data is { } data)
+    {
+        @foreach (var choice in data.Choices)
+        {
+            <label class="extension-panel-choice"><span>@choice.Label</span>
+                <select aria-label="@choice.Label" data-choice="@choice.Id" disabled="@_posting" @onchange="@(e => PostAsync(new() { ["choice"] = choice.Id, ["value"] = e.Value as string }))">
+                    @foreach (var option in choice.Options)
+                    {
+                        <option value="@option.Value" selected="@(option.Value == choice.Value)">@option.Label</option>
+                    }
+                </select>
+            </label>
+        }
+        @if (data.Review is { } review)
+        {
+            <section class="extension-panel-review" aria-label="@review.Heading" data-review="@review.Id">
+                <h2 class="extension-panel-heading">@review.Heading</h2>
+                @if (review.Items.Count > 0)
+                {
+                    <ul class="extension-panel-rows">
+                        @foreach (var item in review.Items)
+                        {
+                            <li class="extension-panel-row @Tone(item.Tone)"><span>@item.Text</span>@if (item.Why is { } why) { <span class="extension-panel-note">@why</span> }</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="extension-panel-line">@review.Empty</p>
+                }
+                <div class="extension-panel-controls">
+                    <button type="button" class="btn primary" data-action="@review.Apply.Id" disabled="@(review.Apply.Disabled || _posting)" @onclick="() => ActAsync(review.Apply.Id)"><Icon Name="check" /><span class="btn-label">@review.Apply.Label</span></button>
+                    @if (review.Cancel is { } cancel)
+                    {
+                        <button type="button" class="btn ghost" disabled="@_posting" @onclick="() => ActAsync(cancel.Id)">@cancel.Label</button>
+                    }
+                </div>
+            </section>
+        }
+        @if (data.Heading is { } heading && data.Rows.Count > 0)
+        {
+            <h2 class="extension-panel-heading">@heading</h2>
+        }
+        @if (data.Rows.Count > 0)
+        {
+            <ul class="extension-panel-rows">
+                @foreach (var row in data.Rows)
+                {
+                    <li class="extension-panel-row @Tone(row.Tone)" data-row="@row.Id"><span>@row.Text</span>
+                        @if (row.Action is { } fix)
+                        {
+                            <button type="button" class="btn" data-action="@fix.Id" disabled="@_posting" @onclick="() => ActAsync(fix.Id)">@fix.Label</button>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @foreach (var line in data.Lines)
+        {
+            <p class="extension-panel-line @Tone(line.Tone)" role="@(line.Tone == "error" ? "alert" : null)">@line.Text</p>
+        }
+        @if (data.Code is { } said)
+        {
+            <div class="extension-panel-code">
+                <span class="muted">@said.Label</span>
+                <strong class="mono extension-panel-usercode">@said.Text</strong>
+                <button type="button" class="btn ghost" @onclick="() => CopyAsync(said.Text)"><Icon Name="copy" /><span class="btn-label">Copy</span></button>
+                @if (!said.Waiting)
+                {
+                    <button type="button" class="btn primary" data-action="@said.Then" @onclick="() => OpenPageAsync(said)"><Icon Name="popout" /><span class="btn-label">@said.LinkLabel</span></button>
+                }
+            </div>
+        }
+        @if (data.Busy is { } busy)
+        {
+            <div class="extension-panel-busy" role="status"><progress aria-label="@busy"></progress><span>@busy</span></div>
+        }
+        @if (data.Switches.Count > 0 || data.Actions.Count > 0)
+        {
+            <div class="extension-panel-controls">
+                @foreach (var toggle in data.Switches)
+                {
+                    <label class="autosave-switch">
+                        <input type="checkbox" role="switch" class="switch-input" aria-label="@toggle.Label" data-switch="@toggle.Id" checked="@toggle.On" disabled="@(toggle.Disabled || _posting)"
+                               @onchange="@(e => PostAsync(new() { ["switch"] = toggle.Id, ["on"] = e.Value is true }))" />
+                        <span>@toggle.Label</span>
+                    </label>
+                }
+                @foreach (var action in data.Actions)
+                {
+                    @if (action.Note is { } note)
+                    {
+                        <div class="extension-panel-action">
+                            <button type="button" class="btn @(action.Primary ? "primary" : null)" data-action="@action.Id" disabled="@(action.Disabled || _posting)" @onclick="() => ActAsync(action.Id)">@action.Label</button>
+                            <p class="extension-panel-note">@note</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn @(action.Primary ? "primary" : null)" data-action="@action.Id" disabled="@(action.Disabled || _posting)" @onclick="() => ActAsync(action.Id)">@action.Label</button>
+                    }
+                }
+            </div>
+        }
+    }
+    @if (_failed is { } failed)
+    {
+        <p class="extension-panel-line tone-error" role="alert">@failed</p>
+    }
+</div>
+@if (_plugin is { } plugin)
+{
+    <PluginDialog Id="@plugin.Id" Tables="plugin.Tables" OnClose="() => _plugin = null" />
+}
