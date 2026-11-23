@@ -30,6 +30,12 @@ public partial class BuildsDialog
     private IJSRuntime Js { get; set; } = default!;
 
     [Inject]
+    private Api.Widgets.WidgetsClient Widgets { get; set; } = default!;
+
+    [Inject]
+    private State.PackagePrompts Prompts { get; set; } = default!;
+
+    [Inject]
     private NavigationManager Nav { get; set; } = default!;
 
     [Parameter, EditorRequired]
@@ -139,6 +145,17 @@ public partial class BuildsDialog
         try
         {
             var said = await Canvases.RelaunchAsync(Canvas, number);
+            if (said.Problem?.Missing is { } missing)
+            {
+                // The Python lacks Streamlit: the one install prompt, and the relaunch again once it is in.
+                if (opened is not null)
+                {
+                    await opened.InvokeVoidAsync("close");
+                }
+                _doing = null;
+                _ = Prompts.PromptAsync(missing, force: true, install: m => Widgets.InstallAsync(said.Problem.Install, m.Packages), then: () => InvokeAsync(() => RelaunchAsync(number)));
+                return;
+            }
             if (!said.Ok || said.Url is null)
             {
                 throw new InvalidOperationException(said.Problem?.Message ?? "The build did not start.");

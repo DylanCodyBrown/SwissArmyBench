@@ -73,6 +73,7 @@ public partial class WidgetsPage
     public async ValueTask DisposeAsync()
     {
         Live.NoticeArrived -= OnNotice;
+        _dock.Changed -= OnDockChanged;
         await FlushAsync();
         try
         {

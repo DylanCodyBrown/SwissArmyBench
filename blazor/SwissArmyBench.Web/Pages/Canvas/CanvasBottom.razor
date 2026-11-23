@@ -42,8 +42,8 @@
     <button type="button" class="btn ghost icon" aria-label="Undo" title="Undo (Ctrl+Z)" disabled="@(!View.Editable || View.State!.Undo == 0)" @onclick="() => OnUndo.InvokeAsync(false)"><Icon Name="undo" /></button>
     <button type="button" class="btn ghost icon" aria-label="Redo" title="Redo (Ctrl+Y)" disabled="@(!View.Editable || View.State!.Redo == 0)" @onclick="() => OnUndo.InvokeAsync(true)"><Icon Name="redo" /></button>
     <span class="cvs-sep" aria-hidden="true"></span>
-    <button type="button" class="btn ghost side-toggle cvs-toggle" title="Widgets" aria-pressed="@(Panes.Widgets ? "true" : "false")" @onclick="@(() => OnPane.InvokeAsync("widgets"))"><Icon Name="blade" /><span class="btn-label">Widgets</span></button>
-    <button type="button" title="Properties" class="btn ghost side-toggle cvs-toggle @(!Panes.Properties && View.Selected.Count > 0 ? "has-dot" : null)" aria-pressed="@(Panes.Properties ? "true" : "false")" @onclick="@(() => OnPane.InvokeAsync("properties"))"><Icon Name="properties" /><span class="btn-label">Properties</span></button>
+    <button type="button" class="btn ghost side-toggle cvs-toggle" title="Widgets" data-pane="widgets" aria-pressed="@(Dock.IsShown("widgets") ? "true" : "false")" @onclick="@(() => Dock.ToggleAsync("widgets"))"><Icon Name="blade" /><span class="btn-label">Widgets</span></button>
+    <button type="button" title="Properties" data-pane="properties" class="btn ghost side-toggle cvs-toggle @(!Dock.IsShown("properties") && View.Selected.Count > 0 ? "has-dot" : null)" aria-pressed="@(Dock.IsShown("properties") ? "true" : "false")" @onclick="@(() => Dock.ToggleAsync("properties"))"><Icon Name="properties" /><span class="btn-label">Properties</span></button>
     <button type="button" class="btn ghost cvs-toggle cvs-wiring-toggle" aria-pressed="@(ShowWires ? "true" : "false")" title="Show the wires between widgets" @onclick="OnWires"><Icon Name="link" /><span class="btn-label">Wiring</span></button>
     <span class="cvs-grow"></span>
     <button type="button" class="btn ghost icon" aria-label="Zoom out" title="Zoom out" @onclick="() => OnZoom.InvokeAsync(View.Zoom / ZoomStep)"><Icon Name="minus" /></button>
@@ -66,8 +66,9 @@
     [Parameter]
     public bool ShowWires { get; set; }
 
-    [Parameter]
-    public CanvasPanes Panes { get; set; } = new();
+    /// <summary>The page's dock: each pane's button shows it or hides it (wherever the user put it).</summary>
+    [Parameter, EditorRequired]
+    public PaneDockState Dock { get; set; } = default!;
 
     [Parameter]
     public Func<string, Dictionary<string, object?>, Task<CanvasState?>> OnSend { get; set; } = default!;
@@ -89,9 +90,6 @@
 
     [Parameter]
     public EventCallback OnWires { get; set; }
-
-    [Parameter]
-    public EventCallback<string> OnPane { get; set; }
 
     private CanvasSizing S => View.State!.Model.Sizing;
 

@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
@@ -100,15 +102,20 @@ public partial class WidgetsPage
     }
 
     /// <summary>Preview (F5): the widget run alone in the editor's place; a failure's error panel there, its line
-    /// linked to the code.</summary>
-    private async Task RunAsync()
+    /// linked to the code. The user asked: a missing package's prompt pops up even after Not now.</summary>
+    private Task RunAsync() => StartRunAsync(prompt: true, asked: true);
+
+    /// <summary>The widget run alone. Its Python lacks Streamlit: the one install prompt pops up (<paramref
+    /// name="prompt"/>; <paramref name="asked"/>: the user's own Preview, so even after Not now), never the sentence
+    /// as an error; Install now puts the packages where the run's Python is and runs it again.</summary>
+    private async Task StartRunAsync(bool prompt, bool asked)
     {
         if (_current is not { } widget)
         {
             return;
         }
         var code = _editor is null ? _code : await _editor.TextAsync();
-        (_running, _starting, _failed, _failedLine, _frame) = (true, true, null, null, null);
+        (_running, _starting, _failed, _failedLine, _frame, _missing) = (true, true, null, null, null, null);
         RunStarted(widget.Name);
         await Js.InvokeVoidAsync("sab.remember", $"widgets.view:{widget.Name}", "preview");
         StateHasChanged();
@@ -119,10 +126,19 @@ public partial class WidgetsPage
             {
                 return;
             }
+            if (said.Problem?.Missing is { } missing)
+            {
+                (_missing, _missingPlace) = (missing, said.Problem.Install);
+                RunEnded(null, new InvalidOperationException($"{missing.Feature} will not work without {missing.Listed}."));
+                if (prompt)
+                {
+                    _ = Prompts.PromptAsync(missing, force: asked, install: InstallMissingAsync, then: RunAgainAsync);
+                }
+                return;
+            }
             if (!said.Ok || said.Url is null)
             {
-                var words = said.Problem?.Message ?? (said.Problem?.Kind == "missing" ? $"Streamlit widgets need {said.Problem.Command ?? "Streamlit"} in this Python." : "The widget did not run.");
-                _failed = new InvalidOperationException(words);
+                _failed = new InvalidOperationException(said.Problem?.Message ?? "The widget did not run.");
                 RunEnded(null, _failed);
                 return;
             }
@@ -180,7 +196,7 @@ public partial class WidgetsPage
         {
             return;
         }
-        (_running, _frame, _failed) = (false, null, null);
+        (_running, _frame, _failed, _missing) = (false, null, null, null);
         try
         {
             await Widgets.StopAsync(Window);
@@ -242,22 +258,58 @@ public partial class WidgetsPage
         }
     }
 
-    private async Task FoldAsync()
+    /// <summary>Install now: the run's missing packages where its Python is (the project's, else the app's own).</summary>
+    private Task InstallMissingAsync(MissingPackages missing) => Widgets.InstallAsync(_missingPlace, missing.Packages);
+
+    /// <summary>Installed: the Preview runs again (no prompt this time: a Python still without them says so in place).</summary>
+    private Task RunAgainAsync() => InvokeAsync(async () =>
     {
-        _listFolded = !_listFolded;
-        await Js.InvokeVoidAsync("sab.remember", "widgets.folded", _listFolded ? "1" : "0");
+        if (_current is not null)
+        {
+            await StartRunAsync(prompt: false, asked: false);
+            StateHasChanged();
+        }
+    });
+
+    /// <summary>Ctrl+B and the bar's Library button: the Library shown or hidden (wherever the user put it).</summary>
+    private Task FoldAsync() => _dock.ToggleAsync(LibraryPaneId);
+
+    private Task ToggleProperties() => _dock.ToggleAsync(PropertiesPaneId);
+
+    private void OnDockChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>The Library's keys: the arrows, Home and End move between the widgets (Enter or Space opens one).</summary>
+    private async Task ListKeyAsync(KeyboardEventArgs e)
+    {
+        var names = Flat;
+        if (names.Count == 0)
+        {
+            return;
+        }
+        var at = RovingName is { } now ? Math.Max(0, names.ToList().IndexOf(now)) : 0;
+        var next = e.Key switch
+        {
+            "ArrowDown" => Math.Min(names.Count - 1, at + 1),
+            "ArrowUp" => Math.Max(0, at - 1),
+            "Home" => 0,
+            "End" => names.Count - 1,
+            _ => -1,
+        };
+        if (next >= 0 && _itemRefs.TryGetValue(names[next], out var item))
+        {
+            _focusName = names[next];
+            await item.FocusAsync();
+        }
     }
 
-    private void ToggleProperties() => _propertiesOpen = !_propertiesOpen;
-
-    /// <summary>The page's keys (canvas.js widgetKeys): Ctrl+B the list, Ctrl+Alt+B Properties, F5 Preview, Esc Code.</summary>
+    /// <summary>The page's keys (canvas.js widgetKeys): Ctrl+B the Library, Ctrl+Alt+B Properties, F5 Preview, Esc Code.</summary>
     [JSInvokable("Key")]
     public async Task KeyAsync(string key, bool alt)
     {
         switch (key)
         {
             case "b" when alt:
-                ToggleProperties();
+                await ToggleProperties();
                 break;
             case "b":
                 await FoldAsync();

@@ -5,6 +5,9 @@ namespace SwissArmyBench.Web.Api.Widgets;
 /// live properties and the checks of a name and a value, the pickers' context.</summary>
 public sealed class WidgetsClient
 {
+    /// <summary>The server's word for the open project's Python as where packages go.</summary>
+    public const string ProjectPlace = "project";
+
     private readonly ApiClient _api;
 
     public WidgetsClient(ApiClient api)
@@ -61,6 +64,11 @@ public sealed class WidgetsClient
 
     /// <summary>What the previews need, installed into the app's own Python (a blade's packages' route).</summary>
     public Task InstallIntoAppAsync(IReadOnlyList<string> packages) => _api.PostAsync("/blades/install", new { packages });
+
+    /// <summary>What a run or a preview needs, installed where the server said it goes: "project" (the open
+    /// project's Python, the Environment's Install), else the app's own.</summary>
+    public Task InstallAsync(string? place, IReadOnlyList<string> packages) =>
+        place == ProjectPlace ? InstallIntoProjectAsync(packages) : InstallIntoAppAsync(packages);
 
     private static string One(string name) => $"/streamlit/widgets/{ApiClient.Part(name)}";
 }

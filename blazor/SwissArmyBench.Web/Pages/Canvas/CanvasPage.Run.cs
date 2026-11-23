@@ -99,11 +99,15 @@ public partial class CanvasPage
             try
             {
                 var said = await Canvases.PlayAsync(state.Canvas, _view.Page);
+                if (said.Problem?.Missing is { } missing)
+                {
+                    _ = RunNeedsAsync(missing, said.Problem.Install, PlayAsync);
+                    return;
+                }
                 if (!said.Ok || said.Url is null)
                 {
-                    var command = said.Problem?.Command is { } c ? $": {c}" : string.Empty;
                     _warning = null;
-                    _error = new InvalidOperationException(said.Problem?.Message ?? $"Streamlit is not in this Python{command}.");
+                    _error = new InvalidOperationException(said.Problem?.Message ?? "The page did not start.");
                     return;
                 }
                 ClearError();
@@ -165,6 +169,12 @@ public partial class CanvasPage
             try
             {
                 var said = await Canvases.LaunchAsync(state.Canvas, analyzer);
+                if (said.Problem?.Missing is { } missing)
+                {
+                    await CloseAsync(opened, perf);
+                    _ = RunNeedsAsync(missing, said.Problem.Install, () => LaunchAsync(analyzer));
+                    return;
+                }
                 if (!said.Ok || said.Url is null)
                 {
                     await CloseAsync(opened, perf);

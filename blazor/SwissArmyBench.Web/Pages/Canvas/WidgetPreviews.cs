@@ -74,14 +74,7 @@ public sealed class WidgetPreviews : IDisposable
         {
             return;
         }
-        if (said.Install == "project")
-        {
-            await _widgets.InstallIntoProjectAsync(missing.Packages);
-        }
-        else
-        {
-            await _widgets.InstallIntoAppAsync(missing.Packages);
-        }
+        await _widgets.InstallAsync(said.Install, missing.Packages);
         RetryFailed();
     }
 

@@ -43,7 +43,7 @@
     public WidgetPreviews Previews { get; set; } = default!;
 
     [Inject]
-    private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
+    private SwissArmyBench.Web.State.PackagePrompts Prompts { get; set; } = default!;
 
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
@@ -104,18 +104,13 @@
         return line.Length > LongestLine ? $"{line[..(LongestLine - 2)]}…" : line;
     }
 
+    /// <summary>Install: the one install prompt (asked for, so even after Not now); it installs where the server said
+    /// and asks the failed previews again.</summary>
     private async Task InstallAsync()
     {
-        try
+        if (Said is { Missing: { } missing } said)
         {
-            if (Said is { } said)
-            {
-                await Previews.InstallAsync(said);
-            }
-        }
-        catch (SwissArmyBench.Web.Api.ApiException error)
-        {
-            Notes.Error(error);
+            await Prompts.PromptAsync(missing, force: true, install: _ => Previews.InstallAsync(said));
         }
     }
 

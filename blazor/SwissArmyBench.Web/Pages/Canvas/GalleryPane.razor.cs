@@ -33,9 +33,6 @@ public partial class GalleryPane
     [Parameter]
     public EventCallback<string?> OnDragging { get; set; }
 
-    [Parameter]
-    public EventCallback<string?> OnOpenWidgets { get; set; }
-
     /// <summary>The card that has the focus: the page's Insert key puts it in.</summary>
     public string? Focused => _focused;
 
@@ -44,8 +41,6 @@ public partial class GalleryPane
         .GroupBy(WidgetHeadings.Of);
 
     private string BigPlace => FormattableString.Invariant($"left: {Math.Max(Edge, _bigAt.X - BigWidth - BigGap)}px; top: max({Edge}px, min({_bigAt.Y}px, calc(100vh - 420px)));");
-
-    private Task OpenWidgetsAsync() => OnOpenWidgets.InvokeAsync(null);
 
     private async Task DragStartAsync(WidgetEntry widget)
     {

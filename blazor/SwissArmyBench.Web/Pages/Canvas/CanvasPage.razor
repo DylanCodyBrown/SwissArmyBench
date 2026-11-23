@@ -34,43 +34,36 @@ else
             }
             <ErrorNote Error="_error" Words="@_warning" Warning="@(_warning is not null)" OnClose="ClearError" />
             <div class="cvs-body">
-                <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
-                    <div class="cvs-stage">
-                        @if (_playUrl is not null)
-                        {
-                            <div class="cvs-live" @oncontextmenu="LiveMenu" @oncontextmenu:preventDefault="true">
-                                <div class="cvs-live-bar"><span>Playing</span>
-                                    <button type="button" class="btn ghost cvs-edit" @onclick="StopPlayAsync"><Icon Name="edit" /><span class="btn-label">Edit</span></button>
+                <PaneDock State="_dock" Panes="DockPanes" ClassName="cvs-dock">
+                    <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
+                        <div class="cvs-stage">
+                            @if (_playUrl is not null)
+                            {
+                                <div class="cvs-live" @oncontextmenu="LiveMenu" @oncontextmenu:preventDefault="true">
+                                    <div class="cvs-live-bar"><span>Playing</span>
+                                        <button type="button" class="btn ghost cvs-edit" @onclick="StopPlayAsync"><Icon Name="edit" /><span class="btn-label">Edit</span></button>
+                                    </div>
+                                    <iframe class="cvs-live-frame" src="@_playUrl" title="The page, playing" data-layout="@_view.Layout" style="@PlayFrameStyle"></iframe>
                                 </div>
-                                <iframe class="cvs-live-frame" src="@_playUrl" title="The page, playing" data-layout="@_view.Layout" style="@PlayFrameStyle"></iframe>
-                            </div>
-                        }
-                        else if (_loading)
-                        {
-                            <div class="loading-block">Opening the canvas…</div>
-                        }
-                        else if (_view.State is not null)
-                        {
-                            <CanvasBoard @ref="_board" View="_view" Widgets="_widgets" ShowWires="_showWires" Dragging="_dragging"
-                                         OnSend="SendAsync" OnSelect="Select" OnMenu="OpenMenu" OnInsert="InsertAsync" OnEditWidget="OpenWidgetsAsync"
-                                         OnReplace="ReplaceAt" OnWidth="RememberViewAsync" RunGroup="RunGroup" OnWheel="WheelAsync" />
-                        }
-                    </div>
-                </Busy>
-                @if (_view.State is not null)
-                {
-                    <SidePane Id="properties" Label="Properties" Shown="@_panes.Properties" Width="@_panes.PropertiesWidth" OnWidth="@(w => PaneWidthAsync("properties", w))">
-                        <PropertiesPane View="_view" Widgets="_widgets" Context="_context" OnSend="SendAsync" OnWire="WireAsync" OnEditWidget="OpenWidgetsAsync" />
-                    </SidePane>
-                    <SidePane Id="widgets" Label="Widgets" Shown="@_panes.Widgets" Width="@_panes.WidgetsWidth" OnWidth="@(w => PaneWidthAsync("widgets", w))">
-                        <GalleryPane @ref="_gallery" Widgets="_widgets" Editable="_view.Editable" OnInsert="InsertSelectedAsync" OnDragging="d => _dragging = d" OnOpenWidgets="OpenWidgetsAsync" />
-                    </SidePane>
-                }
+                            }
+                            else if (_loading)
+                            {
+                                <div class="loading-block">Opening the canvas…</div>
+                            }
+                            else if (_view.State is not null)
+                            {
+                                <CanvasBoard @ref="_board" View="_view" Widgets="_widgets" ShowWires="_showWires" Dragging="_dragging"
+                                             OnSend="SendAsync" OnSelect="Select" OnMenu="OpenMenu" OnInsert="InsertAsync" OnEditWidget="OpenWidgetsAsync"
+                                             OnReplace="ReplaceAt" OnWidth="RememberViewAsync" RunGroup="RunGroup" OnWheel="WheelAsync" />
+                            }
+                        </div>
+                    </Busy>
+                </PaneDock>
             </div>
             @if (_view.State is not null)
             {
-                <CanvasBottom View="_view" ShowWires="_showWires" Panes="_panes" OnSend="SendAsync" OnUndo="UndoAsync" OnLayout="SetLayoutAsync"
-                              OnPreviewWidth="RememberViewAsync" OnZoom="SetZoomAsync" OnFit="FitAsync" OnWires="ToggleWiresAsync" OnPane="TogglePaneAsync" />
+                <CanvasBottom View="_view" ShowWires="_showWires" Dock="_dock" OnSend="SendAsync" OnUndo="UndoAsync" OnLayout="SetLayoutAsync"
+                              OnPreviewWidth="RememberViewAsync" OnZoom="SetZoomAsync" OnFit="FitAsync" OnWires="ToggleWiresAsync" />
             }
         </main>
         @if (_menu is { } menu)
@@ -95,4 +88,15 @@ else
 @code {
     // The widget card being dragged from the Widgets pane: the board takes its drop.
     private string? _dragging;
+
+    /// <summary>The Canvas's two panes in its dock (each hidden, moved to either side or stacked by the user): none
+    /// until a canvas is open.</summary>
+    private IReadOnlyList<DockPane> DockPanes => _view.State is null
+        ? []
+        :
+        [
+            new(PropertiesPaneId, "Properties", @<PropertiesPane View="_view" Widgets="_widgets" Context="_context" OnSend="SendAsync" OnWire="WireAsync" OnEditWidget="OpenWidgetsAsync" />, "cvs-pane cvs-props"),
+            new(WidgetsPaneId, "Widgets", @<GalleryPane @ref="_gallery" Widgets="_widgets" Editable="_view.Editable" OnInsert="InsertSelectedAsync" OnDragging="d => _dragging = d" />, "cvs-pane cvs-gallery",
+                @<button type="button" class="btn ghost icon" aria-label="Open the Widgets window" title="Open the Widgets window" @onclick="() => OpenWidgetsAsync(null)"><Icon Name="popout" /></button>),
+        ];
 }

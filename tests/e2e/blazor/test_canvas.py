@@ -173,6 +173,33 @@ def test_a_widgets_properties_and_the_bottom_bar(browser: Browser, server: dict[
     page.close()
 
 
+def test_the_panes_hide_move_and_stack_and_are_kept(browser: Browser, server: dict[str, Any]) -> None:
+    """The Canvas's Widgets and Properties panes in the same dock as the Widgets window: Widgets on the
+    left and Properties on the right at first; hidden from a header and back from the bottom bar; moved to the
+    other side and stacked there; kept after a reload."""
+    path = made_up_canvas(server, "Docked")
+    page = open_canvas(browser, server, path)
+    expect(page.locator(".cvs-gallery")).to_have_attribute("data-side", "left")
+    expect(page.locator(".cvs-props")).to_have_attribute("data-side", "right")
+    page.click("button[aria-label='Hide Widgets']")
+    expect(page.locator(".cvs-gallery")).to_have_count(0)
+    expect(page.locator(".cvs-bottom button[data-pane=widgets]")).to_have_attribute("aria-pressed", "false")
+    page.click(".cvs-bottom button[data-pane=widgets]")
+    expect(page.locator(".cvs-gallery")).to_have_count(1)
+
+    page.locator(".cvs-gallery .dock-pane-head").click(button="right")
+    page.locator(".menu-item", has_text="Move to right").click()
+    expect(page.locator(".dock-right .dock-pane")).to_have_count(2)
+    expect(page.locator(".dock-left")).to_have_count(0)
+    expect(page.locator(".cvs-board")).to_be_visible()
+
+    page.reload()
+    expect(page.locator(".cvs-board")).to_be_visible(timeout=60_000)
+    expect(page.locator(".cvs-gallery")).to_have_attribute("data-side", "right")
+    expect(page.locator(".dock-right .dock-split")).to_have_count(1)
+    page.close()
+
+
 def test_play_shows_the_page_in_place(browser: Browser, server: dict[str, Any]) -> None:
     if not Path(STREAMLIT).is_file():
         import pytest

@@ -11,5 +11,5 @@ public sealed record RunAnswer
 
     public int? Build { get; init; }
 
-    public RunProblem? Problem { get; init; }
+    public Widgets.WidgetRunProblem? Problem { get; init; }
 }

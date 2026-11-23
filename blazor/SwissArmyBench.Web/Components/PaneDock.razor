@@ -1,0 +1,86 @@
+@* A page's dock (the owner, 2026-11-23: panes "hidable and moveable so the user can choose where they go ... stack on
+   the right or left over top of each other"): the page's own work in the middle, a zone at each side holding its
+   panes top to bottom. Each pane's header has its name, its own buttons, "…" (Move to left / Move to right, Hide;
+   right-click the header too) and Hide; drag a header onto the other side to move it there. A side's width is its
+   grip's (drag, or the arrow keys); two panes on one side share its height by the line between them (drag, or the
+   arrow keys). The layout is PaneDockState's, remembered in this browser. Logic in PaneDock.razor.cs. *@
+@using System.Globalization
+@implements IDisposable
+
+<div class="dock @ClassName @(_dragging is not null ? "dock-dragging" : null)">
+    @Zone(DockSide.Left)
+    <div class="dock-center">
+        @ChildContent
+    </div>
+    @Zone(DockSide.Right)
+    @if (_dragging is not null)
+    {
+        @foreach (var side in Sides)
+        {
+            <div class="dock-drop dock-drop-@Word(side) @(_over == side ? "over" : null)" data-drop="@Word(side)" aria-hidden="true"
+                 @ondragenter="() => _over = side" @ondragover:preventDefault="true" @ondragleave="() => _over = null" @ondrop="() => DropAsync(side)">
+                <span>Dock on the @Word(side)</span>
+            </div>
+        }
+    }
+</div>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+
+@code {
+    private RenderFragment Zone(DockSide side) => __builder =>
+    {
+        var shown = Shown(side);
+        if (shown.Count == 0)
+        {
+            return;
+        }
+        if (side == DockSide.Right)
+        {
+            @Grip(side)
+        }
+        <div class="dock-zone dock-@Word(side)" data-side="@Word(side)" style="@($"width: {Px(WidthOf(side))}px")"
+             @ondragenter="() => _over = _dragging is null ? null : side" @ondragover:preventDefault="true" @ondrop="() => DropAsync(side)">
+            @for (var i = 0; i < shown.Count; i++)
+            {
+                var (spot, pane) = shown[i];
+                var upper = i;
+                if (i > 0)
+                {
+                    <div class="dock-split" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to share the height"
+                         aria-label="@($"Between {shown[i - 1].Pane.Label} and {pane.Label}")"
+                         aria-valuenow="@Math.Round(Layout.Share(side, upper - 1) * 100)" aria-valuemin="0" aria-valuemax="100"
+                         @onpointerdown="e => SplitDownAsync(e, side, upper - 1)" @onpointermove="SplitMoveAsync" @onpointerup="() => _splitDrag = null"
+                         @onkeydown="e => SplitKeyAsync(e, side, upper - 1)" @ref="_lineRefs[SplitKey(side, upper - 1)]"></div>
+                }
+                <section class="dock-pane @pane.ClassName" data-dock-pane="@pane.Id" data-side="@Word(side)" aria-label="@pane.Label"
+                         style="@($"flex: {spot.Weight.ToString(CultureInfo.InvariantCulture)} 1 0")" @ref="_paneRefs[pane.Id]">
+                    <header class="dock-pane-head" draggable="true" title="Drag to the other side to move it there"
+                            @ondragstart="() => _dragging = pane.Id" @ondragend="() => (_dragging, _over) = (null, null)"
+                            @oncontextmenu="e => OpenMenu(pane, e)" @oncontextmenu:preventDefault="true">
+                        <h2 class="dock-pane-title">@pane.Label</h2>
+                        <span class="dock-pane-actions">
+                            @pane.Actions
+                            <button type="button" class="btn ghost icon dock-pane-more" aria-label="@($"{pane.Label} pane: move or hide")" title="Move or hide" aria-haspopup="menu" @onclick="e => OpenMenu(pane, e)"><Icon Name="more" /></button>
+                            <button type="button" class="btn ghost icon dock-pane-hide" aria-label="@($"Hide {pane.Label}")" title="@($"Hide {pane.Label}")" @onclick="() => State.HideAsync(pane.Id)"><Icon Name="close" /></button>
+                        </span>
+                    </header>
+                    <div class="dock-pane-body">@pane.Content</div>
+                </section>
+            }
+        </div>
+        if (side == DockSide.Left)
+        {
+            @Grip(side)
+        }
+    };
+
+    private RenderFragment Grip(DockSide side) => __builder =>
+    {
+        <div class="side-grip dock-grip" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize" data-side="@Word(side)"
+             aria-label="@($"Width of the {Word(side)} panes")" aria-valuenow="@Math.Round(WidthOf(side))" aria-valuemin="@DockLayout.Narrowest" aria-valuemax="@DockLayout.Widest"
+             @onpointerdown="e => WidthDownAsync(e, side)" @onpointermove="WidthMove" @onpointerup="WidthUpAsync" @onkeydown="e => WidthKeyAsync(e, side)" @ref="_lineRefs[GripKey(side)]"></div>
+    };
+}

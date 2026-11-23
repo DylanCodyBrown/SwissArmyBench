@@ -107,6 +107,8 @@ class Widgets:
         self.ws = ws
         self._files = files  # adapters/widget_files.py WidgetFiles
         self.live = live
+        if hasattr(live, "install_place"):  # a run's missing packages go where the run's Python is
+            live.install_place = self.install_place_of
         self._approvals = approvals
         self._tables = tables.columns  # the open tables: name -> its columns
         self._table_data = tables.data  # an open table's rows as Parquet
@@ -719,6 +721,12 @@ class Widgets:
         """Where the packages a preview needs go: the open project's Python ("project": the Environment's
         Install, into its `.venv` and requirements.txt), else the app's own ("app")."""
         return "project" if self._project_folder() else "app"
+
+    def install_place_of(self, python: str) -> str:
+        """Where a run's missing packages go: "project" when the run's Python is the open project's own
+        (the Environment's Install), else "app" (the app's own Python: /blades/install)."""
+        own = self._project_python()
+        return "project" if own and str(own) == python else "app"
 
     def app_of(self, name: str, body: Any) -> tuple[dict[str, str], Mapping[str, Any]]:
         """The widget alone as an app's files (a Run, a preview) and its one-widget canvas."""
