@@ -149,6 +149,66 @@ function registerIntel() {
   });
 }
 
+// Ghost text (the classic inlineCompletion.ts and codeEditor.ts): from the provider the open project's mode declares
+// for the editor's language (GitHub Copilot's routes, when that extension is on); the document is asked of C# (a
+// script's text, or a notebook's code cells and the one being edited). Monaco's cancellation aborts the request and
+// posts the provider's cancel; an item shown, accepted or partly accepted is told to its event route.
+const inlineRegistered = new Set();
+let inlineAsked = 0;
+
+async function post(route, body, signal) {
+  const answer = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+  return answer.ok ? answer.json() : null;
+}
+
+function registerInline(language) {
+  if (inlineRegistered.has(language)) return;
+  inlineRegistered.add(language);
+  monaco.languages.registerInlineCompletionsProvider(language, {
+    debounceDelayMs: 250,
+    provideInlineCompletions: async (model, position, _context, token) => {
+      const owner = owners.get(model);
+      const provider = owner?.inline?.find((p) => p.languages.includes(language));
+      if (!provider || token.isCancellationRequested) return { items: [] };
+      let document = null;
+      try {
+        document = await owner.dotnet.invokeMethodAsync("InlineDocument");
+      } catch {
+        return { items: [] };
+      }
+      if (!document) return { items: [] };
+      const abort = new AbortController();
+      const request = `b${++inlineAsked}`;
+      const listening = token.onCancellationRequested(() => {
+        abort.abort();
+        if (provider.cancel) post(provider.cancel, { request }).catch(() => {});
+      });
+      try {
+        const options = model.getOptions();
+        const body = { request, document, position: { line: position.lineNumber - 1, character: position.column - 1 }, tab_size: options.tabSize, insert_spaces: options.insertSpaces };
+        const found = (await post(provider.complete, body, abort.signal).catch(() => null))?.items ?? [];
+        const items = found.map((item) => ({
+          insertText: item.text,
+          range: item.range
+            ? new monaco.Range(item.range.start.line + 1, item.range.start.character + 1, item.range.end.line + 1, item.range.end.character + 1)
+            : new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          sabId: item.id,
+          sabEvent: provider.event,
+        }));
+        return { items, enableForwardStability: true };
+      } finally {
+        listening.dispose();
+      }
+    },
+    handleItemDidShow: (_c, item) => item.sabEvent && post(item.sabEvent, { id: item.sabId, kind: "shown" }).catch(() => {}),
+    handlePartialAccept: (_c, item, accepted) => item.sabEvent && post(item.sabEvent, { id: item.sabId, kind: "partial", length: accepted }).catch(() => {}),
+    handleEndOfLifetime: (_c, item, reason) => {
+      if (reason.kind === monaco.languages.InlineCompletionEndOfLifeReasonKind.Accepted && item.sabEvent) post(item.sabEvent, { id: item.sabId, kind: "accepted" }).catch(() => {});
+    },
+    disposeInlineCompletions: () => undefined,
+  });
+}
+
 const SEVERITY = {
   error: monaco.MarkerSeverity.Error,
   warning: monaco.MarkerSeverity.Warning,
@@ -172,6 +232,7 @@ async function lint(model, language) {
   }));
   monaco.editor.setModelMarkers(model, "sab-lint", markers);
   const owner = owners.get(model);
+  if (owner) owner.ruffMissing = !!(found.ruff && !found.ruff.used && found.ruff.missing);
   owner?.dotnet.invokeMethodAsync("Linted", markers.filter((m) => m.severity >= monaco.MarkerSeverity.Warning).length).catch(() => {});
 }
 
@@ -184,6 +245,36 @@ export function setTheme(theme) {
  * An editor in `host`. options: value, language (python, sql, dax, markdown, html, json...), readOnly, grow (a
  * notebook cell: as tall as its text, no scrollbar of its own), minLines, intel (ask the server), theme.
  */
+// `${` in a SQL editor lists this computer's variables (the classic variableBox.ts list: each name and its source in
+// words, never a value), asked of GET /variables when it is typed.
+let variablesListed = false;
+function variableCompletion() {
+  if (variablesListed) return;
+  variablesListed = true;
+  monaco.languages.registerCompletionItemProvider("sql", {
+    triggerCharacters: ["{"],
+    async provideCompletionItems(model, position) {
+      const before = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+      const typed = /\$\{([A-Za-z0-9_]*)$/.exec(before);
+      if (!typed) return { suggestions: [] };
+      const range = new monaco.Range(position.lineNumber, position.column - typed[1].length, position.lineNumber, position.column);
+      const answer = await fetch("/variables", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : { variables: [] }), () => ({ variables: [] }));
+      return {
+        incomplete: false,
+        suggestions: (answer.variables ?? []).map((v) => ({
+          label: v.name,
+          kind: monaco.languages.CompletionItemKind.Variable,
+          insertText: `${v.name}}`,
+          filterText: v.name,
+          range,
+          detail: v.vault ? `${v.words} · ${v.vault}` : v.words,
+          sortText: `0${v.name}`,
+        })),
+      };
+    },
+  });
+}
+
 export function create(host, dotnet, options) {
   registerIntel();
   const language = LANGUAGES[options.language] ?? options.language ?? "plaintext";
@@ -210,9 +301,11 @@ export function create(host, dotnet, options) {
     readOnly: !!options.readOnly,
     readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the grid: change the table's steps there." },
     placeholder: options.placeholder,
+    glyphMargin: !!options.breakpoints,
   });
   const model = editor.getModel();
-  const owner = { dotnet, intel: !!options.intel, language };
+  const owner = { dotnet, intel: !!options.intel, language, inline: options.inline ?? [] };
+  for (const provider of owner.inline) provider.languages.forEach(registerInline);
   owners.set(model, owner);
 
   const minLines = options.minLines ?? 1;
@@ -270,7 +363,146 @@ export function create(host, dotnet, options) {
     editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
   }
 
+  // The Scripts page's IDE moves (the classic workbenchIde.ts): Go to Definition (F12), Find All References
+  // (Shift+F12), Rename Symbol (F2), Format Document (Shift+Alt+F), told to C# with the cursor's place and word;
+  // the first and the third also in the editor's right-click menu, as the classic editor has them.
+  // The code's own zoom (the classic codeIde.ts): Ctrl+= and Ctrl+- (and Ctrl + wheel) over the code size the code
+  // alone, Ctrl+0 back to 100%; told to C# by name so the bar shows the size.
+  if (options.zoom) {
+    for (const [name, binding] of [["zoomIn", K.CtrlCmd | C.Equal], ["zoomOut", K.CtrlCmd | C.Minus], ["zoomReset", K.CtrlCmd | C.Digit0]]) {
+      editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
+    }
+    host.addEventListener("wheel", (event) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      key(event.deltaY < 0 ? "zoomIn" : "zoomOut")();
+    }, { passive: false });
+  }
+
+  if (options.ide) {
+    const ide = (name) => () => {
+      const at = editor.getPosition();
+      if (!at) return;
+      const word = model.getWordAtPosition(at)?.word ?? "";
+      dotnet.invokeMethodAsync("Ide", name, editor.getValue(), at.lineNumber, at.column, word).catch(() => {});
+    };
+    const moves = [
+      ["definition", "Go to Definition", [C.F12], "navigation", 1],
+      ["references", "Find All References", [K.Shift | C.F12], "navigation", 2],
+      ["rename", "Rename Symbol", [C.F2], "1_modification", 1],
+      ["format", "Format Document", [K.Shift | K.Alt | C.KeyF], "1_modification", 2],
+    ];
+    for (const [name, label, keybindings, group, order] of moves) {
+      editor.addAction({ id: `sab.ide.${name}`, label, keybindings, contextMenuGroupId: group, contextMenuOrder: order, run: ide(name) });
+    }
+  }
+
+  // The editor's own right-click menu (the classic lazy/codeEditor.ts): Send to the agent (and with a question…), the
+  // page's actions for this editor (a cell's Lineage), Insert variable… in SQL, and beta mode's Leave a note…; each
+  // told to C# by its id with the selection (or the cursor's line).
+  const menu = options.menu ?? {};
+  const picked = (id) => () => {
+    const chosen = editor.getSelection();
+    const line = chosen?.startLineNumber ?? editor.getPosition()?.lineNumber ?? 1;
+    const end = chosen && !chosen.isEmpty() ? chosen.endLineNumber : line;
+    const text = chosen && !chosen.isEmpty() ? model.getValueInRange(chosen) : model.getLineContent(line);
+    dotnet.invokeMethodAsync("Menu", id, line, end, text).catch(() => {});
+  };
+  if (menu.agent) {
+    editor.addAction({ id: "sab.sendToAgent", label: "Send to the agent", contextMenuGroupId: "0_agent", contextMenuOrder: 1, run: picked("sendToAgent") });
+    editor.addAction({ id: "sab.sendToAgentAsk", label: "Send to the agent with a question…", contextMenuGroupId: "0_agent", contextMenuOrder: 2, run: picked("sendToAgentAsk") });
+  }
+  for (const action of menu.actions ?? []) {
+    editor.addAction({ id: `sab.page.${action.id}`, label: action.label, contextMenuGroupId: "1_cell", contextMenuOrder: 1, run: picked(action.id) });
+  }
+  if (language === "sql") {
+    variableCompletion();
+    editor.addAction({
+      id: "sab.insertVariable",
+      label: "Insert variable…",
+      contextMenuGroupId: "9_cutcopypaste",
+      contextMenuOrder: 9,
+      run: () => {
+        editor.trigger("sab", "type", { text: "${" });
+        editor.trigger("sab", "editor.action.triggerSuggest", {});
+      },
+    });
+  }
+  if (menu.beta) {
+    editor.addAction({ id: "sab.leaveNote", label: "Leave a note…", contextMenuGroupId: "9_beta", contextMenuOrder: 1, run: picked("leaveNote") });
+  }
+
+  // The debugger's gutter (the classic workbenchDebug.ts): a click in the glyph margin toggles a breakpoint, a right
+  // click there or on a line number opens its menu; both told to C# by the line.
+  const breakpointDecorations = editor.createDecorationsCollection([]);
+  const executionDecoration = editor.createDecorationsCollection([]);
+  if (options.breakpoints) {
+    // The debugger's keys in the editor (F9 toggles; while paused F10 steps over, Shift+F11 out, Shift+F5 stops).
+    const debugKeys = [
+      ["toggleBreakpoint", C.F9],
+      ["stepOver", C.F10],
+      ["stepOut", K.Shift | C.F11],
+      ["stopDebugging", K.Shift | C.F5],
+    ];
+    for (const [name, binding] of debugKeys) {
+      editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
+    }
+    const G = monaco.editor.MouseTargetType;
+    const lineOf = (e) => (e.target.type === G.GUTTER_GLYPH_MARGIN || e.target.type === G.GUTTER_LINE_NUMBERS ? (e.target.position?.lineNumber ?? null) : null);
+    editor.onMouseDown((e) => {
+      if (e.target.type !== G.GUTTER_GLYPH_MARGIN || !e.event.leftButton) return;
+      const line = lineOf(e);
+      if (line) dotnet.invokeMethodAsync("Gutter", line, false, 0, 0).catch(() => {});
+    });
+    editor.onContextMenu((e) => {
+      const line = lineOf(e);
+      if (line === null) return;
+      e.event.preventDefault();
+      dotnet.invokeMethodAsync("Gutter", line, true, e.event.posx, e.event.posy).catch(() => {});
+    });
+  }
+
   return {
+    /** The breakpoints drawn in the gutter: [{line, kind: plain | condition | log, title}]. */
+    setBreakpoints: (marks) =>
+      breakpointDecorations.set(
+        marks.map((m) => ({
+          range: new monaco.Range(m.line, 1, m.line, 1),
+          options: {
+            glyphMarginClassName: `sab-breakpoint bp-${m.kind}`,
+            glyphMarginHoverMessage: m.title ? { value: m.title } : undefined,
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        })),
+      ),
+    /** The breakpoints' lines as edits have moved them. */
+    breakpointLines: () => breakpointDecorations.getRanges().map((r) => r.startLineNumber),
+    /** The line a paused run stopped at (highlighted, scrolled to); 0 clears it. */
+    setExecutionLine: (line) => {
+      if (!line) return void executionDecoration.clear();
+      executionDecoration.set([{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "sab-paused-line", glyphMarginClassName: "sab-paused-arrow" } }]);
+      editor.revealLineInCenterIfOutsideViewport(line);
+    },
+    cursorLine: () => editor.getPosition()?.lineNumber ?? 0,
+    /** The lint's problems as drawn (the status bar's Problems list), and whether Ruff could check it too. */
+    problems: () => monaco.editor.getModelMarkers({ resource: model.uri, owner: "sab-lint" })
+      .filter((m) => m.severity >= monaco.MarkerSeverity.Warning)
+      .map((m) => ({ line: m.startLineNumber, col: m.startColumn, message: m.message })),
+    ruffMissing: () => owners.get(model)?.ruffMissing === true,
+    /** A place in the code shown, the cursor there. */
+    reveal: (line, col) => {
+      editor.revealLineInCenter(line);
+      editor.setPosition({ lineNumber: line, column: col });
+      editor.focus();
+    },
+    /** F1: the server's help on the name at the cursor (its hover's words), or null. */
+    helpAtCursor: async () => {
+      const position = editor.getPosition();
+      if (!position) return null;
+      const found = await ask("hover", model, { offset: model.getOffsetAt(position) });
+      return found?.hover ?? null;
+    },
+    setFontSize: (px) => editor.updateOptions({ fontSize: px }),
     getValue: () => editor.getValue(),
     /** Text from C#: the cursor kept where it was, and no Changed told back. */
     setValue: (text) => {
@@ -354,6 +586,29 @@ export function createDiff(host, options) {
     dispose: () => {
       viewer.dispose();
       models.forEach((m) => m.dispose());
+    },
+  };
+}
+
+/** Compare: Monaco's diff editor, the file's text (left) against this page's (right), read-only. */
+export function diff(host, original, modified, language, theme) {
+  const lang = LANGUAGES[language] ?? language ?? "plaintext";
+  const editor = monaco.editor.createDiffEditor(host, {
+    theme: THEMES[theme] ?? "vs",
+    readOnly: true,
+    originalEditable: false,
+    automaticLayout: true,
+    renderSideBySide: true,
+    minimap: { enabled: false },
+  });
+  const left = monaco.editor.createModel(original, lang);
+  const right = monaco.editor.createModel(modified, lang);
+  editor.setModel({ original: left, modified: right });
+  return {
+    dispose: () => {
+      editor.dispose();
+      left.dispose();
+      right.dispose();
     },
   };
 }

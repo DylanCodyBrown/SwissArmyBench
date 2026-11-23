@@ -17,6 +17,10 @@
         {
             <button type="button" class="menu-item" role="menuitem" disabled="@(entry.Disabled is not null)" title="@entry.Disabled" @onclick="() => RunAsync(entry)">
                 <Icon Name="@entry.Icon" /> @entry.Label
+                @if (entry.Keys is { } keys)
+                {
+                    <span class="menu-keys">@keys</span>
+                }
             </button>
         }
     }

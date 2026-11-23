@@ -51,4 +51,27 @@ public sealed class AnalyzeClient
 
     /// <summary>Open as grid: the result's rows in a table of their own.</summary>
     public Task<MadeTable> OpenGridAsync(string run) => _api.PostAsync<MadeTable>($"/analyze/runs/{ApiClient.Part(run)}/grid");
+
+    /// <summary>Check this table: every analysis ranked on it.</summary>
+    public Task<CheckAnswer> CheckAsync(string? table) => _api.PostAsync<CheckAnswer>("/analyze/check", new { table });
+
+    /// <summary>What can I do with a column? Each column with the analyses that fit it.</summary>
+    public Task<ColumnsAnswer> ColumnsAsync(string? table) => _api.PostAsync<ColumnsAnswer>("/analyze/column", new { table });
+
+    /// <summary>One click: run with the rest defaulted (the analysis's fixes applied first when asked).</summary>
+    public Task<AnalyzeRun> RunOneAsync(string analysis, string table, JsonElement? columns, bool applyFixes) =>
+        _api.PostAsync<AnalyzeRun>("/analyze/run", new { analysis, table, columns, apply_fixes = applyFixes });
+
+    /// <summary>Add chart: a chart card drawn on a table (its spec: mark, x, y, series).</summary>
+    public Task AddChartAsync(string grid, string title, JsonElement spec) =>
+        _api.PostAsync($"/grids/{ApiClient.Part(grid)}/cards", new { kind = "chart", title, spec });
+
+    /// <summary>The cross-filter: a chart's bar, point or cell filters its own table (a heatmap cell by its row too).</summary>
+    public Task SelectAsync(string card, JsonElement value, JsonElement? y) =>
+        y is { } row
+            ? _api.PostAsync($"/cards/{ApiClient.Part(card)}/select", new { value, y = row })
+            : _api.PostAsync($"/cards/{ApiClient.Part(card)}/select", new { value });
+
+    /// <summary>Copy as Python (Altair): the chart card's code.</summary>
+    public Task<CardCode> ChartCodeAsync(string card) => _api.GetAsync<CardCode>($"/cards/{ApiClient.Part(card)}/code");
 }

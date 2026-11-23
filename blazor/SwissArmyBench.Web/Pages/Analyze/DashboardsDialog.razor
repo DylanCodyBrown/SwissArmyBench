@@ -1,0 +1,51 @@
+@* Dashboards… (the classic sandboxDashboards.ts): the board saved as a named dashboard (each save a new version),
+   the saved ones with their cards and when, Open (asked first when the board has cards), History with each
+   version's Open this version, and Delete (asked first). Logic in DashboardsDialog.razor.cs. *@
+@using SwissArmyBench.Web.Api.Analyze
+
+<AppDialog Title="Dashboards" OnClose="OnClose">
+    <ChildContent>
+        <div class="analysis-controls">
+            <label class="analysis-field"><span>Save as</span>
+                <input type="text" placeholder="weekly_sales" pattern="[A-Za-z0-9_-]{1,64}" aria-label="Dashboard name" size="24" @bind="_name" @bind:event="oninput" @onkeydown="NameKeyAsync" />
+            </label>
+            <button type="button" class="btn primary" disabled="@(CardsNow == 0)" title="@(CardsNow == 0 ? "The board is empty" : null)" @onclick="SaveAsync"><Icon Name="export" /> Save</button>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <div class="dashboards">
+            @if (_list is { Dashboards.Count: 0 })
+            {
+                <p class="hint">No saved dashboards</p>
+            }
+            @foreach (var d in _list?.Dashboards ?? [])
+            {
+                <div class="dashboard-row">
+                    <div class="dashboard-head">
+                        <strong>@d.Name</strong>
+                        <span class="hint">@CardWords(d.Cards) · saved @When(d.Saved)@(d.Versions > 1 ? $" · {d.Versions} versions" : string.Empty)</span>
+                        <span class="toolbar-gap"></span>
+                        <button type="button" class="btn small primary" @onclick="() => OpenAsync(d.Name, null)"><Icon Name="expand" /> Open</button>
+                        <button type="button" class="btn small" @onclick="() => HistoryAsync(d.Name)"><Icon Name="rows" /> History</button>
+                        <button type="button" class="btn small ghost" @onclick="() => DeleteAsync(d)"><Icon Name="trash" /> Delete</button>
+                    </div>
+                    @if (_history is { } history && history.Name == d.Name)
+                    {
+                        <ol class="dashboard-history" reversed>
+                            @foreach (var v in history.Versions.Reverse())
+                            {
+                                <li>
+                                    <strong>@When(v.Saved)</strong>
+                                    <span class="hint"> @CardWords(v.Cards.Count): @string.Join(", ", v.Cards.Select(c => c.Title.Length > 0 ? c.Title : c.Kind).Take(6))@(v.Cards.Count > 6 ? "…" : string.Empty)</span>
+                                    <button type="button" class="btn small ghost" @onclick="() => OpenAsync(d.Name, v.Version)">Open this version</button>
+                                </li>
+                            }
+                        </ol>
+                    }
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

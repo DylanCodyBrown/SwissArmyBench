@@ -28,6 +28,8 @@ const entries = {
   files: "files.js",
   // The Excel canvas's built sheet: its charts placed over their anchor cells (Pages/Accounting).
   workbook: "workbook.js",
+  workbench: "workbench.js",
+  board: "board.js",
   // Monaco's own worker (the editor's tokens and folding off the page's thread), beside codeEditor.js.
   "editor.worker": path.join(modules, "monaco-editor", "esm", "vs", "editor", "editor.worker.js"),
 };

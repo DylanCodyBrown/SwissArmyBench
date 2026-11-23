@@ -16,6 +16,46 @@ public sealed class WorkbenchClient
         _api = api;
     }
 
+    /// <summary>The last closed table opened again (404: none to reopen).</summary>
+    public Task ReopenTableAsync() => _api.PostAsync("/grids/reopen");
+
+    /// <summary>Open a file as a table (its name from the file's).</summary>
+    public Task LoadFileAsync(string name, string path) => _api.PostAsync($"/datasets/{ApiClient.Part(name)}/load", new { path });
+
+    /// <summary>A cell's table result (the kernel's Out[n]) or a variable by its name opened as a grid.</summary>
+    public Task<MadeGrid> OpenGridAsync(string kernel, int? output, string? name) => output is { } count
+        ? _api.PostAsync<MadeGrid>($"/workbench/kernels/{ApiClient.Part(kernel)}/grid", new { output = count })
+        : _api.PostAsync<MadeGrid>($"/workbench/kernels/{ApiClient.Part(kernel)}/grid", new { name });
+
+    /// <summary>A picture or a figure sent to the Analyze board as a card of its own.</summary>
+    public Task<SentCard> SendCardAsync(string kind, string body, string title) => _api.PostAsync<SentCard>("/cards", new { kind, body, title });
+
+    /// <summary>The open project's API.py (its local sandbox API).</summary>
+    public Task<LocalApiFile> LocalApiAsync() => _api.GetAsync<LocalApiFile>("/local-api");
+
+    /// <summary>Run API: the local sandbox API hosted on 127.0.0.1 (only the sandbox).</summary>
+    public Task<LocalApiRun> RunLocalApiAsync() => _api.PostAsync<LocalApiRun>("/local-api/run", new { });
+
+    /// <summary>Fine-tune as a script: a table's transformations as a new script in scripts/.</summary>
+    public Task<FineTuned> FineTuneAsync(string table) => _api.PostAsync<FineTuned>("/scripts/fine-tune", new { table });
+
+    /// <summary>A code app's file is there already (the Power Apps extension's project, GET its file).</summary>
+    public async Task<bool> CodeFileThereAsync(string path)
+    {
+        try
+        {
+            await _api.GetTextAsync($"/powerapps/project/file?path={ApiClient.Part(path)}");
+            return true;
+        }
+        catch (ApiException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>A new, empty code app file (the Power Apps extension's project).</summary>
+    public Task NewCodeFileAsync(string path) => _api.PutAsync("/powerapps/project/file", new { path, text = string.Empty });
+
     public Task<WorkbenchHome> HomeAsync() => _api.GetAsync<WorkbenchHome>("/workbench/home");
 
     public Task<OpenedNotebook> OpenNotebookAsync(string path) => _api.PostAsync<OpenedNotebook>("/workbench/open", new { path });
@@ -23,16 +63,19 @@ public sealed class WorkbenchClient
     public Task<OpenedScript> OpenScriptAsync(string path) => _api.PostAsync<OpenedScript>("/workbench/open", new { path });
 
     /// <summary>A notebook's cells saved; `modified` is the file's time when opened (a newer file on disk is refused
-    /// unless forced).</summary>
-    public Task<SavedDocument> SaveNotebookAsync(string path, IReadOnlyList<NotebookCell> cells, int nextCell, double? modified, bool force = false) =>
-        _api.PostAsync<SavedDocument>("/workbench/save", new { path, cells, next_cell = nextCell, modified, force });
+    /// unless forced). A project's data.ipynb sends its data dictionary's descriptions too (kept in its metadata).</summary>
+    public Task<SavedDocument> SaveNotebookAsync(string path, IReadOnlyList<NotebookCell> cells, int nextCell, double? modified, bool force = false, JsonElement? dictionary = null) =>
+        dictionary is { } descriptions
+            ? _api.PostAsync<SavedDocument>("/workbench/save", new { path, cells, next_cell = nextCell, modified, force, dictionary = descriptions })
+            : _api.PostAsync<SavedDocument>("/workbench/save", new { path, cells, next_cell = nextCell, modified, force });
 
     public Task<SavedDocument> SaveScriptAsync(string path, string text, double? modified, bool force = false) =>
         _api.PostAsync<SavedDocument>("/workbench/save", new { path, text, modified, force });
 
     /// <summary>The kernel a document runs in: the open project's one Python session for its documents, else one of
     /// its own (in the folder the document is in).</summary>
-    public Task<StartedKernel> StartAsync(string? path) => _api.PostAsync<StartedKernel>("/workbench/kernels", new { path, window = ApiClient.ClientId });
+    public Task<StartedKernel> StartAsync(string? path, string? python = null) =>
+        _api.PostAsync<StartedKernel>("/workbench/kernels", new { path, python, window = ApiClient.ClientId });
 
     /// <summary>A run's outputs as they arrive (nbformat's records, an input request, the error taken apart), then
     /// {"done": ...}.</summary>
@@ -43,7 +86,15 @@ public sealed class WorkbenchClient
 
     public Task InterruptAsync(string kernel) => _api.PostAsync($"/workbench/kernels/{ApiClient.Part(kernel)}/interrupt");
 
+    public Task StopAsync(string kernel) => _api.DeleteAsync($"/workbench/kernels/{ApiClient.Part(kernel)}");
+
     public Task RestartAsync(string kernel) => _api.PostAsync($"/workbench/kernels/{ApiClient.Part(kernel)}/restart");
+
+    /// <summary>An HTML cell's design: its names filled from its run's values (each as the kernel gave it).</summary>
+    public Task<FilledHtml> FillHtmlAsync(string html, JsonElement values) => _api.PostAsync<FilledHtml>("/workbench/html/fill", new { html, values });
+
+    /// <summary>A notebook's run order and Outline, from its cells as they are on screen.</summary>
+    public Task<NotebookFlow> FlowAsync(IReadOnlyList<NotebookCell> cells) => _api.PostAsync<NotebookFlow>("/workbench/notebook/flow", new { cells });
 
     public Task<TableList> TablesAsync() => _api.GetAsync<TableList>("/workbench/tables");
 

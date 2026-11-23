@@ -1,22 +1,37 @@
 @* The Analyze page (?view=analyze in the classic; the owner 2026-11-19: every analysis lives here and every result
    lands on the board by itself): the toolbar of every analysis by group, the one guided form beside the board, and
    the board's cards (a note, a Plotly figure, a picture, a diagram), each result's actions under its card. Logic in
-   AnalyzePage.razor.cs. *@
+   AnalyzePage.razor.cs and AnalyzePage.Board.cs (the board's bar: notes, Page view, print, markdown, themes,
+   dashboards). *@
 @page "/analyze"
 @implements IDisposable
 
-<section class="area-page analyze-page">
+<section class="area-page analyze-page dock-@_dock panel-@_panel">
     <header class="area-page-head">
         <h1 class="area-page-title"><Icon Name="sandbox" /> Analyze</h1>
+        <span class="toolbar-gap"></span>
+        <button type="button" class="btn ghost icon" aria-label="@DockWords" title="@DockWords" @onclick="DockAsync"><Icon Name="@(_dock == "bottom" ? "right" : "bottom")" /></button>
+        <button type="button" class="btn ghost icon" aria-label="@MaxWords" title="@MaxWords" @onclick='() => PanelAsync(_panel == "max" ? "open" : "max")'><Icon Name="@(_panel == "max" ? "restore" : "max")" /></button>
+        <button type="button" class="btn ghost icon" aria-label="@CollapseWords" title="@CollapseWords" @onclick='() => PanelAsync(_panel == "collapsed" ? "open" : "collapsed")'><Icon Name="@CollapseIcon" /></button>
     </header>
+    @if (_panel != "collapsed")
+    {
     <nav class="analyze-toolbar" aria-label="Analyses">
         @foreach (var group in Groups)
         {
             <div class="analyze-group" role="group" aria-label="@group.Key">
                 <strong>@group.Key</strong>
-                @foreach (var entry in group)
+                @foreach (var entry in group.Entries)
                 {
                     <button type="button" class="btn small analyze-pick" title="@entry.Get" aria-pressed="@(entry.Id == _analysis ? "true" : "false")" data-analysis="@entry.Id" @onclick="() => Choose(entry.Id)">@entry.Label</button>
+                }
+                @if (group.Key == "Describe")
+                {
+                    <button type="button" class="btn small analyze-pick" data-analysis="columns" aria-pressed="@(_analysis == ColumnsMode ? "true" : "false")" title="by column" @onclick="() => Choose(ColumnsMode)"><Icon Name="columns" /> What can I do with a column?</button>
+                }
+                @if (group.Key == "Yours")
+                {
+                    <a class="btn small ghost analyze-pick" data-analysis="make" href="scripts?pane=blades" title="an analysis blade"><Icon Name="plus" /> @(group.Entries.Count > 0 ? "Make another…" : "Make your own…")</a>
                 }
             </div>
         }
@@ -24,7 +39,19 @@
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
     <div class="analyze-main">
         <aside class="analyze-side">
-            @if (_analysis is { } analysis && _toolbar is { } toolbar)
+            @if (_analysis is not null)
+            {
+                <div class="analyze-side-head"><button type="button" class="btn ghost icon small" aria-label="Close" title="Close" @onclick="() => _analysis = null"><Icon Name="close" /></button></div>
+            }
+            @if (_analysis == ColumnsMode && _toolbar is { } byColumn)
+            {
+                <AnalyzeColumns Table="@(byColumn.Current ?? byColumn.Tables.FirstOrDefault()?.Grid)" Tables="byColumn.Tables" />
+            }
+            else if (_analysis == "check" && _toolbar is { } checking)
+            {
+                <AnalyzeCheck Table="@(checking.Current ?? checking.Tables.FirstOrDefault()?.Grid)" Tables="checking.Tables" OnOpen="a => { _analysis = a; _again = null; }" />
+            }
+            else if (_analysis is { } analysis && _toolbar is { } toolbar)
             {
                 <AnalyzeForm Analysis="@analysis" Table="@(toolbar.Current ?? toolbar.Tables.FirstOrDefault()?.Grid)" Again="_again" Tables="toolbar.Tables" OnRan="RanAsync" />
             }
@@ -40,15 +67,57 @@
                 <p class="muted">Pick an analysis above: its form shows here, and its result lands on the board.</p>
             }
         </aside>
-        <div class="analyze-board" aria-label="The board">
-            @if (_cards.Count == 0)
+        <div class="analyze-board-host">
+            <BoardBar OnAddChart="() => _chart = true" PageView="_pageView" Paper="@_paper" OnAddNote="() => _note = (true, null)" OnPageView="SetPageViewAsync" OnPaper="SetPaperAsync"
+                      OnPrint="PrintAsync" OnExportMarkdown="ExportMarkdownAsync" OnDashboards="() => _dashboards = true" OnTheme="t => _theme = t" />
+            @if (_pageView)
             {
-                <p class="muted">The board is empty: every analysis's result lands here.</p>
+                <div class="analyze-pages" style="@ThemeStyle" data-sandbox-theme="@_theme?.Id" @ref="_board">
+                    @foreach (var page in BoardPages.Pages(_cards, Paper))
+                    {
+                        <div class="board-page" style="@PageStyle">
+                            <div class="analyze-board">
+                                @foreach (var card in page)
+                                {
+                                    @CardFragment(card)
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
             }
-            @foreach (var card in _cards)
+            else
             {
-                <BoardCardView @key="card.Id" Card="card" Fresh="_fresh.Contains(card.Id)" OnRemove="RemoveAsync" OnAgain="AgainAsync" />
+                <div class="analyze-board" aria-label="The board" style="@ThemeStyle" data-sandbox-theme="@_theme?.Id" @ref="_board">
+                    @if (_cards.Count == 0)
+                    {
+                        <p class="muted">The board is empty: every analysis's result lands here.</p>
+                    }
+                    @foreach (var card in _cards)
+                    {
+                        @CardFragment(card)
+                    }
+                </div>
             }
         </div>
     </div>
+    }
 </section>
+@if (_chart && _toolbar is { } charting)
+{
+    <ChartDialog Tables="charting.Tables" Current="@charting.Current" OnClose="() => _chart = false" OnAdded="ChartAddedAsync" />
+}
+@if (_note is { Open: true } note)
+{
+    <NoteDialog Existing="note.Card" OnClose="() => _note = null" OnSaved="NoteSavedAsync" />
+}
+@if (_dashboards)
+{
+    <DashboardsDialog CardsNow="_cards.Count" OnClose="() => _dashboards = false" OnOpened="LoadCardsAsync" />
+}
+
+@code {
+    private RenderFragment CardFragment(BoardCard card) =>
+        @<BoardCardView @key="card.Id" Card="card" Fresh="_fresh.Contains(card.Id)" OnRemove="RemoveAsync" OnAgain="AgainAsync"
+                        Previous="@PreviousOf(card)" Later="LaterOf(card)" OnChanged="LoadCardsAsync" OnEditNote="c => _note = (true, c)" />;
+}

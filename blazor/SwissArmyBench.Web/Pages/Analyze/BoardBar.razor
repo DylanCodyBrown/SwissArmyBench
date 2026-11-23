@@ -1,0 +1,59 @@
+@* The board's bar (the classic aiPanel.ts renderCards and sandboxThemes.ts): Add note, Page view (or Back to the
+   board) with its Paper, Print to PDF, Export markdown, the board's theme (Theme: follow the app, or one of its own;
+   Import theme…, Export theme, Keep this theme for the agent's, Remove this theme for one the user imported), and
+   Dashboards…. Logic in BoardBar.razor.cs. *@
+@using SwissArmyBench.Web.Api.Analyze
+
+<div class="board-bar" role="toolbar" aria-label="The board">
+    <button type="button" class="btn small" @onclick="OnAddChart"><Icon Name="profile" /> Add chart</button>
+    <button type="button" class="btn small" @onclick="OnAddNote"><Icon Name="edit" /> Add note</button>
+    <span class="toolbar-gap"></span>
+    <button type="button" class="btn small" aria-pressed="@(PageView ? "true" : "false")" @onclick="() => OnPageView.InvokeAsync(!PageView)">
+        <Icon Name="@(PageView ? "columns" : "rows")" /> @(PageView ? "Back to the board" : "Page view")
+    </button>
+    @if (PageView)
+    {
+        <select aria-label="Paper" value="@Paper" @onchange="e => OnPaper.InvokeAsync(e.Value?.ToString() ?? BoardPages.Letter)">
+            @foreach (var (key, paper) in BoardPages.Papers)
+            {
+                <option value="@key">@paper.Label</option>
+            }
+        </select>
+    }
+    <button type="button" class="btn small" @onclick="OnPrint"><Icon Name="export" /> Print to PDF</button>
+    <button type="button" class="btn small" @onclick="OnExportMarkdown"><Icon Name="code" /> Export markdown</button>
+    @if (_themes is { } themes)
+    {
+        <span class="theme-controls">
+            <select aria-label="Board theme" title="Board theme" value="@themes.Current" @onchange="ChooseAsync">
+                <option value="app">Theme: follow the app</option>
+                @foreach (var group in themes.Themes.GroupBy(t => t.Group))
+                {
+                    <optgroup label="@group.Key">
+                        @foreach (var theme in group)
+                        {
+                            <option value="@theme.Id" title="@theme.Note">@theme.Label@(theme.ByAgent ? " (agent)" : string.Empty)</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+            <label class="btn small ghost icon" title="Import theme…" aria-label="Import theme…">
+                <Icon Name="import" /><InputFile accept=".json,application/json" aria-label="Theme file" class="visually-hidden" OnChange="ImportAsync" />
+            </label>
+            @if (Chosen is { } chosen)
+            {
+                <button type="button" class="btn small ghost icon" aria-label="Export theme" title="Export theme" @onclick="() => ExportAsync(chosen)"><Icon Name="export" /></button>
+                @if (chosen.ByAgent)
+                {
+                    <button type="button" class="btn small ghost" @onclick="() => KeepAsync(chosen)"><Icon Name="save" /> Keep this theme</button>
+                }
+                else if (chosen.Custom)
+                {
+                    <button type="button" class="btn small ghost icon" aria-label="Remove this theme" title="@($"Remove {chosen.Label} (a theme you imported)")" @onclick="() => RemoveAsync(chosen)"><Icon Name="trash" /></button>
+                }
+            }
+        </span>
+    }
+    <button type="button" class="btn small" @onclick="OnDashboards"><Icon Name="columns" /> Dashboards…</button>
+</div>
+<ErrorNote Error="_error" OnClose="() => _error = null" />

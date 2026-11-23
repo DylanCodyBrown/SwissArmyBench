@@ -16,6 +16,7 @@ public partial class AnalyzeForm
     private int _asked;
     private int _runs;
 
+
     [Inject]
     private AnalyzeClient AnalyzeApi { get; set; } = default!;
 
@@ -79,7 +80,6 @@ public partial class AnalyzeForm
         }
     }
 
-    private Task TableChangedAsync(ChangeEventArgs e) => PlanAsync(e.Value?.ToString(), null, null);
 
     private Task PickAsync((string Key, JsonElement Value) pick) => PlanAsync(Plan?.Grid, With(Plan?.Columns, pick.Key, pick.Value), Plan?.Settings);
 

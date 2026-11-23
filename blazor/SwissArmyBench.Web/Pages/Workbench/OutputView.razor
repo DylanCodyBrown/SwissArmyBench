@@ -5,19 +5,28 @@
 @switch (OutputReader.Type(Output))
 {
     case "stream":
-        <pre class="wb-text @(OutputReader.Text(Output, "name") == "stderr" ? "wb-stderr" : string.Empty)">@OutputReader.Plain(OutputReader.Text(Output, "text"))</pre>
+        <AnsiPre Class="@($"wb-text {(OutputReader.Text(Output, "name") == "stderr" ? "wb-stderr" : string.Empty)}")" Text="@OutputReader.Text(Output, "text")" />
+        break;
+    case "error" when Frames.Count > FoldFrames && !_allFrames:
+        <div class="wb-error-folded">
+            <AnsiPre Class="wb-error" Text="@string.Join('\n', Frames.Take(FoldFrames / 2))" />
+            <button type="button" class="link wb-fold" @onclick="() => _allFrames = true">Show @((Frames.Count - FoldFrames).ToString("N0")) more frames</button>
+            <AnsiPre Class="wb-error" Text="@string.Join('\n', Frames.TakeLast(FoldFrames / 2))" />
+        </div>
         break;
     case "error":
-        <pre class="wb-error">@OutputReader.Traceback(Output)</pre>
+        <AnsiPre Class="wb-error" Text="@OutputReader.ColouredTraceback(Output)" />
         break;
     case "execute_result" or "display_data":
         @if (Picture is { } picture)
         {
-            <img class="wb-image" src="@picture" alt="Figure" />
+            <figure class="wb-figure"><img class="wb-image" src="@picture" alt="Figure" />
+                <button type="button" class="btn small ghost wb-to-sandbox" @onclick='() => SendAsync("image", picture)'><Icon Name="export" /> Send to Analyze</button></figure>
         }
         else if (OutputReader.Data(Output, PlotlyMime) is { } figure)
         {
-            <PlotlyChart Figure="@figure" Label="Figure" />
+            <figure class="wb-figure"><PlotlyChart Figure="@figure" Label="Figure" />
+                <button type="button" class="btn small ghost wb-to-sandbox" @onclick='() => SendAsync("plotly", figure)'><Icon Name="export" /> Send to Analyze</button></figure>
         }
         else if (OutputReader.Data(Output, "text/markdown") is { } markdown)
         {
@@ -26,10 +35,14 @@
         else if (OutputReader.Data(Output, "text/html") is { } html)
         {
             <iframe class="wb-html" sandbox="allow-same-origin" title="Output" srcdoc="@Framed(html)" onload="sab.fitFrame(this)"></iframe>
+            @if (ResultCount is { } count && IsTable(html))
+            {
+                <button type="button" class="btn small ghost wb-to-grid" @onclick="() => OpenResultAsync(count)"><Icon Name="export" /> Open as grid</button>
+            }
         }
         else
         {
-            <pre class="wb-text">@OutputReader.Plain(OutputReader.Data(Output, "text/plain") ?? string.Empty)</pre>
+            <AnsiPre Text="@(OutputReader.Data(Output, "text/plain") ?? string.Empty)" />
         }
         break;
     default:

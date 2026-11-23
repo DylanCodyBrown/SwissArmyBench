@@ -1,0 +1,129 @@
+@* Check this table (the classic analyzePage.ts drawCheck): the table line, its warnings, the analyses that suit it
+   best as one-click buttons (their fixes applied first when they need them), Every analysis ranked with why (a
+   click opens its form), and Put this check on the board. *@
+@inject AnalyzeClient AnalyzeApi
+
+<section class="analyze-form analyze-check" aria-label="Check this table">
+    <h2 class="analyze-title">Check this table <span class="muted">data shape check</span></h2>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_found is { } found)
+    {
+        <AnalyzeTableLine Label="@found.TableLabel" Rows="found.Rows" Current="@found.Grid" Tables="Tables" OnPick="PickAsync" />
+        @foreach (var note in found.Notes.Where(n => n.Level == "warn"))
+        {
+            <p class="chip-caution"><Icon Name="warning" /> @note.Text</p>
+        }
+        @if (found.Top.Count > 0)
+        {
+            <div class="analyze-big" aria-label="What suits this table">
+                @foreach (var ranked in found.Top)
+                {
+                    var r = ranked;
+                    <AnalyzeBigButton Label="@r.Label" Name="@r.Name" Reason="@Stop(r.Reason)" Verb="@r.Button" OnRun='() => OneClickAsync(r.Analysis, r.Status == "fixes")' />
+                }
+            </div>
+        }
+        else
+        {
+            <ErrorNote Words="@($"Nothing suits {found.Dataset} as it is.")" Warning="true" />
+        }
+        <details class="analyze-rest">
+            <summary>Every analysis</summary>
+            <ul class="analyze-ranked">
+                @foreach (var ranked in Others(found))
+                {
+                    var r = ranked;
+                    <li data-analysis="@r.Analysis" data-status="@r.Status">
+                        @if (r.Status == "no")
+                        {
+                            <span class="analyze-ranked-label">@r.Label</span>
+                        }
+                        else
+                        {
+                            <button type="button" class="link" @onclick="() => OnOpen.InvokeAsync(r.Analysis)">@r.Label</button>
+                        }
+                        <small>@Stop(r.Reason)</small>
+                    </li>
+                }
+            </ul>
+        </details>
+        <button type="button" class="btn" disabled="@_checking" @onclick="PutOnBoardAsync"><Icon Name="note" /> @(_checking ? "Checking…" : "Put this check on the board")</button>
+    }
+    else if (_error is null)
+    {
+        <div class="loading-block">Checking the table…</div>
+    }
+    else
+    {
+        <AnalyzeTableLine Current="@Table" Tables="Tables" OnPick="PickAsync" />
+    }
+</section>
+
+@code {
+    private CheckAnswer? _found;
+    private Exception? _error;
+    private bool _checking;
+    private string? _shownFor;
+
+    [Parameter]
+    public string? Table { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<AnalyzeTable> Tables { get; set; } = [];
+
+    /// <summary>An analysis of the ranking opened as its form on this table.</summary>
+    [Parameter]
+    public EventCallback<string> OnOpen { get; set; }
+
+    protected override Task OnParametersSetAsync() => Table == _shownFor && _found is not null ? Task.CompletedTask : LoadAsync(Table);
+
+    private Task PickAsync(string grid) => LoadAsync(grid);
+
+    private async Task LoadAsync(string? table)
+    {
+        _shownFor = Table;
+        try
+        {
+            _found = await AnalyzeApi.CheckAsync(table);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            (_found, _error) = (null, error);
+        }
+    }
+
+    // The ranking under Every analysis: the ones not already among the big buttons.
+    private static IEnumerable<RankedAnalysis> Others(CheckAnswer found) =>
+        found.Ranked.Where(r => found.Top.All(t => t.Analysis != r.Analysis));
+
+    private static string Stop(string text) => text.Length > 0 && !".!?".Contains(text[^1]) ? $"{text}." : text;
+
+    private async Task OneClickAsync(string analysis, bool fixes)
+    {
+        if (_found is not { } found)
+        {
+            return;
+        }
+        try
+        {
+            await AnalyzeApi.RunOneAsync(analysis, found.Grid, null, fixes);
+            _error = null;
+            if (fixes)
+            {
+                await LoadAsync(found.Grid); // the table has steps now: what suits it is read again
+            }
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task PutOnBoardAsync()
+    {
+        _checking = true;
+        await OneClickAsync("check", false);
+        _checking = false;
+    }
+}

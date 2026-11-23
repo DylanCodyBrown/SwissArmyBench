@@ -3,14 +3,15 @@
 
 @if (IsBranch)
 {
-    <details class="tree-node" open="@(Depth < OpenDepth)">
-        <summary class="tree-row @(Selected == Path ? "selected" : string.Empty)" role="treeitem" aria-selected="@(Selected == Path ? "true" : "false")" aria-label="@($"{Name}: {Summary}")" @onclick="() => OnSelect.InvokeAsync(Path)">
+    <details class="tree-node" open="@(Depth < OpenDepth || (Unfold?.Contains(Path) ?? false))">
+        <summary class="tree-row @(Selected == Path ? "selected" : string.Empty) @Marks" @oncontextmenu="MenuAsync" @oncontextmenu:preventDefault="OnMenu.HasDelegate" role="treeitem" aria-selected="@(Selected == Path ? "true" : "false")" aria-label="@($"{Name}: {Summary}")" @onclick="() => OnSelect.InvokeAsync(Path)">
             <span class="tree-key">@Name</span> <span class="tree-summary">@Summary</span>
         </summary>
         <div class="tree-children" role="group">
-            @foreach (var (key, path, child) in Children.Take(_shown))
+            @foreach (var (key, path, child, index) in Children.Take(_shown))
             {
-                <StructureNode Name="@key" Path="@path" Value="child" Depth="Depth + 1" Selected="@Selected" OnSelect="OnSelect" />
+                <StructureNode Name="@key" Path="@path" Value="child" Depth="Depth + 1" Selected="@Selected" OnSelect="OnSelect"
+                               Index="index" Siblings="Count" OnMenu="OnMenu" Marked="Marked" Found="@Found" Unfold="Unfold" />
             }
             @if (Count > _shown)
             {
@@ -21,7 +22,7 @@
 }
 else
 {
-    <div class="tree-row leaf @(Selected == Path ? "selected" : string.Empty)" role="treeitem" tabindex="0" aria-selected="@(Selected == Path ? "true" : "false")" @onclick="() => OnSelect.InvokeAsync(Path)" @onkeydown="KeyAsync">
+    <div class="tree-row leaf @(Selected == Path ? "selected" : string.Empty) @Marks" @oncontextmenu="MenuAsync" @oncontextmenu:preventDefault="OnMenu.HasDelegate" role="treeitem" tabindex="0" aria-selected="@(Selected == Path ? "true" : "false")" @onclick="() => OnSelect.InvokeAsync(Path)" @onkeydown="KeyAsync">
         <span class="tree-key">@Name</span>: <span class="tree-value tree-@Value.ValueKind.ToString().ToLowerInvariant()">@Leaf</span>
     </div>
 }
@@ -51,6 +52,34 @@ else
     [Parameter]
     public EventCallback<string> OnSelect { get; set; }
 
+    /// <summary>A right click (a structure's tab: its node menu); none, the browser's own menu.</summary>
+    [Parameter]
+    public EventCallback<StructureNodeMenu> OnMenu { get; set; }
+
+    /// <summary>Its place in its list (null: a key of an object), and the list's size.</summary>
+    [Parameter]
+    public int? Index { get; set; }
+
+    [Parameter]
+    public int Siblings { get; set; }
+
+    /// <summary>The search's matches (marked) and the one in front (found).</summary>
+    [Parameter]
+    public IReadOnlySet<string>? Marked { get; set; }
+
+    [Parameter]
+    public string? Found { get; set; }
+
+    /// <summary>Branches opened whatever their depth (the way to a found node).</summary>
+    [Parameter]
+    public IReadOnlySet<string>? Unfold { get; set; }
+
+    private string Marks => $"{(Marked?.Contains(Path) == true ? "match" : string.Empty)} {(Found == Path ? "found" : string.Empty)}";
+
+    private Task MenuAsync(MouseEventArgs e) => OnMenu.HasDelegate
+        ? OnMenu.InvokeAsync(new StructureNodeMenu(Path, Value, Index, Siblings, e.ClientX, e.ClientY))
+        : Task.CompletedTask;
+
     private bool IsBranch => Value.ValueKind is System.Text.Json.JsonValueKind.Object or System.Text.Json.JsonValueKind.Array;
 
     private int Count => Value.ValueKind == System.Text.Json.JsonValueKind.Array ? Value.GetArrayLength() : Value.EnumerateObject().Count();
@@ -59,10 +88,10 @@ else
 
     private string Leaf => Value.ValueKind == System.Text.Json.JsonValueKind.String ? $"\"{Value.GetString()}\"" : Value.GetRawText();
 
-    private IEnumerable<(string Key, string Path, System.Text.Json.JsonElement Child)> Children =>
+    private IEnumerable<(string Key, string Path, System.Text.Json.JsonElement Child, int? Index)> Children =>
         Value.ValueKind == System.Text.Json.JsonValueKind.Array
-            ? Value.EnumerateArray().Select((child, at) => ($"[{at}]", StructurePath.Index(Path, at), child))
-            : Value.EnumerateObject().Select(p => (p.Name, StructurePath.Key(Path, p.Name), p.Value));
+            ? Value.EnumerateArray().Select((child, at) => ($"[{at}]", StructurePath.Index(Path, at), child, (int?)at))
+            : Value.EnumerateObject().Select(p => (p.Name, StructurePath.Key(Path, p.Name), p.Value, (int?)null));
 
     private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? OnSelect.InvokeAsync(Path) : Task.CompletedTask;
 }

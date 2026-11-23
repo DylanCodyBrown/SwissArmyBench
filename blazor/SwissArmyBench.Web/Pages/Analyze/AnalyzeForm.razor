@@ -9,15 +9,9 @@
     {
         <h2 class="analyze-title">@plan.Label <span class="muted">@plan.Name</span></h2>
         <p class="muted">@plan.Get</p>
-        <label class="field"><span>Table</span>
-            <select aria-label="Table" value="@plan.Grid" @onchange="TableChangedAsync">
-                @foreach (var table in Tables)
-                {
-                    <option value="@table.Grid">@table.Label</option>
-                }
-            </select>
-        </label>
-        <p class="muted">@plan.Rows.ToString("N0") rows · @plan.OneRowPer</p>
+        <AnalyzeTableLine Label="@(Tables.FirstOrDefault(t => t.Grid == plan.Grid)?.Label ?? string.Empty)" Rows="plan.Rows" Current="@plan.Grid" Tables="Tables"
+                          OnPick="g => PlanAsync(g, null, null)" />
+        <p class="muted">@plan.OneRowPer</p>
         @foreach (var slot in plan.Slots)
         {
             <AnalyzeSlot Slot="slot" OnPick="PickAsync" />

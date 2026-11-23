@@ -1,0 +1,142 @@
+@* A script's Run settings beside it (the classic workbenchDocModes.ts drawRunSettings): Run file's arguments, and
+   each variable the script needs with where it comes from (This computer, a Plain value, a Key vault's secret by
+   its name: never a secret's value); Variable adds one. Each change is kept at once. *@
+@inject DocumentModesClient Modes
+@inject Dialogs Dialogs
+
+<aside class="side-pane wb-run-settings" aria-label="Run settings">
+    <div class="side-pane-head"><strong>Run settings</strong>
+        <button type="button" class="btn small ghost icon" aria-label="Close" title="Close" @onclick="OnClose"><Icon Name="close" /></button>
+    </div>
+    @if (Path is null)
+    {
+        <p class="hint app-empty">Save the script first</p>
+    }
+    else if (_settings is { } settings)
+    {
+        <section class="app-section">
+            <h3 class="app-heading">Arguments</h3>
+            <input type="text" class="app-input mono wb-run-args" placeholder="--date 2026-11-14" aria-label="Arguments" value="@settings.Arguments"
+                   @oninput="e => _typedArgs = e.Value?.ToString()" @onchange="ArgumentsAsync" @onkeydown="ArgumentsKey" @onkeydown:stopPropagation="true" />
+        </section>
+        <section class="app-section">
+            <div class="app-heading-row"><h3 class="app-heading">Environment variables</h3>
+                <button type="button" class="btn small ghost wb-run-add" @onclick="AddAsync"><Icon Name="plus" /> Variable</button>
+            </div>
+            @foreach (var variable in settings.Variables)
+            {
+                var v = variable;
+                <div class="wb-run-var" data-variable="@v.Name">
+                    <div class="wb-run-var-head"><span class="mono">@v.Name</span> <span class="hint">@(v.Why == "added" ? string.Empty : v.Why)</span></div>
+                    <div class="wb-run-var-source">
+                        <Icon Name="@(v.From switch { "value" => "edit", "vault" => "key", _ => "desktop" })" />
+                        <select class="wb-run-source" aria-label="@($"{v.Name}: where it comes from")" value="@(v.From == "vault" ? $"vault:{v.Vault}" : v.From)" @onchange="e => SourceAsync(v, e.Value?.ToString())">
+                            <option value="env">This computer</option>
+                            @if (!v.LooksSecret)
+                            {
+                                <option value="value">Plain value</option>
+                            }
+                            @foreach (var vault in Vaults)
+                            {
+                                <option value="@($"vault:{vault}")">Key vault · @vault</option>
+                            }
+                        </select>
+                    </div>
+                    @if (v.From == "value")
+                    {
+                        <input type="text" class="app-input" aria-label="@($"{v.Name}'s value")" value="@v.Value" @onchange="e => SetAsync(v with { Value = e.Value?.ToString() })" @onkeydown:stopPropagation="true" />
+                    }
+                    else if (v.From == "vault")
+                    {
+                        <input type="text" class="app-input mono" placeholder="the secret's name" aria-label="@($"{v.Name}'s secret in {v.Vault ?? "the vault"}")" value="@v.Secret"
+                               @onchange="e => SecretAsync(v, e.Value?.ToString())" @onkeydown:stopPropagation="true" />
+                    }
+                </div>
+            }
+        </section>
+    }
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+</aside>
+
+@code {
+    private RunSettings? _settings;
+    private Exception? _error;
+    private string? _typedArgs;
+    private string? _shownFor;
+
+    /// <summary>The script's file (null: not saved yet).</summary>
+    [Parameter]
+    public string? Path { get; set; }
+
+    /// <summary>The key vaults a variable may come from.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Vaults { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Path == _shownFor || Path is null)
+        {
+            return;
+        }
+        _shownFor = Path;
+        await DoAsync(async () => _settings = await Modes.RunSettingsAsync(Path));
+    }
+
+    private Task SendAsync(string arguments, IReadOnlyList<RunVariable> variables) => DoAsync(async () =>
+    {
+        if (Path is not null)
+        {
+            _settings = await Modes.SetRunSettingsAsync(Path, arguments, variables);
+        }
+    });
+
+    private Task ArgumentsAsync(ChangeEventArgs e)
+    {
+        _typedArgs = null;
+        return _settings is { } s ? SendAsync(e.Value?.ToString() ?? string.Empty, s.Variables) : Task.CompletedTask;
+    }
+
+    private async Task ArgumentsKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && _settings is { } s && _typedArgs is { } typed)
+        {
+            _typedArgs = null; // kept now (a change is also kept on leaving the box)
+            await SendAsync(typed, s.Variables);
+        }
+    }
+
+    private Task SetAsync(RunVariable changed) => _settings is { } s
+        ? SendAsync(s.Arguments, s.Variables.Select(v => v.Name == changed.Name ? changed : v).ToList())
+        : Task.CompletedTask;
+
+    private Task SourceAsync(RunVariable v, string? chosen) => chosen is { } c && c.StartsWith("vault:", StringComparison.Ordinal)
+        ? SetAsync(v with { From = "vault", Vault = c[6..], Secret = v.Secret ?? v.Name.ToLowerInvariant().Replace('_', '-') })
+        : SetAsync(v with { From = chosen ?? "env" });
+
+    private Task SecretAsync(RunVariable v, string? secret) => secret is { Length: > 0 } ? SetAsync(v with { Secret = secret }) : Task.CompletedTask;
+
+    private async Task AddAsync()
+    {
+        if (_settings is not { } s || await Dialogs.AskTextAsync("The variable's name", "Its name, as the script reads it from its environment.", "Name", string.Empty, "Add") is not { Length: > 0 } name)
+        {
+            return;
+        }
+        await SendAsync(s.Arguments, [.. s.Variables, new RunVariable(name.Trim(), "added", false, "env")]);
+    }
+
+    private async Task DoAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

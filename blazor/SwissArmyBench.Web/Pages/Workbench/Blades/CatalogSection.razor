@@ -1,0 +1,86 @@
+@* The Blades pane's Catalog (the classic catalogRail.ts tree): a loaded catalog chosen, searched (its tables as
+   schema.table, its columns as table.column; Nothing matches.), its schemas folded open to their tables; Refresh and
+   Remove this catalog; a table's click its details (where it is and its columns, Open as grid, Copy the name, Copy
+   the SELECT, its first rows), its right click Open as grid and, a Power BI dataset's, Import its relationships.
+   Logic in CatalogSection.razor.cs. *@
+@using SwissArmyBench.Web.Api.Blades
+
+<details class="files-group catalog-section" open>
+    <summary>Catalog</summary>
+    @if (_catalogs.Count == 0)
+    {
+        <p class="hint">No catalog is loaded. <a href="connections" class="link">Add connection</a></p>
+    }
+    else
+    {
+        <div class="catalog-head">
+            <select aria-label="Catalog" value="@_current?.Name" @onchange="e => ChooseAsync(e.Value?.ToString())">
+                @foreach (var c in _catalogs)
+                {
+                    <option value="@c.Name">@c.Name</option>
+                }
+            </select>
+            <button type="button" class="btn small ghost icon" aria-label="Refresh" title="@($"Refresh {_current?.Name}")" @onclick="RefreshAsync"><Icon Name="play" /></button>
+            <button type="button" class="btn small ghost icon" aria-label="Remove this catalog" title="Remove this catalog" @onclick="RemoveAsync"><Icon Name="trash" /></button>
+        </div>
+        <input type="search" class="side-pane-search" placeholder="Search" aria-label="Search the catalog" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" @onkeydown="SearchKeyAsync" />
+        @if (_found is { } found)
+        {
+            @if (found.Tables.Count == 0 && found.Columns.Count == 0)
+            {
+                <p class="hint">Nothing matches.</p>
+            }
+            <ul class="files-list" role="tree" aria-label="Found">
+                @foreach (var t in found.Tables)
+                {
+                    <li><button type="button" class="link catalog-table" role="treeitem" @onclick="() => ShowAsync(t)" @oncontextmenu="e => MenuAsync(e, t)" @oncontextmenu:preventDefault="true">@Label(t)</button></li>
+                }
+                @foreach (var c in found.Columns)
+                {
+                    <li><button type="button" class="link catalog-column" role="treeitem" @onclick="() => ShowAsync(c)">@($"{c.Table}.{c.Column}")</button></li>
+                }
+            </ul>
+        }
+        else
+        {
+            <ul class="files-list" role="tree" aria-label="@(_current?.Name ?? "Catalog")">
+                @foreach (var s in _schemas)
+                {
+                    <li>
+                        <details @ontoggle="() => OpenSchemaAsync(s)">
+                            <summary @onclick="() => _schema = s">@(s.Schema.Length > 0 ? s.Schema : "(no schema)") <span class="muted">@(s.Tables + s.Views)</span></summary>
+                            <ul class="files-list">
+                                @foreach (var t in _tables.GetValueOrDefault(s.Schema) ?? [])
+                                {
+                                    <li><button type="button" class="link catalog-table" role="treeitem" @onclick="() => ShowAsync(t)" @oncontextmenu="e => MenuAsync(e, t)" @oncontextmenu:preventDefault="true">@Label(t)</button></li>
+                                }
+                            </ul>
+                        </details>
+                    </li>
+                }
+            </ul>
+        }
+        @if (_schema is { } schema && _shown is null && Dax)
+        {
+            <div class="catalog-detail">
+                <h2>@schema.Schema</h2>
+                <p class="hint">@($"Dataset in {_current?.Name} · DAX")</p>
+                <button type="button" class="btn small primary" @onclick="() => ImportAsync(schema.Schema)"><Icon Name="import" /> Import its relationships</button>
+            </div>
+        }
+        else if (_schema is { } plain && _shown is null)
+        {
+            <p class="hint">@($"Schema in {_current?.Name}")</p>
+        }
+        @if (_shown is { } shown)
+        {
+            <CatalogTableDetail Catalog="@(_current?.Name ?? string.Empty)" Table="shown" Dax="Dax" />
+        }
+    }
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+</details>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="table" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+<BladeActionRunner @ref="_runner" />

@@ -1,0 +1,29 @@
+@* An HTML cell's design (the classic workbenchHtml.ts): the cell's HTML drawn in a walled-off frame, its
+   {{ name }}s filled from the cell's last run by the server's rules; a cell with names not run yet says so with Run.
+   The pane's bottom edge drags (the arrow keys too: Up and Down, Home and End; Enter or Space fits it to the
+   design). Logic in HtmlDesign.razor.cs. *@
+@implements IAsyncDisposable
+
+<div class="wb-design @(Cell.Height is null ? string.Empty : "sized")">
+    @if (_state.Length > 0)
+    {
+        <div class="wb-design-bar">
+            <span class="wb-design-state" role="status">@_state</span>
+            <span class="status-spacer"></span>
+            <button type="button" class="btn small ghost wb-design-run" title="Run: fill the names from the kernel (Ctrl+Enter)" @onclick="OnRun"><Icon Name="play" /> Run</button>
+        </div>
+    }
+    <div class="wb-design-stage" style="@StageStyle" @ref="_stage"></div>
+    @if (_notes.Count > 0)
+    {
+        <div class="wb-design-notes hint">
+            @foreach (var note in _notes)
+            {
+                <div>@note</div>
+            }
+        </div>
+    }
+    <div class="wb-design-grip" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="Resize the design"
+         aria-valuemin="@MinHeight" aria-valuemax="@MaxHeight" aria-valuenow="@Shown" title="Drag to resize the design (arrow keys too; double-click fits it)"
+         @ref="_grip" @onkeydown="GripKeyAsync" @ondblclick="() => SizeAsync(null)"></div>
+</div>

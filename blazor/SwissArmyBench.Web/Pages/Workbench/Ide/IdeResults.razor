@@ -1,0 +1,30 @@
+@* Places found across the project (the classic workbenchIde.ts placeList): grouped by file with their count, each
+   line a click that goes there. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<div class="ide-results" role="tree" aria-label="Results">
+    @foreach (var file in Places.GroupBy(p => p.Path ?? Current ?? string.Empty))
+    {
+        <section class="ide-results-file">
+            <strong title="@file.Key"><Icon Name="code" /> @System.IO.Path.GetFileName(file.Key)<span class="hint"> @file.Count()</span></strong>
+            @foreach (var place in file)
+            {
+                <button type="button" class="ide-result" role="treeitem" data-line="@place.Line" @onclick="() => OnGo.InvokeAsync(place)">
+                    <span class="ide-result-line">@place.Line</span><span class="mono">@(place.Text ?? place.Name)</span>
+                </button>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<IdePlace> Places { get; set; } = [];
+
+    /// <summary>The open document's path (a place with none is in it).</summary>
+    [Parameter]
+    public string? Current { get; set; }
+
+    [Parameter]
+    public EventCallback<IdePlace> OnGo { get; set; }
+}

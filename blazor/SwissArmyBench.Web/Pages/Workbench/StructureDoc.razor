@@ -1,0 +1,146 @@
+@* A structure's tab beside the code (the classic structureDoc.ts, 2026-11-22): a JSON, YAML, XML or TOML file opened
+   on the Notebooks or Scripts page, an IDE: the bar (its name, the dirty dot, its format, Save, Save as…, Cancel,
+   Tree | Text | Both, Format, "…": Open on the Structures page, Copy path, Copy as code), its text in Monaco
+   editable at all times (the server's parse its realtime linter), the tree in its place or beside it kept in step
+   (a node's right click: Copy path, Copy as code, Add key…, Duplicate, Move up and down, Delete), the search with
+   Previous and Next (Enter, Shift+Enter; Escape clears), the selected node's path with its actions, Transform
+   (Pick, Filter…, Sort…, Flatten, Open as grid) making a view of it through steps (each step's ×), and its file
+   changed on disk (Reload, Keep mine; a gone file: Save as…, Close). Logic in StructureDoc.razor.cs,
+   StructureDoc.Edits.cs (the tree's edits and the steps) and StructureDoc.Disk.cs (saving and the disk). *@
+
+<div class="structure-doc structure-ide view-@_view" data-structure="@_shown?.Id">
+    <div class="ide-bar" role="toolbar" aria-label="Structure">
+        <strong class="ide-name">@(_shown?.Name ?? "Structure")</strong>
+        @if (Dirty)
+        {
+            <span class="dirty-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes">●</span>
+        }
+        <span class="chip sd-format-chip">@FormatName</span>
+        <button type="button" class="btn small ghost ide-btn" title="Save (Ctrl+S)" @onclick="() => SaveAsync()"><Icon Name="save" /> Save</button>
+        <button type="button" class="btn small ghost ide-btn" @onclick="() => SaveAsAsync()">Save as…</button>
+        <button type="button" class="btn small ghost ide-btn" disabled="@(_shown?.Path is null)" title="The file's own text again" @onclick="CancelAsync">Cancel</button>
+        <span class="spacer"></span>
+        <div class="segmented sd-views" role="group" aria-label="View">
+            @foreach (var (view, label) in _views)
+            {
+                var v = view;
+                <button type="button" class="btn small sd-view-btn" data-view="@v" aria-pressed="@(_view == v ? "true" : "false")" @onclick="() => SetViewAsync(v)">@label</button>
+            }
+        </div>
+        <button type="button" class="btn small ghost ide-btn sd-format" title="Format: written again in its own format" @onclick="FormatAsync"><Icon Name="align" /> Format</button>
+        <button type="button" class="btn small ghost icon" aria-label="More" title="More" aria-haspopup="menu" @onclick="ShowMore"><Icon Name="more" /></button>
+    </div>
+    @if (_note is { } note)
+    {
+        <div class="ide-note-row @note.Kind" role="status">
+            <Icon Name="warning" /> <span>@note.Words</span>
+            @switch (note.Kind)
+            {
+                case "sd-warning":
+                    <button type="button" class="btn small ghost ide-btn" @onclick="() => _note = null">OK</button>
+                    break;
+                case "sd-gone":
+                    <button type="button" class="btn small ide-btn" @onclick="() => SaveAsAsync()">Save as…</button>
+                    <button type="button" class="btn small ghost ide-btn" @onclick="OnClose">Close</button>
+                    break;
+                default:
+                    <button type="button" class="btn small primary ide-btn" @onclick="ReloadNowAsync">Reload</button>
+                    <button type="button" class="btn small ghost ide-btn" @onclick="KeepMineAsync">Keep mine</button>
+                    break;
+            }
+        </div>
+    }
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_shown is { } shown)
+    {
+        <div class="sd-body">
+            @if (_view != "text")
+            {
+                <div class="sd-stage">
+                    <div class="sd-find" role="search">
+                        <Icon Name="zoom" />
+                        <input type="search" class="sd-search" placeholder="Search keys and values" aria-label="Search the structure" spellcheck="false" data-no-variables
+                               value="@_words" @oninput="SearchTypedAsync" @onkeydown="SearchKeyAsync" />
+                        <span class="sd-count muted" aria-live="polite">@CountWords</span>
+                        <button type="button" class="btn small ghost icon sd-prev" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled="@(_matches.Count < 2)" @onclick="() => Step(-1)"><Icon Name="up" /></button>
+                        <button type="button" class="btn small ghost icon sd-next" aria-label="Next match" title="Next match (Enter)" disabled="@(_matches.Count < 2)" @onclick="() => Step(1)"><Icon Name="down" /></button>
+                        <span class="wb-grow"></span>
+                        @if ((shown.Steps ?? []).Count > 0)
+                        {
+                            <div class="segmented sd-through" role="group" aria-label="What the tree shows">
+                                <button type="button" class="btn small sd-view-btn" data-through="file" aria-pressed="@(_through ? "false" : "true")" @onclick="() => ShowThroughAsync(false)">The file</button>
+                                <button type="button" class="btn small sd-view-btn" data-through="result" aria-pressed="@(_through ? "true" : "false")" @onclick="() => ShowThroughAsync(true)">Through its steps</button>
+                            </div>
+                        }
+                    </div>
+                    <div class="sd-path" role="toolbar" aria-label="The selected node">
+                        <code class="sd-path-text" title="Its path">@_selected</code>
+                        <button type="button" class="btn small ghost icon sd-copy-path" aria-label="Copy path" title="Copy path" @onclick="CopyPathAsync"><Icon Name="copy" /></button>
+                        @if (PythonBeside)
+                        {
+                            <button type="button" class="btn small ghost sd-copy-code" title="@($"Copy as code: {StructureFind.Code(_selected)} (data: the file's value)")" @onclick="CopyCodeAsync"><Icon Name="code" /> Copy as code</button>
+                        }
+                        <span class="wb-grow"></span>
+                        @if (!_through && SelectedValue is { } node)
+                        {
+                            @if (node.ValueKind == System.Text.Json.JsonValueKind.Object)
+                            {
+                                <button type="button" class="btn small ghost sd-add" @onclick="() => AddKey(_selected)"><Icon Name="plus" /> Add key…</button>
+                            }
+                            @if (_selected != SwissArmyBench.Web.Components.StructurePath.Root)
+                            {
+                                <button type="button" class="btn small ghost icon sd-duplicate" aria-label="Duplicate" title="Duplicate" @onclick='() => EditAsync("duplicate", _selected)'><Icon Name="duplicate" /></button>
+                                <button type="button" class="btn small ghost icon sd-delete" aria-label="Delete" title="Delete" @onclick='() => EditAsync("remove", _selected)'><Icon Name="trash" /></button>
+                            }
+                        }
+                        @if (SelectedValue is not null)
+                        {
+                            <button type="button" class="btn small ghost sd-transform" aria-haspopup="menu" title="Make a view of it through steps, or a grid (the file stays as it is)" @onclick="ShowTransform"><Icon Name="steps" /> Transform</button>
+                        }
+                    </div>
+                    @if ((shown.Steps ?? []).Count > 0)
+                    {
+                        <div class="sd-steps" role="list" aria-label="Steps">
+                            <span class="muted sd-steps-label">Steps</span>
+                            @foreach (var (step, i) in (shown.Steps ?? []).Select((s, i) => (s, i)))
+                            {
+                                var index = i;
+                                <span class="structures-step" role="listitem" data-op="@step.Op"><span>@step.Words</span>
+                                    <button type="button" class="structures-step-x" aria-label="Remove step @(index + 1)" title="Remove" @onclick="() => RemoveStepAsync(index)"><Icon Name="close" /></button></span>
+                            }
+                        </div>
+                    }
+                    @if (TreeProblem is { } problem)
+                    {
+                        <div class="sd-error" role="status"><Icon Name="warning" /> <span>@problem</span></div>
+                    }
+                    <div class="sd-tree" role="tree" aria-label="@shown.Name">
+                        @if (ShownValue is { } value)
+                        {
+                            <SwissArmyBench.Web.Components.StructureNode Name="@shown.Name" Path="@SwissArmyBench.Web.Components.StructurePath.Root" Value="value" Selected="@_selected"
+                                           OnSelect="p => _selected = p" OnMenu="NodeMenu" Marked="_marked" Found="@Found" Unfold="_unfold" />
+                        }
+                    </div>
+                </div>
+            }
+            @if (_view != "tree")
+            {
+                <div class="sd-text">
+                    <CodeEditor Value="@_editorText" Language="@Language" Label="@($"{shown.Name} text")" OnChange="TextChangedAsync" OnKey="EditorKeyAsync" />
+                </div>
+            }
+        </div>
+    }
+    else if (_error is null)
+    {
+        <div class="loading-block">Opening…</div>
+    }
+</div>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_asking is { } asking)
+{
+    <StructureFieldsDialog Title="@asking.Title" Fields="asking.Fields" OnClose="() => _asking = null" OnGo="AnsweredAsync" />
+}

@@ -20,6 +20,10 @@ public partial class OutputView
     [Parameter, EditorRequired]
     public JsonElement Output { get; set; }
 
+    /// <summary>The document's name: a card sent to Analyze is titled "From" it.</summary>
+    [Parameter]
+    public string Document { get; set; } = "the Workbench";
+
     /// <summary>A picture's address (a PNG or JPEG as it came; an SVG encoded), or null.</summary>
     private string? Picture
     {

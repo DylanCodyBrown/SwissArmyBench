@@ -71,6 +71,18 @@ public static class Program
         services.AddScoped<SwissArmyBench.Web.Api.LocalApi.LocalApiClient>();
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
+        services.AddScoped<LineageClient>();
+        services.AddScoped<ImportClient>();
+        services.AddScoped<DocumentModesClient>();
+        services.AddScoped<PythonsClient>();
+        services.AddScoped<StructureTabClient>();
+        services.AddScoped<ExportsClient>();
+        services.AddScoped<AgentInboxClient>();
+        services.AddScoped<ScriptIdeClient>();
+        services.AddScoped<BoardClient>();
+        services.AddScoped<DebugClient>();
+        services.AddScoped<SwissArmyBench.Web.Api.Blades.BladesClient>();
+        services.AddScoped<SwissArmyBench.Web.Api.Blades.CatalogClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();

@@ -7,6 +7,9 @@
 // colours ("theme:accent", "theme:accent/0.2"): read from the page's tokens at each draw.
 import Plotly from "plotly.js-dist-min";
 
+// The board's markdown export takes each figure's picture (board.js pictures) through Plotly.toImage.
+window.Plotly ??= Plotly;
+
 const MAP_TRACES = /^(scattergeo|choropleth|scattermapbox|choroplethmapbox|densitymapbox|scattermap|choroplethmap|densitymap)$/;
 
 function safeFigure(text) {

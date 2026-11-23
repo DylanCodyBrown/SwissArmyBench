@@ -21,7 +21,8 @@ def made_up_notebook(server: dict[str, Any], name: str) -> str:
 
 
 def type_in_new_cell(page: Page, kind: str, code: str) -> None:
-    page.click(f".wb-notebook-bar button:has-text('{kind}')")
+    page.click(".wb-gcontrols button[aria-label='Add cell']")
+    page.click(f".context-menu [role=menuitem]:has-text('{kind}')")
     page.locator(".wb-cell.selected .monaco-editor").last.wait_for()
     page.wait_for_timeout(300)  # the editor takes the focus once Monaco is made
     page.keyboard.type(code)
@@ -98,7 +99,7 @@ def test_the_blades_pane_inserts_a_line(browser: Browser, server: dict[str, Any]
     first = pane.locator(".blade-item").first
     expect(first).to_be_visible()
     name = first.locator(".blade-name").inner_text()
-    first.locator("button").click()
+    first.locator("button[aria-label^=Insert]").click()
     expect(page.locator(".wb-script-editor .view-lines")).to_contain_text(name.split(" ")[0])
     expect(page.locator(".files-pane")).to_be_visible()
     page.close()

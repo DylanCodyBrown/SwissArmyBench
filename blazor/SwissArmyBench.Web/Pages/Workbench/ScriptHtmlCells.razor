@@ -1,0 +1,28 @@
+@* A script's HTML cells drawn (the classic workbenchScriptState.ts): each `# %% [7] [html]` cell's design under the
+   code, its line's words beside it ("HTML · click this line to edit"; a click goes to its line), Run filling its
+   names from the script's session. *@
+
+@if (Cells.Count > 0)
+{
+    <section class="wb-script-html" aria-label="HTML cells">
+        @foreach (var cell in Cells)
+        {
+            var shown = cell;
+            <div class="wb-script-html-cell" data-number="@cell.Number">
+                <button type="button" class="link wb-script-html-line" title="Go to its line" @onclick="() => OnGoTo.InvokeAsync(shown.Number)">HTML · click this line to edit</button>
+                <HtmlDesign Cell="shown" OnRun="() => OnRun.InvokeAsync(shown)" OnResized="() => Task.CompletedTask" />
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CellModel> Cells { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<int> OnGoTo { get; set; }
+
+    [Parameter]
+    public EventCallback<CellModel> OnRun { get; set; }
+}

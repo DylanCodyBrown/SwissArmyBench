@@ -1,0 +1,170 @@
+@* Insert a snippet (the classic starters.ts pickSnippet and fillSnippet): the snippets of a cell's language (yours
+   and the starters'), searched, the mode's families first with Show all; then the chosen one's form, a box for each
+   <<placeholder>> (its choices as a list), Insert (Enter too) putting the text the server filled in. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Workbench
+@using SwissArmyBench.Web.Api.Blades
+@inject WorkbenchClient Workbench
+@inject BladesClient Blades
+@inject SwissArmyBench.Web.Api.App.AppClient App
+
+@if (_form is { } form)
+{
+    <AppDialog Title="@Text(form, "name")" OnClose="OnClose">
+        <ChildContent>
+            <div class="form-grid snippet-fields" @onkeydown="FormKeyAsync">
+                @foreach (var p in Placeholders(form))
+                {
+                    var name = Text(p, "name");
+                    <label class="field"><span>@Text(p, "label")</span>
+                        <input type="@(Text(p, "kind") == "number" ? "number" : "text")" spellcheck="false" aria-label="@Text(p, "label")" data-placeholder="@name"
+                               value="@_values.GetValueOrDefault(name)" @oninput="e => _values[name] = e.Value?.ToString() ?? string.Empty" />
+                    </label>
+                }
+            </div>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+            <button type="button" class="btn primary" @onclick="InsertAsync"><Icon Name="plus" /> Insert</button>
+        </Foot>
+    </AppDialog>
+}
+else
+{
+    <AppDialog Title="@($"Insert {Words}")" OnClose="OnClose">
+        <ChildContent>
+            <div class="snippet-head">
+                <input type="search" class="cat-search" placeholder="Search" aria-label="Search snippets" spellcheck="false" @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyAsync" />
+                @if (!_every)
+                {
+                    <button type="button" class="btn small ghost snippet-all" aria-pressed="false" @onclick="() => _every = true">Show all</button>
+                }
+            </div>
+            <ul class="snippet-list" role="listbox" aria-label="Snippets">
+                @foreach (var b in Shown)
+                {
+                    <li><button type="button" class="snippet-choice" role="option" @onclick="() => ChooseAsync(b.Name)"><span class="snippet-choice-name">@b.Name</span> <span class="hint">@b.Description</span></button></li>
+                }
+                @if (_found is not null && Shown.Count == 0)
+                {
+                    <li class="empty">No snippet matches</li>
+                }
+            </ul>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private List<BladeSummary>? _found;
+    private JsonElement? _form;
+    private string _search = string.Empty;
+    private readonly Dictionary<string, string> _values = [];
+    private Exception? _error;
+
+    /// <summary>The cell's language: python, sql, dax, html or markdown (the snippets that fit it).</summary>
+    [Parameter]
+    public string Language { get; set; } = "python";
+
+    /// <summary>A snippet chosen already (the Blades pane's Insert): its form at once.</summary>
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnInsert { get; set; }
+
+    private string Words => Language switch
+    {
+        "dax" => "a DAX snippet",
+        "html" => "an HTML snippet",
+        "markdown" => "a Markdown snippet",
+        _ => "a Python snippet",
+    };
+
+    private bool _every = true;
+    private IReadOnlyList<string> _families = [];
+
+    private List<BladeSummary> Shown => (_found ?? [])
+        .Where(b => _every || string.IsNullOrEmpty(b.Family) || _families.Contains(b.Family))
+        .Where(b => _search.Trim().Length == 0 || $"{b.Name} {b.Description} {string.Join(' ', b.Tags ?? [])}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private static string Text(JsonElement e, string name) => e.TryGetProperty(name, out var v) ? v.ToString() : string.Empty;
+
+    private static IEnumerable<JsonElement> Placeholders(JsonElement form) =>
+        form.TryGetProperty("placeholders", out var p) && p.ValueKind == JsonValueKind.Array ? p.EnumerateArray() : [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (Name is { } name)
+            {
+                await ChooseAsync(name);
+                return;
+            }
+            var mine = (await Workbench.BladesAsync()).Blades.Where(b => b.Kind == "snippet" && Fits(b));
+            var pack = (await Workbench.StartersAsync()).Families.SelectMany(f => f.Blades).Where(Fits);
+            _found = mine.Concat(pack).ToList();
+            // The open project's families first (Show all the rest), when it has some among these.
+            _families = (await App.ModeAsync()).Mode.Families ?? [];
+            _every = !_found.Any(b => b.Family is { Length: > 0 } f && _families.Contains(f));
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private bool Fits(BladeSummary b) => (b.Language ?? string.Empty) == Language || (Language == "python" && b.Language == "streamlit");
+
+    private Task SearchKeyAsync(KeyboardEventArgs e) => e.Key == "Enter" && Shown.FirstOrDefault() is { } first ? ChooseAsync(first.Name) : Task.CompletedTask;
+
+    private async Task ChooseAsync(string name)
+    {
+        try
+        {
+            var form = await Blades.SnippetAsync(name);
+            if (!Placeholders(form).Any())
+            {
+                await OnInsert.InvokeAsync(Text(form, "text"));
+                return;
+            }
+            foreach (var p in Placeholders(form))
+            {
+                _values[Text(p, "name")] = Text(p, "default");
+            }
+            _form = form;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private Task FormKeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? InsertAsync() : Task.CompletedTask;
+
+    private async Task InsertAsync()
+    {
+        if (_form is not { } form)
+        {
+            return;
+        }
+        try
+        {
+            var filled = await Blades.FillSnippetAsync(Text(form, "name"), _values);
+            await OnInsert.InvokeAsync(Text(filled, "text"));
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

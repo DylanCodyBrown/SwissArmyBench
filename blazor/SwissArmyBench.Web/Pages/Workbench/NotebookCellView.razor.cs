@@ -8,7 +8,37 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 
 public partial class NotebookCellView
 {
+    private static readonly IReadOnlyList<EditorMenuAction> _lineageMenu = [new("lineage", "Lineage")];
+
     private CodeEditor? _editor;
+    private int _nameKey;
+    private string? _typedName;
+
+    /// <summary>The editor's right-click Lineage: this cell back to the data.</summary>
+    [Parameter]
+    public EventCallback<CellModel> OnLineage { get; set; }
+
+    public CodeEditor? Editor => _editor;
+
+    /// <summary>F1: help on the name at the cursor in this cell's editor.</summary>
+    public Task<string?> HelpAsync() => _editor?.HelpAtCursorAsync() ?? Task.FromResult<string?>(null);
+
+    private Task MenuActionAsync(EditorMenuPick pick) => pick.Id == "lineage" ? OnLineage.InvokeAsync(Cell) : Task.CompletedTask;
+
+    /// <summary>The name box: Enter keeps the name, Escape puts the saved one back; either leaves the box.</summary>
+    private async Task NameKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("Enter" or "Escape"))
+        {
+            return;
+        }
+        if (e.Key == "Enter" && _typedName is { } typed)
+        {
+            await NameChangedAsync(new ChangeEventArgs { Value = typed });
+        }
+        _typedName = null;
+        _nameKey++; // the box made again: it shows the name kept and leaves the focus
+    }
 
     [Parameter, EditorRequired]
     public CellModel Cell { get; set; } = default!;
@@ -42,6 +72,39 @@ public partial class NotebookCellView
 
     [Parameter]
     public EventCallback<CellModel> OnDelete { get; set; }
+
+    /// <summary>More actions: the cell's menu, opened under its button.</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, MouseEventArgs At)> OnMenu { get; set; }
+
+    /// <summary>An error panel's fix, for the notebook to apply.</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, RunErrorFix Fix)> OnFix { get; set; }
+
+    /// <summary>An error panel's frame to go to (In your code, the call stack).</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, RunErrorFrame Frame)> OnGoTo { get; set; }
+
+    /// <summary>The ghost text providers the mode declares.</summary>
+    [Parameter]
+    public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
+
+    /// <summary>The notebook as a provider is told of it, with this cell the one edited.</summary>
+    [Parameter]
+    public Func<CellModel, object?>? InlineFor { get; set; }
+
+    private Func<object?>? InlineDocument => InlineFor is null || Cell.IsAppCell ? null : () => InlineFor(Cell);
+
+    /// <summary>The notebook's name, for the agent's title.</summary>
+    [Parameter]
+    public string Document { get; set; } = "the notebook";
+
+    /// <summary>Run up to here: every cell from the top to this one.</summary>
+    [Parameter]
+    public EventCallback<CellModel> OnRunTo { get; set; }
+
+    // A cell's name is at most this long (the classic MAX_CELL_NAME).
+    private const int MaxName = 80;
 
     [Parameter]
     public EventCallback<(CellModel Cell, string Line)> OnAnswer { get; set; }
@@ -87,6 +150,14 @@ public partial class NotebookCellView
         }
     }
 
+    public async Task RevealLineAsync(int line)
+    {
+        if (_editor is not null)
+        {
+            await _editor.RevealLineAsync(line);
+        }
+    }
+
     public async Task FocusAsync()
     {
         if (_editor is not null)
@@ -104,7 +175,7 @@ public partial class NotebookCellView
     private async Task KeyAsync(EditorKey key)
     {
         Cell.Source = key.Text;
-        if (Cell.Kind == "markdown" && key.Name is "run" or "runHere")
+        if (Cell.Kind is "markdown" or "html" && key.Name is "run" or "runHere")
         {
             Cell.Editing = false; // drawn again: Shift+Enter on Markdown shows it
         }
@@ -114,7 +185,14 @@ public partial class NotebookCellView
     private async Task KindChangedAsync(ChangeEventArgs e)
     {
         Cell.Kind = e.Value?.ToString() ?? "code";
-        Cell.Editing = Cell.Kind == "markdown";
+        Cell.Editing = Cell.Kind is "markdown" or "html";
+        await OnChanged.InvokeAsync(Cell);
+    }
+
+    private async Task NameChangedAsync(ChangeEventArgs e)
+    {
+        var name = e.Value?.ToString()?.Trim() ?? string.Empty;
+        Cell.Name = name.Length == 0 ? null : name;
         await OnChanged.InvokeAsync(Cell);
     }
 

@@ -1,0 +1,134 @@
+@* A blade's Refresh or Test as the classic bladeEditor.ts runBlade does it: a secret blade's values asked for this
+   one run (Values for this refresh: each its source, never kept); a missing package offered to install (Installing,
+   Installed, or Install failed); any other failure as "<name> did not run" with its words. Call RunAsync. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Blades
+@inject BladesClient Blades
+@inject SwissArmyBench.Web.State.Notes Notes
+
+@if (_needs is { } needs)
+{
+    <AppDialog Title="@($"Values for this {_action}")" OnClose="() => Answer(false)">
+        <ChildContent>
+            @foreach (var (env, source) in needs)
+            {
+                <label class="field"><span>@env <span class="hint">(@source)</span></span>
+                    <input type="password" autocomplete="off" aria-label="@env" @oninput="e => _typed[env] = e.Value?.ToString() ?? string.Empty" />
+                </label>
+            }
+            <p class="error-text">@_said</p>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="() => Answer(false)">Cancel</button>
+            <button type="button" class="btn primary" @onclick="() => Answer(true)">Run</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_failed is { } failed)
+{
+    <AppDialog Title="@failed.Title" OnClose="() => _failed = null">
+        <ChildContent><pre class="code-box">@failed.Words</pre></ChildContent>
+        <Foot><button type="button" class="btn ghost" @onclick="() => _failed = null">Close</button></Foot>
+    </AppDialog>
+}
+
+@code {
+    private Dictionary<string, string>? _needs;
+    private readonly Dictionary<string, string> _typed = [];
+    private TaskCompletionSource<bool>? _asked;
+    private string _action = "refresh";
+    private string _said = string.Empty;
+    private (string Title, string Words)? _failed;
+
+    // A refusal that a run can go on from: the values it needs, a package missing.
+    private const int Conflict = 409;
+    private const int Unprocessable = 422;
+    private const int Attempts = 3;
+
+    /// <summary>Refresh or Test a blade; true when it ran.</summary>
+    public async Task<bool> RunAsync(string name, string action)
+    {
+        _action = action;
+        var env = new Dictionary<string, string>();
+        for (var attempt = 0; attempt < Attempts; attempt++)
+        {
+            try
+            {
+                await Blades.RunActionAsync(name, action, env);
+                return true;
+            }
+            catch (ApiException error) when (error.Status is Conflict or Unprocessable && Said(error) is { } said)
+            {
+                if (said.TryGetProperty("needs", out var needs) && needs.ValueKind == JsonValueKind.Object)
+                {
+                    if (!await AskAsync(needs.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ToString())))
+                    {
+                        return false;
+                    }
+                    foreach (var typed in _typed)
+                    {
+                        env[typed.Key] = typed.Value;
+                    }
+                    continue;
+                }
+                if (said.TryGetProperty("missing", out var missing) && missing.TryGetProperty("packages", out var packages) && await InstallAsync(packages.EnumerateArray().Select(p => p.ToString()).ToList()))
+                {
+                    continue;
+                }
+                _failed = ($"{name} did not run", said.TryGetProperty("error", out var words) ? words.ToString() : error.Refusal.Error);
+                StateHasChanged();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static JsonElement? Said(ApiException error)
+    {
+        try
+        {
+            return JsonDocument.Parse(error.Body).RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private Task<bool> AskAsync(Dictionary<string, string> needs)
+    {
+        (_needs, _said, _asked) = (needs, string.Empty, new TaskCompletionSource<bool>());
+        _typed.Clear();
+        StateHasChanged();
+        return _asked.Task;
+    }
+
+    private void Answer(bool run)
+    {
+        if (run && _needs?.Keys.FirstOrDefault(k => _typed.GetValueOrDefault(k, string.Empty).Length == 0) is { } empty)
+        {
+            _said = $"Type {empty}.";
+            return;
+        }
+        _needs = null;
+        _asked?.TrySetResult(run);
+    }
+
+    private async Task<bool> InstallAsync(IReadOnlyList<string> packages)
+    {
+        var words = string.Join(", ", packages);
+        await Notes.SayAsync($"Installing {words}...");
+        try
+        {
+            await Blades.InstallAsync(packages);
+            await Notes.SayAsync($"Installed {words}.");
+            return true;
+        }
+        catch (ApiException error)
+        {
+            _failed = ("Install failed", error.Refusal.Details ?? error.Refusal.Error);
+            StateHasChanged();
+            return false;
+        }
+    }
+}

@@ -22,6 +22,9 @@ public partial class CodeEditor
     // Focus asked for before Monaco was made (a cell just added): given once it is.
     private bool _focusWhenMade;
 
+    // A line to show asked for before Monaco was made (a file just opened at a definition): shown once it is.
+    private int? _revealWhenMade;
+
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
@@ -67,6 +70,27 @@ public partial class CodeEditor
     [Parameter]
     public EventCallback OnFocus { get; set; }
 
+    /// <summary>The Scripts page's IDE moves (F12, Shift+F12, F2, Shift+Alt+F) at the cursor; set, the editor offers
+    /// them in its keys and its right-click menu.</summary>
+    [Parameter]
+    public EventCallback<IdeMove> OnIde { get; set; }
+
+    /// <summary>The debugger's gutter: set, a click there toggles a breakpoint and a right click opens its menu.</summary>
+    [Parameter]
+    public EventCallback<GutterClick> OnGutter { get; set; }
+
+    /// <summary>The code's own zoom keys (Ctrl+=, Ctrl+-, Ctrl+0, Ctrl + wheel), told as zoomIn, zoomOut, zoomReset.</summary>
+    [Parameter]
+    public bool Zoom { get; set; }
+
+    /// <summary>The ghost text providers the open project's mode declares (GitHub Copilot's), by language.</summary>
+    [Parameter]
+    public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
+
+    /// <summary>The document a provider is told of (a script's text, or a notebook's cells and this one), or null.</summary>
+    [Parameter]
+    public Func<object?>? InlineDocument { get; set; }
+
     /// <summary>The lint's problems at warning or worse, as they change.</summary>
     [Parameter]
     public EventCallback<int> OnProblems { get; set; }
@@ -82,11 +106,15 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline, menu = await MenuOptionsAsync() };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
                 await _editor.InvokeVoidAsync("focus");
+            }
+            if (_revealWhenMade is { } line)
+            {
+                await _editor.InvokeVoidAsync("revealLine", line);
             }
             return;
         }
@@ -126,9 +154,10 @@ public partial class CodeEditor
         }
     }
 
-    /// <summary>The line shown in the middle, the cursor at its start, the focus in the editor (Go to line).</summary>
+    /// <summary>The cursor to a line, scrolled into view, with the focus (an error's In your code, a definition).</summary>
     public async Task RevealLineAsync(int line)
     {
+        _revealWhenMade = _editor is null ? line : null;
         if (_editor is not null)
         {
             await _editor.InvokeVoidAsync("revealLine", line);
@@ -157,6 +186,68 @@ public partial class CodeEditor
         _known = text;
         return OnKey.InvokeAsync(new EditorKey(name, text));
     }
+
+    [JSInvokable]
+    public Task Ide(string name, string text, int line, int column, string word)
+    {
+        _known = text;
+        return OnIde.InvokeAsync(new IdeMove(name, text, line, column, word));
+    }
+
+    [JSInvokable]
+    public Task Gutter(int line, bool menu, double x, double y) => OnGutter.InvokeAsync(new GutterClick(line, menu, x, y));
+
+    public async Task SetBreakpointsAsync(IReadOnlyList<BreakpointMark> marks)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("setBreakpoints", marks);
+        }
+    }
+
+    /// <summary>The breakpoints' lines as edits have moved them, in line order.</summary>
+    public async Task<IReadOnlyList<int>> BreakpointLinesAsync() =>
+        _editor is null ? [] : (await _editor.InvokeAsync<int[]>("breakpointLines")).Order().ToList();
+
+    /// <summary>The line a paused run stopped at, or null to clear it.</summary>
+    public async Task SetExecutionLineAsync(int? line)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("setExecutionLine", line ?? 0);
+        }
+    }
+
+    public async Task SetFontSizeAsync(int px)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("setFontSize", px);
+        }
+    }
+
+    /// <summary>The problems the lint draws now (the status bar's Problems list).</summary>
+    public async Task<IReadOnlyList<EditorProblem>> ProblemsAsync() => _editor is null ? [] : await _editor.InvokeAsync<List<EditorProblem>>("problems");
+
+    /// <summary>Ruff is not in the document's Python: the Problems list offers to install it.</summary>
+    public async Task<bool> RuffMissingAsync() => _editor is not null && await _editor.InvokeAsync<bool>("ruffMissing");
+
+    public async Task RevealAsync(int line, int col)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("reveal", line, col);
+        }
+    }
+
+    /// <summary>Help on the name at the cursor (the server's hover words), or null when it has none.</summary>
+    public async Task<string?> HelpAtCursorAsync() => _editor is null ? null : await _editor.InvokeAsync<string?>("helpAtCursor");
+
+    public async Task<int> CursorLineAsync() => _editor is null ? 0 : await _editor.InvokeAsync<int>("cursorLine");
+
+    /// <summary>The document ghost text is asked over, with this editor's text as it is now.</summary>
+    [JSInvokable("InlineDocument")]
+    public object? AskedDocument() => InlineDocument?.Invoke();
 
     [JSInvokable]
     public Task Focused() => OnFocus.InvokeAsync();

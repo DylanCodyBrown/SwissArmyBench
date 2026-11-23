@@ -1,0 +1,155 @@
+@* The Data Explorer pane (the classic workbenchExplorer.ts and dataExplorer.ts): on the left of the code, off until
+   Ctrl+Shift+E. Its head: Table (Add a table: Open file…, a loaded catalog's, Search the catalog…, Add connection…,
+   Add API…), Blade (the blades and connections beside it), Pop out (the Catalog page in a window of its own), Close.
+   One search over everything that holds data, each result's Insert (its code into the focused document: a SQL cell
+   takes its SQL, the rest its Python) and Open; the project's files at its foot. *@
+@inject CatalogClient Catalog
+@inject NavigationManager Nav
+
+<aside class="wb-explorer" aria-label="Data Explorer" @onkeydown="KeyAsync">
+    <div class="wb-explorer-head">
+        <strong>Data Explorer</strong>
+        <span class="spacer"></span>
+        <button type="button" class="btn small ghost" title="Add a table" aria-haspopup="menu" @onclick="OnAddTable"><Icon Name="table" /> Table</button>
+        <button type="button" class="btn small ghost" title="Blades and connections" aria-pressed="@(_flyout ? "true" : "false")" @onclick="() => _flyout = !_flyout"><Icon Name="blade" /> Blade</button>
+        <button type="button" class="btn small ghost icon" aria-label="Pop out" title="Open the Data page in a window of its own" @onclick="OnPopOut"><Icon Name="popout" /></button>
+        <button type="button" class="btn small ghost icon" aria-label="Close the Data Explorer" title="Close (Ctrl+Shift+E)" @onclick="OnClose"><Icon Name="close" /></button>
+    </div>
+    <input type="search" class="wb-explorer-search" placeholder="Search tables, columns, connections…" aria-label="Search the data" value="@Text" @oninput="SearchAsync" />
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    <div class="wb-explorer-results">
+        @foreach (var group in (_answer?.Groups ?? []).Where(g => g.Count > 0))
+        {
+            <section data-kind="@group.Kind">
+                <h3 class="muted">@group.Label (@group.Count)</h3>
+                @foreach (var result in group.Results)
+                {
+                    var shown = result;
+                    <div class="wb-explorer-row" title="@string.Join(" › ", result.Path)">
+                        <Icon Name="@(string.IsNullOrEmpty(result.Icon) ? "table" : result.Icon)" /> <span>@result.Name</span>
+                        <span class="spacer"></span>
+                        @if (result.Insert is { } insert && (insert.Sql.Length > 0 || insert.Python.Length > 0))
+                        {
+                            <button type="button" class="btn small ghost" title="Insert its code where the cursor is" @onclick="() => OnInsert.InvokeAsync(insert)">Insert</button>
+                        }
+                        @if (result.Kind == "tables")
+                        {
+                            <button type="button" class="btn small ghost" @onclick="() => OnOpen.InvokeAsync(shown)">Open</button>
+                        }
+                    </div>
+                }
+            </section>
+        }
+    </div>
+    @if (Files.Count > 0)
+    {
+        <div class="wb-explorer-files" aria-label="The project's files">
+            @foreach (var file in Files)
+            {
+                var path = file;
+                <button type="button" class="btn small ghost wb-explorer-file" title="@path" @onclick="() => OnOpenFile.InvokeAsync(path)"><Icon Name="file" /> @System.IO.Path.GetFileName(path)</button>
+            }
+        </div>
+    }
+</aside>
+@if (_flyout)
+{
+    <div class="wb-explorer-flyout">
+        <button type="button" class="btn small ghost icon wb-flyout-close" aria-label="Close" title="Close (Escape)" @onclick="() => _flyout = false"><Icon Name="close" /></button>
+        @Flyout
+    </div>
+}
+
+@code {
+    private const int TypingPauseMilliseconds = 200;
+
+    private SearchAnswer? _answer;
+    private Exception? _error;
+    private bool _flyout;
+    private CancellationTokenSource? _typing;
+
+    [Parameter]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>What shows beside it when Blade is pressed (the Blades pane).</summary>
+    [Parameter]
+    public RenderFragment? Flyout { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string> Files { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnAddTable { get; set; }
+
+    [Parameter]
+    public EventCallback OnPopOut { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<InsertText> OnInsert { get; set; }
+
+    [Parameter]
+    public EventCallback<SearchResult> OnOpen { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnOpenFile { get; set; }
+
+    /// <summary>The blades beside it shown (the palette's data.blades) or put away (data.closeFlyout).</summary>
+    public void ShowFlyout(bool shown)
+    {
+        _flyout = shown;
+        StateHasChanged();
+    }
+
+    public bool FlyoutShown => _flyout;
+
+    /// <summary>Its search (the palette's explorer.search): the results, a line each.</summary>
+    public async Task<IReadOnlyList<SearchResult>> SearchAsync(string text)
+    {
+        Text = text;
+        await LoadAsync();
+        StateHasChanged();
+        return (_answer?.Groups ?? []).SelectMany(g => g.Results).ToList();
+    }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _answer = await Catalog.SearchAsync(Text);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task SearchAsync(ChangeEventArgs e)
+    {
+        Text = e.Value?.ToString() ?? string.Empty;
+        _typing?.Cancel();
+        _typing = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(TypingPauseMilliseconds, _typing.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return; // more typing came: only the last pause looks
+        }
+        await LoadAsync();
+    }
+
+    private void KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && _flyout)
+        {
+            _flyout = false;
+        }
+    }
+}

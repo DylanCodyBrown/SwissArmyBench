@@ -1,0 +1,29 @@
+@* The values of an error's moment (the classic workbenchErrors.ts valuesTable): each name, what it held and its
+   type; a table among them opens as a grid. *@
+
+<table class="wb-err-values">
+    <tbody>
+        @foreach (var row in Rows)
+        {
+            <tr>
+                <th scope="row"><code>@row.Name</code></th>
+                <td class="mono">
+                    @row.Repr
+                    @if (row.Table && OnOpenGrid.HasDelegate)
+                    {
+                        <button type="button" class="btn small ghost icon" aria-label="@($"Open {row.Name} as a grid")" title="@($"Open {row.Name} as a grid")" @onclick="() => OnOpenGrid.InvokeAsync(row.Name)"><Icon Name="export" /></button>
+                    }
+                </td>
+                <td class="hint">@row.Type</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SwissArmyBench.Web.Api.Workbench.RunErrorLocal> Rows { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<string> OnOpenGrid { get; set; }
+}

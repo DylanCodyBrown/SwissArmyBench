@@ -1,0 +1,53 @@
+@* Monaco's diff editor (interop/codeEditor.js diff): two texts side by side, read-only, their differences marked. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject ThemeState Theme
+
+<div class="diff-host" @ref="_host" role="region" aria-label="@Label"></div>
+
+@code {
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _diff;
+
+    [Parameter, EditorRequired]
+    public string Original { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Modified { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Language { get; set; } = "python";
+
+    [Parameter]
+    public string Label { get; set; } = "Compare";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/codeEditor.js");
+            _diff = await _module.InvokeAsync<IJSObjectReference>("diff", _host, Original, Modified, Language, Theme.Effective);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_diff is not null)
+            {
+                await _diff.InvokeVoidAsync("dispose");
+                await _diff.DisposeAsync();
+            }
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // the page is going
+        }
+    }
+}

@@ -1,0 +1,126 @@
+@* A failed run's panel (the classic workbenchErrors.ts, Visual Studio's Exception Helper): the error and its
+   message, Send to the agent, Python's hint, In your code (goes to the line), what it means, the fixes as buttons, the
+   values at that moment, the call stack (each run of library frames folded), the errors that led to it, and the
+   traceback with its colours behind a toggle with Copy. A right click: This error's menu. Logic in
+   ErrorPanel.razor.cs. *@
+
+@if (Entry is { } entry)
+{
+    <div class="wb-err" role="group" aria-label="@entry.Type" @oncontextmenu="ShowMenu" @oncontextmenu:preventDefault="true">
+        <div class="wb-err-head">
+            <span class="wb-err-type">@entry.Type</span><span class="wb-err-message">@(entry.Message.Length > 0 ? $": {entry.Message}" : string.Empty)</span>
+            <button type="button" class="btn small ghost wb-err-send" @onclick="() => SendAsync(false)"><Icon Name="agent" /> Send to the agent</button>
+        </div>
+        @if (entry.Hint.Length > 0)
+        {
+            <div class="wb-err-hint">@entry.Hint</div>
+        }
+        @if (Error?.Where is { Length: > 0 } where)
+        {
+            <button type="button" class="link wb-err-where" @onclick="() => GoToAsync(YourFrame)">In your code: @where</button>
+        }
+        @if (entry.Explanation.Length > 0)
+        {
+            <p class="wb-err-explain">@entry.Explanation</p>
+        }
+        @foreach (var note in entry.Notes)
+        {
+            <p class="hint">@note</p>
+        }
+        @if (entry.Group.Count > 0)
+        {
+            <ul class="wb-err-group">
+                @foreach (var line in entry.Group)
+                {
+                    <li class="mono">@line</li>
+                }
+            </ul>
+        }
+        @if (entry.Fixes.Count > 0)
+        {
+            <div class="wb-err-fixes" role="group" aria-label="Fixes">
+                @foreach (var fix in entry.Fixes)
+                {
+                    <button type="button" class="btn small ghost" @onclick="() => OnFix.InvokeAsync(fix)"><Icon Name="@FixIcon(fix)" /> @fix.Title.Replace("`", string.Empty)</button>
+                }
+            </div>
+        }
+        @if (YourFrame is { } frame && (frame.Values.Count > 0 || frame.Locals.Count > 0))
+        {
+            <details class="wb-err-section" open>
+                <summary>At that moment</summary>
+                @if (frame.Values.Count > 0)
+                {
+                    <ErrorValues Rows="frame.Values.Select(v => new RunErrorLocal(v.Expr, v.Repr, v.Type, false)).ToList()" OnOpenGrid="OnOpenGrid" />
+                }
+                @if (frame.Locals.Count > 0)
+                {
+                    <div><div class="hint">@($"{frame.Function}()'s variables")</div><ErrorValues Rows="frame.Locals" OnOpenGrid="OnOpenGrid" /></div>
+                }
+            </details>
+        }
+        @if (entry.Frames.Count > 1)
+        {
+            <details class="wb-err-section" open="@(entry.Frames.Count <= OpenStackFrames)">
+                <summary>Call stack</summary>
+                <ol class="wb-err-stack">
+                    @foreach (var run in StackRuns(entry.Frames))
+                    {
+                        <li>
+                            @if (run.Library)
+                            {
+                                <details class="wb-err-lib">
+                                    <summary>@run.Frames.Count frame@(run.Frames.Count == 1 ? string.Empty : "s") in @LibraryNames(run.Frames)</summary>
+                                    <ol>
+                                        @foreach (var f in run.Frames)
+                                        {
+                                            <li class="mono hint">@(f.Module.Length > 0 ? f.Module : f.File): @f.Function, line @f.Line<div>@f.Code.Trim()</div></li>
+                                        }
+                                    </ol>
+                                </details>
+                            }
+                            else
+                            {
+                                var f = run.Frames[0];
+                                <button type="button" class="link wb-err-frame @(f == YourFrame ? "current" : string.Empty)" @onclick="() => GoToAsync(f)">@FrameLabel(f)</button>
+                                @if (f.Code.Length > 0)
+                                {
+                                    <div class="mono wb-err-code">@f.Code.Trim()</div>
+                                }
+                            }
+                        </li>
+                    }
+                </ol>
+            </details>
+        }
+        @if (Error!.Chain.Count > 1)
+        {
+            var earlier = Error.Chain.Take(Error.Chain.Count - 1).ToList();
+            <details class="wb-err-section">
+                <summary>@(earlier.Count == 1 ? "The error that led to it" : $"The {earlier.Count} errors that led to it")</summary>
+                @foreach (var e in earlier)
+                {
+                    <div class="wb-err-chained">
+                        <strong>@e.Type: </strong>@e.Message
+                        <div class="hint">@(e.Relation == "cause" ? "Caused the next one" : "The next one happened while handling it")</div>
+                        @if (e.Explanation.Length > 0)
+                        {
+                            <p>@e.Explanation</p>
+                        }
+                    </div>
+                }
+            </details>
+        }
+        @if (Traceback.Length > 0)
+        {
+            <details class="wb-err-section">
+                <summary>Traceback <button type="button" class="btn small ghost icon" aria-label="Copy the traceback" title="Copy the traceback" @onclick="CopyTracebackAsync"><Icon Name="copy" /></button></summary>
+                <AnsiPre Class="wb-error" Text="@Traceback" />
+            </details>
+        }
+    </div>
+    @if (_menu is { } menu)
+    {
+        <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+    }
+}

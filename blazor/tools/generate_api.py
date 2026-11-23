@@ -328,6 +328,9 @@ ANSWERS += [
             "created": "double",
             "order": "double",
             "analysis": f"{JSON}?",
+            "spec": f"{JSON}?",
+            "vega_lite": f"{JSON}?",
+            "error": "string?",
         },
     ),
     Answer(
@@ -689,6 +692,9 @@ def made_up(info: dict[str, Any], tmp: Path) -> dict[str, str]:
     call(info, "POST", "/apis", {"spec": json.dumps(STORE_SPEC), "auth": {"type": "none"}})
     value = {"orders": [{"order_id": 1, "amount": 2.5}], "region": "North"}
     made = call(info, "POST", "/structures", {"kind": "object", "name": "made_up", "value": value})
+    # A chart card on the board (Add chart), so a card's chart fields have a sample.
+    chart = {"mark": "bar", "x": {"field": "status"}, "y": {"aggregate": "count"}}
+    call(info, "POST", f"/grids/{tables['orders']}/cards", {"kind": "chart", "title": "", "spec": chart})
     # A run on the Analyze board, so its cards and its run's math and code have a sample.
     columns = {"column": "amount"}
     run = call(

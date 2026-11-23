@@ -3,23 +3,22 @@
    it: the runs' outputs as they arrive, and a line of Python typed and run with Enter. Logic in
    ScriptView.razor.cs. *@
 
-<div class="wb-notebook-bar" role="toolbar" aria-label="Script">
-    <button type="button" class="btn small primary" title="Run file (F5)" @onclick="RunFileAsync" disabled="@_console.Running"><Icon Name="play" /> Run file</button>
-    <button type="button" class="btn small" title="Run selection (Ctrl+Enter)" @onclick="RunSelectionAsync" disabled="@_console.Running"><Icon Name="play" /> Run selection</button>
-    <span class="muted wb-problems" role="status">@ProblemWords</span>
-</div>
 <ErrorNote Error="_error" OnClose="() => _error = null" />
 <div class="wb-script">
     <div class="wb-script-editor">
-        <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="p => _problems = p" />
+        <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" OnIde="OnIde" OnGutter="GutterAsync"
+                    Inline="Inline" InlineDocument="InlineDocument" AgentWhere="@DocumentName" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
     </div>
-    <section class="wb-console" aria-label="Console">
+    <ScriptHtmlCells Cells="HtmlCells" OnGoTo="RevealCellAsync" OnRun="RunHtmlAsync" />
+    <DebugPanel @ref="_debug" Editor="_editor" Path="@Path" />
+    <section class="wb-console" aria-label="Console" hidden="@ConsoleHidden">
         <div class="wb-console-head">
             <strong>Console</strong>
             <button type="button" class="btn small ghost" @onclick="Clear">Clear</button>
         </div>
         <div class="wb-console-body">
-            <OutputArea Outputs="_console.Outputs" ErrorDetail="_console.ErrorDetail" Asking="_console.Asking" OnAnswer="AnswerAsync" />
+            <OutputArea Outputs="_console.Outputs" ErrorDetail="_console.ErrorDetail" Asking="_console.Asking" OnAnswer="AnswerAsync"
+                        Document="@(Path is null ? "the script" : System.IO.Path.GetFileName(Path))" OnFix="FixAsync" OnGoTo="GoToAsync" />
         </div>
         <form class="wb-console-line" @onsubmit="RunLineAsync" @onsubmit:preventDefault="true">
             <span aria-hidden="true">&gt;&gt;&gt;</span>

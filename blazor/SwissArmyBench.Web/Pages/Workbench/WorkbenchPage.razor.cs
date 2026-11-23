@@ -1,47 +1,76 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Files;
+using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Workbench;
+using SwissArmyBench.Web.Components;
+using SwissArmyBench.Web.Pages.Workbench.Tabs;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
 public partial class WorkbenchPage
 {
-    private OpenedNotebook? _notebook;
-    private OpenedScript? _script;
-    private string _scriptText = string.Empty;
-    private string? _path;
-    private double? _modified;
-    private bool _newDocument;
-    private bool _dirty;
+    private const string NothingSaves = "Nothing that saves is in front";
+
+    // The commands remembered as run lately (the palette's first lines).
+    private const int RecentCommands = 8;
+
+    private readonly TabLayout _layout = new();
+    private readonly List<OpenDocument> _documents = [];
+    private readonly Dictionary<int, OpenDocument> _byKey = [];
+    private readonly Dictionary<int, int> _problems = [];
+    private readonly List<string> _recentCommands = [];
+    private int _nextKey;
     private bool _loading;
-    private int _documentKey;
     private CodeTree? _tree;
     private IReadOnlyList<RecentFile> _recent = [];
     private IReadOnlyList<string> _connections = [];
     private bool _showFiles = true;
     private bool _showBlades;
+    private bool _full;
+    private bool _palette;
+    private ShownMenu? _menu;
     private (string Words, string Address)? _wrongPage;
     private Exception? _error;
-    private NotebookView? _notebookView;
-    private ScriptView? _scriptView;
     private string? _shownFor;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _keys;
+    private DotNetObjectReference<WorkbenchPage>? _self;
 
     [Inject]
     private WorkbenchClient Workbench { get; set; } = default!;
 
     [Inject]
+    private ExportsClient Exports { get; set; } = default!;
+
+    [Inject]
+    private ScriptIdeClient ScriptIde { get; set; } = default!;
+
+    [Inject]
+    private ProjectsClient ProjectsApi { get; set; } = default!;
+
+    [Inject]
     private ConnectionsClient ConnectionsApi { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.Api.Environment.EnvironmentClient EnvironmentApi { get; set; } = default!;
 
     [Inject]
     private FileChooser Files { get; set; } = default!;
 
     [Inject]
     private PythonSession Session { get; set; } = default!;
+
+    [Inject]
+    private ProjectState Project { get; set; } = default!;
+
+    [Inject]
+    private Dialogs Dialogs { get; set; } = default!;
 
     [Inject]
     private NavigationManager Nav { get; set; } = default!;
@@ -62,89 +91,128 @@ public partial class WorkbenchPage
     [Parameter]
     public bool New { get; set; }
 
+    /// <summary>The script's line to reveal (its cursor there), or the notebook's cell to select (the classic file.openCell).</summary>
+    [Parameter]
+    public int? Line { get; set; }
+
+    [Parameter]
+    public int? Cell { get; set; }
+
     private bool IsNotebooks => Page == "notebooks";
 
     private string Kind => IsNotebooks ? "notebook" : "script";
 
     private string KindWord => IsNotebooks ? "notebook" : "script";
 
-    private bool HasDocument => _notebook is not null || _script is not null || _newDocument;
+    /// <summary>The document in front of the focused group.</summary>
+    private OpenDocument? Front => _layout.Current is { } key && _byKey.TryGetValue(key, out var doc) ? doc : null;
 
-    private string Title => _path is { } path ? System.IO.Path.GetFileName(path) : _newDocument ? $"Untitled {KindWord}" : IsNotebooks ? "Notebooks" : "Scripts";
+    private string Title => Front?.Title ?? (IsNotebooks ? "Notebooks" : "Scripts");
 
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += Redraw;
+        Project.Changed += Redraw;
         _showFiles = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.files") != "0";
         _showBlades = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.blades") == "1";
-        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync());
+        _showExplorer = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.explorer") == "1";
+        Live.NoticeArrived += OnInlineNotice;
+        Live.NoticeArrived += OnFileNotice;
+        Live.NoticeArrived += OnPythonNotice;
+        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync(), LoadVaultsAsync());
+    }
+
+    private async Task LoadBetaAsync()
+    {
+        try
+        {
+            _betaOn = (await SettingsApi.BetaAsync()).On;
+        }
+        catch (ApiException)
+        {
+            _betaOn = false; // the menu offers to turn it on
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/workbench.js");
+            _keys = await _module.InvokeAsync<IJSObjectReference>("keys", _self);
+            await ReadWindowAsync();
+        }
+        await RevealPendingAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        var wanted = $"{Path}|{New}";
+        var wanted = $"{Path}|{New}|{Blade}|{Line}|{Cell}";
         if (wanted == _shownFor)
         {
             return;
         }
         _shownFor = wanted;
         _wrongPage = null;
-        if (Path is { Length: > 0 } path)
+        if (Blade is { Length: > 0 } blade && !IsNotebooks)
+        {
+            await OpenBladeAsync(blade);
+        }
+        else if (Path is { Length: > 0 } path)
         {
             await OpenPathAsync(path);
+            RevealAfterOpen(path);
+        }
+        else if (New)
+        {
+            AddDocument(new OpenDocument(++_nextKey, IsNotebooks) { Untitled = NextUntitled() });
         }
         else
         {
-            Reset(New);
             _recent = await RecentAsync();
         }
         await Js.InvokeVoidAsync("sab.setTitle", Title);
     }
 
-    private async Task OpenPathAsync(string path)
+    /// <summary>A key the page acts on (workbench.js): told by name.</summary>
+    [JSInvokable]
+    public Task PageKey(string name) => InvokeAsync(async () =>
     {
-        var notebook = path.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase);
-        if (notebook != IsNotebooks)
-        {
-            // A file opens on its kind's page (the classic workbench_pages.py's one line).
-            var page = notebook ? "notebooks" : "scripts";
-            _wrongPage = ($"{System.IO.Path.GetFileName(path)} is a {(notebook ? "notebook" : "script")}: it opens on the {(notebook ? "Notebooks" : "Scripts")} page.", $"{page}?path={Uri.EscapeDataString(path)}");
-            Reset(false);
-            return;
-        }
-        _loading = true;
-        try
-        {
-            Reset(false);
-            if (notebook)
-            {
-                _notebook = await Workbench.OpenNotebookAsync(path);
-                (_path, _modified) = (_notebook.Path, _notebook.Modified);
-            }
-            else
-            {
-                _script = await Workbench.OpenScriptAsync(path);
-                (_path, _modified, _scriptText) = (_script.Path, _script.Modified, _script.Text);
-            }
-            _error = null;
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-        _loading = false;
-    }
+        await PageKeyAsync(name);
+        StateHasChanged();
+    });
 
-    private void Reset(bool newDocument)
+    private Task PageKeyAsync(string name) => name switch
     {
-        _notebook = null;
-        _script = null;
-        _scriptText = string.Empty;
-        _path = null;
-        _modified = null;
-        _dirty = false;
-        _newDocument = newDocument;
-        _documentKey++;
+        _ when name.StartsWith("cell:", StringComparison.Ordinal) => Front?.NotebookView?.CommandAsync(name[5..]) ?? Task.CompletedTask,
+        "palette" => Toggle(() => _palette = !_palette),
+        "save" => SaveFrontAsync(),
+        "saveAs" => SaveAsAsync(Front),
+        "open" => OpenAsync(),
+        "run" => Front is { } doc ? RunMainAsync(doc) : Task.CompletedTask,
+        "splitRight" => SplitAsync(Front, SplitSide.Right),
+        "nextDoc" => ShowNextAsync(1),
+        "previousDoc" => ShowNextAsync(-1),
+        "fullScreen" => FullScreenAsync(),
+        "files" => ToggleFilesAsync(),
+        "debug" when Front is { IsNotebook: false } doc => DebugAsync(doc),
+        "searchScripts" when !IsNotebooks => Toggle(() => _searching = true),
+        "escape" when _helpCard is not null => Toggle(() => _helpCard = null),
+        "escape" when _lineage is not null => Toggle(() => _lineage = null),
+        "escape" when _full => FullScreenAsync(),
+        "help" => HelpAtCursorAsync(),
+        "nextPane" => CyclePaneAsync(1),
+        "previousPane" => CyclePaneAsync(-1),
+        "source" => FocusSourceAsync(),
+        "explorer" => ToggleExplorerAsync(),
+        _ => Task.CompletedTask,
+    };
+
+    private static Task Toggle(Action change)
+    {
+        change();
+        return Task.CompletedTask;
     }
 
     private async Task<IReadOnlyList<RecentFile>> RecentAsync()
@@ -186,92 +254,57 @@ public partial class WorkbenchPage
         }
     }
 
-    private void MarkDirty() => _dirty = true;
-
-    private void ScriptChanged(string text)
+    /// <summary>A menu under the control clicked (or at the pointer for a right click).</summary>
+    private Task ShowMenuAsync(MouseEventArgs at, (string Title, IReadOnlyList<MenuEntry> Entries) menu)
     {
-        _dirty = _dirty || text != _scriptText;
-        _scriptText = text;
-    }
-
-    private Task NewAsync()
-    {
-        Nav.NavigateTo($"{Page}?new=1");
+        _lastClick = at;
+        _menu = new ShownMenu(menu.Title, menu.Entries, at.ClientX, at.ClientY + 4);
         return Task.CompletedTask;
     }
 
-    private async Task OpenAsync()
+    private async Task RunCommandAsync(WorkbenchCommand command)
     {
-        var home = await Workbench.HomeAsync();
-        if (await Files.ChooseAsync("open", $"Open a {KindWord}", home.Folder, Kind) is { } path)
+        _recentCommands.Remove(command.Id);
+        _recentCommands.Insert(0, command.Id);
+        if (_recentCommands.Count > RecentCommands)
         {
-            Nav.NavigateTo($"{(path.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebooks" : "scripts")}?path={Uri.EscapeDataString(path)}");
+            _recentCommands.RemoveAt(RecentCommands);
         }
+        await GuardAsync(command.Run);
+        StateHasChanged(); // the palette that asked has gone: the page draws the command's outcome itself
     }
 
-    private Task PageKeyAsync(string key) => key == "saveAs" ? SaveAsAsync() : SaveAsync();
-
-    private Task SaveAsync() => _path is null ? SaveAsAsync() : SaveToAsync(_path);
-
-    private async Task SaveAsAsync()
-    {
-        var home = await Workbench.HomeAsync();
-        var start = _path is null ? home.Folder : System.IO.Path.GetDirectoryName(_path);
-        if (await Files.ChooseAsync("save", "Save as", start, Kind) is not { } chosen)
-        {
-            return;
-        }
-        var extension = IsNotebooks ? ".ipynb" : ".py";
-        await SaveToAsync(chosen.EndsWith(extension, StringComparison.OrdinalIgnoreCase) ? chosen : chosen + extension);
-    }
-
-    private async Task SaveToAsync(string path)
-    {
-        try
-        {
-            var renamed = path != _path;
-            SavedDocument saved;
-            if (_notebookView is not null)
-            {
-                var (cells, next) = _notebookView.ToSave();
-                saved = await Workbench.SaveNotebookAsync(path, cells, next, renamed ? null : _modified);
-            }
-            else
-            {
-                saved = await Workbench.SaveScriptAsync(path, _scriptText, renamed ? null : _modified);
-            }
-            (_path, _modified, _dirty, _newDocument) = (saved.Path, saved.Modified, false, false);
-            _error = null;
-            _ = Notes.SayAsync($"Saved {System.IO.Path.GetFileName(saved.Path)}.");
-            if (renamed)
-            {
-                _shownFor = $"{saved.Path}|False"; // the address follows without opening the file again
-                Nav.NavigateTo($"{Page}?path={Uri.EscapeDataString(saved.Path)}", replace: true);
-            }
-            await LoadTreeAsync();
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-    }
-
-    private Task InsertAsync(string line) =>
-        _notebookView?.InsertAsync(line) ?? _scriptView?.InsertAsync(line) ?? Task.CompletedTask;
-
-    private Task InterruptAsync() => ActAsync(Session.InterruptAsync);
-
-    private Task RestartAsync() => ActAsync(Session.RestartAsync);
-
-    private async Task ActAsync(Func<Task> action)
+    /// <summary>An action whose refusal shows in the page's error note.</summary>
+    private async Task GuardAsync(Func<Task> action)
     {
         try
         {
             await action();
+            _error = null;
         }
         catch (ApiException error)
         {
             _error = error;
+        }
+        catch (InvalidOperationException error)
+        {
+            _error = error; // a move that cannot be made now, in its own words
+        }
+    }
+
+    private Task InterruptAsync() => GuardAsync(Session.InterruptAsync);
+
+    private async Task RestartAsync()
+    {
+        // The project's one session: every notebook's and script's variables go, so it is asked first.
+        if (Session.Shared is not null && !await Dialogs.AskYesNoAsync("Restart", "Restart the project's Python session? Every variable is cleared, for every notebook and script of the project.", "Restart"))
+        {
+            return;
+        }
+        await GuardAsync(Session.RestartAsync);
+        if (Session.Shared is not null)
+        {
+            await Notes.SayAsync("The project's Python session was restarted: every variable is cleared.");
         }
     }
 
@@ -287,7 +320,50 @@ public partial class WorkbenchPage
         await Js.InvokeVoidAsync("sab.remember", $"{Page}.blades", _showBlades ? "1" : "0");
     }
 
+    private async Task FullScreenAsync()
+    {
+        _full = !_full;
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("fullScreen", _full);
+        }
+    }
+
+    private void Problems(OpenDocument doc, int count) => _problems[doc.Key] = count;
+
+    private string ProblemWords(OpenDocument doc) => _problems.GetValueOrDefault(doc.Key) switch
+    {
+        0 => string.Empty,
+        1 => "1 problem",
+        var n => $"{n} problems",
+    };
+
     private void Redraw() => _ = InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Session.Changed -= Redraw;
+    public async ValueTask DisposeAsync()
+    {
+        Session.Changed -= Redraw;
+        Project.Changed -= Redraw;
+        Live.NoticeArrived -= OnInlineNotice;
+        Live.NoticeArrived -= OnFileNotice;
+        Live.NoticeArrived -= OnPythonNotice;
+        try
+        {
+            if (_keys is not null)
+            {
+                await _keys.InvokeVoidAsync("stop");
+                await _keys.DisposeAsync();
+            }
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("fullScreen", false);
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // the page is going
+        }
+        _self?.Dispose();
+    }
 }

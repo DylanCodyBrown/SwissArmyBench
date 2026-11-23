@@ -1,0 +1,180 @@
+@* Add a chart (the classic aiPanel.ts chartDialog): which open table (the one in front first), the chart type, the X
+   axis (a date's time unit), the aggregate, the Y axis, a series and a title; the server aggregates it and draws the
+   card. Y is off for a histogram and for a count (but a heatmap's); a series is not for a histogram or heatmap. *@
+@using SwissArmyBench.Web.Pages.Grids
+@inject GridsClient Grids
+@inject AnalyzeClient AnalyzeApi
+
+<AppDialog Title="Add a chart" OnClose="OnClose">
+    <ChildContent>
+        <div class="form-grid">
+            <label class="field"><span>Table</span>
+                <select aria-label="Table" value="@_table" @onchange="TableAsync">
+                    @foreach (var table in Tables)
+                    {
+                        <option value="@table.Grid">@table.Label</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>Type</span>
+                <select aria-label="Chart type" @bind="_mark">
+                    @foreach (var (value, label) in Marks)
+                    {
+                        <option value="@value">@label</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>X axis</span>
+                <select aria-label="X axis" @bind="_x">
+                    @foreach (var column in _columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+            </label>
+            @if (XIsDate)
+            {
+                <label class="field"><span>Time unit</span>
+                    <select aria-label="Time unit" @bind="_unit">
+                        <option value="">(as is)</option>
+                        @foreach (var unit in Units)
+                        {
+                            <option value="@unit">@unit</option>
+                        }
+                    </select>
+                </label>
+            }
+            <label class="field"><span>Aggregate</span>
+                <select aria-label="Aggregate" @bind="_aggregate">
+                    @foreach (var aggregate in Aggregates)
+                    {
+                        <option value="@(aggregate.StartsWith('(') ? string.Empty : aggregate)">@aggregate</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>Y axis</span>
+                <select aria-label="Y axis" @bind="_y" disabled="@YOff">
+                    @foreach (var column in _columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>Series</span>
+                <select aria-label="Series" @bind="_series">
+                    <option value="">(none)</option>
+                    @foreach (var column in _columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>Title</span>
+                <input type="text" aria-label="Title" placeholder="Optional" @bind="_title" />
+            </label>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" disabled="@(_table is null || _x.Length == 0)" @onclick="AddAsync">Add chart</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private static readonly (string Value, string Label)[] Marks =
+        [("bar", "Bar"), ("line", "Line"), ("area", "Area"), ("point", "Scatter"), ("histogram", "Histogram"), ("heatmap", "Heatmap (counts)")];
+
+    private static readonly string[] Aggregates = ["count", "sum", "mean", "min", "max", "(none: raw points)"];
+
+    private static readonly string[] Units = ["day", "week", "month", "quarter", "year"];
+
+    private string? _table;
+    private IReadOnlyList<GridColumn> _columns = [];
+    private string _mark = "bar";
+    private string _x = string.Empty;
+    private string _y = string.Empty;
+    private string _series = string.Empty;
+    private string _aggregate = "count";
+    private string _unit = string.Empty;
+    private string _title = string.Empty;
+    private Exception? _error;
+
+    [Parameter]
+    public IReadOnlyList<AnalyzeTable> Tables { get; set; } = [];
+
+    /// <summary>The table in front, picked first.</summary>
+    [Parameter]
+    public string? Current { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnAdded { get; set; }
+
+    private bool XIsDate => ColumnTypes.IsDate(_columns.FirstOrDefault(c => c.Name == _x)?.Type ?? string.Empty);
+
+    private bool YOff => _mark == "histogram" || (_aggregate == "count" && _mark != "heatmap");
+
+    protected override Task OnInitializedAsync() => FillAsync(Current ?? Tables.FirstOrDefault()?.Grid);
+
+    private Task TableAsync(ChangeEventArgs e) => FillAsync(e.Value?.ToString());
+
+    /// <summary>The table's columns from the server; Y starts on its first number column.</summary>
+    private async Task FillAsync(string? table)
+    {
+        _table = table;
+        if (table is null)
+        {
+            return;
+        }
+        try
+        {
+            _columns = (await Grids.InfoAsync(table)).Columns;
+        }
+        catch (ApiException)
+        {
+            _columns = [];
+        }
+        _x = _columns.FirstOrDefault()?.Name ?? string.Empty;
+        _y = _columns.FirstOrDefault(c => ColumnTypes.IsNumber(c.Type))?.Name ?? _x;
+        _series = string.Empty;
+    }
+
+    private async Task AddAsync()
+    {
+        var x = new Dictionary<string, object> { ["field"] = _x };
+        if (_unit.Length > 0 && XIsDate)
+        {
+            x["time_unit"] = _unit;
+        }
+        var spec = new Dictionary<string, object> { ["mark"] = _mark, ["x"] = x };
+        if (_mark == "heatmap")
+        {
+            spec["y"] = new Dictionary<string, object> { ["field"] = _y, ["aggregate"] = "count" };
+        }
+        else if (_mark != "histogram")
+        {
+            spec["y"] = _aggregate switch
+            {
+                "count" => new Dictionary<string, object> { ["aggregate"] = "count" },
+                "" => new Dictionary<string, object> { ["field"] = _y },
+                _ => new Dictionary<string, object> { ["field"] = _y, ["aggregate"] = _aggregate },
+            };
+        }
+        if (_series.Length > 0 && _mark is not ("heatmap" or "histogram"))
+        {
+            spec["color"] = new Dictionary<string, object> { ["field"] = _series };
+        }
+        try
+        {
+            await AnalyzeApi.AddChartAsync(_table!, _title, System.Text.Json.JsonSerializer.SerializeToElement(spec));
+            await OnAdded.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

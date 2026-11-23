@@ -1,0 +1,195 @@
+@* New environment (the classic workbenchEnvironment.ts): a loose notebook's or script's own Python. Where (.venv
+   beside the document; Browse…), which Python (this app's own, or a version uv fetches), its libraries (the presets
+   and every library by group, ticked; any other package typed), Add imports to the notebook; Make it shows each
+   step's output as it runs; done, Use it: the document runs in it from its next Run. *@
+@inject PythonsClient Pythons
+@inject FileChooser Files
+
+<AppDialog Title="New environment" Wide="true" OnClose="CloseAsync">
+    <ChildContent>
+        @if (_offer is { } offer)
+        {
+            <label class="field"><span>Folder</span>
+                <span class="field-row">
+                    <input type="text" class="mono" aria-label="Folder" spellcheck="false" @bind="_folder" />
+                    <button type="button" class="btn" @onclick="BrowseAsync"><Icon Name="folder" /> Browse…</button>
+                </span>
+            </label>
+            <label class="field"><span>Python</span>
+                <select aria-label="Python version" @bind="_python">
+                    <option value="">This app's own (@AppVersion)</option>
+                    @foreach (var version in offer.Versions)
+                    {
+                        <option value="@version">Python @version</option>
+                    }
+                </select>
+            </label>
+            <div class="field"><span>Libraries</span>
+                <div class="env-presets" role="group" aria-label="Presets">
+                    @foreach (var (name, pips) in offer.Presets)
+                    {
+                        var picked = pips;
+                        <button type="button" class="chip" @onclick="() => _ticked = [.. picked]">@name</button>
+                    }
+                    <button type="button" class="chip ghost" @onclick="() => _ticked.Clear()">None</button>
+                </div>
+                <div class="env-groups">
+                    @foreach (var group in offer.Libraries.GroupBy(l => l.Group))
+                    {
+                        <fieldset class="env-group">
+                            <legend>@group.Key</legend>
+                            @foreach (var library in group)
+                            {
+                                var pip = library.Pip;
+                                <label class="check" title="@(library.Imports.Length > 0 ? library.Imports : pip)">
+                                    <input type="checkbox" checked="@_ticked.Contains(pip)" @onchange="e => Tick(pip, e.Value is true)" /> @library.Label
+                                    @if (library.Note.Length > 0)
+                                    {
+                                        <span class="hint"> @library.Note</span>
+                                    }
+                                </label>
+                            }
+                        </fieldset>
+                    }
+                </div>
+            </div>
+            <label class="field"><span>Other packages</span>
+                <input type="text" aria-label="Other packages" placeholder="Package names" spellcheck="false" @bind="_others" />
+            </label>
+            <label class="check"><input type="checkbox" aria-label="Add imports to the notebook" @bind="_addImports" /> Add imports to the notebook</label>
+            <div class="hint" role="status">@(_ready is { } ready ? $"Ready: {ready}" : $"Always installed: {string.Join(", ", offer.Always)}")</div>
+            <ErrorNote Error="_error" />
+            @if (_log.Length > 0)
+            {
+                <pre class="env-log" aria-live="polite">@_log</pre>
+            }
+        }
+        else if (_error is not null)
+        {
+            <ErrorNote Error="_error" />
+        }
+        else
+        {
+            <div class="loading-block">Reading what it offers…</div>
+        }
+    </ChildContent>
+    <Foot>
+        @if (_ready is not null)
+        {
+            <button type="button" class="btn primary" @onclick="CloseAsync"><Icon Name="check" /> Use it</button>
+        }
+        else
+        {
+            <button type="button" class="btn primary" disabled="@(_making || _offer is null)" @onclick="MakeAsync"><Icon Name="play" /> @(_making ? "Making…" : "Make it")</button>
+            <button type="button" class="btn" @onclick="CloseAsync">Cancel</button>
+        }
+    </Foot>
+</AppDialog>
+
+@code {
+    private EnvironmentOffer? _offer;
+    private HashSet<string> _ticked = [];
+    private string _folder = string.Empty;
+    private string _python = string.Empty;
+    private string _others = string.Empty;
+    private bool _addImports = true;
+    private bool _making;
+    private string _log = string.Empty;
+    private string? _ready;
+    private IReadOnlyList<string> _imports = [];
+    private Exception? _error;
+
+    /// <summary>The folder it starts in (.venv beside the document).</summary>
+    [Parameter]
+    public string Folder { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Document { get; set; }
+
+    [Parameter]
+    public string AppVersion { get; set; } = string.Empty;
+
+    /// <summary>Closed: the new environment's Python and the import lines chosen (null: nothing was made).</summary>
+    [Parameter]
+    public EventCallback<(string Python, IReadOnlyList<string> Imports)?> OnDone { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _folder = Join(Folder, ".venv");
+        try
+        {
+            _offer = await Pythons.OfferAsync();
+            _ticked = [.. _offer.Presets.GetValueOrDefault("Data analysis") ?? []];
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private static string Join(string folder, string name)
+    {
+        var windows = folder.Contains('\\') && !folder.Contains('/');
+        return $"{folder.TrimEnd('\\', '/')}{(windows ? "\\" : "/")}{name}";
+    }
+
+    private void Tick(string pip, bool on)
+    {
+        if (on)
+        {
+            _ticked.Add(pip);
+        }
+        else
+        {
+            _ticked.Remove(pip);
+        }
+    }
+
+    private async Task BrowseAsync()
+    {
+        if (await Files.ChooseAsync("folder", "Choose folder", Folder, "folder") is { } folder)
+        {
+            _folder = Join(folder, ".venv");
+        }
+    }
+
+    private async Task MakeAsync()
+    {
+        if (_offer is not { } offer)
+        {
+            return;
+        }
+        var packages = _ticked.Concat(_others.Split([' ', ',', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries)).Distinct().ToList();
+        _imports = offer.Libraries.Where(l => packages.Contains(l.Pip) && l.Imports.Length > 0).Select(l => l.Imports).ToList();
+        (_making, _log, _error) = (true, string.Empty, null);
+        try
+        {
+            await foreach (var said in Pythons.MakeAsync(_folder.Trim(), _python.Length > 0 ? _python : null, packages, Document))
+            {
+                if (said.TryGetProperty("line", out var line))
+                {
+                    _log += line.GetString() + "\n";
+                    StateHasChanged();
+                }
+                if (said.TryGetProperty("done", out var done))
+                {
+                    if (done.TryGetProperty("ok", out var ok) && ok.GetBoolean() && done.TryGetProperty("python", out var python))
+                    {
+                        _ready = python.GetString();
+                    }
+                    else
+                    {
+                        _error = new InvalidOperationException(done.TryGetProperty("error", out var why) ? why.GetString() : "It could not be made.");
+                    }
+                }
+            }
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _making = false;
+    }
+
+    private Task CloseAsync() => OnDone.InvokeAsync(_ready is { } python ? (python, _addImports ? _imports : []) : null);
+}

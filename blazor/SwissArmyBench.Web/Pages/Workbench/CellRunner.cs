@@ -49,6 +49,12 @@ public sealed class CellRunner
         finally
         {
             cell.Running = false;
+            if (cell.Asking is { } unanswered)
+            {
+                // The run ended while its question waited: said under it (the classic "(not answered)").
+                var line = $"{unanswered.Prompt} (not answered)\n";
+                OutputReader.Add(cell.Outputs, JsonSerializer.SerializeToElement(new { output_type = "stream", name = "stdout", text = line }));
+            }
             cell.Asking = null;
             _session.Ran(false);
             await redraw();
