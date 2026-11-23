@@ -38,6 +38,8 @@ def test_catalog_search_and_environment_open(browser: Browser, server: dict[str,
 
 def test_the_environments_viewer_and_add_variable(browser: Browser, server: dict[str, Any]) -> None:
     call(server, "POST", "/samples/store", {})
+    # A structure's row says "open" in words where a table's says true: both read (a fix of part one).
+    call(server, "POST", "/structures", {"kind": "object", "name": "made_up_regions", "value": {"north": 1}})
     page = open_page(browser, server, "environment?at=tables")
     page.locator(".environment-name", has_text="orders").first.click()
     viewer = page.locator(".environment-viewer")
