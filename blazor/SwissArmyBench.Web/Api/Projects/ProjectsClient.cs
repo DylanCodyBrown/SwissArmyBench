@@ -64,4 +64,28 @@ public sealed class ProjectsClient
     public Task<ProjectAnswer> CloseAsync(bool discard = false) => _api.PostAsync<ProjectAnswer>("/project/close", new { discard });
 
     public Task<ProjectAnswer> AutosaveAsync(bool on) => _api.PostAsync<ProjectAnswer>("/project/autosave", new { on });
+
+    /// <summary>What a project folder or a loose notebook, script or app offers to import.</summary>
+    public Task<ImportOffered> ImportSourcesAsync(string from) => _api.PostAsync<ImportOffered>("/project/import/sources", new { from });
+
+    /// <summary>Copy into the open project (documents) or this computer's library (connections, blades); a loose
+    /// file needs no list.</summary>
+    public Task<Imported> ImportAsync(object body) => _api.PostAsync<Imported>("/project/import", body);
+
+    /// <summary>The shared projects folder's sync for the cards (the Git extension's GET /git, asking GitHub at most once
+    /// a minute: the server keeps to that), or null while the extension is off.</summary>
+    public async Task<SyncFolder?> SharedSyncAsync()
+    {
+        var areas = await _api.GetAsync<App.AreasAnswer>("/app/areas");
+        if (!areas.Areas.Any(a => a.Area == "scm"))
+        {
+            return null;
+        }
+        return (await _api.GetAsync<SyncStatus>("/git?remote=1")).Shared;
+    }
+
+    /// <summary>A shared card's Pull (the shared projects folder's) or Push (scoped to the card's project).</summary>
+    public Task<SyncSaid> SyncAsync(bool push, string path) => push
+        ? _api.PostAsync<SyncSaid>("/git/push", new { which = "shared", path })
+        : _api.PostAsync<SyncSaid>("/git/pull", new { which = "shared" });
 }

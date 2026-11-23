@@ -9,7 +9,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 
 
 def test_new_project_from_the_dialog_then_its_card(browser: Browser, server: dict[str, Any]) -> None:
@@ -45,13 +45,12 @@ def test_new_project_from_the_dialog_then_its_card(browser: Browser, server: dic
 
 def test_open_a_file_opens_it_as_a_grid(browser: Browser, server: dict[str, Any]) -> None:
     """Open a file… asks the server's chooser in its file mode (no system dialog in a test: the app's own box
-    takes the path), then the file opens on the Grids page."""
+    is the page's own picker), then the file opens on the Grids page."""
     made_up = server["tmp"] / "made_up_targets_home.csv"
     made_up.write_text("region,target\nNorth,10\nSouth,20\n", encoding="utf-8")
     page = open_page(browser, server, "")
     page.get_by_role("button", name="Open a file…").click()
-    page.fill(".question-text", str(made_up))
-    page.locator(".dialog-foot").get_by_role("button", name="Choose").click()
+    choose_path(page, made_up)
     expect(page.locator(".grid-tab.tab-item", has_text="made_up_targets_home")).to_be_visible()
     assert any(g["dataset"] == "made_up_targets_home" for g in call(server, "GET", "/grids")["grids"])
     page.close()
@@ -86,8 +85,7 @@ def test_open_project_asks_in_the_classic_words(browser: Browser, server: dict[s
     (plain / "notes.txt").write_text("made-up notes\n", encoding="utf-8")
     page = open_page(browser, server, "")
     page.get_by_role("button", name="Open project…").click()
-    page.fill(".question-text", str(plain))
-    page.locator(".dialog-foot").get_by_role("button", name="Choose").click()
+    choose_path(page, plain, folder=True)
     asked = page.locator(".question-words")
     expect(asked).to_contain_text("made_up_plain_folder is not a project yet.")
     page.locator(".dialog-foot").get_by_role("button", name="OK").click()

@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Projects;
+using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Home;
@@ -11,6 +13,9 @@ namespace SwissArmyBench.Web.Pages.Home;
 public partial class Home : IDisposable
 {
     private bool _pasting;
+    private (double X, double Y)? _importMenu;
+    private string? _importing;
+    private SyncFolder? _sync;
 
     private const string CustomSort = "custom";
     private const int TypingPauseMilliseconds = 200;
@@ -85,6 +90,7 @@ public partial class Home : IDisposable
         }
         _busy = false;
         StateHasChanged();
+        await ReadSyncAsync();
     }
 
     private void Failed(Exception error)
@@ -208,6 +214,51 @@ public partial class Home : IDisposable
         {
             _error = error;
         }
+    }
+
+    // Import… (the classic projectImport.ts, from the Workbench, the Connections layer and the Blades pane there):
+    // notebooks, scripts and apps into the open project; connections and blades into this computer's library.
+    private void ImportMenu(MouseEventArgs e) => _importMenu = (e.ClientX, e.ClientY + 12);
+
+    private IReadOnlyList<MenuEntry> ImportEntries =>
+    [
+        new("Notebooks, scripts and apps…", "notebook", () => Importing(ImportDialog.Documents)),
+        new("Connections…", "plug", () => Importing(ImportDialog.Connections)),
+        new("Blades…", "code", () => Importing(ImportDialog.Blades)),
+    ];
+
+    private Task Importing(string kind)
+    {
+        _importing = kind;
+        return Task.CompletedTask;
+    }
+
+    private async Task ImportedAsync(Imported? done)
+    {
+        _importing = null;
+        if (done is { Documents.Count: > 0 })
+        {
+            await LoadAsync();
+        }
+    }
+
+    // A shared card's sync words and its Pull and Push come from the Git extension when it is on (asked as the
+    // cards draw; the server asks GitHub at most once a minute).
+    private async Task ReadSyncAsync()
+    {
+        if (_listing?.Projects.Any(p => p.Where == "shared") != true)
+        {
+            return;
+        }
+        try
+        {
+            _sync = await Projects.SharedSyncAsync();
+        }
+        catch (ApiException)
+        {
+            _sync = null;
+        }
+        StateHasChanged();
     }
 
     private void OnProjectChanged() => _ = InvokeAsync(LoadAsync);

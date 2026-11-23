@@ -30,6 +30,11 @@ public partial class ProjectCardView
     [Inject]
     private Notes Notes { get; set; } = default!;
 
+    /// <summary>The shared projects folder's sync (the Git extension, while it is on), for a shared card's words and its
+    /// Pull and Push.</summary>
+    [Parameter]
+    public SyncFolder? Sync { get; set; }
+
     [Parameter, EditorRequired]
     public ProjectCard Card { get; set; } = default!;
 
@@ -140,6 +145,15 @@ public partial class ProjectCardView
 
     [System.Text.RegularExpressions.GeneratedRegex("\"([^\"]+)\" is free")]
     private static partial System.Text.RegularExpressions.Regex FreeName();
+
+    // A shared card's Pull and Push (the classic lazyPages.ts cardActions): the server's words, then the cards again.
+    private Task SyncAsync(bool push) => RunAsync(async () =>
+    {
+        _menu = false;
+        var said = await Projects.SyncAsync(push, Card.Path);
+        _ = Notes.SayAsync(said.Words);
+        await OnChanged.InvokeAsync();
+    });
 
     private Task RemoveAsync() => RunAsync(() => Projects.RemoveAsync(Card.Path));
 

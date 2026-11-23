@@ -1,0 +1,27 @@
+@* The Projects page's Tour button (the classic tourButton.ts), with the "New here? Take the tour" bubble beside it
+   until the tour is opened once or put away with Not now (kept in this browser). The tour itself is the layout's. *@
+@implements IDisposable
+@inject TourState Tour
+
+@if (Tour.Seen)
+{
+    <button type="button" class="btn ribbon-btn tour-btn" aria-haspopup="dialog" title="What everything means: a guided tour" @onclick="Tour.OpenTourAsync"><Icon Name="help" /> Tour</button>
+}
+else
+{
+    <span class="tour-slot">
+        <button type="button" class="btn ribbon-btn tour-btn tour-new" aria-haspopup="dialog" title="What everything means: a guided tour" @onclick="Tour.OpenTourAsync"><Icon Name="help" /> Tour</button>
+        <span class="tour-bubble">
+            <button type="button" class="tour-bubble-go" @onclick="Tour.OpenTourAsync">New here? Take the tour</button>
+            <button type="button" class="btn ghost icon" aria-label="Not now" title="Not now" @onclick="Tour.MarkSeenAsync"><Icon Name="close" /></button>
+        </span>
+    </span>
+}
+
+@code {
+    protected override void OnInitialized() => Tour.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Tour.Changed -= Redraw;
+}
