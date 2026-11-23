@@ -92,19 +92,12 @@ from swissarmybench.domain import api_patterns as api_pattern_rules
 from swissarmybench.domain import api_targets as api_target_rules
 from swissarmybench.domain import blade_tables, project_paths
 from swissarmybench.domain import connection_slots as slot_rules
-from swissarmybench.domain import connection_tables as connection_table_rules
-from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import local_api as local_api_rules
-from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import sandbox as sandbox_rules
-from swissarmybench.domain import scaffold as scaffold_rules
 from swissarmybench.domain import variables as variable_rules
-from swissarmybench.domain.codegen import variable_name
-from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
@@ -146,9 +139,9 @@ from swissarmybench.services.connection_colours import ConnectionColours
 from swissarmybench.services.connection_slots import ConnectionSlots
 from swissarmybench.services.connection_swap import ConnectionSwap
 from swissarmybench.services.connection_tables import ConnectionTables as ConnectionTablesService
-from swissarmybench.services.connection_usage import ConnectionUsage
+from swissarmybench.services.connection_usage import ConnectionUsage, documents_to_search
 from swissarmybench.services.connections import ConnectionService
-from swissarmybench.services.context_md import ContextMd
+from swissarmybench.services.context_md import ContextMd, catalog_of
 from swissarmybench.services.data_export import DataExport
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.debugger import Debugger, DebugKernel
@@ -176,14 +169,14 @@ from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
-from swissarmybench.services.project_outline import CardPortability, ProjectOutline
+from swissarmybench.services.project_outline import CardPortability, ProjectOutline, saved_dashboards
 from swissarmybench.services.project_python import ProjectPython
 from swissarmybench.services.project_scope import ProjectScope, ProjectUse, UseSources
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
-from swissarmybench.services.sab_projects import SabProjects
+from swissarmybench.services.sab_projects import SabProjects, save_before_stop
 from swissarmybench.services.sandbox import Sandbox, SandboxAlias
 from swissarmybench.services.sandbox_sources import AppSources
 from swissarmybench.services.scaffold import Scaffold
@@ -192,7 +185,7 @@ from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.session_log import Heard, SessionLog
-from swissarmybench.services.shared_catalog import Here, SharedCatalog
+from swissarmybench.services.shared_catalog import Here, SharedCatalog, connections_here
 from swissarmybench.services.sharing import Sharing
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
@@ -317,27 +310,12 @@ class Services:
     extension: dict[str, Any]
 
 
-def usage_documents(
-    documents: Documents, hooks: Hooks, sab_projects: SabProjects, project_files: ProjectFiles
-) -> list[str]:
-    """Where the Connections page looks for a connection's references: with a project open, its own
-    notebooks, scripts and apps (everything is the project's, 2026-11-16) and the documents open in a
-    Workbench window; with none, the Workbench's recent files and the open documents. Each file once,
-    by its real path (one notebook reached by two spellings was listed twice)."""
-    paths = list(hooks.documents())
-    folder = (sab_projects.state().get("project") or {}).get("folder")
-    if folder:
-        try:
-            names = project_files.names(folder)
-        except OSError:
-            names = []
-        paths += [project_files.path(folder, n) for n in project_rules.project_files(names)]
-    else:
-        paths += [str(r["path"]) for r in documents.recent() if r.get("exists")]
-    seen: dict[str, str] = {}
-    for path in paths:
-        seen.setdefault(os.path.realpath(path), path)
-    return list(seen.values())
+def usage_documents(b: Built) -> list[str]:
+    """The documents a connection's references are looked for in (services/connection_usage.py's rule)."""
+    folder = (b.sab_projects.state().get("project") or {}).get("folder")
+    return documents_to_search(
+        b.hooks.documents(), folder, b.project_files, b.documents.recent, os.path.realpath
+    )
 
 
 def _scaffold_of(project_type: str) -> Any:
@@ -531,32 +509,6 @@ def _updates(
 # ----- what context.md reads of the connections -----
 
 
-async def _catalog_of(catalogs: Any, name: str) -> Any:
-    """A loaded catalog's schemas (datasets), its first tables, their count, and the names shared."""
-    schemas = await catalogs.schema_names(name)
-    if schemas is None:
-        return None
-    tables: list[CatalogTable] = []
-    for s in schemas:
-        if len(tables) >= context_rules.MAX_CATALOG_TABLES:
-            break
-        if not s.get("tables") and not s.get("views"):
-            continue
-        found = await catalogs.tables(
-            name, str(s["schema"]), str(s["database"]) or None, 0, context_rules.MAX_CATALOG_TABLES
-        )
-        tables += [
-            CatalogTable(str(t["database"]), str(t["schema"]), str(t["table"])) for t in found["tables"]
-        ]
-    total = sum(int(s.get("tables") or 0) + int(s.get("views") or 0) for s in schemas)
-    return (
-        [str(s["schema"]) for s in schemas],
-        tables[: context_rules.MAX_CATALOG_TABLES],
-        total,
-        await catalogs.shared_tables(name),
-    )
-
-
 def _inside(path: str | None, folder: str) -> bool:
     """Whether a path is inside a project folder (domain/project_paths.py's one rule; links resolved)."""
     return bool(path and folder) and project_paths.inside(str(path), folder, os.path.realpath)
@@ -638,36 +590,21 @@ def _app_registrations(
 ) -> AppRegistrations:
     """The library's app registrations, each one's users being the connections that read its variables; a
     connection's tables from its loaded catalog (Azure SQL's SELECT TOP 0 on them)."""
-
-    def every_connection() -> list[tuple[str, str, str]]:
-        """(name, kind, code) of each connection: an app registration's users (they read its variables)."""
-        out = []
-        for row in connections.listing()["connections"]:
-            try:
-                blade = blade_store.get(str(row["name"]))
-            except Exception:  # noqa: S112 (one that cannot be read is not counted)
-                continue
-            kind = "powerbi" if blade.dialect == "dax" else str(blade.template or row.get("connection") or "")
-            out.append((blade.name, "sqlserver" if kind == "azuresql" else kind, blade.code))
-        return out
-
-    app_registrations = AppRegistrations(
+    return AppRegistrations(
         ws,
         RegistrationFiles(lambda: library_folder.root, library_folder.ensure),
         MicrosoftProbe(),
         variables.values,
-        every_connection,
+        lambda: connections.listing()["connections"],
+        blade_store.get,
         tables_of=tables_of,
         query_hints=query_hints,
     )
-    return app_registrations
 
 
 def _variables_once(state_dir: Path, library: Any, variables: Any) -> None:
     """Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
     variable, its connection's file backed up first; then what saved text now reads a variable (once)."""
-    # Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
-    # variable, its connection's file backed up first; then what saved text now reads a variable (once).
     today = datetime.now(UTC).date().isoformat()
     passwords_moved = JsonFile(state_dir / "variables_moved.json")  # once: the first start with 12.7
     if passwords_moved.read() is None:
@@ -1187,7 +1124,7 @@ def _connections(b: Built) -> None:
         ws,
         blades,
         connections,
-        documents=lambda: usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files),
+        documents=partial(usage_documents, b),
         read=b.documents.read,
         origin_of=b.datasets.origins.get,
         environ=os.environ,
@@ -1334,7 +1271,7 @@ def _structures_and_apis(b: Built) -> None:
         rows_to_table,
         project_folder=lambda: sab_projects.current.folder if sab_projects.current else None,
         default_folder=documents.made_default_folder,
-        documents=lambda: usage_documents(documents, hooks, sab_projects, b.project_files),
+        documents=partial(usage_documents, b),
         read_document=documents.read,
         grid_steps=lambda table: (
             describe_steps(grid.steps) if (grid := ws.grids.first_for(table)) is not None else []
@@ -1396,7 +1333,7 @@ def _structures_and_apis(b: Built) -> None:
     b.project_use = ProjectUse(
         UseSources(
             project=lambda: sab_projects.state().get("project"),
-            documents=lambda: usage_documents(documents, hooks, sab_projects, b.project_files),
+            documents=partial(usage_documents, b),
             read=documents.read,
             open_tables=lambda: {i.name for i in b.store.all()},
             connections=b.blade_store.all,
@@ -1417,25 +1354,11 @@ def _structures_and_apis(b: Built) -> None:
 # ----- the shared catalog, code files that follow a change, the project's scope -----
 
 
-def _connections_here(b: Built) -> list[Here]:
-    """This computer's connections that have tables (never a key vault), for the shared catalog."""
-    found = []
-    for blade in b.blade_store.all():
-        if blade.web_call or connection_rules.connection_kind(blade.kind, blade.template) is None:
-            continue
-        kind = connection_table_rules.tables_kind(
-            blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
-        )
-        if kind is not None:  # never a key vault: it has no tables
-            found.append(Here(blade.name, kind, str(blade.template or "")))
-    return found
-
-
 def _shared_catalog_part(b: Built) -> None:
     """The shared catalog (the owner, 2026-11-17): the library's catalog/<connection>.json, kept by what
     happens here and read again when the user's pulls change it. The app never runs git."""
     library_folder, blades, sab_projects, models = b.library_folder, b.blades, b.sab_projects, b.models
-    b.connections_here = partial(_connections_here, b)
+    b.connections_here = lambda: connections_here(b.blade_store.all())
     b.shared_catalog = shared_catalog = SharedCatalog(
         b.ws,
         CatalogFiles(b.library_files(), library_folder.ensure),
@@ -1507,7 +1430,7 @@ def _variables_part(b: Built) -> None:
         ProcessEnvironment(),
         blade_store,
         save_variable_blade,
-        documents=lambda: usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files),
+        documents=partial(usage_documents, b),
         read=b.documents.read,
         run_settings=b.script_runs,
         kernels=b.workbench.kernel_count,
@@ -1563,7 +1486,7 @@ def _found_and_setup(b: Built) -> None:
         sources_from(
             datasets=b.datasets, sab_projects=b.sab_projects, workbench=b.workbench, sessions=b.sessions,
             structures=b.structures, settings=variables, cards=b.cards, models=b.models,
-            document_paths=lambda: usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files),
+            document_paths=partial(usage_documents, b),
             read=b.documents.read, project_names=b.project_files.names, project_file=b.project_files.read,
             remove_file=environment_files.remove_structure_file, touched=b.code_files.touched,
         ),
@@ -1739,7 +1662,7 @@ def _editors_and_claude(b: Built) -> None:
     standin = b.settings.claude_standin
     b.claude_files = ClaudeFiles(state_dir / "claude", b.state_file("claude.json"))
     b.agent = AgentService(ws, b.approvals, b.tickets)
-    catalog_of = partial(_catalog_of, b.catalogs)
+    catalog = partial(catalog_of, b.catalogs)
     used_in = b.project_use.places
     # One Jedi world and one set of linters: the editors' intelligence's, and the Scripts IDE's (never a
     # second).
@@ -1802,7 +1725,7 @@ def _editors_and_claude(b: Built) -> None:
         project=lambda: sab_projects.state().get("project"),
         connections=lambda: b.connection_usage.overview()["connections"],
         colour_of=b.connection_colours.colour_of,
-        catalog=catalog_of,
+        catalog=catalog,
         used_in=used_in,
         origin_of=b.datasets.origins.get,
         relationships=b.models.current,
@@ -1841,16 +1764,6 @@ def _editors_and_claude(b: Built) -> None:
 # ----- the project's outline, the file dialogs, the server's life, the analyses -----
 
 
-def _saved_dashboards(b: Built) -> list[dict[str, Any]]:
-    """The open project's saved dashboards: each one's name and its last version's cards."""
-    out = []
-    for listed in b.dashboards.names():
-        body = b.dashboards.read(str(listed["name"])) or {"versions": []}
-        last = body["versions"][-1] if body["versions"] else {}
-        out.append({"name": listed["name"], "cards": last.get("cards") or []})
-    return out
-
-
 def _picker_places(b: Built) -> list[dict[str, str]]:
     """The page's own picker's quick places: the system's, then the projects folder and the library."""
     found = folder_places()
@@ -1861,21 +1774,6 @@ def _picker_places(b: Built) -> list[dict[str, str]]:
         if is_folder(folder):
             found.append({"name": name, "path": folder, "kind": kind})
     return found
-
-
-async def _before_stop(b: Built) -> str:
-    """Before the server stops: the open project's unsaved changes saved as Autosave does; with Autosave
-    off, the stop waits (its words)."""
-    current = b.sab_projects.current
-    if current is None or not b.sab_projects.dirty():
-        return ""
-    if not current.autosave:
-        return "the open project has unsaved changes and Autosave is off"
-    try:
-        await b.sab_projects.save({}, "autosave")
-    except Exception as error:
-        return f"the open project could not be saved: {error}"
-    return ""
 
 
 def _outline_dialogs_and_life(b: Built) -> None:
@@ -1893,7 +1791,7 @@ def _outline_dialogs_and_life(b: Built) -> None:
         origin_of=b.datasets.origins.get,
         kernel_document=b.workbench.document_of,
         relationships=b.models.current,
-        dashboards=partial(_saved_dashboards, b),
+        dashboards=lambda: saved_dashboards(b.dashboards),
         run_settings=b.script_runs.settings,
         app_pages=lambda path, text: b.hooks.app_pages(path, text),
         scope_tables=b.project_tables.used,
@@ -1912,7 +1810,7 @@ def _outline_dialogs_and_life(b: Built) -> None:
     b.lifecycle = Lifecycle(
         windows=b.live.windows,
         busy=lambda: ["a VS Code window"] if b.live.openers() else [],
-        before_stop=partial(_before_stop, b),
+        before_stop=partial(save_before_stop, b.sab_projects),
         stop=b.on_shutdown,
         grace=settings.life_grace_seconds,
         idle=settings.life_idle_seconds,
@@ -1978,72 +1876,18 @@ def _scaffold(b: Built) -> Scaffold:
         current = b.sab_projects.current
         return (current.folder, current.name) if current is not None else None
 
-    def inside(path: str | None) -> bool:
-        found = project()
-        return found is not None and _inside(path, found[0])
-
-    def variables() -> dict[str, str]:
-        return {name: words for name, (words, _) in b.variables.sources().items()}
-
-    def documents_using(name: str) -> list[str]:
-        """The project's own documents that read the variable (never a file the scaffold made: its
-        connections.py reads what the connections read, said by their sections)."""
-        held = b.variables.sources().get(name)
-        found = project()
-        if held is None or found is None:
-            return []
-        out = []
-        for what, path in held[1]:
-            if not path or not inside(path):
-                continue
-            relative = os.path.relpath(os.path.realpath(path), os.path.realpath(found[0])).replace("\\", "/")
-            if relative not in scaffold_rules.MADE:
-                out.append(what)
-        return out
-
-    def structures() -> list[scaffold_rules.StructureGrid]:
-        found = project()
-        if found is None:
-            return []
-        out: list[scaffold_rules.StructureGrid] = []
-        for grid in b.ws.grids.all():
-            origin = b.datasets.origins.get(grid.dataset)
-            if origin is None or origin.kind != "structure" or not inside(origin.path):
-                continue
-            relative = os.path.relpath(str(origin.path), found[0]).replace("\\", "/")
-            if relative.lower().endswith(scaffold_rules.STRUCTURE_SUFFIXES):
-                out.append(
-                    scaffold_rules.StructureGrid(variable_name(grid.dataset), relative, origin.sql or "$")
-                )
-        return sorted(set(out), key=lambda s: s.variable)
-
-    def endpoints(text: str) -> int:
-        try:
-            return len(local_api_rules.parse(text).endpoints)
-        except Exception:
-            return 0
-
-    def contract(folder: str) -> dict[str, Any] | None:
-        """The project type's contract.json, from the extension (packaged or a folder) that adds the type."""
-        kind = b.projects.type_of(folder)
+    def contracts() -> list[dict[str, Any]]:
+        """Every on extension's contract.json (packaged or a folder; a broken one is said on its card)."""
         holders = [*extension_modules.enabled(), *(f.module for f in extension_modules.folders().values())]
+        found = []
         for module in holders:
-            if module is None:
-                continue
             try:
-                found = extension_modules.contract(module)
+                contract = extension_modules.contract(module) if module is not None else None
             except Exception:  # noqa: S112 (a broken contract.json: said on the Extensions page)
                 continue
-            if found is not None and found["type"] == kind:
-                return found
-        return None
-
-    def names(folder: str) -> list[str]:
-        """The project top's files and folders (a folder as `name/`), for the contract's deliverable."""
-        try:
-            return sorted(e.name + ("/" if e.is_dir() else "") for e in os.scandir(folder))
-        except OSError:
-            return []
+            if contract is not None:
+                found.append(contract)
+        return found
 
     made = Scaffold(
         b.ws,
@@ -2053,15 +1897,14 @@ def _scaffold(b: Built) -> Scaffold:
             used=b.project_use.connections,
             connections=b.script_exports.connections_code,
             adapter=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
-            variables=variables,
-            documents_using=documents_using,
+            variable_uses=b.variables.sources,
             sandbox=b.sandbox.mirror,
-            structures=structures,
+            tables=lambda: [(g.dataset, b.datasets.origins.get(g.dataset)) for g in b.ws.grids.all()],
+            real=os.path.realpath,
+            type_of=b.projects.type_of,
+            contracts=contracts,
             edited=b.project_scope.edited_in,
             touched=b.code_files.touched,
-            endpoints=endpoints,
-            contract=contract,
-            names=names,
         ),
     )
     b.live.listeners.append(made.heard)

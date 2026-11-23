@@ -413,6 +413,13 @@ def signed_in_with(kind: str, code: str, reg: Registration) -> str | None:
     return out if out.startswith("import os\n") or "\nimport os\n" in out else "import os\n" + out
 
 
+def connection_kind(dialect: str | None, template: str | None, listed: str | None) -> str:
+    """The kind an app registration's check reads a connection as: a DAX connection is Power BI, Azure SQL is
+    SQL Server's check; else its template, else what the Connections page lists it as."""
+    kind = "powerbi" if dialect == "dax" else str(template or listed or "")
+    return "sqlserver" if kind == "azuresql" else kind
+
+
 def uses(code: str, registration: Registration) -> bool:
     """A connection's code signs in with this registration: it reads all three of its variables."""
     return all(re.search(rf"\b{re.escape(v)}\b", code) for v in registration.variables())

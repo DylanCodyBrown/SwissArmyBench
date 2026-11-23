@@ -44,6 +44,7 @@ from swissarmybench.domain.projects import data_requirements
 from swissarmybench.domain.script_runs import ScriptRunError, split_arguments
 from swissarmybench.domain.table_cells import Origin
 from swissarmybench.services.lineage import document_cells
+from swissarmybench.services.ports import Dashboards
 from swissarmybench.services.workspace import NotFound, Workspace
 
 MAX_DOCUMENTS: int = 200
@@ -224,6 +225,17 @@ class _Read:
     imported: frozenset[str]
     from_data: frozenset[str]  # names it imports from the project's data.py
     sources: tuple[tuple[str, str], ...]
+
+
+def saved_dashboards(dashboards: Dashboards) -> list[dict[str, Any]]:
+    """The open project's saved dashboards (the Deliverables section): each one's name and its last
+    version's cards."""
+    out = []
+    for listed in dashboards.names():
+        body = dashboards.read(str(listed["name"])) or {"versions": []}
+        last = body["versions"][-1] if body["versions"] else {}
+        out.append({"name": listed["name"], "cards": last.get("cards") or []})
+    return out
 
 
 class ProjectOutline:

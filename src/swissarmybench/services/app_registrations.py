@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from swissarmybench.domain import app_registrations as rules
+from swissarmybench.domain.blades import Blade
 from swissarmybench.services.workspace import NotFound, Workspace
 
 
@@ -62,7 +63,10 @@ class AppRegistrations:
         files: Files,
         probe: Probe,
         values: Callable[[list[str]], Any],  # async: variable names -> their values on this computer
-        connections: Callable[[], list[tuple[str, str, str]]],  # (name, kind, code) of every connection
+        connections: Callable[
+            [], list[dict[str, Any]]
+        ],  # the Connections page's rows (services/connections.py)
+        blade: Callable[[str], Blade],  # a connection's blade by its name (the library's)
         computer: Callable[[], str] = platform.node,
         tables_of: Callable[[str], Any] | None = None,
         query_hints: Callable[[], dict[str, str]] = dict,
@@ -71,12 +75,25 @@ class AppRegistrations:
         self._files = files
         self._probe = probe
         self._values = values
-        self._connections = connections
+        self._listing = connections
+        self._blade = blade
         self._computer = computer
         # Tables worth one COUNTROWS, per dataset name (an extension's hint: a Power BI project's tables).
         self.query_hints: Callable[[], dict[str, str]] = query_hints
         # A connection's tables from its loaded catalog ((database, schema, table)), for SELECT TOP 0.
         self.tables_of: Callable[[str], Any] | None = tables_of
+
+    def _connections(self) -> list[tuple[str, str, str]]:
+        """(name, kind, code) of each connection: an app registration's users (they read its variables)."""
+        out = []
+        for row in self._listing():
+            try:
+                blade = self._blade(str(row["name"]))
+            except Exception:  # noqa: S112 (one that cannot be read is not counted)
+                continue
+            kind = rules.connection_kind(blade.dialect, blade.template, row.get("connection"))
+            out.append((blade.name, kind, blade.code))
+        return out
 
     def get(self, name: str) -> rules.Registration:
         found = next((r for r in self._files.all() if r.name.casefold() == str(name or "").casefold()), None)

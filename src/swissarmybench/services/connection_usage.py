@@ -16,11 +16,12 @@ Calls are kept in memory only, for this session.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any
+from typing import Any, Protocol
 
 from swissarmybench.domain import connection_usage as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import dataverse, portability, python_connections, sql_server
+from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain.blades import Blade, BladeError
 from swissarmybench.domain.notebooks import NotebookError
 from swissarmybench.domain.table_cells import Origin
@@ -29,6 +30,40 @@ from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.workspace import NotFound, Workspace
 
 MAX_DOCUMENTS = 200
+
+
+class FolderFiles(Protocol):
+    """A project folder's own files (adapters/projects.py ProjectFiles)."""
+
+    def names(self, folder: str) -> list[str]: ...
+
+    def path(self, folder: str, name: str) -> str: ...
+
+
+def documents_to_search(
+    open_documents: Iterable[str],
+    folder: str | None,
+    files: FolderFiles,
+    recent: Callable[[], Iterable[Mapping[str, Any]]],
+    real: Callable[[str], str],
+) -> list[str]:
+    """Where the Connections page looks for a connection's references: with a project open, its own
+    notebooks, scripts and apps (everything is the project's, 2026-11-16) and the documents open in a
+    Workbench window; with none, the Workbench's recent files and the open documents. Each file once,
+    by its real path (one notebook reached by two spellings was listed twice)."""
+    paths = list(open_documents)
+    if folder:
+        try:
+            names = files.names(folder)
+        except OSError:
+            names = []
+        paths += [files.path(folder, n) for n in project_rules.project_files(names)]
+    else:
+        paths += [str(r["path"]) for r in recent() if r.get("exists")]
+    seen: dict[str, str] = {}
+    for path in paths:
+        seen.setdefault(real(path), path)
+    return list(seen.values())
 
 
 class ConnectionUsage:
