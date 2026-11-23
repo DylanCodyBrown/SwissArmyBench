@@ -58,7 +58,6 @@ import { type BladeKind, type BladeSummary, editBlade, newBladeDialog } from "./
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
 import { askText, askYesNo, button, clear, h, icon, openDialog, toast } from "./dom";
-import { inApp } from "./desktopApp";
 import { chooseFile } from "./fileChooser";
 import { openFile } from "./openFile";
 import { effectiveTheme } from "./theme";
@@ -76,9 +75,15 @@ import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFil
 import { openStructureDoc, type StructureDoc } from "./structureDoc";
 import { isStructurePath, structureSuffixes } from "./structurePaths";
 import { workbenchCommands } from "./workbenchCommandList";
-import { type Remembered, sessionMemory } from "./workbenchRestore";
+import { sessionMemory } from "./workbenchRestore";
 import { fileChangedWatcher } from "./workbenchFileChanged";
 import { BASE_FONT, codeZoom, fullScreen as makeFullScreen } from "./workbenchView";
+import { windowKeys } from "./workbenchKeys";
+import { tableOwners } from "./workbenchTableOwners";
+import { documentPanels } from "./workbenchDocPanels";
+import { docName, documentLineage } from "./workbenchDocLineage";
+import { documentMoves } from "./workbenchMove";
+import { documentExports } from "./workbenchExport";
 import type { Part } from "./structureTree";
 import { openStructures } from "./lazyPages";
 import { mountLayout } from "./workbenchLayout";
@@ -98,21 +103,21 @@ import { mountAppFooter } from "./appFooter";
 import { updateCommands } from "./updates";
 import { claudeCommands } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
-import { fetchTables, type TableInfo } from "./workbenchTables";
+import { fetchTables } from "./workbenchTables";
 import { openEnvironment, environmentPane } from "./environmentPage";
 import { Kernel, sessionHeard, WINDOW_ID } from "./workbenchKernel";
 import { heardProjectPython, inProject, loadProjectPython, offerMoved, projectPython, type Offer } from "./projectSession";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
-import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLineage, lineageNoticed, openLineage } from "./workbenchLineage";
-import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, runSettings } from "./workbenchDocModes";
+import { lineageNoticed } from "./workbenchLineage";
+import { type Descriptions } from "./workbenchDocModes";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
 import { activeMode, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, copyProject, exportOutline, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { importFile, openImport } from "./projectImport";
-import { modeFrame, type ModeFrame } from "./workbenchModes";
+import { type ModeFrame } from "./workbenchModes";
 import { installVariableAnywhere } from "./variableAnywhere";
-import { errorHere, errorNote, errorToast } from "./errorNote";
+import { errorHere, errorToast } from "./errorNote";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -268,99 +273,16 @@ const hooks = {
 
 // ===== tables: each open table's read-only cell lives in one document =====
 
-let tables: TableInfo[] = [];
-const tableOwner = new Map<string, Doc>();
-const tablesSent = new Map<Doc, string>();
-const tablesHost = h("span", { class: "wb-tables-tool" });
-const viewOf = (doc: Doc): NotebookView | ScriptView | undefined => doc.notebook ?? doc.script;
-let assignTimer: number | null = null;
-
-/** Which document holds each table's cell: the one whose kernel sent the table to the grid; else one
- *  that already holds its cell (from its file); else, for a table no Python made (a file, a paste, a
- *  connection, a "+" tab's query), the document in front. Once given, it stays. A table sent by a
- *  Python outside the Workbench (Jupyter, a script in another editor) has no cell here: the code that
- *  makes it lives there, where the app cannot write. */
-function assignTables(): void {
-  // Never API.py: it is the project's local sandbox API (its header is the file's first lines, and its process
-  // reaches only the sandbox), so no table's cell is written into it.
-  const code = docs.filter((d) => (d.notebook || d.script) && !isApiFile(d));
-  for (const [name, doc] of [...tableOwner]) if (!docs.includes(doc) || !tables.some((t) => t.name === name)) tableOwner.delete(name);
-  for (const table of tables) {
-    if (tableOwner.has(table.name)) continue;
-    const noPython = table.origin !== "python" && table.origin !== "unknown";
-    // In a project a table's read-only cell lives in data.ipynb (its export data.py is what the
-    // other notebooks and the pages import): a table no document made goes there.
-    const data = code.find(isData);
-    // The document whose code made it (the server says: a project's documents share one kernel), else the
-    // document of the kernel that sent it.
-    const made = table.document ? code.find((d) => d.path === table.document) : undefined;
-    const found = made ?? (table.kernel ? code.find((d) => d.kernel?.id === table.kernel && (!d.kernel.shared || !table.document)) : undefined) ?? code.find((d) => viewOf(d)!.holdsTable(table.name)) ?? data ?? (noPython && current && code.includes(current) ? current : undefined);
-    if (found) tableOwner.set(table.name, found);
-  }
-  for (const doc of code) {
-    const mine = tables.filter((t) => tableOwner.get(t.name) === doc);
-    const signature = JSON.stringify(mine.map((t) => [t.name, t.code, t.loaded, t.steps, t.grid]));
-    if (tablesSent.get(doc) === signature) continue;
-    tablesSent.set(doc, signature);
-    viewOf(doc)!.setTables(mine);
-  }
-  drawTablesTool();
-}
-
-function assignSoon(): void {
-  if (assignTimer !== null) return;
-  assignTimer = window.setTimeout(() => {
-    assignTimer = null;
-    assignTables();
-  }, 50);
-}
-
-let refreshTimer: number | null = null;
-function refreshTablesSoon(): void {
-  if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-  refreshTimer = window.setTimeout(() => {
-    refreshTimer = null;
-    void fetchTables().then(
-      (found) => {
-        tables = found;
-        assignTables();
-      },
-      () => undefined, // the server is away: the cells stay as they are
-    );
-  }, 120);
-}
-
-/** A table open in Grids given to `doc`: its read-only cell joins the document's Tables group (the error
- *  panel's "orders is open in Grids: add its table cell", and tables.add). Its cell already in another
- *  document stays there, and that is said. */
-async function giveTable(doc: Doc, name: string): Promise<string> {
-  tables = await fetchTables();
-  const info = tables.find((t) => t.name === name) ?? tables.find((t) => t.name.toLowerCase() === name.toLowerCase());
-  if (!info) throw new Error(`${name} is not open in Grids.`);
-  const owner = tableOwner.get(info.name);
-  if (owner && owner !== doc && docs.includes(owner)) throw new Error(`${info.name}'s cell is in ${owner.title}.`);
-  tableOwner.set(info.name, doc);
-  tablesSent.delete(doc);
-  assignTables();
-  return info.name;
-}
-
-/** The group row's word on the focused document's tables: Run tables, when one is not up to date. */
-function drawTablesTool(): void {
-  const view = current ? viewOf(current) : undefined;
-  const waiting = view ? view.tables().filter((t) => t.state === "outOfDate" || t.state === "notRun" || t.state === "notRunSinceOpening") : [];
-  const stale = waiting.filter((t) => t.state === "outOfDate").length;
-  clear(
-    tablesHost,
-    waiting.length
-      ? button(stale ? `Run tables: ${stale} out of date` : `Run tables: ${waiting.length} not run`, () => void view!.runOutOfDate().catch((e: Error) => errorHere(e)), {
-          icon: "play",
-          class: stale ? "wb-tables-stale" : "",
-          title: `Run each table's cell that is not up to date: ${waiting.map((t) => t.name).join(", ")}`,
-        })
-      : null,
-  );
-}
+// Which document holds each open table's cell, and the group row's Run tables (workbenchTableOwners.ts).
+const tableCells = tableOwners({
+  docs,
+  isApiFile: (doc) => isApiFile(doc),
+  isData: (doc) => isData(doc),
+  get current() {
+    return current;
+  },
+});
+const { tableOwner, tablesSent, tablesHost, viewOf, assignTables, assignSoon, refreshTablesSoon, giveTable, drawTablesTool } = tableCells;
 
 // ===== projects, and the canvases' New entries =====
 // No app documents here (2026-11-21): an app is built from widgets on the Canvas (its own page). A file from
@@ -485,81 +407,18 @@ async function newProject(folder?: string, name?: string, notebooks: string[] = 
   return made;
 }
 
-/** Export data.py: written again from the project's data.ipynb, as it stands here. */
-async function exportData(): Promise<unknown> {
-  const data = docs.find(isData);
-  const folder = data?.path ? folderOf(data.path) : project?.folder;
-  if (!folder) throw new Error("No project is open (a folder with a data.ipynb).");
-  const done = await api<{ path: string; names: string[]; fill_in: string[]; skipped: string[] }>("/projects/export-data", "POST", { folder });
-  for (const said of done.skipped) toast(said);
-  if (done.fill_in.length) errorHere(`data.py cannot read ${done.fill_in.join(", ")} again: add the code that reads it to data.ipynb.`);
-  return done;
-}
-
-interface ExportAnswer {
-  path: string | null;
-  file: string;
-  problems: string[];
-  lint: string[];
-  stubs: string[];
-  skipped: string[];
-  settings: { variable: string; secret: boolean }[];
-  ask?: string;
-  run?: string;
-  /** Each connection it uses that runs only on this computer (domain/portability.py), in one paragraph. */
-  local?: { connection: string; local: { key: string; reason: string; instead: string; words: string }[] }[];
-  local_words?: string;
-}
-
-/** Export as one Python script… (or as one notebook…): the document as it stands here (saved or
- * not) as one self-contained file that runs with plain `python` (or top to bottom in any Jupyter),
- * written where the file chooser says (docs/ideas.md, 2026-11-15). What cannot be exported is named
- * by its cell first, and the rest goes out with a FILL IN stub for each only when the user says so.
- * `to`: where it goes (the agent's palette call); without it, the file chooser opens. */
-async function exportDocument(doc: Doc | null, format: "script" | "notebook", to?: string, agent = false): Promise<ExportAnswer | null> {
-  if (!doc || (!doc.notebook && !doc.script)) throw new Error("Open a notebook or a script to export.");
-  const ending = format === "notebook" ? ".ipynb" : ".py";
-  const stem = (doc.path ? baseName(doc.path) : doc.title).replace(/\.(ipynb|py)$/i, "");
-  const suggested = `${stem.trim().replace(/\W+/g, "_").replace(/^_+|_+$/g, "").toLowerCase() || "job"}_automation${ending}`;
-  let path = to;
-  if (!path) {
-    const title = format === "notebook" ? "Export as one notebook" : "Export as one Python script";
-    path = (await chooseFile({ title, mode: "save", start: doc.path ?? project?.folder ?? homeFolder, name: suggested })) ?? undefined;
-    if (!path) return null;
-  }
-  if (!path.toLowerCase().endsWith(ending)) path += ending;
-  const body: Record<string, unknown> = {
-    format,
-    to: path,
-    path: doc.path,
-    name: doc.title,
-    ...(doc.notebook ? { kind: "notebook", cells: doc.notebook.cells() } : { kind: "script", text: doc.script!.text() }),
-  };
-  const call = agent ? agentApi : api;
-  // A connection it uses that runs only on this computer is said before anything is written (the owner,
-  // 2026-11-17: "this is meant to scale to a function app or up to a hosted streamlit application").
-  if (!agent) {
-    const looked = await call<ExportAnswer>("/workbench/export-script", "POST", { ...body, check: true });
-    if (looked.local_words && !(await askYesNo(`${looked.local_words}\n\nExport it anyway?`))) {
-      toast("Nothing was exported.");
-      return null;
-    }
-  }
-  let done = await call<ExportAnswer>("/workbench/export-script", "POST", body);
-  if (done.ask) {
-    const said = [...done.problems, ...done.lint].map((p) => `• ${p}`).join("\n");
-    if (agent || !(await askYesNo(`These cannot be exported:\n${said}\n\nExport the rest, with a stub that raises FILL IN for each?`))) {
-      if (!agent) toast("Nothing was exported.");
-      return done;
-    }
-    done = await call<ExportAnswer>("/workbench/export-script", "POST", { ...body, stub: true });
-  }
-  for (const said of done.skipped) toast(said);
-  const secrets = done.settings.filter((s) => s.secret).map((s) => s.variable);
-  const note = secrets.length ? ` Set ${secrets.join(", ")} where it runs.` : "";
-  toast(`Exported ${done.file}${done.stubs.length ? ` (FILL IN: ${done.stubs.join(", ")})` : ""}.${note}`);
-  return done;
-}
+// Export data.py, Export as one Python script… and as one notebook… (workbenchExport.ts).
+const { exportData, exportDocument } = documentExports({
+  docs,
+  isData: (doc) => isData(doc),
+  folderOf: (path) => folderOf(path),
+  get project() {
+    return project;
+  },
+  get homeFolder() {
+    return homeFolder;
+  },
+});
 
 /** The project's entries (in a group's "+" and the top bar's "…"). */
 function projectEntries(): MenuEntry[] {
@@ -702,198 +561,26 @@ async function saveProjectDocuments(folder: string | undefined): Promise<{ saved
 
 // ----- Notebook mode: the run order (edited, out of date), the Outline, Run up to here, Present
 
-interface Flow {
-  cells: FlowState[];
-  outline: OutlineItem[];
-}
-const flows = new Map<Doc, Flow>();
-const flowTimers = new Map<Doc, number>();
-
-function flowSoon(doc: Doc): void {
-  if (!doc.notebook) return;
-  const was = flowTimers.get(doc);
-  if (was !== undefined) window.clearTimeout(was);
-  flowTimers.set(doc, window.setTimeout(() => {
-    flowTimers.delete(doc);
-    void refreshFlow(doc);
-  }, 300));
-}
-
-async function refreshFlow(doc: Doc): Promise<Flow | null> {
-  if (!doc.notebook || !docs.includes(doc)) return null;
-  try {
-    const read = await readFlow(doc.notebook.flowCells());
-    flows.set(doc, read);
-    doc.notebook.markFlow(read.cells);
-    doc.modes?.redraw("outline");
-    return read;
-  } catch {
-    return null;
-  }
-}
-
-function notebookModes(doc: Doc): void {
-  doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
-  doc.modes.add({
-    id: "outline",
-    title: "Outline",
-    icon: "outline",
-    where: "side",
-    draw: (body) => {
-      const flow = flows.get(doc);
-      const view = doc.notebook!;
-      const at = view.selected();
-      const selectedNumber = at >= 0 ? (view.cells()[at]?.number ?? null) : null;
-      drawOutline(body, flow?.outline ?? [], flow?.cells ?? [], selectedNumber, view.tables().length > 0, (n) => void view.goTo(n), () => {
-        view.foldTables(false);
-        const first = view.cells().find((c) => c.role === "tables");
-        if (first?.number) view.goTo(first.number);
-      });
+// Each mode's own panels and views (workbenchDocPanels.ts): Notebook's Outline and Present, Script's Run settings,
+// data.ipynb's Cells | Lineage | Dictionary, the status bar's toggles for them.
+let vaultNames: string[] = [];
+const { flows, flowSoon, refreshFlow, notebookModes, present, scriptModes, scriptArguments, readArguments, dataViews, dataBody, dataMode, setDataView, dictionaryTables, drawDictionaryView, describe, modeToggles, drawModeToggles, modeSwitch } =
+  documentPanels({
+    docs, drawStatus, drawControls, isData,
+    isApiFile: (doc) => isApiFile(doc),
+    markChanged: (doc) => markChanged(doc),
+    dataLineage: (doc, into) => dataLineage(doc, into),
+    explorer: { isOpen: () => explorerPane.isOpen(), toggle: (on) => void explorerPane.toggle(on) },
+    get current() {
+      return current;
+    },
+    get tables() {
+      return tableCells.tables;
+    },
+    get vaultNames() {
+      return vaultNames;
     },
   });
-  void refreshFlow(doc);
-}
-
-/** Present: the notebook as a document, the Data Explorer closed while it shows. */
-let openBeforePresent: boolean | null = null;
-function present(doc: Doc, on?: boolean): boolean {
-  const now = doc.notebook!.present(on);
-  doc.element.classList.toggle("presenting", now);
-  if (now && openBeforePresent === null) {
-    openBeforePresent = explorerPane.isOpen();
-    if (openBeforePresent) explorerPane.toggle(false);
-  } else if (!now && openBeforePresent !== null) {
-    if (openBeforePresent) explorerPane.toggle(true);
-    openBeforePresent = null;
-  }
-  drawControls();
-  return now;
-}
-
-// ----- Script mode: run settings
-
-let vaultNames: string[] = [];
-
-function scriptModes(doc: Doc): void {
-  doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
-  if (isApiFile(doc)) {
-    // API.py: its endpoints beside the code, Try it there (closed until asked for: design principle 8.14). Its
-    // Run is Run API, so it has no run settings or history of a script's.
-    doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
-    return;
-  }
-  doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
-}
-
-const scriptArguments = new Map<Doc, string>();
-
-/** The run settings' arguments, for Run file (read when the script opens and when its settings change). */
-async function readArguments(doc: Doc): Promise<void> {
-  if (!doc.path) return;
-  try {
-    scriptArguments.set(doc, (await runSettings(doc.path)).arguments);
-  } catch {
-    /* a script that cannot be read: no arguments */
-  }
-}
-
-// ----- Data mode (data.ipynb): Cells | Lineage | Dictionary
-
-type DataView = "cells" | "lineage" | "dictionary";
-const dataViews = new Map<Doc, { view: DataView; host: HTMLElement; chosen: { table: string | null }; dictionary: Descriptions }>();
-
-/** What data.ipynb saves beside its cells: its data dictionary's descriptions. */
-function dataBody(doc: Doc): { dictionary?: Descriptions } {
-  const held = dataViews.get(doc);
-  return held && isData(doc) ? { dictionary: held.dictionary } : {};
-}
-
-function dataMode(doc: Doc, dictionary: Descriptions): void {
-  const host = h("div", { class: "wb-data-view", hidden: true });
-  doc.element.append(host);
-  dataViews.set(doc, { view: "cells", host, chosen: { table: null }, dictionary });
-}
-
-function setDataView(doc: Doc, view: DataView): DataView {
-  const held = dataViews.get(doc);
-  if (!held || !doc.notebook) throw new Error("The document in front is not a project's data.ipynb.");
-  held.view = view;
-  doc.notebook.element.hidden = view !== "cells";
-  held.host.hidden = view === "cells";
-  doc.element.classList.toggle("data-view", view !== "cells");
-  if (view !== "lineage") closePlacedLineage();
-  if (view === "dictionary") void drawDictionaryView(doc);
-  else if (view === "lineage") void dataLineage(doc, held.host).catch(() => undefined);
-  drawControls();
-  return view;
-}
-
-async function dictionaryTables(doc: Doc): Promise<DictionaryTable[]> {
-  const held = dataViews.get(doc)!;
-  const named = doc.notebook!.tables().map((t) => ({ name: t.name, source: tables.find((i) => i.name === t.name)?.source ?? "" }));
-  return readDictionary(named, held.dictionary);
-}
-
-async function drawDictionaryView(doc: Doc): Promise<void> {
-  const held = dataViews.get(doc);
-  if (!held || held.view !== "dictionary") return;
-  try {
-    const found = await dictionaryTables(doc);
-    drawDictionary(held.host, found, held.chosen, (table, column, text) => describe(doc, table, column, text));
-  } catch (e) {
-    clear(held.host, errorNote(e, { dismiss: false }));
-  }
-}
-
-/** A description typed in the Dictionary (or sent by the agent): kept in data.ipynb (unsaved until
- *  Save), and data.py's next export carries it. */
-function describe(doc: Doc, table: string, column: string | null, text: string): Descriptions {
-  const held = dataViews.get(doc);
-  if (!held) throw new Error("The document in front is not a project's data.ipynb.");
-  held.dictionary = described(held.dictionary, table, column, text);
-  markChanged(doc)();
-  return held.dictionary;
-}
-
-// ----- the status bar's mode toggles, and a group's mode switches
-
-const modeToggles = h("span", { class: "wb-mode-toggles" });
-
-function drawModeToggles(doc: Doc | null): void {
-  const panels = doc?.modes?.panels() ?? [];
-  clear(
-    modeToggles,
-    ...panels.map((p) =>
-      button(p.label ?? p.title, () => {
-        doc!.modes!.toggle(p.id);
-        drawStatus();
-      }, { class: `ghost wb-toggle wb-mode-toggle-${p.id}`, pressed: doc!.modes!.isOpen(p.id) }),
-    ),
-  );
-}
-
-/** A notebook's Cells | Present switch; data.ipynb's Cells | Lineage | Dictionary. */
-function modeSwitch(doc: Doc): HTMLElement | null {
-  if (!doc.notebook) return null;
-  const pick = (label: string, ic: string, on: boolean, run: () => void): HTMLButtonElement => button(label, run, { icon: ic, pressed: on, class: `wb-view-${label.toLowerCase()}` });
-  const held = dataViews.get(doc);
-  if (held && isData(doc)) {
-    return h(
-      "span",
-      { class: "cv-mode wb-view-switch", role: "group", "aria-label": "View" },
-      pick("Cells", "notebook", held.view === "cells", () => void setDataView(doc, "cells")),
-      pick("Lineage", "lineage", held.view === "lineage", () => void setDataView(doc, "lineage")),
-      pick("Dictionary", "book", held.view === "dictionary", () => void setDataView(doc, "dictionary")),
-    );
-  }
-  const presenting = doc.element.classList.contains("presenting");
-  return h(
-    "span",
-    { class: "cv-mode wb-view-switch", role: "group", "aria-label": "View" },
-    pick("Cells", "notebook", !presenting, () => void present(doc, false)),
-    pick("Present", "eye", presenting, () => void present(doc, true)),
-  );
-}
 
 // ----- a document MOVES to another Workbench window (the owner, 2026-11-15) -----
 // Popped out into a window of its own, or moved back to the main window: its unsaved text, its cell
@@ -918,78 +605,14 @@ const isMainWindow = (): boolean => !POPPED;
 if (!POPPED) window.name = PAGE_WINDOW[PAGE];
 const moves = (doc: Doc): boolean => !!(doc.notebook || doc.script);
 
-/** A document as it moves: everything the window holds of it. */
-function movingState(doc: Doc): Remembered & { title: string } {
-  return {
-    kind: doc.notebook ? "notebook" : "script",
-    path: doc.path,
-    title: doc.title,
-    modified: doc.modified,
-    dirty: doc.dirty,
-    python: doc.python,
-    ...(doc.notebook ? { cells: doc.notebook.cells(), next_cell: doc.notebook.nextCell(), ...dataBody(doc) } : { text: doc.script!.text() }),
-  };
-}
-
-/** Hand a document to another window (`to`: a window's id; null: a new window, opened for it). Its
- *  tab here closes once that window has taken it; if none does, it stays. */
-async function moveOut(doc: Doc, to: string | null): Promise<{ title: string; window: "new" | "main" }> {
-  if (!moves(doc)) throw new Error("Only a notebook, a script or a Streamlit app moves to another window.");
-  const kernel = doc.kernel?.id ?? null;
-  const { id } = await api<{ id: string }>("/workbench/handoffs", "POST", { document: movingState(doc), kernel, to });
-  if (to === null) {
-    const hash = new URLSearchParams({ token, take: id, fresh: "1", popped: "1" }).toString();
-    const opened = window.open(`/${PAGE}#${hash}`, `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800"); // a pop-out keeps its page
-    if (!opened) {
-      await api(`/workbench/handoffs/${id}`, "DELETE").catch(() => undefined);
-      throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
-    }
-  }
-  doc.element.classList.add("moving"); // nothing typed here now: it is on its way
-  const until = Date.now() + (to === null ? 30000 : 8000);
-  while (Date.now() < until) {
-    await new Promise((done) => setTimeout(done, 250));
-    const state = await api<{ taken: boolean }>(`/workbench/handoffs/${id}`).catch(() => ({ taken: false }));
-    if (!state.taken) continue;
-    doc.kernel?.release(); // it runs on, the other window's now
-    close(doc, true);
-    return { title: doc.title, window: to === null ? "new" : "main" };
-  }
-  const cancelled = await api<{ cancelled: boolean }>(`/workbench/handoffs/${id}`, "DELETE").catch(() => ({ cancelled: true }));
-  if (!cancelled.cancelled) {
-    doc.kernel?.release();
-    close(doc, true);
-    return { title: doc.title, window: to === null ? "new" : "main" };
-  }
-  doc.element.classList.remove("moving");
-  throw new Error(to === null ? `The new window did not take ${doc.title}: it stays here.` : `The main Workbench window is not open: ${doc.title} stays here.`);
-}
-
-/** Pop a document out into a Workbench window of its own (so it can sit on another screen). */
-const popOut = (doc: Doc): Promise<{ title: string; window: "new" | "main" }> => moveOut(doc, null);
-
-/** A popped-out window's document back to the main window. */
-function moveToMain(doc: Doc): Promise<{ title: string; window: "new" | "main" }> {
-  if (isMainWindow()) throw new Error("This is the main Workbench window.");
-  return moveOut(doc, "main"); // the main window that takes it first (the server makes sure only one does)
-}
-
-/** Take a document another window handed to this one: as it was there, its kernel still running. */
-async function takeDocument(id: string): Promise<void> {
-  const taken = await api<{ document: Remembered & { title: string }; kernel: string | null }>(`/workbench/handoffs/${id}/take`, "POST", { window: WINDOW_ID, page: PAGE });
-  if ((taken.document as { kind: string }).kind === "explorer") return explorerBack(taken.document as unknown as ExplorerState);
-  const r = taken.document;
-  const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : openScript(r.path, r.text ?? "", r.modified);
-  if (!r.path && r.title) doc.title = r.title;
-  doc.python = r.python;
-  if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
-  doc.dirty = r.dirty;
-  if (taken.kernel && doc.kernel) doc.kernel.adopt(taken.kernel, r.python ?? "");
-  show(doc);
-  drawTabs();
-  drawStatus();
-  remember();
-}
+// The move itself (workbenchMove.ts): handed over, taken, never two live copies.
+const { popOut, moveToMain, takeDocument } = documentMoves({
+  page: PAGE, moves, isMainWindow, close, explorerBack, openNotebook, openScript, show, drawTabs, drawStatus, remember,
+  dataBody: (doc) => dataBody(doc),
+  get pythons() {
+    return pythons;
+  },
+});
 
 const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => errorHere(e));
 
@@ -1243,82 +866,16 @@ function openScript(path: string | null, text: string, modified: number | null):
 
 // ===== lineage: a cell or a block back to the data, with its values (workbenchLineage.ts) =====
 
-/** A document as the lineage names it: its path, or its title while it has none. */
-const docName = (doc: Doc): string => doc.path ?? doc.title;
-
-/** The error each cell's last run ended with, by its number ("KeyError: 'amount'"). */
-function cellErrors(cells: CellData[]): Record<string, string> {
-  const found: Record<string, string> = {};
-  for (const c of cells) {
-    const error = c.outputs.find((o) => o.output_type === "error");
-    if (error && c.number) found[String(c.number)] = `${String(error.ename ?? "Error")}: ${String(error.evalue ?? "")}`.trim();
-  }
-  return found;
-}
-
-/** The request for a target: a cell of a document open here goes with the cells as the window holds them. */
-function lineageBody(target: LineageTarget): Record<string, unknown> {
-  if (target.app) return { app: target.app, page: target.page, block: target.block };
-  const doc = docs.find((d) => (d.notebook || d.script) && docName(d) === target.document);
-  if (!doc) return { document: target.document, cell: target.cell };
-  const base = { document: docName(doc), cell: target.cell, kernel: doc.kernel?.id ?? null };
-  if (doc.script) return { ...base, text: doc.script.text() };
-  const cells = doc.notebook!.cells();
-  const lean = cells.map(({ kind, source, connection, number, role, table, name }) => ({ kind, source, connection, number, role, table, name }));
-  return { ...base, cells: lean, errors: cellErrors(cells) };
-}
-
-/** Double-click on a node: its cell, in its document (opened when it is not open here). */
-async function goToNode(node: LineageNode): Promise<void> {
-  if (node.cell === null || !node.document) return;
-  let doc = docs.find((d) => (d.notebook || d.script) && (docName(d) === node.document || d.path === node.document));
-  if (!doc) {
-    await open(node.document);
-    doc = docs.find((d) => d.path === node.document);
-  }
-  if (!doc) return;
-  show(doc);
-  viewOf(doc)?.goTo(node.cell);
-}
-
-const lineageHost = { body: lineageBody, goTo: (node: LineageNode) => void goToNode(node) };
-
-/** The Data mode's Lineage view: data.ipynb's selected cell (else its last numbered one) back to the
- *  data, drawn in place by the lineage overlay's own code; a double-click on a node goes back to the
- *  cells, at that cell. */
-async function dataLineage(doc: Doc, into: HTMLElement, cell?: number): Promise<LineageGraph | null> {
-  const numbered = doc.notebook!.cells().filter((c) => c.number && c.kind !== "markdown" && c.source.trim());
-  const number = cell ?? doc.notebook!.selectedNumber() ?? numbered[numbered.length - 1]?.number ?? null;
-  if (!number) {
-    drawLineageEmpty(into);
-    return null;
-  }
-  const host = {
-    body: lineageBody,
-    goTo: (node: LineageNode) => {
-      if (dataViews.get(doc)?.view === "lineage") setDataView(doc, "cells");
-      void goToNode(node);
-    },
-  };
-  return openLineage({ document: docName(doc), cell: number }, host, into);
-}
-
-/** The lineage overlay: a cell of a document; without a target, the front document's selected cell (the
- *  cursor's in a script). */
-async function showLineage(target?: LineageTarget & { number?: number }, into?: HTMLElement): Promise<LineageGraph> {
-  let chosen: LineageTarget | null = null;
-  if (target?.app || target?.document) chosen = target;
-  else if (current?.notebook || current?.script) {
-    const number = target?.number ?? target?.cell ?? (current.notebook ? current.notebook.selectedNumber() : current.script!.cursorCell());
-    if (!number) throw new Error("Select a cell first.");
-    chosen = { document: docName(current), cell: number };
-  }
-  if (!chosen) throw new Error("No notebook, script or Streamlit app is in front.");
-  return openLineage(chosen, lineageHost, into);
-}
-
-// For the agent's palette and the tests: the overlay, or (`into`) the same flow drawn in that element.
-(window as unknown as { openLineage: (target?: LineageTarget & { number?: number }, into?: HTMLElement) => Promise<LineageGraph> }).openLineage = showLineage;
+// A cell's or a block's lineage, in the overlay or in data.ipynb's Lineage view (workbenchDocLineage.ts).
+const { showLineage, dataLineage } = documentLineage({
+  docs, open, show, viewOf,
+  get current() {
+    return current;
+  },
+  backToCells: (doc) => {
+    if (dataViews.get(doc)?.view === "lineage") setDataView(doc, "cells");
+  },
+});
 
 /** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
@@ -2475,7 +2032,7 @@ const waitFor = async <T>(found: () => T | null | undefined, ms = 8000): Promise
  *  tables.transformations): its cell, opened and in view, in the document that holds it; in a project
  *  data.ipynb opened when it is not. With no document for it, the grid's steps window. */
 async function showTransformations(name: string): Promise<{ table: string; document: string | null; cell: number | null }> {
-  const info = (tables.length ? tables : (tables = await fetchTables())).find((t) => t.name === name);
+  const info = (tableCells.tables.length ? tableCells.tables : await tableCells.read()).find((t) => t.name === name);
   if (!info) throw new Error(`No table named ${name} is open.`);
   const from = landing.kind();
   assignTables();
@@ -2695,7 +2252,7 @@ const commandHost = {
     return sab;
   },
   get tables() {
-    return tables;
+    return tableCells.tables;
   },
 };
 export type CommandHost = typeof commandHost;
@@ -2740,81 +2297,7 @@ mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.ma
 // What is sent to the agent or Analyze names the document it came from.
 setDocumentName(() => current?.title ?? "the Workbench");
 
-/** The keys the window takes wherever the focus is (before an editor or the browser sees them). */
-const WINDOW_KEYS: Record<string, string> = {
-  F5: "run.primary",
-  F1: "help.atCursor",
-  F6: "view.nextPane",
-  "Shift+F6": "view.previousPane",
-  "Ctrl+Shift+P": "palette",
-  "Ctrl+S": "file.save",
-  "Ctrl+Shift+S": "file.saveAs",
-  "Ctrl+O": "file.open",
-  "Ctrl+Shift+E": "view.explorer",
-  F11: "view.fullScreen",
-  "Ctrl+B": "view.files",
-  ...(PAGE === "scripts" ? { "Ctrl+Shift+F": "search.scripts" } : {}),
-  "Ctrl+1": "view.source",
-  "Ctrl+2": "console.focus",
-  "Ctrl+3": "view.variables",
-  "Ctrl+Shift+1": "view.focus",
-  "Ctrl+\\": "group.splitRight",
-  "Ctrl+Alt+PageDown": "doc.next",
-  "Ctrl+Alt+PageUp": "doc.previous",
-};
-/** In the desktop app the browser's keys are the window's too (desktopApp.ts); in a browser, the browser's. */
-const APP_KEYS: Record<string, string> = inApp()
-  ? { "Ctrl+W": "file.closeTab", "Ctrl+T": "file.newNotebook", "Ctrl+N": "file.newNotebook", "Ctrl+Tab": "doc.next", "Ctrl+Shift+Tab": "doc.previous", "Ctrl+Shift+T": "tabs.reopen" }
-  : {};
-
-function keyName(e: KeyboardEvent): string {
-  const key = /^Digit\d$/.test(e.code) ? e.code.slice(5) : e.key.length === 1 ? e.key.toUpperCase() : e.key;
-  return [e.ctrlKey || e.metaKey ? "Ctrl" : "", e.altKey ? "Alt" : "", e.shiftKey ? "Shift" : "", key].filter(Boolean).join("+");
-}
-
-document.addEventListener(
-  "keydown",
-  (e) => {
-    // The debugger's keys (VS Code's) while the script in front is paused; F9 a breakpoint at the cursor.
-    const debugging = current?.debug;
-    const debugKeys: Record<string, () => void> = debugging?.paused()
-      ? { F5: () => void debugging.step("continue"), F10: () => void debugging.step("over"), F11: () => void debugging.step("into"), "Shift+F11": () => void debugging.step("out"), "Shift+F5": () => void debugging.stop() }
-      : debugging?.active()
-        ? { "Shift+F5": () => void debugging.stop() }
-        : {};
-    if (debugging) {
-      debugKeys.F9 = () => debugging.toggleAtCursor();
-      if (!debugging.active()) debugKeys["Ctrl+Shift+D"] = () => void debugging.start().catch((err: Error) => errorHere(err));
-    }
-    const debugKey = debugKeys[keyName(e)];
-    if (debugKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      debugKey();
-      return;
-    }
-    const id = WINDOW_KEYS[keyName(e)] ?? APP_KEYS[keyName(e)];
-    if (!id) return;
-    // A blade's tab is an IDE of its own (codeIde.ts): its Save and Run take Ctrl+S and F5 there.
-    if ((id === "file.save" || id === "run.primary") && (e.target as Element | null)?.closest?.(".code-ide")) return;
-    // F5 would reload the window (stopping every kernel), F1 open the browser's help: the window's own.
-    e.preventDefault();
-    e.stopPropagation();
-    if (document.querySelector(".wb-palette-shade") && id !== "palette") return;
-    void runCommand(id).catch((error: Error) => errorHere(error));
-  },
-  true,
-);
-document.addEventListener("keydown", (e) => {
-  // Ctrl+Z outside an editor: a notebook's cell delete or move comes back (inside, the editor's own undo).
-  const inEditor = (e.target as HTMLElement | null)?.closest?.(".monaco-editor, input, textarea, select");
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !inEditor) {
-    // Never the browser's own undo: with the keyboard on a button it took back the last text typed
-    // into some editor, whole and unseen (an HTML cell's edit, in the instant after Edit HTML).
-    e.preventDefault();
-    current?.notebook?.undo();
-  }
-});
+windowKeys(PAGE, () => current); // F5, Ctrl+S, the debugger's keys, Ctrl+Z outside an editor (workbenchKeys.ts)
 window.addEventListener("beforeunload", (e) => {
   if (docs.some((d) => d.dirty)) e.preventDefault();
 });
