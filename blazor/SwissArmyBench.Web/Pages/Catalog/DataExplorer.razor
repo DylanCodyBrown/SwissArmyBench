@@ -56,9 +56,9 @@
     </div>
     <ErrorNote Error="_error" OnClose="() => _error = null" />
     <div class="ex-results" role="region" aria-label="Results">
-        @if (ShowsTree && _browsed is { } browsed)
+        @if (ShowsTree)
         {
-            <CatalogTree Answer="browsed" Actions="Actions" Previews="_previews" SandboxSort="@_sandboxSort" OnOnly="OnlyAsync" OnLoad="LoadCatalogAsync" OnSort="SortSandboxAsync" />
+            <CatalogTree Answer="TreeAnswer" Searching="Typed" Actions="Actions" Previews="_previews" SandboxSort="@_sandboxSort" OnOnly="OnlyAsync" OnLoad="LoadCatalogAsync" OnSort="SortSandboxAsync" />
         }
         else if (_answer is { } answer)
         {

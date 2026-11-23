@@ -38,7 +38,8 @@ def test_find_add_and_draw_a_relationship(browser: Browser, server: dict[str, An
 def test_catalog_search_and_environment_open(browser: Browser, server: dict[str, Any]) -> None:
     page = open_page(browser, server, "catalog")
     page.fill(".catalog-search", "cust")
-    expect(page.locator(".catalog-rows").first).to_contain_text("customers")
+    # Typed on the Catalog page: the same tree, narrowed to what matches (the classic dataBrowse.ts).
+    expect(page.locator(".db-tree")).to_contain_text("customers")
     page.click(".nav-rail-item[data-area=environment]")
     row = page.locator(".environment-rows tr", has_text="orders").first
     expect(row).to_contain_text("Table")

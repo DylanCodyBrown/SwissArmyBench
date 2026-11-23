@@ -56,6 +56,10 @@ public partial class CatalogTree
     [Parameter]
     public string SandboxSort { get; set; } = "name asc";
 
+    /// <summary>A typed search's narrowed tree: everything open, "Nothing matches" when empty.</summary>
+    [Parameter]
+    public bool Searching { get; set; }
+
     [Parameter]
     public EventCallback<string> OnOnly { get; set; }
 
@@ -78,7 +82,7 @@ public partial class CatalogTree
         if (!ReferenceEquals(Answer, _built))
         {
             _built = Answer;
-            _roots = CatalogTreeNodes.Of(Answer);
+            _roots = CatalogTreeNodes.Of(Answer, Searching);
         }
     }
 

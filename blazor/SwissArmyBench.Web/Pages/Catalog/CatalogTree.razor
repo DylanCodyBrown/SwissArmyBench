@@ -15,7 +15,7 @@
         </ul>
         @if (_roots.Count == 0)
         {
-            <p class="empty-note">No data yet</p>
+            <p class="empty-note">@(Searching ? "Nothing matches" : "No data yet")</p>
         }
     </div>
     @if (_detailOf is { Result: { } r } shown)

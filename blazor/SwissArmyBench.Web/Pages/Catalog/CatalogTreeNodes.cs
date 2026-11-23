@@ -19,9 +19,11 @@ public static class CatalogTreeNodes
         ["shared"] = "folder",
     };
 
-    public static List<TreeNode> Of(BrowseAnswer answer) =>
+    /// <param name="answer">The browse answer, or a search's narrowed tree (CatalogSearchTree).</param>
+    /// <param name="searching">A search's tree: everything in it shown open.</param>
+    public static List<TreeNode> Of(BrowseAnswer answer, bool searching = false) =>
     [
-        .. answer.Connections.Select(c => Connection(c, answer.Connections.Count == 1)),
+        .. answer.Connections.Select(c => Connection(c, searching || answer.Connections.Count == 1, searching)),
         .. answer.Sections.Select(s => new TreeNode
         {
             Key = $"section/{s.Kind}",
@@ -44,7 +46,7 @@ public static class CatalogTreeNodes
             _ => c.Loaded ? $"{c.Count.ToString("N0", CultureInfo.InvariantCulture)} table{(c.Count == 1 ? string.Empty : "s")}" : "Not loaded",
         };
 
-    private static TreeNode Connection(BrowseConnection c, bool open)
+    private static TreeNode Connection(BrowseConnection c, bool open, bool searching = false)
     {
         List<TreeNode> groups = c.Groups is [{ Schema: "", Database: "" } only]
             ? [.. only.Tables.Select(Table)]
@@ -58,7 +60,7 @@ public static class CatalogTreeNodes
                 Group = g,
                 Note = g.Count.ToString(CultureInfo.InvariantCulture),
                 Children = [.. g.Tables.Select(Table)],
-                OpenAtFirst = c.Groups.Count == 1,
+                OpenAtFirst = searching || c.Groups.Count == 1,
             })];
         return new TreeNode
         {
@@ -88,6 +90,8 @@ public static class CatalogTreeNodes
             Note = r.Kind == "structures" && r.Pointer is { } pointer && pointer != "$" ? pointer : r.Detail,
             Children = kids.Count > 0 ? [.. kids.Select(k => k.Kind == "columns" ? Column(r.Key, k) : Table(k))] : catalog ? [] : null,
             Lazy = catalog,
+            // A search's matched columns show under their table at once.
+            OpenAtFirst = catalog && kids.Any(k => k.Kind == "columns"),
         };
     }
 

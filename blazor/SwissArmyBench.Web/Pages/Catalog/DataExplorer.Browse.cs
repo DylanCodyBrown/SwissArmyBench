@@ -21,11 +21,33 @@ public partial class DataExplorer
 
     private bool Typed => _text.Trim().Length > 0 || _column.Length > 0;
 
-    private bool ShowsTree => Browse && !Typed && _browsed is not null;
+    private bool ShowsTree => Browse && _browsed is not null && (!Typed || _answer is not null);
+
+    // Typed on the Catalog page: the same tree, narrowed to what matches (made once per answer).
+    private SearchAnswer? _narrowedFrom;
+    private BrowseAnswer? _narrowed;
+
+    private BrowseAnswer TreeAnswer
+    {
+        get
+        {
+            if (!Typed || _answer is null)
+            {
+                return _browsed!;
+            }
+            if (!ReferenceEquals(_answer, _narrowedFrom))
+            {
+                _narrowedFrom = _answer;
+                _narrowed = CatalogSearchTree.Of(_answer, _browsed);
+            }
+            return _narrowed!;
+        }
+    }
 
     private async Task BrowseIfAsync(int mine)
     {
-        if (!Browse || Typed)
+        // A search's tree needs the connections' states too: the browse is read once and kept while typing.
+        if (!Browse || (Typed && _browsed is not null))
         {
             return;
         }
