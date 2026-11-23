@@ -216,6 +216,12 @@ let pythons: PythonChoice[] = [];
 let connectionNames: string[] = [];
 let workspaceNames: string[] = []; // the Power BI workspaces
 let datasetNames: string[] = []; // their datasets, as a DAX cell names them: Finance/Sales model
+// The first load of the names: a default ("the first dataset") waits for it, never reads an empty list.
+let namesLoaded: Promise<void> = Promise.resolve();
+async function firstDataset(): Promise<string> {
+  await namesLoaded;
+  return datasetNames[0] ?? "";
+}
 let bladeNames: string[] = [];
 let codeNames: { name: string; connection: string; kind: string }[] = [];
 let bladeVariables: BladeSummary[] = []; // the blades that are not connections
@@ -1957,7 +1963,7 @@ function topEntries(): MenuEntry[] {
 function cellEntries(doc: Doc): MenuEntry[] {
   if (doc.script) {
     return [
-      { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: () => void doc.script!.addDax(datasetNames[0] ?? "") },
+      { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: () => void firstDataset().then((d) => doc.script!.addDax(d)) },
       { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: () => void doc.script!.addHtml() },
     ];
   }
@@ -2667,7 +2673,7 @@ const kernelOf = (): Kernel => {
 const commandHost = {
   addApi, BASE_FONT, bladeDoc, browse, canSplit, close, dataViews, describe,
   dictionaryTables, docs, drawDictionaryView, drawStatus, explorerInsert, explorerPane, explorerTarget, exportData,
-  exportDocument, fullScreen, giveTable, goToTable, groups, isCode, isData, isMainWindow,
+  exportDocument, firstDataset, fullScreen, giveTable, goToTable, groups, isCode, isData, isMainWindow,
   kernelOf, layout, moves, moveToMain, newProject, open, openAt, openCell,
   openNotebook, openProject, openScript, openStructureTab, openWorkbook, PAGE, popExplorer, popOut,
   present, rail, refreshFlow, restartKernel, runPrimary, sabOpen, save, saveFront,
@@ -2681,9 +2687,6 @@ const commandHost = {
   },
   get cursor() {
     return cursor;
-  },
-  get datasetNames() {
-    return datasetNames;
   },
   get project() {
     return project;
@@ -2935,9 +2938,10 @@ window.addEventListener("message", (e: MessageEvent) => {
   // A document by its path (the Code App page's data notebook).
   if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => errorToast(err));
 });
+namesLoaded = loadConnections();
 void Promise.all([
   refreshHome(),
-  loadConnections(),
+  namesLoaded,
   whenMode(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),
   loadProjectPython(), // before any document opens: a project's document joins the project's one session

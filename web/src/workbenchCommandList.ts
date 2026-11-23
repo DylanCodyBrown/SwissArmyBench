@@ -273,7 +273,7 @@ export function workbenchCommands(h: CommandHost): Command[] {
     { id: "cell.toDax", group: "Cell", title: "Make it a DAX cell", keys: "X", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("dax") },
     { id: "cell.addDax", group: "Cell", title: "Add a DAX cell", args: "dataset: a Power BI workspace's dataset, as Finance/Sales model (default: the first); source: its DAX", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => {
       const source = text(a, "source") ?? "";
-      const dataset = text(a, "dataset") ?? h.datasetNames[0] ?? "";
+      const dataset = text(a, "dataset") ?? (await h.firstDataset());
       if (h.current?.notebook) {
         h.current.notebook.insert("below", "dax", source);
         if (dataset) h.current.notebook.setConnection(dataset);
@@ -293,7 +293,7 @@ export function workbenchCommands(h: CommandHost): Command[] {
       }
       if (!name) throw new Error("Send the snippet's name (blades_starters lists them).");
       const filled = await api<FilledSnippet>(`/blades/${encodeURIComponent(name)}/snippet`, "POST", { values });
-      if (filled.language === "dax") await script().addDax(h.datasetNames[0] ?? "", filled.text);
+      if (filled.language === "dax") await script().addDax(await h.firstDataset(), filled.text);
       else if (filled.language === "html") await script().addHtml(filled.text);
       else await script().addCode(filled.text, filled.cell_name ?? "");
       return { document: h.current!.title, language: filled.language, name: filled.cell_name };
