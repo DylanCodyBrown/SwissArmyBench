@@ -20,7 +20,7 @@ flowchart TB
         domain["domain<br/>121 modules"]
         settings["settings<br/>1 module"]
         services["services<br/>84 modules"]
-        adapters["adapters<br/>43 modules"]
+        adapters["adapters<br/>45 modules"]
         cli["cli<br/>41 modules"]
         client["client<br/>24 modules"]
         root["root<br/>4 modules"]
@@ -39,7 +39,7 @@ flowchart TB
     adapters -->|49| domain
     adapters -->|1| root
     adapters -->|3| services
-    bootstrap -->|40| adapters
+    bootstrap -->|42| adapters
     bootstrap -->|1| client
     bootstrap -->|25| domain
     bootstrap -->|2| root
@@ -128,12 +128,12 @@ low by design and its D says little; the measure bites for the components that h
 | domain | the model and its rules | 121 | 155 | 0 | 0.00 | 320 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 5 | 1 | 0.17 | 2 | 0 | 0.00 | 0.83 |
 | services | the use cases | 84 | 86 | 107 | 0.55 | 279 | 134 | 0.48 | 0.03 |
-| adapters | the driven edge: DuckDB, files, the keyring | 43 | 22 | 34 | 0.61 | 108 | 2 | 0.02 | 0.37 |
+| adapters | the driven edge: DuckDB, files, the keyring | 45 | 22 | 34 | 0.61 | 108 | 2 | 0.02 | 0.37 |
 | cli | the agent's commands | 41 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 3 | 0 | 0.00 | 0.47 |
 | server | the HTTP door and what starts a process | 87 | 12 | 127 | 0.91 | 41 | 2 | 0.05 | 0.04 |
-| bootstrap | the composition root | 1 | 1 | 163 | 0.99 | 2 | 0 | 0.00 | 0.01 |
+| bootstrap | the composition root | 1 | 1 | 165 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
 | accounting | an extension | 9 | 0 | 9 | 1.00 | 5 | 1 | 0.20 | 0.20 |
 | copilot | an extension | 9 | 0 | 8 | 1.00 | 16 | 5 | 0.31 | 0.31 |
@@ -153,7 +153,7 @@ low by design and its D says little; the measure bites for the components that h
 | `swissarmybench.cli.api` | 46 |
 | `swissarmybench.domain.blades` | 40 |
 | `swissarmybench.cli.command_kit` | 37 |
-| `swissarmybench.adapters.atomic_files` | 31 |
+| `swissarmybench.adapters.atomic_files` | 33 |
 | `swissarmybench.domain.steps` | 31 |
 | `swissarmybench.domain.grids` | 28 |
 | `swissarmybench.domain.connections` | 25 |

@@ -218,7 +218,10 @@ class DataLake(Lake):
     folders and hive-partitioned folders, one table each."""
 
     mode = "files"
+'''
 
+# OneLake's own class: it names Tds, so only OneLake's code carries it.
+_ONELAKE_KIND = r'''
 
 class OneLake(Lake):
     """A Microsoft Fabric lakehouse (its Delta tables under Tables/, its files under Files/) or warehouse
@@ -274,7 +277,10 @@ class OneLake(Lake):
         return super().cursor()
 '''
 
-_HEAD = entra.IMPORTS.replace("import time\n", "import struct\nimport time\n") + "\nimport duckdb\n"
+# A lake's imports: Entra's without zipfile (SharePoint's workbooks read it); struct for OneLake's SQL token.
+_IMPORTS = entra.IMPORTS.replace("import zipfile\n", "")
+_HEAD = _IMPORTS + "\nimport duckdb\n"
+_ONELAKE_HEAD = _IMPORTS.replace("import time\n", "import struct\nimport time\n") + "\nimport duckdb\n"
 _BODY = entra.COMMON + code.STORES + code.DELTA + code.WRITER + code.READER
 _ENTRA = {"you": entra.YOU, "managed": entra.MANAGED, "app": entra.APP, "mfa": entra.MFA}
 
@@ -292,7 +298,7 @@ sql_endpoint = ""
 
 def _onelake(way: str) -> str:
     return (
-        _HEAD + _ONELAKE_PLACE + _ENTRA[way] + _BODY + SQL_ENDPOINT + _KINDS + "\n\n"
+        _ONELAKE_HEAD + _ONELAKE_PLACE + _ENTRA[way] + _BODY + SQL_ENDPOINT + _KINDS + _ONELAKE_KIND + "\n\n"
         'storage = Token(sign_in, "https://storage.azure.com/.default")\n'
         'warehouse = Token(sign_in, "https://database.windows.net/.default")\n'
         "conn = OneLake(workspace, item, storage, sql_endpoint, warehouse)\n"

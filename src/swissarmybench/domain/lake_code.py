@@ -158,7 +158,7 @@ class AzureStore:
         if not self.account or not self.filesystem:
             raise LakeError("Name the storage account and the container (a OneLake workspace).")
         moved = os.environ.get("SWISSARMYBENCH_STORAGE_URL")
-        self.endpoint = f"{moved.rstrip('/')}/{self.account}" if moved else f"https://{self.account}.{host}"
+        self.endpoint = f"{moved.rstrip('/')}/{self.account}" if moved else f"https://{self.account}.{self.host}"
         self.moved = bool(moved)
         if self.key and not self.sas:
             self.sas = account_sas(self.account, self.key)
@@ -806,7 +806,7 @@ class Lake(LakeWrites):
 
     def source(self, t, filters=()):
         """The FROM for a table, as DuckDB reads it, and how (delta_scan, deltalake, log, parquet...)."""
-        duck = self.duck()
+        self.duck()  # the connection made, and the store prepared in it
         if t["kind"] == "delta":
             return self._delta_source(t, filters)
         if t.get("version") is not None or t.get("when"):

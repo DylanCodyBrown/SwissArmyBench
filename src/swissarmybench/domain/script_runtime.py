@@ -831,3 +831,111 @@ def carried_module(module: str, text: str) -> str:
         "import sys as _sys\n\n"
         f"_sys.meta_path.append({finder}())\n"
     )
+
+
+# ===== a made file's imports: only the ones it reads =====
+
+
+def _bound_in(function: ast.AST) -> set[str]:
+    """The names a function binds itself (its arguments, what it assigns and imports), nested functions'
+    own left out: inside it, such a name is the function's, not the module's."""
+    found: set[str] = set()
+    freed: set[str] = set()
+    todo = list(ast.iter_child_nodes(function))
+    while todo:
+        node = todo.pop()
+        if isinstance(node, ast.arg):
+            found.add(node.arg)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            found.add(node.id)
+        elif isinstance(node, ast.Import | ast.ImportFrom):
+            found.update((a.asname or a.name).split(".")[0] for a in node.names)
+        elif isinstance(node, ast.Global):
+            freed.update(node.names)
+        elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            found.add(node.name)
+            continue
+        elif isinstance(node, ast.Lambda):
+            continue
+        todo += list(ast.iter_child_nodes(node))
+    return found - freed
+
+
+def _dotted(node: ast.AST) -> str | None:
+    """`urllib.request.urlopen` for that attribute chain on a plain name (None: on something else)."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name) or not isinstance(node.ctx, ast.Load):
+        return None
+    return ".".join([node.id, *reversed(parts)])
+
+
+def _module_reads(tree: ast.Module) -> set[str]:
+    """Every dotted name read where the module's own name is the one meant (not a function's own)."""
+    reads: set[str] = set()
+
+    def walk(node: ast.AST, hidden: frozenset[str]) -> None:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+            hidden = hidden | _bound_in(node)
+        if isinstance(node, ast.Attribute | ast.Name):
+            chain = _dotted(node)
+            if chain is not None:
+                if chain.split(".")[0] not in hidden:
+                    reads.add(chain)
+                return
+        for child in ast.iter_child_nodes(node):
+            walk(child, hidden)
+
+    walk(tree, frozenset())
+    return reads
+
+
+def without_unused_imports(text: str) -> str:
+    """Made code without the top-level import lines nothing reads (a made file's head is one list for
+    every connection: connections.py keeps only what its own connections use), and without a line that
+    repeats an earlier one. Kept as they are: `from __future__`, a line marked `# noqa`, an import of
+    several names, one over several lines, a star import, and anything not at the top level. A submodule
+    (`import urllib.request`) is read by a name that starts with it; a read of its package no top-level
+    import names (`os.getcwd()` beside `import os.path`) keeps every import of that package. Text that
+    does not parse is given back as it is."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    lines = text.split("\n")
+    single = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.Import | ast.ImportFrom)
+        and node.lineno == node.end_lineno
+        and len(node.names) == 1
+        and node.names[0].name != "*"
+        and not (isinstance(node, ast.ImportFrom) and node.module == "__future__")
+        and "# noqa" not in lines[node.lineno - 1]
+    ]
+    # What each line binds, and the dotted name a read must start with to count as reading it.
+    wanted: dict[int, tuple[str, str]] = {}
+    for node in single:
+        alias = node.names[0]
+        if isinstance(node, ast.Import) and not alias.asname:
+            wanted[node.lineno] = (alias.name.split(".")[0], alias.name)
+        else:
+            wanted[node.lineno] = (alias.asname or alias.name, alias.asname or alias.name)
+    used: set[int] = set()
+    for chain in _module_reads(tree):
+        root = chain.split(".")[0]
+        same_root = [line for line, (bound, _) in wanted.items() if bound == root]
+        exact = [
+            line for line in same_root if chain == wanted[line][1] or chain.startswith(wanted[line][1] + ".")
+        ]
+        used.update(exact or same_root)
+    drop: set[int] = set()
+    seen: set[str] = set()
+    for node in single:
+        said = ast.dump(node)
+        if node.lineno not in used or said in seen:
+            drop.add(node.lineno)
+        seen.add(said)
+    return "\n".join(line for number, line in enumerate(lines, 1) if number not in drop)

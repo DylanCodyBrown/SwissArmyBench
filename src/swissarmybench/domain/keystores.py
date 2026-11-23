@@ -282,9 +282,7 @@ conn = trino.dbapi.connect(
 )"""
 ROOT_CA_MARK = "auth=None,  # no sign-in"
 
-TRINO_KEYSTORE = f"""import os
-
-import requests
+TRINO_KEYSTORE = f"""import requests
 import trino
 
 user = "my_user"

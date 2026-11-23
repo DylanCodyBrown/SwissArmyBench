@@ -655,16 +655,18 @@ class Dataverse:
 conn = Dataverse(url, sign_in)'''
 
 
-def _code(sign_in: str, imports: str = "") -> str:
-    return _IMPORTS + imports + _WHERE + sign_in + _CONNECTION
+def _code(sign_in: str, imports: str = "", reads_os: bool = True) -> str:
+    """`reads_os` False: a sign-in that reads no environment variable at the top (no unused `import os`)."""
+    head = _IMPORTS if reads_os else _IMPORTS.replace("import os\n", "")
+    return head + imports + _WHERE + sign_in + _CONNECTION
 
 
-YOU: str = _code(_YOU, "\nfrom azure.identity import DefaultAzureCredential\n")
+YOU: str = _code(_YOU, "\nfrom azure.identity import DefaultAzureCredential\n", reads_os=False)
 MANAGED: str = _code(_MANAGED)
 APP: str = _code(_APP)
 # A username with multi-factor sign-in (the owner, 2026-11-20: "the dataverse connection didnt support mfa
 # with user and password"): a browser window or a code on another device, remembered (domain/entra.py).
-MFA: str = _code(entra.MFA)
+MFA: str = _code(entra.MFA, reads_os=False)
 
 # The form's Sign in: (label, a text only that way's code holds, its code). The app registration comes
 # first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as you, this machine's

@@ -29,6 +29,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import script_runtime
+
 EXPORT_FOLDER = "exports/api"  # the project's made folder: exports/api/<target>/
 SANDBOX_FILE = "data/sandbox.duckdb"
 
@@ -146,7 +148,8 @@ def connections_module(registry: str, uses_sandbox: bool, names: Sequence[str]) 
         hook += ['    raise RuntimeError(f"This export has no connection named {name}.")']
     # connection(name) in API.py is then the adapter's Connection over it (sab_api's own fallback).
     hook += ["", "", "adapter.use(_source)", ""]
-    return head + ("\n\n" + body if body else "") + (_SANDBOX_COPY if uses_sandbox else "") + "\n".join(hook)
+    whole = head + ("\n\n" + body if body else "") + (_SANDBOX_COPY if uses_sandbox else "") + "\n".join(hook)
+    return script_runtime.without_unused_imports(whole)  # the head's one list of imports: only those read
 
 
 NO_ROWS = (

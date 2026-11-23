@@ -38,6 +38,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import script_runtime
+
 ADAPTER = "adapter.py"
 CONNECTIONS = "connections.py"
 API = "API.py"
@@ -175,7 +177,8 @@ adapter.use(_source)
 def connections_py(parts: str) -> str:
     """connections.py from the connections' code (`parts`: the shared settings and helpers, the marked
     sections, the registry, as services/script_export.py connections_code gives them)."""
-    return CONNECTIONS_HEAD + "\n" + parts.strip("\n") + "\n" + CONNECTIONS_FOOT
+    whole = CONNECTIONS_HEAD + "\n" + parts.strip("\n") + "\n" + CONNECTIONS_FOOT
+    return script_runtime.without_unused_imports(whole)  # the head's one list of imports: only those read
 
 
 _CLIENT_AT = re.compile(r'spec_from_file_location\(\s*"(API_[A-Za-z0-9_]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)')
