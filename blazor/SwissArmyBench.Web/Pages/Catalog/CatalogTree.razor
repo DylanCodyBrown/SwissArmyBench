@@ -1,0 +1,103 @@
+@* The Catalog's tree and its detail side (the classic dataBrowse.ts), drawn while nothing is typed: each connection
+   with its state and its tables by database and schema, each table's columns when it opens, then the open tables,
+   the sandbox (sorted as chosen), Structures, the APIs' tables and the blades; the selected table's detail beside
+   it (its SQL name, where it comes from, its columns, the code that reads it, Import its relationships). The arrows
+   move (Right opens, Left closes or goes up), Enter runs a table's first action. Logic in CatalogTree.razor.cs. *@
+
+<div class="db-body">
+    <div class="db-main">
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <ul class="db-tree" role="tree" aria-label="Data" @onkeydown="KeyAsync">
+            @foreach (var node in _roots)
+            {
+                <CatalogTreeRow @key="node.Key" Node="node" Owner="this" />
+            }
+        </ul>
+        @if (_roots.Count == 0)
+        {
+            <p class="empty-note">@(Searching ? "Nothing matches" : "No data yet")</p>
+        }
+    </div>
+    @if (_detailOf is { Result: { } r } shown)
+    {
+        <aside class="db-detail" aria-label="Table">
+            <header class="db-detail-head"><h2><Icon Name="@shown.Icon" /> @r.Name</h2><p class="db-where">@string.Join(" › ", r.Path)</p></header>
+            <div class="db-detail-actions">
+                @foreach (var (a, i) in Actions(r).Select((a, i) => (a, i)))
+                {
+                    <button type="button" class="btn small @(i == 0 ? "primary" : "line")" title="@(a.Title ?? a.Label)" @onclick="() => RunAsync(shown, a)"><Icon Name="@a.Icon" /> @a.Label</button>
+                }
+                @if (_detail is { Relationships: true } d)
+                {
+                    <button type="button" class="btn small line" disabled="@_importing" @onclick="() => ImportAsync(d.Connection, d.Place.Schema ?? string.Empty)"><Icon Name="diagram" /> @(_importing ? "Reading…" : "Import its relationships")</button>
+                }
+            </div>
+            <div class="db-detail-body">
+                @if (r.Source != "catalog")
+                {
+                    @if (r.Source == "shared")
+                    {
+                        <p class="hint db-shared">@(r.Here == true ? "From the shared catalog" : "From the shared catalog: not connected here")@(r.UsedBy is { Count: > 0 } used ? $" · used by {string.Join(", ", used)}" : string.Empty)</p>
+                    }
+                    @if (r.Sql is { } sql)
+                    {
+                        <section><h3>SQL name</h3><code class="db-sql">@sql</code></section>
+                    }
+                    var cols = (r.Children ?? []).Where(c => c.Kind == "columns").Select(c => new DetailColumn(c.Name, c.Type)).ToList();
+                    @if (cols.Count > 0)
+                    {
+                        @ColumnsTable(cols)
+                    }
+                    @CodeBlocks(r.Insert?.Sql, r.Insert?.Python)
+                }
+                else if (_detailError is { } error)
+                {
+                    <ErrorNote Error="error" OnClose="() => _detailError = null" />
+                }
+                else if (_detail is { } read)
+                {
+                    <section><h3>SQL name</h3><div class="db-sql-row"><code class="db-sql">@read.Sql</code>
+                        <button type="button" class="btn ghost icon small" aria-label="Copy SQL name" title="Copy SQL name" @onclick="() => CopyAsync(read.Sql)"><Icon Name="copy" /></button></div></section>
+                    <section><h3>From</h3><p class="db-where">@string.Join(" › ", read.Where)</p></section>
+                    @ColumnsTable(read.Columns)
+                    @CodeBlocks(read.Code.Sql, read.Code.Python)
+                }
+                else
+                {
+                    <div class="loading-block">Loading…</div>
+                }
+            </div>
+        </aside>
+    }
+</div>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+
+@code {
+    private static RenderFragment ColumnsTable(IReadOnlyList<DetailColumn> columns) => @<section>
+        <h3>Columns <span class="count">@columns.Count</span></h3>
+        <table class="small db-columns" aria-label="Columns">
+            <thead><tr><th>Column</th><th>Type</th><th>Nulls</th></tr></thead>
+            <tbody>
+                @foreach (var c in columns)
+                {
+                    <tr><td>@c.Name</td><td class="mono">@c.Type</td><td>@c.NullsWords</td></tr>
+                }
+            </tbody>
+        </table>
+    </section>;
+
+    private RenderFragment CodeBlocks(string? sql, string? python) => @<text>
+        @foreach (var (label, text) in new[] { ("SQL cell", sql), ("Python cell", python) })
+        {
+            if (text is { Length: > 0 } body)
+            {
+                <div class="db-code"><div class="db-code-head"><span>@label</span>
+                    <button type="button" class="btn ghost icon small" aria-label="Copy the @label" title="Copy the @label" @onclick="() => CopyAsync(body)"><Icon Name="copy" /></button></div>
+                    <pre class="mono">@body</pre></div>
+            }
+        }
+    </text>;
+}

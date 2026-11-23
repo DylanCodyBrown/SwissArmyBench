@@ -167,6 +167,17 @@ public partial class FilterForm
         }
     }
 
+    /// <summary>Every value shown is ticked (Select all's mark).</summary>
+    private bool AllShownPicked => Shown.Any() && Shown.All(v => _picked.ContainsKey(v.Value.GetRawText()));
+
+    private void PickAllShown(bool on)
+    {
+        foreach (var value in Shown.ToList())
+        {
+            Pick(value.Value, on);
+        }
+    }
+
     private void Pick(JsonElement value, bool on)
     {
         if (on)

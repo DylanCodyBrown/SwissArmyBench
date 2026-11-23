@@ -1,0 +1,135 @@
+@* Each table's query looked over, then run on the other connection (the classic swapConnection.ts SQL window,
+   ?panel=connsql there; a dialog here): "{table} · {to}", its query in a box as big as it needs; Run on {to}, Run all
+   as they are (the rest unchanged), Skip (Cancel on the last). *@
+@inject GridsClient Grids
+@inject Notes Notes
+
+@if (_table is { } table)
+{
+    <AppDialog Title="@($"{table} · {To}")" Wide="true" OnClose="OnClose">
+        <ChildContent>
+            <div class="form-grid sql-form">
+                <textarea class="code-input mono" rows="16" spellcheck="false" aria-label="SQL" @bind="_sql" @bind:event="oninput"></textarea>
+            </div>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn primary" @onclick="RunAsync"><Icon Name="play" /> Run on @To</button>
+            @if (_queue.Count > 0)
+            {
+                <button type="button" class="btn" @onclick="RunAllAsync"><Icon Name="play" /> Run all as they are</button>
+            }
+            <button type="button" class="btn ghost" @onclick="NextAsync">@(_queue.Count > 0 ? "Skip" : "Cancel")</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private readonly Queue<string> _queue = new();
+    private string? _table;
+    private string _sql = string.Empty;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string To { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Tables { get; set; } = [];
+
+    /// <summary>The query to start from (Write a query…), for one table.</summary>
+    [Parameter]
+    public string? Sql { get; set; }
+
+    /// <summary>A table moved (the page reads its grid again).</summary>
+    [Parameter]
+    public EventCallback<Swapped> OnSwapped { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var table in Tables)
+        {
+            _queue.Enqueue(table);
+        }
+        await NextAsync();
+    }
+
+    private async Task<string> QueryOfAsync(string table)
+    {
+        if (Sql is not null && Tables.Count == 1)
+        {
+            return Sql;
+        }
+        try
+        {
+            return (await Grids.ConnectionOfAsync(table)).Sql ?? string.Empty;
+        }
+        catch (ApiException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (!_queue.TryDequeue(out var table))
+        {
+            await OnClose.InvokeAsync();
+            return;
+        }
+        _table = table;
+        _error = null;
+        _sql = await QueryOfAsync(table);
+    }
+
+    private async Task<bool> RunOneAsync(string table, string sql)
+    {
+        try
+        {
+            var answer = await Grids.SwapConnectionAsync(table, To, sql: sql);
+            if (answer.Failed is { } failed)
+            {
+                _error = new ApiException(0, new Refusal(failed, table), failed);
+                return false;
+            }
+            if (answer.Swapped is { ValueKind: System.Text.Json.JsonValueKind.Object } swapped)
+            {
+                var done = swapped.Deserialize<Swapped>(ApiClient.Json)!;
+                if (done.StepsProblems.Count > 0)
+                {
+                    _ = Notes.SayAsync($"{done.StepsProblems.Count} steps of {table} no longer fit.");
+                }
+                await OnSwapped.InvokeAsync(done);
+            }
+            return true;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            return false;
+        }
+    }
+
+    private async Task RunAsync()
+    {
+        if (_table is { } table && await RunOneAsync(table, _sql))
+        {
+            await NextAsync();
+        }
+    }
+
+    private async Task RunAllAsync()
+    {
+        if (_table is not { } table || !await RunOneAsync(table, _sql))
+        {
+            return;
+        }
+        while (_queue.TryDequeue(out var other))
+        {
+            await RunOneAsync(other, await QueryOfAsync(other));
+        }
+        await OnClose.InvokeAsync();
+    }
+}

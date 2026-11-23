@@ -47,11 +47,45 @@ public sealed class ProjectsClient
     /// <summary>New project: its name, where (a folder, or "where": "shared"), and its type's own fields (make).</summary>
     public Task<ProjectAnswer> NewAsync(IReadOnlyDictionary<string, object?> body) => _api.PostAsync<ProjectAnswer>("/project/new", body);
 
-    public Task<ProjectAnswer> OpenAsync(string path, bool discard = false) => _api.PostAsync<ProjectAnswer>("/project/open", new { path, discard });
+    public Task<ProjectAnswer> OpenAsync(string path, bool discard = false, bool make = false) =>
+        _api.PostAsync<ProjectAnswer>("/project/open", make ? new { path, discard, make } : new { path, discard });
+
+    /// <summary>Another program's open (swissarmybench open) answered: its folder opened (unsaved work let go) or
+    /// not.</summary>
+    public Task<ProjectAnswer> AnswerAskedAsync(string path, bool open) =>
+        _api.PostAsync<ProjectAnswer>("/project/open", open ? new { path, discard = true } : new { cancel = true });
 
     public Task<ProjectAnswer> SaveAsync() => _api.PostAsync<ProjectAnswer>("/project/save");
+
+    /// <summary>Save with the tables' Keep its rows answers (only those asked).</summary>
+    public Task<SaveAnswer> SaveAsync(IReadOnlyDictionary<string, bool> keepRows) =>
+        _api.PostAsync<SaveAnswer>("/project/save", keepRows.Count > 0 ? new { keep_rows = keepRows } : new { });
 
     public Task<ProjectAnswer> CloseAsync(bool discard = false) => _api.PostAsync<ProjectAnswer>("/project/close", new { discard });
 
     public Task<ProjectAnswer> AutosaveAsync(bool on) => _api.PostAsync<ProjectAnswer>("/project/autosave", new { on });
+
+    /// <summary>What a project folder or a loose notebook, script or app offers to import.</summary>
+    public Task<ImportOffered> ImportSourcesAsync(string from) => _api.PostAsync<ImportOffered>("/project/import/sources", new { from });
+
+    /// <summary>Copy into the open project (documents) or this computer's library (connections, blades); a loose
+    /// file needs no list.</summary>
+    public Task<Imported> ImportAsync(object body) => _api.PostAsync<Imported>("/project/import", body);
+
+    /// <summary>The shared projects folder's sync for the cards (the Git extension's GET /git, asking GitHub at most once
+    /// a minute: the server keeps to that), or null while the extension is off.</summary>
+    public async Task<SyncFolder?> SharedSyncAsync()
+    {
+        var areas = await _api.GetAsync<App.AreasAnswer>("/app/areas");
+        if (!areas.Areas.Any(a => a.Area == "scm"))
+        {
+            return null;
+        }
+        return (await _api.GetAsync<SyncStatus>("/git?remote=1")).Shared;
+    }
+
+    /// <summary>A shared card's Pull (the shared projects folder's) or Push (scoped to the card's project).</summary>
+    public Task<SyncSaid> SyncAsync(bool push, string path) => push
+        ? _api.PostAsync<SyncSaid>("/git/push", new { which = "shared", path })
+        : _api.PostAsync<SyncSaid>("/git/pull", new { which = "shared" });
 }

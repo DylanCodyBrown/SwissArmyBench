@@ -9,6 +9,7 @@
 // everything. AG Grid Community has no range selection, so the selection is drawn with cell classes and told to C#
 // (SelectionChanged) as the server's descriptor ({rows, columns}); the server counts, sums and copies it, so rows
 // never loaded count too. Right-clicks are told to C# (CellMenu, HeaderMenu), which draws the menus.
+import { Corner, Header, hideCard, profilesOn } from "./gridHeader.js";
 import {
   CellStyleModule,
   ColumnApiModule,
@@ -143,57 +144,6 @@ function merge(ranges) {
   return out;
 }
 
-/** A header of the app's own: the name (a click selects the column) and a small sort arrow (the server's sort). */
-class Header {
-  init(params) {
-    const name = params.column.getColId();
-    const own = params.sab;
-    this.element = document.createElement("div");
-    this.element.className = "sab-header";
-    const label = document.createElement("span");
-    label.className = "sab-header-name";
-    label.textContent = params.displayName;
-    label.addEventListener("mousedown", (event) => {
-      if (event.button !== 0) return;
-      own.headerDown(name, event);
-    });
-    label.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      own.headerMenu(name, event);
-    });
-    const sort = document.createElement("button");
-    sort.type = "button";
-    sort.className = "sab-header-sort";
-    sort.title = `Sort by ${name}`;
-    sort.setAttribute("aria-label", `Sort by ${name}`);
-    const draw = () => {
-      const now = params.column.getSort();
-      sort.textContent = now === "asc" ? "▲" : now === "desc" ? "▼" : "↕";
-    };
-    draw();
-    params.column.addEventListener("sortChanged", draw);
-    sort.addEventListener("click", (event) => {
-      event.stopPropagation();
-      params.progressSort(event.shiftKey);
-    });
-    this.element.append(label, sort);
-    // The whole header cell is marked (the element is put in it after init: marked again on the next frame).
-    this.mark = () => (this.element.closest(".ag-header-cell") ?? this.element).classList.toggle("col-selected", own.columnSelected(name));
-    own.marks.add(this.mark);
-    this.own = own;
-    requestAnimationFrame(this.mark);
-  }
-  getGui() {
-    return this.element;
-  }
-  refresh() {
-    return false;
-  }
-  destroy() {
-    this.own.marks.delete(this.mark);
-  }
-}
-
 function columnDefs(columns, own) {
   return [
     {
@@ -203,6 +153,8 @@ function columnDefs(columns, own) {
       pinned: "left",
       sortable: false,
       resizable: false,
+      headerComponent: Corner,
+      headerComponentParams: { sab: own },
       valueGetter: (p) => (p.node.rowIndex == null ? "" : p.node.rowIndex + 1),
       cellClass: "grid-rownum",
       cellClassRules: { "row-selected": (p) => p.node.rowIndex != null && own.selection.kind === "rows" && own.selection.hasCell(p.node.rowIndex, "") },
@@ -212,25 +164,38 @@ function columnDefs(columns, own) {
       headerName: c.name,
       headerTooltip: `${c.name} · ${c.type}`,
       headerComponent: Header,
-      headerComponentParams: { sab: own },
+      headerComponentParams: { sab: own, type: c.type },
       field: String(at), // a row is an array: its value by position
       valueGetter: (p) => (p.data ? p.data[at] : undefined),
       sortable: true,
       resizable: true,
       type: NUMERIC.test(c.type) ? "rightAligned" : undefined,
-      cellClassRules: { "cell-selected": (p) => p.node.rowIndex != null && own.selection.hasCell(p.node.rowIndex, c.name) },
+      cellClassRules: {
+        "cell-selected": (p) => p.node.rowIndex != null && own.selection.hasCell(p.node.rowIndex, c.name),
+        "cell-diff": (p) => p.node.rowIndex != null && own.diffs.has(`${p.node.rowIndex}:${at}`),
+      },
     })),
   ];
 }
 
 /** The grid in `host` for the server's grid `gridId`; returns its handle. */
-export function mount(host, listener, gridId, columns, clientId) {
+export function mount(host, listener, gridId, firstColumns, clientId) {
+  let columns = firstColumns;
   let gen = 0;
   let sentSort = "[]";
   let total = 0;
   let names = columns.map((c) => c.name);
   let dragging = null; // "cells", "rows" or "columns" while the mouse is down
   let focused = null; // the cell clicked last: {row, column}
+  // Compare mode (the page sets it): rows come from the compare, aligned with the other grid. A placeholder row is
+  // a key this side has no row for; a diff cell differs from the aligned row on the other side.
+  let compare = null; // {id, side}
+  let keyRows = null; // {first, last}: rows sharing the picked row's key
+  let only = null; // diff mode: the columns shown (null: all)
+  let upto = null; // a step's preview: the rows after the first `upto` steps (null: the whole view)
+  const placeholders = new Set();
+  let shownFrame = 0;
+  const diffs = new Set();
   const selection = new Selection();
   selection.order = names;
   const base = `/grids/${encodeURIComponent(gridId)}`;
@@ -239,9 +204,31 @@ export function mount(host, listener, gridId, columns, clientId) {
     if (!answer.ok) throw new Error(await answer.text());
     return answer.json();
   };
+  let gridApi = null; // the grid's api once made (a header drawn while it is made asks before it exists)
+  const profiles = new Map(); // a column's profile, kept for this view (a second hover draws at once)
   const own = {
     selection,
+    diffs,
+    stats: {},
+    sparks: {},
     marks: new Set(),
+    sortedCount: () => gridApi?.getColumnState().filter((c) => c.sort).length ?? 0,
+    selectAll: () => {
+      selection.all();
+      changed();
+    },
+    renamed: (name, to) => listener.invokeMethodAsync("RenameColumn", name, to),
+    profile: (column) => {
+      if (!profiles.has(column)) {
+        const asked = json(`${base}/profile?column=${encodeURIComponent(column)}`);
+        asked.catch(() => profiles.delete(column));
+        profiles.set(column, asked);
+      }
+      return profiles.get(column);
+    },
+    profilesChanged: () => {
+      loadStats().finally(redrawHeaders);
+    },
     columnSelected: (name) => selection.kind === "all" || (selection.kind === "columns" && selection.columns.includes(name)),
     headerDown: (name, event) => {
       selection.selectColumns(name, event.shiftKey ? "extend" : event.ctrlKey || event.metaKey ? "add" : "replace");
@@ -263,8 +250,27 @@ export function mount(host, listener, gridId, columns, clientId) {
     const target = selection.kind === "columns" || selection.kind === "cells" ? selection.columns : focused && selection.kind === "none" ? [focused.column] : [];
     listener.invokeMethodAsync("SelectionChanged", { kind: selection.kind, descriptor: selection.descriptor(), target }).catch(() => {});
   };
+  const compareWindow = async (params, cmp) => {
+    const body = await json(`/compares/${encodeURIComponent(cmp.id)}/rows?side=${cmp.side}&start=${params.startRow}&end=${params.endRow}`);
+    if (compare?.id !== cmp.id || compare.side !== cmp.side) {
+      params.failCallback(); // the compare changed while this window loaded
+      return;
+    }
+    for (const offset of body.placeholders) placeholders.add(params.startRow + offset);
+    for (const [r, c] of body.diffs) diffs.add(`${params.startRow + r}:${c}`);
+    total = body.row_count;
+    params.successCallback(body.rows, body.row_count);
+    listener.invokeMethodAsync("Counted", body.row_count);
+  };
   const datasource = {
     getRows(params) {
+      if (compare) {
+        compareWindow(params, compare).catch((error) => {
+          params.failCallback();
+          listener.invokeMethodAsync("Failed", String(error.message ?? error));
+        });
+        return;
+      }
       const sort = JSON.stringify(params.sortModel.filter((s) => s.colId !== ROW_NUMBER).map((s) => [s.colId, s.sort]));
       (async () => {
         if (sort !== sentSort) {
@@ -274,7 +280,8 @@ export function mount(host, listener, gridId, columns, clientId) {
           listener.invokeMethodAsync("Changed");
         }
         const asked = gen;
-        const body = await json(`${base}/rows?start=${params.startRow}&end=${params.endRow}&gen=${asked}&client=${clientId}`);
+        const preview = upto === null ? "" : `&upto=${upto}`;
+        const body = await json(`${base}/rows?start=${params.startRow}&end=${params.endRow}&gen=${asked}&client=${clientId}${preview}`);
         if (asked !== gen) {
           params.failCallback(); // a newer view replaced this one while it loaded
           return;
@@ -299,6 +306,30 @@ export function mount(host, listener, gridId, columns, clientId) {
     alwaysShowHorizontalScroll: true,
     suppressCellFocus: false,
     preventDefaultOnContextMenu: true,
+    onViewportChanged: (event) => {
+      // The rows on screen, for the status bar's "Rows 1–22 of 120" (once a frame, however fast the scroll).
+      if (shownFrame) return;
+      shownFrame = requestAnimationFrame(() => {
+        shownFrame = 0;
+        listener.invokeMethodAsync("Shown", Math.max(0, event.firstRow), Math.max(0, event.lastRow)).catch(() => {});
+      });
+    },
+    getRowClass: (p) => {
+      if (p.node.rowIndex == null) return "";
+      const marks = [];
+      if (placeholders.has(p.node.rowIndex)) marks.push("row-placeholder");
+      if (keyRows && p.node.rowIndex >= keyRows.first && p.node.rowIndex <= keyRows.last) marks.push("row-key-match");
+      return marks.join(" ");
+    },
+    onCellDoubleClicked: (event) => {
+      if (event.rowIndex == null || event.column.getColId() === ROW_NUMBER) return;
+      const mouse = event.event;
+      listener.invokeMethodAsync("CellOpened", event.rowIndex, event.column.getColId(), mouse?.clientX ?? 0, mouse?.clientY ?? 0);
+    },
+    onCellClicked: (event) => {
+      // A compared grid: a row picked lights up its key's rows (aligned) or filters the other side (cross).
+      if (compare && event.rowIndex != null) listener.invokeMethodAsync("RowPicked", event.rowIndex);
+    },
     onCellMouseDown: (event) => {
       const mouse = event.event;
       if (event.rowIndex == null || mouse.button !== 0) return;
@@ -334,6 +365,30 @@ export function mount(host, listener, gridId, columns, clientId) {
       listener.invokeMethodAsync("CellMenu", event.rowIndex, column, mouse.clientX, mouse.clientY);
     },
   });
+  gridApi = api;
+  /** The headers' profile lines (Column profiles in the headers): distinct and blank share, and a tiny histogram
+   *  for up to twelve number columns. Off by default: these queries run only while the headers show them. */
+  const loadStats = async () => {
+    if (!profilesOn()) return;
+    try {
+      own.stats = await json(`${base}/header-stats?gen=${gen}&client=${clientId}`);
+      const numbers = columns.filter((c) => NUMERIC.test(c.type)).slice(0, 12);
+      await Promise.all(numbers.map(async (c) => {
+        const p = await own.profile(c.name);
+        const counts = (p.histogram ?? []).map((b) => b.count);
+        const top = Math.max(1, ...counts);
+        own.sparks[c.name] = counts.map((n) => Math.round((100 * n) / top));
+      }));
+    } catch {
+      // A convenience: the grid works without them.
+    }
+  };
+  /** The headers drawn again (their profile lines on or off): new column definitions make AG Grid build them anew. */
+  function redrawHeaders() {
+    api.setGridOption("columnDefs", columnDefs(columns, own));
+    if (only) api.setColumnsVisible(names.filter((n) => !only.has(n)), false);
+  }
+  loadStats().then(() => profilesOn() && redrawHeaders());
   const up = () => {
     dragging = null;
   };
@@ -347,6 +402,15 @@ export function mount(host, listener, gridId, columns, clientId) {
     } else if (ctrl && event.key === "c") {
       event.preventDefault();
       handle.copy("plain").then((words) => words && listener.invokeMethodAsync("Said", words));
+    } else if ((event.key === "Enter" || event.key === "F2") && !ctrl && focused) {
+      // Enter or F2 on a cell opens its value, as a double-click does.
+      event.preventDefault();
+      listener.invokeMethodAsync("CellOpened", focused.row, focused.column, 0, 0);
+    } else if (event.key === " " && event.shiftKey && focused) {
+      // Shift+Space selects the cell's row (Excel's).
+      event.preventDefault();
+      selection.selectRows(focused.row, "replace");
+      changed();
     } else if (event.key === "Escape" && selection.kind !== "none") {
       selection.clear();
       changed();
@@ -379,13 +443,75 @@ export function mount(host, listener, gridId, columns, clientId) {
       selection.order = names;
       selection.clear();
       focused = null;
+      profiles.clear();
+      columns = nextColumns;
+      hideCard();
       api.setGridOption("columnDefs", columnDefs(nextColumns, own));
+      only = null;
+      loadStats().then(() => profilesOn() && redrawHeaders());
       api.purgeInfiniteCache(); // a step that adds or removes columns must purge, not only refresh
       changed();
+    },
+    /** Compare mode on ({id, side}) or off (null): every row window asked for anew. */
+    setCompare(next) {
+      if (JSON.stringify(next) === JSON.stringify(compare)) return;
+      compare = next;
+      keyRows = null;
+      placeholders.clear();
+      diffs.clear();
+      selection.clear();
+      gen += 1;
+      api.purgeInfiniteCache();
+      changed();
+    },
+    /** A step's preview: the rows after the first `n` steps (null: back to the full view). */
+    setUpto(n) {
+      if (n === upto) return;
+      upto = n;
+      gen += 1;
+      api.purgeInfiniteCache();
+    },
+    /** The rows sharing the picked row's key, lit up ({first, last}, or null). */
+    setKeyRows(rows) {
+      keyRows = rows;
+      api.redrawRows();
+    },
+    /** Diff mode: only these columns shown (null: every column). */
+    showOnly(shown) {
+      const next = shown ? new Set(shown) : null;
+      if (JSON.stringify(next && [...next].sort()) === JSON.stringify(only && [...only].sort())) return;
+      only = next;
+      api.setColumnsVisible(names.filter((n) => !only || only.has(n)), true);
+      api.setColumnsVisible(names.filter((n) => only && !only.has(n)), false);
+    },
+    /** Scroll sideways to a column (diff mode's first column that differs). */
+    revealColumn(name) {
+      if (names.includes(name)) api.ensureColumnVisible(name, "start");
+    },
+    /** The element that scrolls up and down (the two compared grids keep one position). */
+    scroller() {
+      return host.querySelector(".ag-grid-viewport");
     },
     /** Each column (or the ones named) as wide as its values. */
     autoSize(only) {
       api.autoSizeColumns(only && only.length ? only : names);
+    },
+    /** One cell's value (from the rows loaded, else asked of the server). */
+    cell(row, column) {
+      return cellValue(row, column);
+    },
+    /** A loaded row's values as [column, value] pairs in the view's order (Send the row to Analyze). */
+    rowValues(row) {
+      const data = api.getDisplayedRowAtIndex(row)?.data;
+      return names.map((name, at) => [name, data ? (data[at] ?? null) : null]);
+    },
+    /** The selected rows' positions (rows or cells selected), up to `most`: a sandbox table's Delete rows. */
+    selectedRows(most) {
+      const rows = [];
+      if (selection.kind === "rows" || selection.kind === "cells") {
+        for (const [first, last] of selection.rows) for (let r = first; r <= last && rows.length < most; r++) rows.push(r);
+      }
+      return rows;
     },
     /** The selection's distinct values in one column, from the rows loaded (Keep these, Exclude these). */
     async values(column) {
@@ -443,4 +569,20 @@ export function mount(host, listener, gridId, columns, clientId) {
     },
   };
   return handle;
+}
+
+/**
+ * Two aligned grids keep one vertical position (a compare): whichever scrolls, the other takes its exact scrollTop
+ * in the same frame, so row N on the left stays beside row N on the right. Returns what lets go.
+ */
+export function lockScroll(a, b) {
+  const elements = [a.scroller(), b.scroller()].filter((e) => e);
+  const offs = elements.map((element) => {
+    const follow = () => {
+      for (const other of elements) if (other !== element && other.scrollTop !== element.scrollTop) other.scrollTop = element.scrollTop;
+    };
+    element.addEventListener("scroll", follow, { passive: true });
+    return () => element.removeEventListener("scroll", follow);
+  });
+  return { release: () => offs.forEach((off) => off()) };
 }

@@ -1,0 +1,44 @@
+@* The Relationships window (the classic relationshipsDialog.ts), from the Grids ribbon and the ERD: Saved sets
+   (search, Check, Apply, and Rename…, Export, Delete from a set's menu), Find relationships (the finder's joins drawn
+   as a diagram beside their list, the confident ones added at once with one Undo), In use now (the joins managed);
+   Import relationships, Export, Save as a set…, Draw diagram, Close. Every change has one Undo. Logic in
+   RelationshipsDialog.razor.cs. *@
+
+<AppDialog Title="Relationships" Wide="true" OnClose="OnClose">
+    <ChildContent>
+        <div class="rel-dialog">
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            <SavedSets Library="_library" OnApply="ApplyAsync" OnCheck="CheckSetAsync" OnRename="s => _renaming = s" OnExport="ExportSavedAsync" OnDelete="DeleteSetAsync" />
+            <FindRelationships @ref="_finder" StartFinding="StartFinding" OnChanged="ReloadAsync" OnUndo="UndoAsync" OnError="e => _error = e" />
+            <JoinsInUse Model="_model" Scope="_scope" Runs="_runs" OnUpdate="UpdateAsync" OnRemove="RemoveAsync" OnCheck="CheckInUseAsync" />
+        </div>
+    </ChildContent>
+    <Foot>
+        <div class="rel-foot">
+            <label class="btn" title="A saved set (reviewed before it is applied) or a model as JSON">
+                <Icon Name="import" /> Import relationships
+                <InputFile class="sr-only" accept=".json,.tang,application/json" OnChange="ImportAsync" />
+            </label>
+            <button type="button" class="btn" title="Download as .relationships.json" @onclick="ExportAsync"><Icon Name="export" /> Export</button>
+            <button type="button" class="btn" @onclick="() => _saving = true"><Icon Name="save" /> Save as a set…</button>
+            <button type="button" class="btn" title="To Analyze" @onclick="DrawDiagramAsync"><Icon Name="link" /> Draw diagram</button>
+            <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+        </div>
+    </Foot>
+</AppDialog>
+@if (_renaming is { } renaming)
+{
+    <RenameSetDialog Set="renaming" OnRenamed="RenamedAsync" OnClose="() => _renaming = null" />
+}
+@if (_saving && _model is { } model)
+{
+    <SaveSetDialog Model="model" SharedFolders="_library?.SharedFolders ?? []" OnSaved="SavedAsync" OnClose="() => _saving = false" />
+}
+@if (_importing is { } importing)
+{
+    <ImportSetDialog Text="@importing.Text" FileName="@importing.Name" Review="importing.Review" SharedFolders="_library?.SharedFolders ?? []" OnApplied="ReloadAsync" OnClose="() => _importing = null" />
+}
+@if (_checked is { } check)
+{
+    <CheckDialog Answer="check" OnClose="() => _checked = null" />
+}

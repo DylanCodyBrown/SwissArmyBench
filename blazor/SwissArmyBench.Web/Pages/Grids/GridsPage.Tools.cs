@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Grids;
-using SwissArmyBench.Web.Components;
 
 namespace SwissArmyBench.Web.Pages.Grids;
 
@@ -25,6 +25,7 @@ public partial class GridsPage
     private OpenMenu? _menu;
     private TableConnection? _connection;
     private int _statsAsked;
+    private long _selectedRows;
 
     private string ConnectionLabel => _connection switch
     {
@@ -57,7 +58,10 @@ public partial class GridsPage
         var one = target.Count == 1 ? target[0] : null;
         switch (tool)
         {
-            case "matching" or "export" or "profile" or "keyfinder" or "connection" or "code":
+            case "keyfinder":
+                await OpenKeyFinderWindowAsync();
+                break;
+            case "matching" or "export" or "profile" or "connection" or "code":
                 _dialog = tool;
                 break;
             case "filter":
@@ -73,7 +77,7 @@ public partial class GridsPage
                 await AutoSizeAsync([]);
                 break;
             case "relationships":
-                Nav.NavigateTo("erd");
+                _dialog = tool;
                 break;
             case "variant":
                 await MakeVariantAsync(info.Dataset);
@@ -122,8 +126,8 @@ public partial class GridsPage
             case "col-group":
                 OpenEditor("group_by", new { keys = target });
                 break;
-            case "col-profile":
-                _column = one;
+            case "col-profile" when one is not null:
+                OpenProfile(one);
                 break;
             default:
                 break;
@@ -144,7 +148,17 @@ public partial class GridsPage
         }
     }
 
+    private int? _previewUpto;
+
     private void CloseDialog() => _dialog = null;
+
+    /// <summary>A step's data previewed in the grid (0: the source), or the full view again (null).</summary>
+    private Task PreviewAsync(int? upto)
+    {
+        _previewUpto = upto;
+        Status.SetPreview(upto);
+        return Task.CompletedTask;
+    }
 
     private IReadOnlyList<string> AllColumns() => _info?.Columns.Select(c => c.Name).ToList() ?? [];
 
@@ -180,6 +194,10 @@ public partial class GridsPage
         StateHasChanged();
     }
 
+    /// <summary>A header renamed in place: a rename step.</summary>
+    private Task RenameColumnAsync((string Column, string To) rename) =>
+        AddStepAsync(("rename", new { mapping = new Dictionary<string, string> { [rename.Column] = rename.To } }));
+
     private Task SortAsync(IReadOnlyList<string> columns, string direction) =>
         AddStepAsync(("sort", new { keys = columns.Select(c => new[] { c, direction }).ToList() }));
 
@@ -190,11 +208,11 @@ public partial class GridsPage
             _ = Notes.SayAsync("That would remove every column.");
             return;
         }
-        var gone = AllColumns().Count - keep.Count;
+        var gone = AllColumns().Where(c => !keep.Contains(c)).ToList();
         await AddStepAsync(("columns", new { keep }));
-        if (gone > 0)
+        if (gone.Count > 0 && _error is null)
         {
-            _ = Notes.SayAsync(gone == 1 ? "Removed a column: Undo brings it back." : $"Removed {gone} columns: Undo brings them back.");
+            UndoNote(gone.Count == 1 ? $"Removed the column {gone[0]}" : $"Removed {gone.Count} columns");
         }
     }
 
@@ -229,16 +247,6 @@ public partial class GridsPage
         }
     }
 
-    private async Task SwappedAsync()
-    {
-        await ReloadInfoAsync();
-        await LoadConnectionAsync();
-        if (_grid is not null && _info is not null)
-        {
-            await _grid.RefreshAsync(_info.Columns);
-        }
-    }
-
     // ===== the selection and its numbers =====
 
     private async Task SelectionChangedAsync(GridSelection selection)
@@ -255,7 +263,8 @@ public partial class GridsPage
             var stats = await Grids.SelectionStatsAsync(_active, descriptor);
             if (mine == _statsAsked)
             {
-                Status.Set(StatsWords(stats));
+                Status.Set(StatsWords(selection.Kind, stats));
+                _selectedRows = stats.Rows;
             }
         }
         catch (ApiException)
@@ -264,123 +273,80 @@ public partial class GridsPage
         }
     }
 
-    /// <summary>Excel's status bar: Count, and Sum and Average over the numbers (not over identifiers).</summary>
-    private static string StatsWords(SelectionStats stats)
+    /// <summary>Excel's status bar (the classic bottomBar.ts): what is selected, Count (non-blank cells), then Average
+    /// and Sum over the number cells to the columns' scale (an identifier column is counted only).</summary>
+    private static string StatsWords(string kind, SelectionStats stats)
     {
-        var words = new List<string> { $"Count {stats.Count.ToString("N0", CultureInfo.InvariantCulture)}" };
-        var idOnly = stats.IdLike is { Count: > 0 } && stats.Sum is null;
-        if (stats.Numeric > 0 && !idOnly && stats.Sum is { } sum)
+        var what = kind switch
         {
-            words.Add($"Sum {sum.ToString("N2", CultureInfo.InvariantCulture)}");
-            if (stats.Mean is { } mean)
-            {
-                words.Add($"Average {mean.ToString("N2", CultureInfo.InvariantCulture)}");
-            }
+            "rows" => $"{stats.Rows.ToString("N0", CultureInfo.CurrentCulture)} row{(stats.Rows == 1 ? string.Empty : "s")} selected",
+            "all" => "All selected",
+            _ => $"{stats.Cells.ToString("N0", CultureInfo.CurrentCulture)} cell{(stats.Cells == 1 ? string.Empty : "s")} selected",
+        };
+        var words = new List<string> { what, $"Count {stats.Count.ToString("N0", CultureInfo.CurrentCulture)}" };
+        if (stats.Mean is { } mean && stats.Sum is { } sum)
+        {
+            words.Add($"Average {Scaled(mean, Digits(stats, "mean"))}");
+            words.Add($"Sum {Scaled(sum, Digits(stats, "sum"))}");
         }
         return string.Join(" · ", words);
     }
 
+    private static int Digits(SelectionStats stats, string name) =>
+        stats.Digits is { ValueKind: JsonValueKind.Object } digits && digits.TryGetProperty(name, out var d) && d.ValueKind == JsonValueKind.Number ? d.GetInt32() : 2;
+
+    /// <summary>A number with `digits` after the point, grouped; a small fraction keeps four significant digits.</summary>
+    private static string Scaled(double value, int digits)
+    {
+        if (value != 0 && Math.Abs(value) < 1 && digits > 0 && Math.Abs(value) < Math.Pow(10, -digits) * 10)
+        {
+            return value.ToString("G4", CultureInfo.CurrentCulture);
+        }
+        return value.ToString($"N{digits}", CultureInfo.CurrentCulture);
+    }
+
     private void Say(string words) => _ = Notes.SayAsync(words);
 
-    // ===== the right-click menus (the classic cellMenu.ts) =====
-
-    private void CellMenu(GridPoint at)
+    private async Task ClearStepsAsync()
     {
-        var where = $"{at.Column}, row {(at.Row + 1).ToString("N0", CultureInfo.InvariantCulture)}";
-        _menu = new OpenMenu(where,
-        [
-            new("Keep these", "filter", () => FilterByCellsAsync(at.Column, keep: true)),
-            new("Exclude these", "exclude", () => FilterByCellsAsync(at.Column, keep: false)),
-            new("Filter…", "filter", () => Open("filter", new { column = at.Column })),
-            MenuEntry.Separator,
-            new("Copy", "copy", () => CopyAsync("plain")),
-            new("Copy with headers", "copy", () => CopyAsync("headers")),
-            new("Copy as Markdown", "copy", () => CopyAsync("markdown")),
-            MenuEntry.Separator,
-            new("Sort A→Z", "sortup", () => SortAsync([at.Column], "asc")),
-            new("Sort Z→A", "sortdown", () => SortAsync([at.Column], "desc")),
-            new("Profile", "profile", () => ShowProfile(at.Column)),
-        ], at.X, at.Y);
-    }
-
-    private void HeaderMenu(GridPoint at)
-    {
-        var columns = Target.Contains(at.Column) ? Target : [at.Column];
-        _menu = new OpenMenu(at.Column,
-        [
-            new("Sort A→Z", "sortup", () => SortAsync(columns, "asc")),
-            new("Sort Z→A", "sortdown", () => SortAsync(columns, "desc")),
-            new("Filter…", "filter", () => Open("filter", new { column = at.Column })),
-            new("Rename…", "rename", () => Open("rename", new { only = columns })),
-            new("Remove", "trash", () => KeepColumnsAsync(AllColumns().Where(c => !columns.Contains(c)).ToList())),
-            new("Keep only", "columns", () => KeepColumnsAsync(columns)),
-            new("Group by…", "group", () => Open("group_by", new { keys = columns })),
-            MenuEntry.Separator,
-            new("Profile", "profile", () => ShowProfile(at.Column)),
-        ], at.X, at.Y);
-    }
-
-    private Task Open(string kind, object preset)
-    {
-        OpenEditor(kind, preset);
-        return Task.CompletedTask;
-    }
-
-    private Task ShowProfile(string column)
-    {
-        _column = column;
-        return Task.CompletedTask;
-    }
-
-    private async Task CopyAsync(string style)
-    {
-        if (_grid is null)
+        if (_info is not { } info)
         {
             return;
         }
-        try
-        {
-            if (await _grid.CopyAsync(style) is { } words)
-            {
-                _ = Notes.SayAsync(words);
-            }
-        }
-        catch (JSException error)
-        {
-            _ = Notes.SayAsync($"Could not copy: {error.Message}");
-        }
+        var count = info.Steps.Count;
+        await ChangedAsync(() => Grids.SaveStepsAsync(info.Grid, []));
+        UndoNote(count == 1 ? "Cleared the step" : $"Cleared {count} steps");
     }
 
-    /// <summary>Keep (or exclude) the rows whose value in the column is one of the selected cells' values.</summary>
-    private async Task FilterByCellsAsync(string column, bool keep)
+    /// <summary>Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z: undo and redo the grid's steps, unless a box or a dialog has the
+    /// keys.</summary>
+    private async Task PageKeyAsync(KeyboardEventArgs e)
     {
-        if (_grid is null)
+        if (!(e.CtrlKey || e.MetaKey) || e.AltKey || _info is null || _dialog is not null || _editor is not null)
         {
             return;
         }
-        var values = (await _grid.ValuesAsync(column)).Take(MostValues).ToList();
-        var present = values.Where(v => v.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined).ToList();
-        object parameters;
-        if (present.Count == 0)
+        var key = e.Key.ToLowerInvariant();
+        if (key == "s" && !e.ShiftKey)
         {
-            parameters = new { column, op = keep ? "blank" : "not_blank" };
+            await (_projectGroup?.SaveAsync() ?? Task.CompletedTask);
+            return;
         }
-        else if (present.Count == 1 && present[0].ValueKind is JsonValueKind.True or JsonValueKind.False)
+        if (await Js.InvokeAsync<bool>("sab.typing"))
         {
-            parameters = new { column, op = keep == present[0].GetBoolean() ? "true" : "false" };
+            return;
         }
-        else if (present.Count == 1)
+        if (key == "y" || (key == "z" && e.ShiftKey))
         {
-            parameters = new { column, op = keep ? "eq" : "ne", value = present[0] };
+            await RedoAsync();
         }
-        else
+        else if (key == "z")
         {
-            parameters = new { column, op = keep ? "in" : "not_in", values = present };
+            await UndoAsync();
         }
-        if (present.Count > 0 && present.Count < values.Count)
-        {
-            _ = Notes.SayAsync("Blank cells left out of the filter.");
-        }
-        await AddStepAsync(("filter", parameters));
     }
+
+    private ProjectGroup? _projectGroup;
+
+    private Task RedoAsync() => ChangedAsync(() => Grids.RedoAsync(_active!));
 }

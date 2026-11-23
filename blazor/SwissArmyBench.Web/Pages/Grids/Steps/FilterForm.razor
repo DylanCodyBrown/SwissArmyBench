@@ -32,12 +32,13 @@
 {
     <div class="filter-values">
         <input type="search" class="filter-values-search" placeholder="Search values" aria-label="Search values" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
+        <label class="check filter-values-all"><input type="checkbox" aria-label="Select every value shown" checked="@AllShownPicked" @onchange="e => PickAllShown(e.Value is true)" /> <span>Select all</span></label>
         <div class="filter-values-list" role="group" aria-label="Values">
             @foreach (var value in Shown)
             {
                 var key = value.Value.GetRawText();
                 <label class="check filter-value">
-                    <input type="checkbox" checked="@_picked.ContainsKey(key)" @onchange="e => Pick(value.Value, e.Value is true)" />
+                    <input type="checkbox" aria-label="@Words(value.Value)" checked="@_picked.ContainsKey(key)" @onchange="e => Pick(value.Value, e.Value is true)" />
                     <span class="filter-value-text">@Words(value.Value)</span>
                     <span class="filter-value-count">@(value.Count > 0 ? value.Count.ToString("N0") : string.Empty)</span>
                 </label>

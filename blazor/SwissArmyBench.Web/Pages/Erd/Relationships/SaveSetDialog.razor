@@ -1,0 +1,72 @@
+@* Save as a set (the classic relationshipsDialog.ts saveDialog): the joins in use kept as a .relationships.json file
+   with its name, description, tags and author, in my saved sets or a shared folder. *@
+@inject RelationshipsClient Relationships
+@inject Notes Notes
+
+<AppDialog Title="Save as a set" OnClose="OnClose">
+    <ChildContent>
+        <label class="field"><span>Name</span><input type="text" maxlength="64" aria-label="Set name" @bind="_name" /></label>
+        <label class="field"><span>Description</span><textarea rows="2" aria-label="Description" @bind="_description"></textarea></label>
+        <label class="field"><span>Tags</span><input type="text" aria-label="Tags" placeholder="sales, finance" @bind="_tags" /></label>
+        <label class="field"><span>Saved by</span><input type="text" maxlength="100" aria-label="Saved by" placeholder="Optional" @bind="_author" /></label>
+        <label class="field"><span>Save it in</span>
+            <select aria-label="Save it in" @bind="_folder">
+                <option value="">My saved sets</option>
+                @foreach (var folder in SharedFolders)
+                {
+                    <option value="@folder">Shared: @folder</option>
+                }
+            </select>
+        </label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _tags = string.Empty;
+    private string _author = string.Empty;
+    private string _folder = string.Empty;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public Model Model { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<string> SharedFolders { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<SavedWhere> OnSaved { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _name = Model.Name != "current" ? Model.Name : string.Empty;
+        _description = Model.Description ?? string.Empty;
+        _tags = string.Join(", ", Model.Tags ?? []);
+        _author = Model.Author ?? string.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        var tags = _tags.Split(',').Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+        try
+        {
+            var name = _name.Trim();
+            var where = await Relationships.SaveSetAsync(new { name, description = _description.Trim(), tags, author = _author.Trim(), folder = _folder.Length > 0 ? _folder : null });
+            _ = Notes.SayAsync($"Saved {name} {(where.Where == "shared" ? "in the shared folder" : "in your saved sets")}.");
+            await OnSaved.InvokeAsync(where);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

@@ -60,7 +60,7 @@
 </section>
 
 @code {
-    private CheckAnswer? _found;
+    private SwissArmyBench.Web.Api.Analyze.CheckAnswer? _found;
     private Exception? _error;
     private bool _checking;
     private string? _shownFor;
@@ -94,7 +94,7 @@
     }
 
     // The ranking under Every analysis: the ones not already among the big buttons.
-    private static IEnumerable<RankedAnalysis> Others(CheckAnswer found) =>
+    private static IEnumerable<RankedAnalysis> Others(SwissArmyBench.Web.Api.Analyze.CheckAnswer found) =>
         found.Ranked.Where(r => found.Top.All(t => t.Analysis != r.Analysis));
 
     private static string Stop(string text) => text.Length > 0 && !".!?".Contains(text[^1]) ? $"{text}." : text;

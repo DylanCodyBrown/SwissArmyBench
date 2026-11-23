@@ -1,0 +1,74 @@
+@* A table's connection (the classic swapConnection.ts openConnectionChooser): the connection it is read from (marked
+   deleted when it is gone), the other connections to read it from with its steps kept; when several tables there
+   could be it, the pick (the tables of its name, the other's catalog by schema, Write a query…); Undo. Logic in
+   ConnectionDialog.razor.cs. *@
+
+<AppDialog Title="@($"Connection: {Table}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="swap-chooser">
+            @if (_pick is { } pick)
+            {
+                <p class="swap-was"><Icon Name="exclude" /><strong>@pick.Was.Words</strong><span> · @pick.To</span></p>
+                @if (pick.Candidates.Count > 0)
+                {
+                    <div class="swap-candidates">
+                        @foreach (var candidate in pick.Candidates)
+                        {
+                            <button type="button" class="btn" @onclick="() => SwapAsync(pick.To, candidate)"><Icon Name="table" /> @candidate.Words</button>
+                        }
+                    </div>
+                }
+                <ul class="swap-tree" aria-label="@($"{pick.To} catalog")">
+                    @foreach (var schema in pick.Schemas)
+                    {
+                        var label = string.Join(".", new[] { schema.Database, schema.Schema }.Where(p => p.Length > 0));
+                        <li>
+                            <button type="button" class="btn ghost" @onclick="() => ToggleSchemaAsync(pick, schema)"><Icon Name="data" /> @(label.Length > 0 ? label : pick.To)</button>
+                            @if (_opened.TryGetValue(schema, out var tables))
+                            {
+                                <ul class="swap-tables">
+                                    @foreach (var table in tables)
+                                    {
+                                        <li><button type="button" class="btn ghost" @onclick="() => SwapAsync(pick.To, table)"><Icon Name="table" /> @table.Table</button></li>
+                                    }
+                                </ul>
+                            }
+                        </li>
+                    }
+                </ul>
+                <div class="row-actions"><button type="button" class="btn ghost" @onclick="() => OnReview.InvokeAsync((pick.To, (IReadOnlyList<string>)[pick.Table], pick.Sql))"><Icon Name="sql" /> Write a query…</button></div>
+            }
+            else if (_state is { } state)
+            {
+                <p class="swap-current @(state.Connection is not null && !state.Exists ? "missing" : string.Empty)">
+                    <Icon Name="@(state.Connection is null && state.How != "query" ? "rows" : "sql")" />
+                    <strong>@(state.Connection ?? (state.How == "query" ? "Query" : Table))</strong>
+                    @if (state.Connection is not null && !state.Exists)
+                    {
+                        <span class="swap-missing">deleted</span>
+                    }
+                </p>
+                @if (Others(state) is { Count: > 0 } others)
+                {
+                    <div class="swap-others" role="list">
+                        @foreach (var name in others)
+                        {
+                            <div role="listitem"><button type="button" class="btn swap-other" @onclick="() => SwapAsync(name, null)"><Icon Name="sql" /> @name</button></div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="empty-note">No other connections</p>
+                }
+            }
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </div>
+    </ChildContent>
+    <Foot>
+        @if (_state is { Undo: true } undoable && _pick is null)
+        {
+            <button type="button" class="btn ghost" @onclick="UndoAsync"><Icon Name="undo" /> Undo (@(undoable.UndoConnection ?? "back"))</button>
+        }
+    </Foot>
+</AppDialog>

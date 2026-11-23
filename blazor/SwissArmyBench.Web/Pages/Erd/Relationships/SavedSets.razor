@@ -1,0 +1,135 @@
+@* Saved sets (the classic relationshipsDialog.ts renderSets): every set found, mine and shared, searched by name,
+   description, author or tag; each with Check, Apply and its menu (Rename…, Export, Delete: a pack's or a built-in
+   one read-only here). *@
+
+<section class="rel-section" aria-labelledby="rel-sets">
+    <h3 id="rel-sets">Saved sets</h3>
+    @if (Library is { } library)
+    {
+        @if (library.Models.Count > 0)
+        {
+            <input type="search" class="cat-search" placeholder="Search" aria-label="Search saved sets" @bind="_search" @bind:event="oninput" />
+        }
+        @if (Listed(library) is { Count: > 0 } listed)
+        {
+            <ul class="set-list">
+                @foreach (var set in listed)
+                {
+                    <li class="set-item" data-name="@set.Name">
+                        <div class="set-text">
+                            <div class="pack-title"><strong>@set.Name</strong> <span class="badge set-where @set.Where" title="@set.File">@Where(set.Where)</span></div>
+                            @if (set.Description.Length > 0)
+                            {
+                                <div class="hint">@set.Description</div>
+                            }
+                            @if (set.Tags.Count > 0)
+                            {
+                                <div class="chips">@foreach (var tag in set.Tags)
+                                    {
+                                        <span class="chip">@tag</span>
+                                    }</div>
+                            }
+                            <div class="hint">@Summary(set)</div>
+                        </div>
+                        <span class="row-actions">
+                            <button type="button" class="btn ghost small" title="Check against the open tables" @onclick="() => OnCheck.InvokeAsync(set.Name)"><Icon Name="play" /> Check</button>
+                            <button type="button" class="btn primary small" title="Merge into the joins in use" @onclick="() => OnApply.InvokeAsync(set.Name)">Apply</button>
+                            <button type="button" class="btn ghost icon small" aria-label="@($"More for {set.Name}")" title="Rename, export, delete" @onclick="e => Menu(set, e)"><Icon Name="more" /></button>
+                        </span>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="hint">@(library.Models.Count > 0 ? "No saved set matches." : "No saved sets yet.")</p>
+        }
+        @if (library.Problems.Count > 0)
+        {
+            <ErrorNote Words="@($"Could not read: {string.Join("; ", library.Problems)}")" />
+        }
+        @if (library.SharedFolders.Count > 0)
+        {
+            <p class="hint">Shared folders: @string.Join(" · ", library.SharedFolders)</p>
+        }
+    }
+</section>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+
+@code {
+    private static readonly HashSet<string> _editable = ["mine", "shared"];
+
+    private string _search = string.Empty;
+    private (string Title, IReadOnlyList<MenuEntry> Entries, double X, double Y)? _menu;
+
+    [Parameter]
+    public SetLibrary? Library { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnApply { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnCheck { get; set; }
+
+    [Parameter]
+    public EventCallback<SavedSet> OnRename { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnExport { get; set; }
+
+    [Parameter]
+    public EventCallback<SavedSet> OnDelete { get; set; }
+
+    [Inject]
+    private Dialogs Dialogs { get; set; } = default!;
+
+    private IReadOnlyList<SavedSet> Listed(SetLibrary library)
+    {
+        var text = _search.ToLowerInvariant();
+        return library.Models
+            .Where(s => text.Length == 0 || new[] { s.Name, s.Description, s.Author }.Concat(s.Tags).Any(f => f.Contains(text, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
+    private static string Where(string where) => where switch
+    {
+        "mine" => "Mine",
+        "shared" => "Shared",
+        "package" => "Built in",
+        "environment" => "Folder",
+        _ => where,
+    };
+
+    private static string Summary(SavedSet s)
+    {
+        var words = $"{s.Relationships} join{(s.Relationships == 1 ? string.Empty : "s")} · {s.OpenTables.Count} of {s.Tables.Count} tables open";
+        if (DateTime.TryParse(s.SavedAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var at))
+        {
+            words += $" · saved {at:d MMM yyyy, HH:mm}";
+        }
+        return s.Author.Length > 0 ? $"{words} by {s.Author}" : words;
+    }
+
+    private void Menu(SavedSet set, MouseEventArgs e)
+    {
+        var locked = _editable.Contains(set.Where) ? null : "Read-only here";
+        _menu = (set.Name,
+        [
+            new("Rename…", "rename", () => OnRename.InvokeAsync(set), locked),
+            new("Export", "export", () => OnExport.InvokeAsync(set.Name)),
+            MenuEntry.Separator,
+            new("Delete", "trash", () => DeleteAsync(set), locked),
+        ], e.ClientX, e.ClientY);
+    }
+
+    private async Task DeleteAsync(SavedSet set)
+    {
+        if (await Dialogs.AskYesNoAsync($"Delete the saved set {set.Name}? Its file goes.", string.Empty, "OK", danger: true))
+        {
+            await OnDelete.InvokeAsync(set);
+        }
+    }
+}

@@ -1,6 +1,7 @@
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Pages.Workbench.Tabs;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -14,7 +15,7 @@ public partial class WorkbenchPage
     private const string NoCell = "Select a cell first";
     private const string NoProject = "No project is open";
 
-    private List<WorkbenchCommand> Commands() =>
+    private List<PaletteCommand> Commands() =>
     [
         .. FileCommands(),
         .. ProjectCommands(),
@@ -30,35 +31,35 @@ public partial class WorkbenchPage
         .. ModeCommands(),
         .. WindowCommands(),
         .. WorkbookCommands(),
-        .. (IsNotebooks ? [] : new List<WorkbenchCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
+        .. (IsNotebooks ? [] : new List<PaletteCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
     ];
 
     private string? NeedsDocument => Front is null ? NoDocument : null;
 
-    private List<WorkbenchCommand> FileCommands() =>
+    private List<PaletteCommand> FileCommands() =>
     [
         new("file.new", "File", $"New {KindWord}", NewAsync),
         new("file.open", "File", "Open a notebook or script…", OpenAsync, "Ctrl+O"),
         new("file.save", "File", "Save", SaveFrontAsync, "Ctrl+S", Front is null && Project.Current is null ? NothingSaves : null),
         new("file.saveAs", "File", "Save a copy as…", () => SaveAsAsync(Front), "Ctrl+Shift+S", NeedsDocument),
-        new("file.close", "File", "Close the document", () => Front is { } doc ? CloseAsync(doc.Key) : Task.CompletedTask, Disabled: NeedsDocument),
-        new("file.exportScript", "File", "Export as one Python script…", () => Front is { } doc ? ExportDocumentAsync(doc, "script") : Task.CompletedTask, Disabled: NeedsDocument),
-        new("file.exportNotebook", "File", "Export as one notebook…", () => Front is { } doc ? ExportDocumentAsync(doc, "notebook") : Task.CompletedTask, Disabled: NeedsDocument),
+        new("file.close", "File", "Close the document", () => Front is { } doc ? CloseAsync(doc.Key) : Task.CompletedTask, WhyNot: NeedsDocument),
+        new("file.exportScript", "File", "Export as one Python script…", () => Front is { } doc ? ExportDocumentAsync(doc, "script") : Task.CompletedTask, WhyNot: NeedsDocument),
+        new("file.exportNotebook", "File", "Export as one notebook…", () => Front is { } doc ? ExportDocumentAsync(doc, "notebook") : Task.CompletedTask, WhyNot: NeedsDocument),
     ];
 
-    private List<WorkbenchCommand> ProjectCommands()
+    private List<PaletteCommand> ProjectCommands()
     {
         var none = Project.Current is null ? NoProject : null;
         return
         [
             new("project.new", "Project", "New project…", NewProjectAsync),
             new("project.open", "Project", "Open project…", OpenProjectAsync),
-            new("project.save", "Project", "Save the project (its .sab/ state)", SaveProjectAsync, Disabled: none),
-            new("project.saveAll", "Project", "Save the project's documents that have unsaved changes", SaveAllAsync, Disabled: none),
-            new("project.copy", "Project", "Copy the project to another folder…", CopyProjectAsync, Disabled: none),
-            new("project.outline", "Project", "Export outline (ARCHITECTURE.md)", ExportOutlineAsync, Disabled: none),
-            new("project.exportData", "Project", "Export data.py (from data.ipynb)", ExportDataAsync, Disabled: none),
-            new("project.close", "Project", "Close the project", CloseProjectAsync, Disabled: none),
+            new("project.save", "Project", "Save the project (its .sab/ state)", SaveProjectAsync, WhyNot: none),
+            new("project.saveAll", "Project", "Save the project's documents that have unsaved changes", SaveAllAsync, WhyNot: none),
+            new("project.copy", "Project", "Copy the project to another folder…", CopyProjectAsync, WhyNot: none),
+            new("project.outline", "Project", "Export outline (ARCHITECTURE.md)", ExportOutlineAsync, WhyNot: none),
+            new("project.exportData", "Project", "Export data.py (from data.ipynb)", ExportDataAsync, WhyNot: none),
+            new("project.close", "Project", "Close the project", CloseProjectAsync, WhyNot: none),
         ];
     }
 
@@ -70,7 +71,7 @@ public partial class WorkbenchPage
         }
     }
 
-    private List<WorkbenchCommand> RunCommands()
+    private List<PaletteCommand> RunCommands()
     {
         var notebook = Front?.NotebookView;
         var cell = notebook is null ? NoNotebook : notebook.Selected is null ? NoCell : null;
@@ -80,15 +81,15 @@ public partial class WorkbenchPage
             new("run.statement", "Run", "Run the statement at the cursor, then the next", () => Front?.ScriptView?.RunSelectionAsync() ?? Task.CompletedTask, "Ctrl+Enter",
                 Front?.ScriptView is null ? "A script's command: put a script in front" : null),
             new("run.cell", "Run", "Run the selected cell", () => notebook!.RunSelectedAsync(), "Ctrl+Enter", cell),
-            new("run.above", "Run", "Run the cells above", () => notebook!.RunAboveAsync(), Disabled: cell),
-            new("run.below", "Run", "Run this cell and the ones below", () => notebook!.RunBelowAsync(), Disabled: cell),
-            new("run.upTo", "Run", "Run up to here: every cell from the top to the selected one", () => notebook!.RunUpToHereAsync(), Disabled: cell),
-            new("run.interrupt", "Run", "Interrupt", InterruptAsync, Disabled: Session.Busy ? null : "Nothing is running"),
-            new("run.restart", "Run", "Restart the kernel", RestartAsync, Disabled: Session.Kernel is null ? "The Python session has not started" : null),
+            new("run.above", "Run", "Run the cells above", () => notebook!.RunAboveAsync(), WhyNot: cell),
+            new("run.below", "Run", "Run this cell and the ones below", () => notebook!.RunBelowAsync(), WhyNot: cell),
+            new("run.upTo", "Run", "Run up to here: every cell from the top to the selected one", () => notebook!.RunUpToHereAsync(), WhyNot: cell),
+            new("run.interrupt", "Run", "Interrupt", InterruptAsync, WhyNot: Session.Busy ? null : "Nothing is running"),
+            new("run.restart", "Run", "Restart the kernel", RestartAsync, WhyNot: Session.Kernel is null ? "The Python session has not started" : null),
         ];
     }
 
-    private List<WorkbenchCommand> CellCommands()
+    private List<PaletteCommand> CellCommands()
     {
         if (Front?.NotebookView is not { } nb)
         {
@@ -104,32 +105,32 @@ public partial class WorkbenchPage
         [
             new("cell.above", "Cell", "Insert a cell above", nb.InsertAboveAsync, "A"),
             new("cell.below", "Cell", "Insert a cell below", nb.InsertBelowAsync, "B"),
-            new("cell.delete", "Cell", "Delete the cell", nb.DeleteSelectedAsync, Disabled: cell),
+            new("cell.delete", "Cell", "Delete the cell", nb.DeleteSelectedAsync, WhyNot: cell),
             new("cell.undo", "Cell", "Undo a cell's delete or move", nb.UndoAsync, "Z"),
-            new("cell.up", "Cell", "Move the cell up", () => nb.MoveSelectedAsync(-1), Disabled: cell),
-            new("cell.down", "Cell", "Move the cell down", () => nb.MoveSelectedAsync(1), Disabled: cell),
+            new("cell.up", "Cell", "Move the cell up", () => nb.MoveSelectedAsync(-1), WhyNot: cell),
+            new("cell.down", "Cell", "Move the cell down", () => nb.MoveSelectedAsync(1), WhyNot: cell),
             new("cell.python", "Cell", "Make it a Python cell", () => nb.MakeKindAsync("code"), "Y", cell),
-            new("cell.sql", "Cell", "Make it a SQL cell", () => nb.MakeKindAsync("sql"), Disabled: cell),
+            new("cell.sql", "Cell", "Make it a SQL cell", () => nb.MakeKindAsync("sql"), WhyNot: cell),
             new("cell.markdown", "Cell", "Make it a Markdown cell", () => nb.MakeKindAsync("markdown"), "M", cell),
-            new("cell.dax", "Cell", "Make it a DAX cell", () => nb.MakeKindAsync("dax"), Disabled: cell),
-            new("cell.html", "Cell", "Make it an HTML cell", () => nb.MakeKindAsync("html"), Disabled: cell),
+            new("cell.dax", "Cell", "Make it a DAX cell", () => nb.MakeKindAsync("dax"), WhyNot: cell),
+            new("cell.html", "Cell", "Make it an HTML cell", () => nb.MakeKindAsync("html"), WhyNot: cell),
             new("cell.addDax", "Cell", "Add a DAX cell", () => nb.AddCellAsync("dax")),
             new("cell.addHtml", "Cell", "Add an HTML cell", () => nb.AddCellAsync("html")),
-            new("cell.duplicate", "Cell", "Duplicate the cell", nb.DuplicateAsync, Disabled: cell),
+            new("cell.duplicate", "Cell", "Duplicate the cell", nb.DuplicateAsync, WhyNot: cell),
             new("cell.copy", "Cell", "Copy the cell (for a paste into a notebook)", () => now(nb.CopySelected), "C", cell),
             new("cell.paste", "Cell", "Paste the copied cell", nb.PasteBelowAsync, "V", NotebookView.HasCopied ? null : "Copy a cell first"),
-            new("cell.name", "Cell", "Name the cell…", nb.NameSelectedAsync, Disabled: cell),
-            new("cell.clear", "Cell", "Clear the cell's output", () => now(nb.ClearSelected), Disabled: cell),
+            new("cell.name", "Cell", "Name the cell…", nb.NameSelectedAsync, WhyNot: cell),
+            new("cell.clear", "Cell", "Clear the cell's output", () => now(nb.ClearSelected), WhyNot: cell),
             new("cell.clearAll", "Cell", "Clear every output", () => now(nb.ClearAll)),
             new("cell.toggleOutput", "Cell", "Hide or show the cell's output", () => now(nb.ToggleSelectedOutput), "O", cell),
             new("cell.goTo", "Cell", "Go to a cell by its number", nb.GoToCellAsync),
-            new("cell.snippet", "Cell", "Insert a snippet…", () => now(nb.PickSnippet), Disabled: cell),
+            new("cell.snippet", "Cell", "Insert a snippet…", () => now(nb.PickSnippet), WhyNot: cell),
             new("notebook.outline", "Notebook", "The Outline: the Markdown headings and the named cells", nb.ToggleOutlineAsync),
             new("view.panel", "View", "Show or hide a panel of the document in front (Outline)", nb.ToggleOutlineAsync),
         ];
     }
 
-    private List<WorkbenchCommand> DocumentCommands()
+    private List<PaletteCommand> DocumentCommands()
     {
         var split = CanSplit(Front) ? null : $"It cannot split: {SplitWhy}";
         var groups = _layout.Groups.Count > 1 ? null : "There is one group: split first";
@@ -138,18 +139,17 @@ public partial class WorkbenchPage
             new("documents.next", "Documents", "Next document", () => ShowNextAsync(1), "Ctrl+PageDown", NeedsDocument),
             new("documents.previous", "Documents", "Previous document", () => ShowNextAsync(-1), "Ctrl+PageUp", NeedsDocument),
             new("groups.splitRight", "Groups", "Split right: the tab moves to a new group on the right", () => SplitAsync(Front, SplitSide.Right), "Ctrl+\\", split),
-            new("groups.splitDown", "Groups", "Split down: the tab moves to a new group below", () => SplitAsync(Front, SplitSide.Down), Disabled: split),
-            new("groups.next", "Groups", "Focus the next group", () => FocusGroupAsync(1), Disabled: groups),
-            new("groups.previous", "Groups", "Focus the previous group", () => FocusGroupAsync(-1), Disabled: groups),
-            new("groups.moveNext", "Groups", "Move the tab to the next group", MoveToNextGroupAsync, Disabled: groups ?? NeedsDocument),
-            new("groups.left", "Groups", "Move the tab left in its row", () => ReorderAsync(-1), Disabled: NeedsDocument),
-            new("groups.right", "Groups", "Move the tab right in its row", () => ReorderAsync(1), Disabled: NeedsDocument),
+            new("groups.splitDown", "Groups", "Split down: the tab moves to a new group below", () => SplitAsync(Front, SplitSide.Down), WhyNot: split),
+            new("groups.next", "Groups", "Focus the next group", () => FocusGroupAsync(1), WhyNot: groups),
+            new("groups.previous", "Groups", "Focus the previous group", () => FocusGroupAsync(-1), WhyNot: groups),
+            new("groups.moveNext", "Groups", "Move the tab to the next group", MoveToNextGroupAsync, WhyNot: groups ?? NeedsDocument),
+            new("groups.left", "Groups", "Move the tab left in its row", () => ReorderAsync(-1), WhyNot: NeedsDocument),
+            new("groups.right", "Groups", "Move the tab right in its row", () => ReorderAsync(1), WhyNot: NeedsDocument),
         ];
     }
 
-    private List<WorkbenchCommand> ViewCommands() =>
+    private List<PaletteCommand> ViewCommands() =>
     [
-        new("view.palette", "View", "Show every command", () => Toggle(() => _palette = true), "Ctrl+Shift+P"),
         new("view.files", "View", "Show or hide the Files pane", ToggleFilesAsync, "Ctrl+B"),
         new("view.blades", "View", "Show or hide the Blades pane", ToggleBladesAsync),
         new("view.full", "View", "Full screen", FullScreenAsync, "F11"),
@@ -161,7 +161,7 @@ public partial class WorkbenchPage
 
     private Task DebugAsync(OpenDocument doc) => GuardAsync(() => doc.ScriptView?.DebugAsync() ?? Task.CompletedTask);
 
-    private List<WorkbenchCommand> DebugCommands()
+    private List<PaletteCommand> DebugCommands()
     {
         if (Front is not { ScriptView: { } script } doc)
         {
@@ -176,7 +176,7 @@ public partial class WorkbenchPage
             new("debug.toggle", "Debug", "Toggle breakpoint", () => debug?.ToggleAtCursorAsync() ?? Task.CompletedTask, "F9"),
             new("debug.continue", "Debug", "Continue", step("continue"), "F5", paused),
             new("debug.over", "Debug", "Step over", step("over"), "F10", paused),
-            new("debug.into", "Debug", "Step into", step("into"), Disabled: paused),
+            new("debug.into", "Debug", "Step into", step("into"), WhyNot: paused),
             new("debug.out", "Debug", "Step out", step("out"), "Shift+F11", paused),
             new("debug.stop", "Debug", "Stop debugging", () => debug?.StopAsync() ?? Task.CompletedTask, "Shift+F5", debug?.Active == true ? null : "Not debugging"),
         ];

@@ -26,6 +26,7 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<ApiClient>();
         Services.AddScoped<AppClient>();
         Services.AddScoped<ProjectsClient>();
+        Services.AddScoped<SettingsClient>();
         Services.AddScoped<LiveUpdates>();
         Services.AddScoped<ProjectState>();
         Services.AddScoped<RailState>();
@@ -36,6 +37,12 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<SettingsClient>();
         Services.AddScoped<BetaState>();
         Services.AddScoped<FileChooser>();
+        Services.AddScoped<PackagePrompts>();
+        Services.AddScoped<VariableAsks>();
+        Services.AddScoped<TourState>();
+        Services.AddScoped<FilePicks>();
+        Services.AddScoped<Api.Environment.EnvironmentClient>();
+        Services.AddScoped<Api.Variables.VariablesClient>();
     }
 
     /// <summary>How many handlers an event of a service holds now (a field-like event's own delegate).</summary>

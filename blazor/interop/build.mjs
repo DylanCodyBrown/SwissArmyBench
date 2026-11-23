@@ -30,6 +30,9 @@ const entries = {
   workbook: "workbook.js",
   workbench: "workbench.js",
   board: "board.js",
+  textBoxes: "textBoxes.js",
+  tour: "tour.js",
+  appKeys: "appKeys.js",
   // Monaco's own worker (the editor's tokens and folding off the page's thread), beside codeEditor.js.
   "editor.worker": path.join(modules, "monaco-editor", "esm", "vs", "editor", "editor.worker.js"),
 };

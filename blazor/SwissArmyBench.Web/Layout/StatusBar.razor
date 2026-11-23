@@ -6,9 +6,10 @@
 @inject ProjectsClient Projects
 @inject Notes Notes
 @inject GridStatus Grid
+@inject SettingsClient Settings
 
 <footer class="status-bar" aria-label="Status">
-    <span class="status-app">Swiss Army Bench</span>
+    <span class="status-app version-mark" title="@Version">@Version</span>
     @if (Project.Current is { } open)
     {
         <span class="status-project" title="@open.Path">
@@ -29,17 +30,42 @@
         <span class="status-offline" role="status"><Icon Name="warning" /> Not connected to the app's server</span>
     }
     <span class="status-spacer"></span>
-    <SwissArmyBench.Web.Pages.Settings.BetaMark />
-    <SwissArmyBench.Web.Pages.Settings.UpdateFlow Corner="true" />
-    <SwissArmyBench.Web.Pages.Settings.ClaudeLaunch />
+    @if (Grid.Rows is { } rows)
+    {
+        <span class="status-rows" role="status" aria-label="Rows">@rows@(Grid.Preview is { } upto ? $" · previewing after step {upto}" : string.Empty)</span>
+    }
     @if (Grid.Words is { } selected)
     {
         <span class="status-selection" role="status" aria-label="Selection">@selected</span>
     }
+    @if (Grid.Budget is { } budget)
+    {
+        <a class="meter warn" href="grids?tables=1" title="Over 80% of the data budget is in use. Open the Tables list to remove some.">
+            <span class="meter-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Grid.BudgetShare" aria-label="Data budget used"><span style="@($"width: {Math.Min(100, Grid.BudgetShare)}%")"></span></span>
+            @budget
+        </a>
+    }
+    <AreaMarks />
+    <FooterMarks />
     <span class="status-frontend">Blazor front end (preview) · <a href="/workspace">Classic</a></span>
 </footer>
 
 @code {
+    private string Version { get; set; } = "Swiss Army Bench";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var updates = await Settings.UpdatesAsync();
+            Version = $"{updates.Name} {updates.Current}".Trim();
+        }
+        catch (ApiException)
+        {
+            // The name alone.
+        }
+    }
+
     protected override void OnInitialized()
     {
         Project.Changed += Redraw;

@@ -93,7 +93,6 @@ public sealed class SettingsClient
 
     public Task ExportBetaLogAsync(string path) => _api.PostAsync("/beta/export", new { path });
 
-    public Task BetaNoteAsync(string text) => _api.PostAsync("/beta/notes", new { text });
 
     public Task<ClaudeStatus> ClaudeAsync() => _api.GetAsync<ClaudeStatus>("/claude");
 

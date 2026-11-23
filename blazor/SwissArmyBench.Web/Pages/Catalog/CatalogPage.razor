@@ -1,133 +1,17 @@
-@* The Catalog page (the classic dataPage.ts and dataExplorer.ts): the one place to find tables. One search over
-   everything that holds data, the results grouped by kind, each with its place, how SQL and Python name it (Copy),
-   and Open: an open table's grid, or a connection's table read into a new one. *@
+@* The Catalog page (the classic dataPage.ts): the one place to find tables, the Data Explorer's search over
+   everything that holds data, each result's actions. *@
 @page "/catalog"
-@inject CatalogClient Catalog
-@inject ConnectionsClient Connections
-@inject NavigationManager Nav
 @inject IJSRuntime Js
-@inject Notes Notes
 
 <section class="area-page">
     <header class="area-page-head">
         <h1 class="area-page-title"><Icon Name="data" /> Catalog</h1>
-        <div class="area-page-actions">
-            <input type="search" class="catalog-search" placeholder="Search tables, columns, connections…" aria-label="Search" value="@_text" @oninput="SearchAsync" />
-        </div>
     </header>
     <div class="area-page-body">
-        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-        <Busy IsBusy="_answer is null && _error is null" Words="Looking…">
-            @if (_answer is { } answer)
-            {
-                @if (answer.Groups.All(g => g.Count == 0))
-                {
-                    <p class="muted">@(_text.Length == 0 ? "Nothing to find yet: add a connection or open a table." : "Nothing matches.")</p>
-                }
-                @foreach (var group in answer.Groups.Where(g => g.Count > 0))
-                {
-                    <section class="section" data-kind="@group.Kind">
-                        <div class="section-head"><h2>@group.Label <span class="muted">(@group.Count)</span></h2></div>
-                        <table class="rows catalog-rows">
-                            <tbody>
-                                @foreach (var result in group.Results)
-                                {
-                                    <tr>
-                                        <td><Icon Name="@(string.IsNullOrEmpty(result.Icon) ? "table" : result.Icon)" /> <strong>@result.Name</strong></td>
-                                        <td class="muted">@string.Join(" › ", result.Path)</td>
-                                        <td class="muted">@result.Detail</td>
-                                        <td><code>@(result.Insert?.Sql ?? string.Empty)</code></td>
-                                        <td class="row-actions">
-                                            @if (result.Insert is { Sql.Length: > 0 } insert)
-                                            {
-                                                <button type="button" class="btn small ghost" @onclick="() => CopyAsync(insert.Sql)"><Icon Name="copy" /> Copy</button>
-                                            }
-                                            @if (result.Kind == "tables")
-                                            {
-                                                <button type="button" class="btn small" @onclick="() => OpenAsync(result)">Open</button>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </section>
-                }
-            }
-        </Busy>
+        <DataExplorer Browse="true" />
     </div>
 </section>
 
 @code {
-    private const int TypingPauseMilliseconds = 200;
-
-    private SearchAnswer? _answer;
-    private Exception? _error;
-    private string _text = string.Empty;
-    private CancellationTokenSource? _typing;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await Js.InvokeVoidAsync("sab.setTitle", "Catalog");
-        await LoadAsync();
-    }
-
-    private async Task LoadAsync()
-    {
-        try
-        {
-            _answer = await Catalog.SearchAsync(_text);
-            _error = null;
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-    }
-
-    private async Task SearchAsync(ChangeEventArgs e)
-    {
-        _text = e.Value?.ToString() ?? string.Empty;
-        _typing?.Cancel();
-        _typing = new CancellationTokenSource();
-        try
-        {
-            await Task.Delay(TypingPauseMilliseconds, _typing.Token);
-        }
-        catch (TaskCanceledException)
-        {
-            return; // more typing came: only the last pause looks
-        }
-        await LoadAsync();
-    }
-
-    private async Task CopyAsync(string text)
-    {
-        if (await Js.InvokeAsync<bool>("sab.copy", text))
-        {
-            await Notes.SayAsync("Copied.");
-        }
-    }
-
-    /// <summary>An open table's grid, or a connection's table read into a new grid.</summary>
-    private async Task OpenAsync(SearchResult result)
-    {
-        if (result.Grid is { } grid)
-        {
-            Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
-            return;
-        }
-        if (result.Connection is { } connection && result.Place is { } place)
-        {
-            try
-            {
-                await Connections.OpenAsync(connection, new TreeTable(place.Table, place.Database, place.Schema));
-                Nav.NavigateTo("grids");
-            }
-            catch (ApiException error)
-            {
-                _error = error;
-            }
-        }
-    }
+    protected override Task OnInitializedAsync() => Js.InvokeVoidAsync("sab.setTitle", "Catalog").AsTask();
 }

@@ -12,7 +12,7 @@
                         <option value="view">Current view</option>
                         @if (Selection is not null)
                         {
-                            <option value="selection">Selection</option>
+                            <option value="selection">@SelectionLabel</option>
                         }
                         <option value="columns">Some columns</option>
                         <option value="source">Whole source (no steps)</option>
@@ -34,11 +34,16 @@
         {
             <fieldset class="fieldset">
                 <legend>Columns</legend>
-                <div class="form-grid" role="group" aria-label="Columns to export">
+                <div class="code-toolbar">
+                    <button type="button" class="btn small" @onclick="() => SetAll(true)">Select all columns</button>
+                    <button type="button" class="btn small" @onclick="() => SetAll(false)">Clear</button>
+                    <span class="hint">@_columns.Count of @Info.Columns.Count selected</span>
+                </div>
+                <div class="checklist" role="group" aria-label="Columns to export">
                     @foreach (var column in Info.Columns)
                     {
                         var name = column.Name;
-                        <label class="check"><input type="checkbox" checked="@_columns.Contains(name)" @onchange="e => Pick(name, e.Value is true)" /> @name</label>
+                        <label class="check"><input type="checkbox" aria-label="@name" checked="@_columns.Contains(name)" @onchange="e => Pick(name, e.Value is true)" /> @name</label>
                     }
                 </div>
             </fieldset>
@@ -56,25 +61,49 @@
                             <option value="semicolon">semicolon ;</option>
                         </select>
                     </label>
-                    <label class="check"><input type="checkbox" @bind="_header" /> Header row</label>
-                    <label class="check"><input type="checkbox" @bind="_bom" /> UTF-8 BOM (for Excel)</label>
-                    <label class="check"><input type="checkbox" @bind="_neutralize" /> Neutralize formula-like text</label>
+                    <label class="field"><span>Line endings</span>
+                        <select aria-label="Line endings" @bind="_lineEnding">
+                            <option value="windows">Windows (CRLF)</option>
+                            <option value="unix">Unix (LF)</option>
+                        </select>
+                    </label>
+                    <label class="field"><span>Blank cells as</span><input type="text" placeholder="(empty)" aria-label="Blank cells as" @bind="_blank" /></label>
+                    <label class="check"><input type="checkbox" aria-label="Header row" @bind="_header" /> Header row</label>
+                    <label class="check"><input type="checkbox" aria-label="Quote every cell" @bind="_quoteAll" /> Quote every cell</label>
+                    <label class="check"><input type="checkbox" aria-label="UTF-8 BOM (for Excel)" @bind="_bom" /> UTF-8 BOM (for Excel)</label>
+                    <label class="check"><input type="checkbox" aria-label="Neutralize formula-like text" @bind="_neutralize" /> Neutralize formula-like text</label>
                 </div>
+                @if (!_neutralize)
+                {
+                    <p class="warning-text">⚠ Formula-like text may run in Excel.</p>
+                }
             }
             else if (_format == "xlsx")
             {
-                <label class="field"><span>Sheet name</span><input type="text" aria-label="Sheet name" @bind="_sheet" /></label>
+                <div class="form-grid">
+                    <label class="field"><span>Sheet name</span><input type="text" aria-label="Sheet name" @bind="_sheet" /></label>
+                    <label class="check"><input type="checkbox" aria-label="Cut text over 32,767 characters" @bind="_cutLong" /> Cut text over 32,767 characters</label>
+                </div>
+            }
+            else if (_format == "parquet")
+            {
+                <label class="field"><span>Compression</span>
+                    <select aria-label="Compression" @bind="_compression">
+                        <option value="snappy">Snappy</option>
+                        <option value="zstd">Zstandard</option>
+                    </select>
+                </label>
             }
             @if (_format is "xlsx" or "parquet")
             {
-                <label class="check"><input type="checkbox" @bind="_provenance" /> Include provenance</label>
+                <label class="check"><input type="checkbox" aria-label="Include provenance" @bind="_provenance" /> Include provenance</label>
             }
         </fieldset>
         <ErrorNote Error="_error" OnClose="() => _error = null" />
     </ChildContent>
     <Foot>
         <button type="button" class="btn" @onclick="OnClose">Cancel</button>
-        <button type="button" class="btn" title="~/.swissarmybench/exports" @onclick="SaveAsync"><Icon Name="save" /> Save to export folder</button>
-        <button type="button" class="btn primary" @onclick="DownloadAsync"><Icon Name="export" /> Download</button>
+        <button type="button" class="btn" title="~/.swissarmybench/exports" disabled="@_busy" @onclick="SaveAsync"><Icon Name="save" /> @(_busy && _saving ? "Saving…" : "Save to export folder")</button>
+        <button type="button" class="btn primary" disabled="@_busy" @onclick="DownloadAsync"><Icon Name="export" /> @(_busy && !_saving ? "Exporting…" : "Download")</button>
     </Foot>
 </AppDialog>

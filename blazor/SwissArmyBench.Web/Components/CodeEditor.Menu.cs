@@ -26,6 +26,9 @@ public partial class CodeEditor
     private Dialogs Dialogs { get; set; } = default!;
 
     [Inject]
+    private BetaState Beta { get; set; } = default!;
+
+    [Inject]
     private Notes Notes { get; set; } = default!;
 
     /// <summary>Where the code is from ("cell 2 of sums.ipynb", "rates.py"): set, the menu offers Send to the agent.</summary>
@@ -99,13 +102,10 @@ public partial class CodeEditor
         }
     }
 
-    private async Task LeaveNoteAsync()
+    // The one note form (Layout/BetaNoteHost), about the element right-clicked in the editor.
+    private Task LeaveNoteAsync()
     {
-        var text = await Dialogs.AskTextAsync("Leave a note", "What happened, in your own words: it goes in the beta log.", "Note", string.Empty, "Leave the note");
-        if (!string.IsNullOrWhiteSpace(text))
-        {
-            await SettingsApi.BetaNoteAsync(text);
-            await Notes.SayAsync("Noted.");
-        }
+        Beta.AskNote(BetaElement.Named("textbox", "Code editor"), fromRightClick: true);
+        return Task.CompletedTask;
     }
 }

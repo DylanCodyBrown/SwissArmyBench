@@ -1,80 +1,85 @@
-@* The ERD (the classic diagram view, ?view=erd): the relationship model drawn by Mermaid from the server's text (the
-   project's tables, or all of them), the joins in use with Delete and Undo, and Find relationships among the open
-   tables with each suggestion's evidence and Add. *@
+@* The ERD (the classic erdView.ts, ?view=erd): the keys and joins between the tables, drawn by Mermaid: the
+   project's tables (or all of them), fitted to the window (Fit, Actual size); Import relationships, Manage
+   relationships (the Relationships window). With none yet: Find relationships (the window, its finder running)
+   and the shared models with a table open, each with Apply. Logic in ErdPage.razor.cs. *@
 @page "/erd"
+@implements IDisposable
 
-<section class="area-page">
-    <header class="area-page-head">
-        <h1 class="area-page-title"><Icon Name="diagram" /> ERD</h1>
-        <div class="area-page-actions">
-            <div class="form-grid" role="radiogroup" aria-label="Which tables">
-                <button type="button" class="btn small" aria-pressed="@(_scope == ProjectScope ? "true" : "false")" @onclick="() => ScopeAsync(ProjectScope)">This project's tables</button>
-                <button type="button" class="btn small" aria-pressed="@(_scope == AllScope ? "true" : "false")" @onclick="() => ScopeAsync(AllScope)">All tables</button>
-            </div>
-            <button type="button" class="btn primary" @onclick="FindAsync"><Icon Name="zoom" /> Find relationships</button>
-            <button type="button" class="btn" disabled="@(!(_model?.CanUndo ?? false))" @onclick="UndoAsync"><Icon Name="undo" /> Undo</button>
-            <PageActions Page="erd" Context="_erd?.Tables" />
-        </div>
-    </header>
+<section class="area-page erd-page">
     <div class="area-page-body">
+        <h1 class="sandbox-title">ERD</h1>
         <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-        @if (_erdWords is not null)
+        @if (Empty)
         {
-            <p class="muted">@_erdWords</p>
-        }
-        else if (_erd is { Mermaid.Length: > 0 } erd)
-        {
-            <div class="erd-diagram"><MermaidDiagram Text="@erd.Mermaid" /></div>
-        }
-        @if (_suggestions is { } found)
-        {
-            <section class="section erd-found">
-                <div class="section-head"><h2>Found among the open tables</h2></div>
-                @if (found.Count == 0)
+            <div class="erd-empty">
+                <strong>No relationships yet.</strong>
+                <button type="button" class="btn primary" @onclick="() => OpenWindow(true)"><Icon Name="zoom" /> Find relationships</button>
+                @Actions(false)
+                @if (_shared.Count > 0)
                 {
-                    <p class="muted">No relationship found among the open tables.</p>
+                    <div class="erd-shared">
+                        <h3>Shared models</h3>
+                        @foreach (var set in _shared)
+                        {
+                            <div class="erd-shared-row">
+                                <span><strong>@set.Name</strong> · @set.OpenTables.Count of @set.Tables.Count tables open</span>
+                                <button type="button" class="btn primary small" @onclick="() => ApplySharedAsync(set.Name)">Apply</button>
+                            </div>
+                        }
+                    </div>
                 }
-                <table class="rows">
-                    <tbody>
-                        @foreach (var suggestion in found)
-                        {
-                            <tr>
-                                <td><strong>@suggestion.From</strong>.@string.Join(", ", suggestion.FromColumns) → <strong>@suggestion.To</strong>.@string.Join(", ", suggestion.ToColumns)</td>
-                                <td>@suggestion.Kind</td>
-                                <td class="muted">@string.Join("; ", suggestion.Reasons)</td>
-                                <td class="row-actions">
-                                    @if (suggestion.Known)
-                                    {
-                                        <span class="chip">In use</span>
-                                    }
-                                    else
-                                    {
-                                        <button type="button" class="btn small" @onclick="() => AddAsync(suggestion)">Add</button>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
+            </div>
         }
-        @if (_model is { Relationships.Count: > 0 } model)
+        else
         {
-            <section class="section">
-                <div class="section-head"><h2>Relationships in use</h2></div>
-                <table class="rows erd-joins">
-                    <tbody>
-                        @foreach (var join in model.Relationships)
-                        {
-                            <tr>
-                                <td><strong>@join.From</strong>.@string.Join(", ", join.FromColumns) → <strong>@join.To</strong>.@string.Join(", ", join.ToColumns)</td>
-                                <td>@join.Kind</td>
-                                <td class="row-actions"><button type="button" class="btn small ghost" @onclick="() => DeleteAsync(join)">Delete</button></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
+            @Actions(_erd is { Mermaid.Length: > 0 })
+            @if (_scope is { Project: true } scope)
+            {
+                <div class="erd-scope">
+                    <span class="scope-switch" role="group" aria-label="Which tables">
+                        <button type="button" class="btn ghost scope-choice" aria-pressed="@(!_showAll ? "true" : "false")" @onclick="() => ScopeAsync(false)">Tables in this project</button>
+                        <button type="button" class="btn ghost scope-choice" aria-pressed="@(_showAll ? "true" : "false")" @onclick="() => ScopeAsync(true)">All tables</button>
+                    </span>
+                    @if (scope.Words.Length > 0)
+                    {
+                        <span class="hint erd-hidden">@scope.Words</span>
+                    }
+                </div>
+            }
+            @if (_noneHere)
+            {
+                <p class="hint">None of the relationships' tables is used in this project.</p>
+            }
+            else if (_erd is { Mermaid.Length: > 0 } erd)
+            {
+                <div class="diagram erd-diagram" data-fitted="@(_fitted ? "true" : "false")" role="img" aria-label="@($"Relationships of {string.Join(", ", _covered)}")">
+                    <MermaidDiagram Text="@erd.Mermaid" />
+                </div>
+            }
         }
     </div>
 </section>
+@if (_window is { } finding)
+{
+    <RelationshipsDialog StartFinding="finding" OnClose="WindowClosedAsync" />
+}
+
+@code {
+    private RenderFragment Actions(bool sized) => __builder =>
+    {
+        <div class="erd-actions">
+            <label class="btn" title="A saved set (reviewed before it is applied) or a model as JSON">
+                <Icon Name="import" /> Import relationships
+                <InputFile class="sr-only" accept=".json,.tang,application/json" OnChange="ImportAsync" />
+            </label>
+            <button type="button" class="btn" @onclick="() => OpenWindow(false)"><Icon Name="crown" /> Manage relationships</button>
+            @* An on extension's buttons (Export to Power BI…), given the tables drawn. *@
+            <PageActions Page="erd" Context="_erd?.Tables" />
+            @if (sized)
+            {
+                <button type="button" class="btn" title="Fit the diagram to the window" @onclick="() => _fitted = true"><Icon Name="max" /> Fit</button>
+                <button type="button" class="btn" @onclick="() => _fitted = false"><Icon Name="zoom" /> Actual size</button>
+            }
+        </div>
+    };
+}

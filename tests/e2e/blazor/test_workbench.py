@@ -10,7 +10,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 
 
 def made_up_notebook(server: dict[str, Any], name: str) -> str:
@@ -80,11 +80,10 @@ def test_a_script_runs_its_file_and_a_console_line(browser: Browser, server: dic
     page.keyboard.press("Enter")
     expect(page.locator(".wb-console-body")).to_contain_text("43")
 
-    # Save as: the app's own box for the path (no system dialog in a test).
-    target = str(server["tmp"] / "workbench" / "made_up_script")
+    # Save as: the page's own picker (no system dialog in a test).
+    (server["tmp"] / "workbench").mkdir(exist_ok=True)
     page.click("button:has-text('Save as')")
-    page.fill(".dialog input", target)
-    page.click(".dialog-foot .btn.primary")
+    choose_path(page, server["tmp"] / "workbench" / "made_up_script", save=True)
     expect(page.locator(".wb-doc-title")).to_contain_text("made_up_script.py")
     assert "made up script" in (server["tmp"] / "workbench" / "made_up_script.py").read_text()
     page.close()

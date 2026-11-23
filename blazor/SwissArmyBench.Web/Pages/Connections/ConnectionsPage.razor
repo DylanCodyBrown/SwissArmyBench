@@ -61,7 +61,7 @@ else
     }
     @if (_importing)
     {
-        <ImportConnections OnClose="ImportClosed" />
+        <ImportDialog Kind="@ImportDialog.Connections" OnDone="d => ImportClosed(d is not null)" />
     }
 }
 

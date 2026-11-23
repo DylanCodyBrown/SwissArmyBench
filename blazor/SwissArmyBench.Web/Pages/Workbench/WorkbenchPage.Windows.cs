@@ -1,5 +1,7 @@
 using Microsoft.JSInterop;
 
+using SwissArmyBench.Web.State;
+
 namespace SwissArmyBench.Web.Pages.Workbench;
 
 // A document in a window of its own (the classic workbenchPage.ts popOut and moveToMain): Open in its own window opens
@@ -53,11 +55,11 @@ public partial class WorkbenchPage
         }
     }
 
-    private List<WorkbenchCommand> WindowCommands() =>
+    private List<PaletteCommand> WindowCommands() =>
     [
         new("doc.popOut", "Documents", "Open the document in its own window", () => Front is { } doc ? PopOutAsync(doc) : Task.CompletedTask,
-            Disabled: Front is null ? "no notebook, script or Streamlit app is in front" : Front.Path is null ? "Save it first: its own window opens its file" : null),
+            WhyNot: Front is null ? "no notebook, script or Streamlit app is in front" : Front.Path is null ? "Save it first: its own window opens its file" : null),
         new("doc.moveToMain", "Documents", "Move the document to the main window", () => Front is { } doc ? MoveToMainAsync(doc) : Task.CompletedTask,
-            Disabled: !_popped || Front is null ? "this is the main window, or nothing is in front" : null),
+            WhyNot: !_popped || Front is null ? "this is the main window, or nothing is in front" : null),
     ];
 }

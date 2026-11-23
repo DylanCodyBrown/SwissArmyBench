@@ -1,0 +1,93 @@
+@* A sandbox grid's cell edited in place (the classic sandboxGrid.ts editSandboxCell): a box over the cell (a JSON box
+   for a LIST, STRUCT or MAP column); Enter writes it (a sandbox write; Reset undoes it), a value its column's type
+   refuses is said under the box, which stays open; Escape leaves it. *@
+@inject ApiClient Api
+@inject IJSRuntime Js
+
+<div class="sandbox-cell-edit" style="@Place">
+    @if (Nested)
+    {
+        <textarea class="sandbox-cell-input sandbox-cell-json" aria-label="@($"{Label} (JSON)")" spellcheck="false" rows="3" data-no-variables
+                  @bind="_text" @bind:event="oninput" @onkeydown="KeyAsync" @onkeydown:stopPropagation="true" id="sandbox-cell-box"></textarea>
+    }
+    else
+    {
+        <input class="sandbox-cell-input" aria-label="@Label" spellcheck="false" data-no-variables
+               @bind="_text" @bind:event="oninput" @onkeydown="KeyAsync" @onkeydown:stopPropagation="true" id="sandbox-cell-box" />
+    }
+    <ErrorNote Words="@_problem" />
+    <ErrorNote Error="_error" />
+</div>
+
+@code {
+    // The box is at least this wide (a JSON box wider).
+    private const int Narrowest = 140;
+    private const int NarrowestJson = 260;
+
+    private string _text = string.Empty;
+    private string? _problem;
+    private Exception? _error;
+    private bool _sending;
+
+    [Parameter, EditorRequired]
+    public SandboxTable Table { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public GridPoint At { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public JsonElement Value { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Type => Table.Columns.FirstOrDefault(c => c.Name == At.Column)?.Type ?? "VARCHAR";
+
+    private bool Nested => SandboxCells.IsNested(Type);
+
+    private string Label => $"{At.Column}, row {At.Row + 1:N0}";
+
+    private string Place => FormattableString.Invariant(
+        $"left: {(At.X > 0 ? At.X : 200)}px; top: {(At.Y > 0 ? At.Y : 200)}px; min-width: {(Nested ? NarrowestJson : Narrowest)}px");
+
+    protected override void OnInitialized() => _text = SandboxCells.Shown(Value, Nested);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Js.InvokeVoidAsync("sab.focusSelect", "#sandbox-cell-box");
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+            return;
+        }
+        if (e.Key != "Enter" || e.ShiftKey || _sending)
+        {
+            return;
+        }
+        if (Nested && SandboxCells.JsonProblem(_text) is { } problem)
+        {
+            _problem = problem;
+            return;
+        }
+        _sending = true;
+        try
+        {
+            await Api.PostAsync("/sandbox/edit", new { table = Table.Name, op = "update", row = At.Row, column = At.Column, value = _text });
+            await OnClose.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            // In place: under the box, which stays open with what was typed.
+            _error = error;
+            _problem = null;
+        }
+        _sending = false;
+    }
+}

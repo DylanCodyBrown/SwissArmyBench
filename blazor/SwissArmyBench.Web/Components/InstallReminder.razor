@@ -1,0 +1,22 @@
+@* The small reminder where a feature is used, after Not now (the classic missingPackages.ts reminder): "Install
+   <package>", which opens the prompt again; its title is the command, for the user's own Python too. *@
+@inject PackagePrompts Prompts
+
+<span class="missing-reminder">
+    <button type="button" class="btn ghost small" title="@Missing.Command" @onclick="() => Prompts.PromptAsync(Missing, force: true, Install, Then)">
+        <Icon Name="import" /> Install @Missing.Listed
+    </button>
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public MissingPackages Missing { get; set; } = default!;
+
+    /// <summary>Where they go, when not the app's own Python (a Streamlit app's, a document's).</summary>
+    [Parameter]
+    public Func<MissingPackages, Task>? Install { get; set; }
+
+    /// <summary>What the user was doing, run again once they are installed.</summary>
+    [Parameter]
+    public Func<Task>? Then { get; set; }
+}

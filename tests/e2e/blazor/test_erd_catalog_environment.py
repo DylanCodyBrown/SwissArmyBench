@@ -1,5 +1,6 @@
-"""The Blazor front end's ERD (Find relationships among the made-up sample store, Add one, the Mermaid
-diagram, Delete), the Catalog's search and the Environment's tables with Open."""
+"""The Blazor front end's ERD (Find relationships among the made-up sample store in the Relationships window,
+the Mermaid diagram, a join deleted with Undo), the Catalog's search and the Environment's tables with
+Open."""
 
 from __future__ import annotations
 
@@ -13,21 +14,32 @@ from tests.e2e.blazor.conftest import call, open_page
 def test_find_add_and_draw_a_relationship(browser: Browser, server: dict[str, Any]) -> None:
     call(server, "POST", "/samples/store")
     page = open_page(browser, server, "erd")
-    page.click("text=All tables")
-    page.click("text=Find relationships")
-    row = page.locator(".erd-found tr", has_text="orders.customer_id")
-    row.locator("button:has-text('Add')").click()
-    expect(page.locator(".erd-joins")).to_contain_text("customers")
+    expect(page.locator(".erd-empty")).to_contain_text("No relationships yet.")
+    page.locator(".erd-empty").get_by_role("button", name="Find relationships").click()
+    # The window opens with its finder running: the confident joins are added at once, with one Undo.
+    window = page.locator(".dialog")
+    expect(window).to_contain_text("joins across")
+    expect(page.locator(".note-corner")).to_contain_text("found in the data")
+    expect(window.locator(".rel-table")).to_contain_text("customers")
+    window.locator(".dialog-foot").get_by_role("button", name="Close").click()
     expect(page.locator(".erd-diagram svg")).to_be_visible()
-    page.locator(".erd-joins button:has-text('Delete')").first.click()
-    expect(page.locator(".erd-joins")).to_have_count(0)
+    expect(page.get_by_role("button", name="Actual size")).to_be_visible()
+
+    # Manage relationships: one deleted, with Undo.
+    page.get_by_role("button", name="Manage relationships").click()
+    window = page.locator(".dialog")
+    first = window.locator(".rel-table tbody tr").first
+    first.get_by_role("button", name=__import__("re").compile("More for")).click()
+    page.locator(".context-menu").get_by_role("menuitem", name="Delete").click()
+    expect(page.locator(".note-corner")).to_contain_text("Deleted 1 relationship.")
     page.close()
 
 
 def test_catalog_search_and_environment_open(browser: Browser, server: dict[str, Any]) -> None:
     page = open_page(browser, server, "catalog")
     page.fill(".catalog-search", "cust")
-    expect(page.locator(".catalog-rows").first).to_contain_text("customers")
+    # Typed on the Catalog page: the same tree, narrowed to what matches (the classic dataBrowse.ts).
+    expect(page.locator(".db-tree")).to_contain_text("customers")
     page.click(".nav-rail-item[data-area=environment]")
     row = page.locator(".env-row[data-name=orders]").first
     expect(row).to_contain_text("In 1 grid")

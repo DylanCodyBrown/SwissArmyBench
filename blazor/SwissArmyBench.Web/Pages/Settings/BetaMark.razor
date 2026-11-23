@@ -10,11 +10,7 @@
 }
 @if (_menu is { } at)
 {
-    <ContextMenu Title="Beta mode" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@Entries" />
-}
-@if (_noting)
-{
-    <LeaveNoteDialog OnClose="() => _noting = false" />
+    <ContextMenu Title="Beta mode" NoBetaNote="true" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@Entries" />
 }
 @if (_exporting)
 {
@@ -23,15 +19,21 @@
 
 @code {
     private (double X, double Y)? _menu;
-    private bool _noting;
     private bool _exporting;
 
     private IReadOnlyList<MenuEntry> Entries =>
     [
-        new("Leave a note…", "edit", () => Task.FromResult(_noting = true)),
+        new("Leave a note…", "edit", LeaveNote),
         new("Export beta log…", "export", () => Task.FromResult(_exporting = true)),
         new("Turn off beta mode", "close", TurnOffAsync),
     ];
+
+    // The one note form (Layout/BetaNoteHost), about this mark.
+    private Task LeaveNote()
+    {
+        Beta.AskNote(BetaElement.Named("button", "Beta"));
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnInitializedAsync()
     {

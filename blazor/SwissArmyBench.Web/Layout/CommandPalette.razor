@@ -1,0 +1,174 @@
+@* The command palette (Ctrl+Shift+P; the classic workbenchCommands.ts openPalette) and the keyboard shortcuts sheet
+   (?), over every page: the palette filters as you type, the arrows move, Enter runs, Escape closes; a command that
+   cannot run now says why in its row. The sheet lists every command with keys by group, with Find a shortcut. *@
+@implements IAsyncDisposable
+@inject Commands Commands
+@inject IJSRuntime Js
+
+@if (Commands.Open == "palette")
+{
+    var shown = Shown();
+    <div class="wb-palette-shade" @onmousedown="Commands.Close">
+        <div class="wb-palette" role="dialog" aria-modal="true" aria-label="Command palette" @onmousedown:stopPropagation="true">
+            <input type="search" class="wb-palette-input" placeholder="Command" aria-label="Command" role="combobox" aria-expanded="true" aria-controls="wb-palette-list"
+                   aria-activedescendant="@(shown.Count > 0 ? $"wb-cmd-{_at}" : string.Empty)" id="wb-palette-input"
+                   @bind="_text" @bind:event="oninput" @bind:after="() => _at = 0" @onkeydown="KeyAsync" />
+            <ul class="wb-palette-list" id="wb-palette-list" role="listbox" aria-label="Commands">
+                @for (var i = 0; i < shown.Count; i++)
+                {
+                    var command = shown[i];
+                    var at = i;
+                    <li role="option" id="@($"wb-cmd-{i}")" class="wb-palette-item @(i == _at ? "active" : string.Empty) @(command.WhyNot is null ? string.Empty : "off")"
+                        aria-selected="@(i == _at ? "true" : "false")" aria-disabled="@(command.WhyNot is null ? null : "true")" title="@command.WhyNot" @onmousedown="() => Commands.RunAsync(command)">
+                        <span class="wb-palette-group">@command.Group</span>
+                        <span class="wb-palette-title">@command.Title</span>
+                        @if (command.WhyNot is { } why)
+                        {
+                            <span class="wb-palette-why">@why</span>
+                        }
+                        @if (command.Keys is { } keys)
+                        {
+                            <kbd>@keys</kbd>
+                        }
+                    </li>
+                }
+                @if (shown.Count == 0)
+                {
+                    <li class="hint">No matches</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+else if (Commands.Open == "shortcuts")
+{
+    var groups = Shortcuts();
+    <div class="wb-palette-shade" @onmousedown="Commands.Close">
+        <div class="wb-palette shortcuts" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" @onmousedown:stopPropagation="true" @onkeydown="SheetKey">
+            <div class="shortcuts-head"><h2>Keyboard shortcuts</h2><button type="button" class="ghost icon-only btn" aria-label="Close" title="Close (Escape)" @onclick="Commands.Close">×</button></div>
+            <input type="search" class="wb-palette-input" placeholder="Find a shortcut" aria-label="Find a shortcut" data-no-variables id="wb-palette-input" @bind="_text" @bind:event="oninput" />
+            <div class="shortcuts-groups">
+                @foreach (var (group, rows) in groups)
+                {
+                    <section class="shortcuts-group">
+                        <h3>@group</h3>
+                        <dl>
+                            @foreach (var c in rows)
+                            {
+                                <dt>@foreach (var key in c.Keys!.Split(' '))
+                                    {
+                                        <kbd>@key</kbd>
+                                    }</dt>
+                                <dd>@c.Title</dd>
+                            }
+                        </dl>
+                    </section>
+                }
+                @if (groups.Count == 0)
+                {
+                    <p class="hint">No shortcut matches.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _text = string.Empty;
+    private int _at;
+    private string? _drawn;
+    private DotNetObjectReference<CommandPalette>? _self;
+    private IJSObjectReference? _keys;
+
+    protected override void OnInitialized() => Commands.Changed += Redraw;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            _keys = await Js.InvokeAsync<IJSObjectReference>("sab.commandKeys", _self);
+        }
+        if (Commands.Open != _drawn)
+        {
+            _drawn = Commands.Open;
+            if (_drawn is not null)
+            {
+                await Js.InvokeVoidAsync("sab.focus", "#wb-palette-input");
+            }
+        }
+    }
+
+    /// <summary>Ctrl+Shift+P, ? or Ctrl+/ (shell.js commandKeys): the palette or the sheet.</summary>
+    [JSInvokable]
+    public void Wanted(string which)
+    {
+        if (which == "find" && !Commands.FindData)
+        {
+            return;
+        }
+        _text = string.Empty;
+        _at = 0;
+        Commands.Show(which);
+    }
+
+    private IReadOnlyList<PaletteCommand> Shown()
+    {
+        var words = _text.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return Commands.All().Where(c => words.All(w => $"{c.Group} {c.Title} {c.Keys}".Contains(w, StringComparison.OrdinalIgnoreCase))).ToList();
+    }
+
+    private IReadOnlyList<(string Group, IReadOnlyList<PaletteCommand> Rows)> Shortcuts()
+    {
+        var words = _text.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return Commands.All()
+            .Where(c => c.Keys is not null && words.All(w => $"{c.Group} {c.Title} {c.Keys}".Contains(w, StringComparison.OrdinalIgnoreCase)))
+            .DistinctBy(c => (c.Keys, c.Title))
+            .GroupBy(c => c.Group)
+            .Select(g => (g.Key, (IReadOnlyList<PaletteCommand>)g.ToList()))
+            .ToList();
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        var shown = Shown();
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _at = Math.Min(shown.Count - 1, _at + 1);
+                break;
+            case "ArrowUp":
+                _at = Math.Max(0, _at - 1);
+                break;
+            case "Enter" when shown.Count > 0:
+                await Commands.RunAsync(shown[Math.Min(_at, shown.Count - 1)]);
+                break;
+            case "Escape":
+                Commands.Close();
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void SheetKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Commands.Close();
+        }
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Commands.Changed -= Redraw;
+        if (_keys is not null)
+        {
+            await _keys.InvokeVoidAsync("stop");
+            await _keys.DisposeAsync();
+        }
+        _self?.Dispose();
+    }
+}

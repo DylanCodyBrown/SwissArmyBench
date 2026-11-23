@@ -1,0 +1,96 @@
+@* A relationship set's file reviewed before it is applied (the classic relationshipsDialog.ts importRelationships):
+   its description, tags and joins, which of its tables are open, what it would change in the joins in use (or that
+   it only adds); then Just apply it, keep it in my saved sets, or share it. *@
+@inject RelationshipsClient Relationships
+@inject Notes Notes
+
+<AppDialog Title="@($"Import {Review.Set.Name}")" OnClose="OnClose">
+    <ChildContent>
+        @if (Review.Set.Description.Length > 0)
+        {
+            <p>@Review.Set.Description</p>
+        }
+        @if (Review.Set.Tags is { Count: > 0 } tags)
+        {
+            <div class="chips">@foreach (var tag in tags)
+                {
+                    <span class="chip">@tag</span>
+                }</div>
+        }
+        <p class="hint">@Review.Set.Relationships.Count joins@(Review.Set.Author is { Length: > 0 } author ? $", saved by {author}" : string.Empty). Tables open: @(Review.OpenTables.Count > 0 ? string.Join(", ", Review.OpenTables) : "none")@(Review.MissingTables.Count > 0 ? $"; not open: {string.Join(", ", Review.MissingTables)}" : string.Empty).</p>
+        @if (Review.Changes.Count > 0)
+        {
+            <div class="warning-text"><strong>It changes what you use now: </strong><ul>@foreach (var change in Review.Changes)
+                    {
+                        <li>@change</li>
+                    }</ul></div>
+        }
+        else
+        {
+            <p class="hint">Only adds; changes nothing.</p>
+        }
+        <ul class="hint">
+            @foreach (var join in Review.Set.Relationships.Take(MostListed))
+            {
+                <li>@join.From → @join.To on @join.On (@join.Kind)</li>
+            }
+        </ul>
+        <label class="field"><span>Then</span>
+            <select aria-label="Keep it in" @bind="_where">
+                <option value="">Just apply it</option>
+                <option value="mine">Apply and keep it in my saved sets</option>
+                @foreach (var folder in SharedFolders)
+                {
+                    <option value="@folder">Apply and share it: @folder</option>
+                }
+            </select>
+        </label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="ApplyAsync"><Icon Name="check" /> Apply</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private const int MostListed = 30;
+
+    private string _where = string.Empty;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string FileName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public ImportReview Review { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<string> SharedFolders { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnApplied { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private async Task ApplyAsync()
+    {
+        var save = _where.Length > 0;
+        try
+        {
+            var kept = await Relationships.ApplyImportAsync(Text, save, save && _where != "mine" ? _where : null);
+            await OnClose.InvokeAsync();
+            var where = kept.Where is { } w ? $" and kept it ({(w == "shared" ? "shared" : "yours")})" : string.Empty;
+            _ = Notes.SayAsync($"Applied {Review.Set.Name}{where}.");
+            await OnApplied.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

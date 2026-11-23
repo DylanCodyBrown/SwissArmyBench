@@ -1,0 +1,64 @@
+@* The Tables list (the classic openMenu.ts, the ≡ button beside "+"): the data budget; the open tables and the
+   closed ones still in memory (Open puts the original back as a tab; Remove asks first); the tables in the running
+   Python sessions (Open asks the session to push it, Reload sends it again, Open all). Redrawn on the notices. *@
+@implements IDisposable
+
+<AppDialog Title="Tables" Wide="true" OnClose="OnClose">
+    <ChildContent>
+        <div class="open-dialog">
+            <p class="hint" id="tables-budget" role="status">@_budget</p>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            @if (_datasets is null)
+            {
+                <div class="loading-block">Loading the tables…</div>
+            }
+            else
+            {
+                <DatasetBlock Title="Open tables" Id="open-tables" Datasets="_datasets.Where(d => d.Grids.Count > 0).ToList()" OnOpen="OpenClosedAsync" OnRemove="RemoveAsync" />
+                <DatasetBlock Title="Closed tables" Id="closed-tables" Datasets="_datasets.Where(d => d.Grids.Count == 0).ToList()" OnOpen="OpenClosedAsync" OnRemove="RemoveAsync" />
+            }
+            <section class="open-session" id="python-sessions">
+                <header><strong>Python sessions</strong></header>
+                @if (_sessionsWords is { } words)
+                {
+                    <p class="hint" role="status">@words</p>
+                }
+                @foreach (var session in _sessions)
+                {
+                    var closed = session.Tables.Where(t => !t.Open).ToList();
+                    <section class="open-session">
+                        <header>
+                            <strong>@session.Label</strong>
+                            <span class="hint">process @session.Pid</span>
+                            @if (closed.Count > 1)
+                            {
+                                <button type="button" class="btn ghost small" @onclick="() => OpenAllAsync(session, closed)">Open all</button>
+                            }
+                        </header>
+                        @if (session.Tables.Count == 0)
+                        {
+                            <p class="hint">No tables</p>
+                        }
+                        else
+                        {
+                            <table class="kf-table small">
+                                <tbody>
+                                    @foreach (var table in session.Tables)
+                                    {
+                                        <tr>
+                                            <td><strong>@table.Name</strong></td>
+                                            <td>@KindLabel(table.Kind)</td>
+                                            <td class="num" title="rows × columns">@SizeOf(table)</td>
+                                            <td>@(table.Open ? "open" : string.Empty)</td>
+                                            <td><button type="button" class="btn small @(table.Open ? "ghost" : "primary")" @onclick="() => AskToOpenAsync(session, table)">@(table.Open ? "Reload" : "Open")</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </section>
+                }
+            </section>
+        </div>
+    </ChildContent>
+</AppDialog>

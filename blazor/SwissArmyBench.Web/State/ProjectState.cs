@@ -21,11 +21,20 @@ public sealed class ProjectState : IDisposable
 
     public ProjectInfo? Current { get; private set; }
 
+    /// <summary>Open tables that are not in a project (making one would keep them).</summary>
+    public bool Loose { get; private set; }
+
+    /// <summary>A folder another program asked to open while work was unsaved, or null.</summary>
+    public string? Asked { get; private set; }
+
     public async Task RefreshAsync()
     {
         try
         {
-            Current = (await _projects.CurrentAsync()).Project;
+            var answer = await _projects.CurrentAsync();
+            Current = answer.Project;
+            Loose = answer.Loose;
+            Asked = answer.Asked;
         }
         catch (ApiException)
         {

@@ -1,0 +1,84 @@
+@* One line of the Catalog's tree and, when open, its children (the classic dataBrowse.ts rowOf): the caret, icon,
+   name, type, note, a connection's state, the line's own actions; a click selects (and opens a group), the caret
+   opens and closes, a double-click runs the first action, a right-click shows them all. *@
+
+@{
+    var open = Node.IsOpen(Owner.Opened);
+    var own = Owner.ActionsOf(Node);
+    var selected = Node.Key == Owner.Selected;
+    var connection = Node.Connection?.Name ?? Node.Result?.Connection;
+}
+<li role="treeitem" class="db-node kind-@Node.Kind @(selected ? "selected" : string.Empty)" tabindex="@(selected ? 0 : -1)"
+    aria-label="@Node.Label" aria-selected="@(selected ? "true" : "false")" aria-expanded="@(Node.Children is null ? null : open ? "true" : "false")"
+    data-key="@Node.Key" data-kind="@Node.Kind" data-connections="@connection">
+    <div class="db-line" style="--depth:@Depth" @onclick="() => Owner.ClickAsync(Node)" @ondblclick="() => Owner.RunFirstAsync(Node)"
+         @oncontextmenu="e => Owner.Menu(Node, e)" @oncontextmenu:preventDefault="@(own.Count > 0)">
+        <span class="db-caret" aria-hidden="true" @onclick="() => Owner.ToggleAsync(Node)" @onclick:stopPropagation="true">
+            @if (Node.Children is not null)
+            {
+                <Icon Name="@(open ? "down" : "expand")" />
+            }
+        </span>
+        <span class="db-icon" aria-hidden="true"><Icon Name="@Node.Icon" /></span>
+        <span class="db-name">@Node.Label</span>
+        @if (Node.Type is { Length: > 0 } type)
+        {
+            <span class="db-type">@type</span>
+        }
+        @if (Node.Note is { Length: > 0 } note)
+        {
+            <span class="db-note">@note</span>
+        }
+        @if (Node.Status is { } status && Node.Connection is { } c)
+        {
+            <span class="db-status state-@(c.NeedsPassword ? "password" : c.State.State)" title="@c.State.Error">@status</span>
+        }
+        @if (own.Count > 0)
+        {
+            <span class="db-actions">
+                @foreach (var a in own)
+                {
+                    var load = Node.Kind == "connection" && a.Label == "Load";
+                    <button type="button" class="btn small @(load ? "line" : "ghost icon")" aria-label="@a.Label" title="@(a.Title ?? a.Label)"
+                            @onclick="() => Owner.RunAsync(Node, a)" @onclick:stopPropagation="true"><Icon Name="@a.Icon" />@(load ? " Load" : string.Empty)</button>
+                }
+            </span>
+        }
+    </div>
+    @if (Owner.Previews.TryGetValue(Node.Key, out var preview))
+    {
+        <div class="ex-preview">@preview</div>
+    }
+    @if (Node.Children is { } kids && open)
+    {
+        <ul role="group" class="db-kids">
+            @if (Owner.Loading.Contains(Node.Key))
+            {
+                <li class="db-loading" role="none"><span class="loading-block">Loading @Node.Label…</span></li>
+            }
+            else if (Owner.Failed.TryGetValue(Node.Key, out var failed))
+            {
+                <li class="db-loading" role="none"><span class="error-mark">@failed</span></li>
+            }
+            else if (kids.Count == 0 && Node.Lazy)
+            {
+                <li class="db-loading" role="none">No columns</li>
+            }
+            @foreach (var kid in kids)
+            {
+                <CatalogTreeRow @key="kid.Key" Node="kid" Depth="Depth + 1" Owner="Owner" />
+            }
+        </ul>
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public TreeNode Node { get; set; } = default!;
+
+    [Parameter]
+    public int Depth { get; set; }
+
+    [Parameter, EditorRequired]
+    public CatalogTree Owner { get; set; } = default!;
+}

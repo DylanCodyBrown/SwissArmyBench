@@ -16,10 +16,14 @@ public sealed class GridsClient
 
     public Task<GridInfo> InfoAsync(string grid) => _api.GetAsync<GridInfo>(Base(grid));
 
-    public Task<ColumnProfile> ProfileAsync(string grid, string column) =>
-        _api.GetAsync<ColumnProfile>($"{Base(grid)}/profile?column={ApiClient.Part(column)}");
+    /// <summary>A column's profile; `upto` profiles the data after that many steps (a step's preview).</summary>
+    public Task<ColumnProfile> ProfileAsync(string grid, string column, int? upto = null) =>
+        _api.GetAsync<ColumnProfile>($"{Base(grid)}/profile?column={ApiClient.Part(column)}{Upto(upto)}");
 
-    public Task<TableProfile> TableProfileAsync(string grid) => _api.GetAsync<TableProfile>($"{Base(grid)}/profile");
+    public Task<TableProfile> TableProfileAsync(string grid, int? upto = null) =>
+        _api.GetAsync<TableProfile>($"{Base(grid)}/profile{(upto is { } n ? $"?upto={n}" : string.Empty)}");
+
+    private static string Upto(int? upto) => upto is { } n ? $"&upto={n}" : string.Empty;
 
     /// <summary>A column's values with their counts (the filter's checklist), those holding `search` when given.</summary>
     public Task<ValueList> ValuesAsync(string grid, string column, string search, int? upto)
@@ -65,8 +69,14 @@ public sealed class GridsClient
 
     public Task<KeyFinderTargets> KeyFinderTargetsAsync(string grid) => _api.GetAsync<KeyFinderTargets>($"{Base(grid)}/key-finder");
 
-    public Task<KeyFinderResult> KeyFinderAsync(string grid, string target) =>
-        _api.PostAsync<KeyFinderResult>($"{Base(grid)}/key-finder", new { target, options = new Dictionary<string, object>() });
+    /// <summary>The likely join keys with another grid ("*": every other open grid), best first; the options are the
+    /// Key Finder's (trim, ignore_case, max_length).</summary>
+    public Task<KeyFinderResult> KeyFinderAsync(string grid, string target, object? options = null) =>
+        _api.PostAsync<KeyFinderResult>($"{Base(grid)}/key-finder", new { target, options = options ?? new Dictionary<string, object>() });
+
+    /// <summary>A pair's values: the ones both columns hold, and the ones of this column the other lacks.</summary>
+    public Task<KeySample> KeySampleAsync(string grid, KeyPair pair, object options) =>
+        _api.PostAsync<KeySample>($"{Base(grid)}/key-finder/sample", new { target = pair.TargetGrid, source_column = pair.SourceColumn, target_column = pair.TargetColumn, options });
 
     /// <summary>The address of the grid's export (a download, or saved in the export folder with save=1).</summary>
     public static string ExportAddress(string grid, IReadOnlyDictionary<string, string> options) =>
@@ -88,9 +98,32 @@ public sealed class GridsClient
 
     public Task<TableConnection> ConnectionOfAsync(string table) => _api.GetAsync<TableConnection>($"/tables/{ApiClient.Part(table)}/connection");
 
-    /// <summary>The table read from another connection, its steps kept.</summary>
-    public Task<ConnectionSwap> SwapConnectionAsync(string table, string to) =>
-        _api.PostAsync<ConnectionSwap>($"/tables/{ApiClient.Part(table)}/connection", new { to });
+    /// <summary>The table read from another connection, its steps kept; with a place (a pick) or SQL (a reviewed
+    /// query) when the first answer asked for one.</summary>
+    public Task<ConnectionSwap> SwapConnectionAsync(string table, string to, SwapPlace? place = null, string? sql = null) =>
+        _api.PostAsync<ConnectionSwap>($"/tables/{ApiClient.Part(table)}/connection", (place, sql) switch
+        {
+            ({ } p, _) => new { to, place = new { database = p.Database, schema = p.Schema, table = p.Table } },
+            (_, { } q) => new { to, sql = q },
+            _ => (object)new { to },
+        });
+
+    /// <summary>A schema's tables in a connection's catalog (the swap's pick).</summary>
+    public async Task<IReadOnlyList<SwapPlace>> CatalogTablesAsync(string connection, SwapSchema schema)
+    {
+        var address = $"/catalogs/{ApiClient.Part(connection)}/tables?schema={ApiClient.Part(schema.Schema)}&limit=500";
+        if (schema.Database.Length > 0)
+        {
+            address += $"&database={ApiClient.Part(schema.Database)}";
+        }
+        return (await _api.GetAsync<CatalogTablesAnswer>(address)).Tables;
+    }
+
+    public async Task<IReadOnlyList<CodeReference>> ReferencesAsync(string connection) =>
+        (await _api.GetAsync<ReferencesAnswer>($"/connections/{ApiClient.Part(connection)}/references")).References;
+
+    public Task<RepointAnswer> RepointAsync(string from, string to, IEnumerable<CodeReference> picks) =>
+        _api.PostAsync<RepointAnswer>($"/connections/{ApiClient.Part(from)}/repoint", new { to, picks = picks.Select(p => new { document = p.Document, cell = p.Cell }) });
 
     public Task UndoSwapAsync(string table) => _api.PostAsync($"/tables/{ApiClient.Part(table)}/connection/undo");
 

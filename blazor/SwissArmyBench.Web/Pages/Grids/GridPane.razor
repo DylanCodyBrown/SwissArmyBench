@@ -1,0 +1,119 @@
+@* One grid's pane (the classic panes.ts ensurePane): side by side, its head names its table with Close this side
+   (the active pane outlined); cross compare's banner when this side is filtered to a picked key; the grid itself
+   and, on the active pane, a column's card beside it. A pointer down anywhere in it makes it the active pane. *@
+
+<section class="pane @(Active ? "active" : string.Empty)" data-grid="@Info.Grid" aria-label="@($"Data grid: {Info.Dataset}")" @onpointerdown="Activate">
+    @if (Split)
+    {
+        <header class="pane-head">
+            <strong>@Info.Dataset</strong>
+            <span class="status-spacer"></span>
+            <button type="button" class="btn ghost small" @onclick="() => OnCloseSide.InvokeAsync(Info.Grid)" @onclick:stopPropagation="true"><Icon Name="close" /> Close this side</button>
+        </header>
+    }
+    @Banner
+    @if (Focus is { } focus)
+    {
+        <div class="preview-banner compare-banner" role="status">
+            <strong>Cross compare</strong>
+            <span>@focus.Rows.ToString("N0") row@(focus.Rows == 1 ? string.Empty : "s") with key @GridCompare.KeyText(focus.Key)</span>
+            <span class="status-spacer"></span>
+            <button type="button" class="btn primary small" @onclick="OnClearFocus">Clear</button>
+        </div>
+    }
+    <div class="grid-body">
+        <AgGrid @ref="_grid" GridId="@Info.Grid" Columns="Info.Columns" OnHeaderClicked="OnHeaderClicked" OnCounted="OnCounted" OnChanged="OnChanged" OnFailed="OnFailed"
+                OnSelectionChanged="OnSelectionChanged" OnCellMenu="OnCellMenu" OnHeaderMenu="OnHeaderMenu" OnSaid="OnSaid" OnRowPicked="OnRowPicked" OnCellOpened="OnCellOpened" OnShown="OnShown" OnColumnRenamed="OnColumnRenamed"
+                Compare="Compare" OnlyColumns="OnlyColumns" KeyRows="KeyRows" Upto="Upto" />
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    private AgGrid? _grid;
+
+    [Parameter, EditorRequired]
+    public GridInfo Info { get; set; } = default!;
+
+    [Parameter]
+    public bool Split { get; set; }
+
+    [Parameter]
+    public bool Active { get; set; }
+
+    /// <summary>Cross compare's focus, when this is the side filtered to the picked key.</summary>
+    [Parameter]
+    public CompareFocus? Focus { get; set; }
+
+    /// <summary>This pane as one side of a compare (null: its own rows).</summary>
+    [Parameter]
+    public CompareView? Compare { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string>? OnlyColumns { get; set; }
+
+    [Parameter]
+    public KeyGroup? KeyRows { get; set; }
+
+    /// <summary>A step's preview on this pane (null: the full view).</summary>
+    [Parameter]
+    public int? Upto { get; set; }
+
+    /// <summary>Bars above the grid (a sandbox table's bar, a built table's query tray, a step's preview).</summary>
+    [Parameter]
+    public RenderFragment? Banner { get; set; }
+
+    /// <summary>Beside the grid (the active pane's column card).</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnActivate { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnCloseSide { get; set; }
+
+    [Parameter]
+    public EventCallback OnClearFocus { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnHeaderClicked { get; set; }
+
+    [Parameter]
+    public EventCallback<long> OnCounted { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnFailed { get; set; }
+
+    [Parameter]
+    public EventCallback<GridSelection> OnSelectionChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<GridPoint> OnCellMenu { get; set; }
+
+    [Parameter]
+    public EventCallback<GridPoint> OnHeaderMenu { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnSaid { get; set; }
+
+    [Parameter]
+    public EventCallback<long> OnRowPicked { get; set; }
+
+    [Parameter]
+    public EventCallback<(long First, long Last)> OnShown { get; set; }
+
+    [Parameter]
+    public EventCallback<(string Column, string To)> OnColumnRenamed { get; set; }
+
+    [Parameter]
+    public EventCallback<GridPoint> OnCellOpened { get; set; }
+
+    /// <summary>The pane's grid (the page's tools act on the active pane's).</summary>
+    public AgGrid? Grid => _grid;
+
+    private Task Activate() => Active ? Task.CompletedTask : OnActivate.InvokeAsync(Info.Grid);
+}

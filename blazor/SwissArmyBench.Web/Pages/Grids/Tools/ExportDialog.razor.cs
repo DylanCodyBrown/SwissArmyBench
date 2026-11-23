@@ -21,6 +21,13 @@ public partial class ExportDialog
     private bool _neutralize = true;
     private string _sheet = "Data";
     private bool _provenance = true;
+    private string _lineEnding = "windows";
+    private string _blank = string.Empty;
+    private bool _quoteAll;
+    private bool _cutLong;
+    private string _compression = "snappy";
+    private bool _busy;
+    private bool _saving;
     private Exception? _error;
 
     [Inject]
@@ -38,6 +45,13 @@ public partial class ExportDialog
     /// <summary>The grid's selection, when there is one (Rows: Selection).</summary>
     [Parameter]
     public SelectionDescriptor? Selection { get; set; }
+
+    /// <summary>How many rows the selection covers (its option's words: "Selection (12 rows × 2 columns)").</summary>
+    [Parameter]
+    public long SelectedRows { get; set; }
+
+    private string SelectionLabel =>
+        $"Selection ({SelectedRows:N0} rows{(Selection?.Columns is { } columns ? $" × {columns.Count} columns" : string.Empty)})";
 
     [Parameter]
     public EventCallback OnClose { get; set; }
@@ -61,6 +75,11 @@ public partial class ExportDialog
             ["neutralize_formulas"] = _neutralize ? "1" : "0",
             ["sheet_name"] = _sheet,
             ["provenance"] = _provenance ? "1" : "0",
+            ["quote_all"] = _quoteAll ? "1" : "0",
+            ["line_ending"] = _lineEnding,
+            ["blank"] = _blank,
+            ["allow_cell_truncation"] = _cutLong ? "1" : "0",
+            ["compression"] = _compression,
         };
         if (_scope == "selection" && Selection is not null)
         {
@@ -73,15 +92,31 @@ public partial class ExportDialog
         return options;
     }
 
+    /// <summary>Download: the browser fetches the server's file (it never passes through C#); a refusal is said here.</summary>
     private async Task DownloadAsync()
     {
-        // The browser's own download of the server's answer: the file never passes through C#.
-        await Js.InvokeVoidAsync("sab.download", GridsClient.ExportAddress(Info.Grid, Options()));
-        await OnClose.InvokeAsync();
+        _busy = true;
+        _saving = false;
+        try
+        {
+            var message = await Js.InvokeAsync<string>("sab.fetchDownload", GridsClient.ExportAddress(Info.Grid, Options()));
+            if (message.Length > 0)
+            {
+                _ = Notes.SayAsync(message);
+            }
+            await OnClose.InvokeAsync();
+        }
+        catch (JSException error)
+        {
+            _error = new ApiException(0, new Refusal(error.Message.Split('\n')[0]), error.Message);
+        }
+        _busy = false;
     }
 
     private async Task SaveAsync()
     {
+        _busy = true;
+        _saving = true;
         try
         {
             var saved = await Grids.SaveExportAsync(Info.Grid, Options());
@@ -91,6 +126,16 @@ public partial class ExportDialog
         catch (ApiException error)
         {
             _error = error;
+        }
+        _busy = false;
+    }
+
+    private void SetAll(bool on)
+    {
+        _columns.Clear();
+        if (on)
+        {
+            _columns.UnionWith(Info.Columns.Select(c => c.Name));
         }
     }
 

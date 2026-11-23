@@ -1,0 +1,114 @@
+@* The grid's steps in full (the classic stepsPanel.ts, its own window there; a panel over the page here): Add a
+   SQL step; Steps, each with its rows before and after, its switch, its words previewing the data after it (Enter
+   too), Edit and Delete, dragged into another order; Code, the steps as one verified DuckDB query with Copy as SQL
+   and Copy as Python. Logic in StepsPanel.razor.cs. *@
+
+<AppDialog Wide="true" Title="Transformations" OnClose="OnClose">
+    <ChildContent>
+        <div class="panel-actions">
+            <button type="button" class="btn" @onclick="AddSqlAsync"><Icon Name="sql" /> Add a SQL step</button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Transformations">
+            <button type="button" class="tab" role="tab" aria-selected="@(_tab == "steps" ? "true" : "false")" @onclick='() => _tab = "steps"'>Steps</button>
+            <button type="button" class="tab" role="tab" aria-selected="@(_tab == "code" ? "true" : "false")" @onclick="ShowCodeAsync">Code</button>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_tab == "code")
+        {
+            <div class="code-view">
+                <div class="code-toolbar">
+                    @if (_code is null && _error is null)
+                    {
+                        <span class="loading-block">Verifying the code…</span>
+                    }
+                    else if (_code is { Verified: true })
+                    {
+                        <button type="button" class="btn primary" @onclick="CopySqlAsync"><Icon Name="copy" /> Copy as SQL</button>
+                        <button type="button" class="btn" @onclick="CopyPythonAsync"><Icon Name="copy" /> Copy as Python</button>
+                    }
+                    else if (_code is { } unverified)
+                    {
+                        <span class="badge error">Not verified</span> @unverified.Difference
+                    }
+                </div>
+                @if (_code is not null)
+                {
+                    <pre class="mono">@_code.Code</pre>
+                    <p class="hint">@_code.Reads</p>
+                    @if (_code.Note is { } note)
+                    {
+                        <p class="hint">@note</p>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <ol class="step-list" aria-label="Steps, in order">
+                <li class="step source">
+                    <span class="num" aria-hidden="true">0</span>
+                    <span class="text" role="button" tabindex="0" @onclick="() => PreviewAsync(0)">Source: @Info.Dataset (@Info.RowCount.ToString("N0") rows, version @Info.Version)</span>
+                </li>
+                @for (var at = 0; at < Info.Steps.Count; at++)
+                {
+                    var index = at;
+                    var step = Info.Steps[at];
+                    var broken = Info.StepError?.Index == index;
+                    var blocked = Info.StepError is { } failed && index > failed.Index;
+                    var previewing = PreviewUpto == index + 1;
+                    <li class="step @(step.Enabled ? string.Empty : "off") @(broken ? "broken" : string.Empty) @(previewing ? "previewing" : string.Empty)" draggable="true"
+                        @ondragstart="() => _dragFrom = index" @ondragover:preventDefault="true" @ondrop="() => MoveAsync(index)">
+                        <span class="num">@(index + 1)</span>
+                        <input type="checkbox" checked="@step.Enabled" title="@(step.Enabled ? "Turn this step off" : "Turn this step on")" aria-label="@($"Step {index + 1} on")"
+                               @onchange="e => OnToggle.InvokeAsync((index, e.Value is true))" />
+                        <span class="text" role="button" tabindex="0" title="Preview" @onclick="() => PreviewAsync(previewing ? null : index + 1)" @onkeydown="e => PreviewKeyAsync(e, previewing ? null : index + 1)">
+                            @step.Description
+                            @if (Flag(step, "header"))
+                            {
+                                <span class="hint"> (header)</span>
+                            }
+                            @if (Flag(step, "from_chart"))
+                            {
+                                <span class="hint"> (chart)</span>
+                            }
+                            @if (previewing)
+                            {
+                                <span class="badge preview-tag">previewing</span>
+                            }
+                        </span>
+                        <span class="actions">
+                            @if (StepKinds.HasForm(step.Kind))
+                            {
+                                <button type="button" class="btn ghost icon small" aria-label="@($"Edit step {index + 1}")" title="@($"Edit step {index + 1}")" @onclick="() => OnEdit.InvokeAsync((step.Kind, index))"><Icon Name="edit" /></button>
+                            }
+                            <button type="button" class="btn ghost icon small" aria-label="@($"Delete step {index + 1}")" title="@($"Delete step {index + 1}")" @onclick="() => OnDelete.InvokeAsync(index)"><Icon Name="trash" /></button>
+                        </span>
+                        @if (_counts.ElementAtOrDefault(index) is var before && _counts.ElementAtOrDefault(index + 1) is var after && index + 1 < _counts.Count && before != after)
+                        {
+                            <span class="meta">@before.ToString("N0") → @after.ToString("N0") rows</span>
+                        }
+                        @if (_categorize.GetValueOrDefault(index) is { } stats)
+                        {
+                            <span class="meta">@stats</span>
+                        }
+                        @if (broken)
+                        {
+                            <ErrorNote Words="@Info.StepError!.Message" />
+                        }
+                        @if (blocked)
+                        {
+                            <span class="meta">Not applied: earlier step broken</span>
+                        }
+                    </li>
+                }
+            </ol>
+            @if (Info.Steps.Count > 0 && _counts.Count > Info.Steps.Count)
+            {
+                <div class="step-count">@_counts[Info.Steps.Count].ToString("N0") rows in the view</div>
+            }
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

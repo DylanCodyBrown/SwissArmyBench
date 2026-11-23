@@ -1,4 +1,4 @@
-using SwissArmyBench.Web.Api.Workbench;
+using SwissArmyBench.Web.Api.Projects;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 

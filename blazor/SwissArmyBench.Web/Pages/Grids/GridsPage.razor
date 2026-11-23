@@ -1,50 +1,91 @@
-@* The Grids page (the classic home page's grids): a tab per open table, "+" the New query page; the active grid
-   (AG Grid, rows paged from the server, selected like Excel), the ribbon above it (Table, Transformations: the
-   steps strip, Column: the selected columns), the right-click menus on cells and headers, a step's editor, and a
-   column's card on a header click. The selection's numbers are in the status bar. ?grid= names the tab shown.
-   The tools are in GridsPage.Tools.cs. *@
+@* The Grids page (the classic home page's grids, panes.ts): the tab row (a tab per open grid, grouped by connection,
+   "+" the New query page), the ribbon above the grid (Table, Transformations: the steps strip, Column, and Compare
+   while two grids are side by side), the grid itself (AG Grid, rows paged from the server, selected like Excel) or
+   two side by side (a tab dragged onto another, or Compare with…), lined up row for row once a compare has keys.
+   ?grid= names the grid in front, &split=left,right the two side by side. The tools are in GridsPage.Tools.cs, the
+   split and the compare in GridsPage.Compare.cs. *@
 @page "/grids"
 
-<section class="area-page grids-page">
-    <div class="grid-tabs" role="tablist" aria-label="Open tables">
-        @foreach (var tab in _tabs)
-        {
-            <a role="tab" class="grid-tab @(tab.Grid == _active ? "current" : string.Empty)" aria-selected="@(tab.Grid == _active ? "true" : "false")" href="@($"grids?grid={Uri.EscapeDataString(tab.Grid)}")">
-                <Icon Name="table" /> @tab.Dataset
-                @if (tab.Steps > 0)
-                {
-                    <span class="chip">@tab.Steps</span>
-                }
-            </a>
-        }
-        <a role="tab" class="grid-tab new-tab @(IsNewQuery ? "current" : string.Empty)" href="grids?new=1" aria-label="New query"><Icon Name="plus" /></a>
-    </div>
+<section class="area-page grids-page" @onkeydown="PageKeyAsync">
+    <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split" IsNewQuery="IsNewQuery"
+              Draft="@(IsNewQuery && FromParameter is not null ? DraftName : null)" OnCloseDraft="CloseDraft"
+              OnActivate="ActivateAsync" OnClose="CloseGridAsync" OnMenu="TabMenu" OnSplit="SplitWithAsync" OnOrder="SetOrderAsync"
+              OnDragging="d => _dragging = d" OnRename="RenameAsync">
+        <Extra>
+            <button type="button" class="btn ghost icon tab-new" aria-label="Open file…" title="Open file…" @onclick="OpenFileAsync"><Icon Name="folder" /></button>
+            <button type="button" class="btn ghost icon tab-new" aria-label="Tables" title="Tables" @onclick="() => _dialog = TablesList"><Icon Name="rows" /></button>
+        </Extra>
+    </GridTabs>
+    <ProjectGroup @ref="_projectGroup" />
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-    @if (IsNewQuery || (_tabs.Count == 0 && _loaded))
+    @if (IsNewQuery && FromParameter is { } from)
     {
-        <NewQuery OnMade="MadeAsync" />
+        <QueryTray @key="@($"draft:{from}:{_drafts}")" Draft="true" Name="@DraftName" From="@from" OpenTables="OpenTableNames" OnBuilt="DraftBuiltAsync" />
+        <div class="query-blank" aria-label="No rows yet"><span>No rows</span></div>
+    }
+    else if (IsNewQuery || (_tabs.Count == 0 && _loaded))
+    {
+        <NewQueryLanding GridsOpen="_tabs.Count > 0" OnChoose="OpenDraft" />
     }
     else if (_info is { } info)
     {
-        <div class="grid-title-row">
-            <h1 class="grid-title"><Icon Name="table" /> @info.Title</h1>
-            <span class="muted">@(_rows?.ToString("N0") ?? info.RowCount.ToString("N0")) rows · @info.Columns.Count columns</span>
-            <span class="status-spacer"></span>
-            <button type="button" class="btn small" disabled="@(!info.CanUndo)" @onclick="UndoAsync"><Icon Name="undo" /> Undo</button>
-            <button type="button" class="btn small" disabled="@(!info.CanRedo)" @onclick="RedoAsync"><Icon Name="redo" /> Redo</button>
-            <button type="button" class="btn small ghost" @onclick="CloseTableAsync"><Icon Name="close" /> Close table</button>
-        </div>
+        @* The page's heading, for screen readers: the tab row shows the table's name on screen. *@
+        <h1 class="grid-title sr-only">@info.Title</h1>
         <Ribbon Info="info" Selection="_selection" ConnectionLabel="@ConnectionLabel" OnTool="RunToolAsync">
             <Steps>
-                <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditStep" />
+                <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditStep" OnUndo="UndoAsync" OnRedo="RedoAsync"
+                            OnClear="ClearStepsAsync" OnViewSteps="OpenStepsWindowAsync" OnFailed="e => _error = e" />
             </Steps>
+            <Compare>
+                @if (SplitPair is { } pair)
+                {
+                    <CompareRow Info="_compare" LeftName="@pair.Left.Dataset" RightName="@pair.Right.Dataset" OnPickKeys="() => _dialog = CompareKeys"
+                                OnChange="ChangeCompareAsync" OnDiffOptions="() => _dialog = DiffOptions" OnStop="StopCompareAsync" />
+                }
+            </Compare>
         </Ribbon>
-        <div class="grid-body">
-            <AgGrid @ref="_grid" GridId="@info.Grid" Columns="info.Columns" OnHeaderClicked="ShowColumn" OnCounted="Counted" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed"
-                    OnSelectionChanged="SelectionChangedAsync" OnCellMenu="CellMenu" OnHeaderMenu="HeaderMenu" OnSaid="Say" />
-            @if (_column is { } column)
+        <div class="panes" data-split="@(_split is null ? "off" : "on")" data-aligned="@(Aligned ? "on" : "off")">
+            @foreach (var shown in Shown)
             {
-                <ColumnCard Grid="@info.Grid" Column="@column" Type="@TypeOf(column)" AllColumns="info.Columns.Select(c => c.Name).ToList()" OnStep="AddStepAsync" OnClose="() => _column = null" />
+                <GridPane @key="shown.Grid" @ref="Panes[shown.Grid]" Info="shown" Split="_split is not null" Active="shown.Grid == _active" Focus="FocusOn(shown.Grid)"
+                          Compare="CompareOf(shown.Grid)" OnlyColumns="OnlyOf(shown.Grid)" KeyRows="_keyRows"
+                          OnActivate="FocusPaneAsync" OnCloseSide="UnsplitAsync" OnClearFocus="ClearFocusAsync"
+                          OnCounted="n => Counted(shown.Grid, n)" OnShown="r => ShownRows(shown.Grid, r)" OnColumnRenamed="RenameColumnAsync" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed"
+                          OnSelectionChanged="SelectionChangedAsync" OnCellMenu="CellMenu" OnHeaderMenu="HeaderMenu" OnSaid="Say"
+                          OnRowPicked="row => RowPickedAsync(shown.Grid, row)" OnCellOpened="OpenCellAsync" Upto="shown.Grid == _active ? _previewUpto : null">
+                    <Banner>
+                        @if (shown.Query is { } query)
+                        {
+                            <QueryTray @key="@($"built:{shown.Grid}")" Sql="@query" Name="@shown.Dataset" FixedConnection="@shown.QueryConnection" OpenTables="OpenTableNames" OnBuilt="RebuiltAsync" />
+                        }
+                        @if (_changedOnDisk.Contains(shown.Dataset))
+                        {
+                            <div class="file-changed" role="status">
+                                <strong>Changed on disk</strong>
+                                <button type="button" class="btn small" @onclick="() => ReloadFromDiskAsync(shown.Dataset, false)">Reload</button>
+                                <button type="button" class="btn ghost small" @onclick="() => ReloadFromDiskAsync(shown.Dataset, true)">Not now</button>
+                            </div>
+                        }
+                        @if (SandboxOf(shown.Dataset) is { } sandbox)
+                        {
+                            <SandboxBar Table="sandbox" OnAdd="() => _dialog = AddRow" OnDelete="() => DeleteSandboxRowsAsync(sandbox)" OnReset="() => ResetSandboxAsync(sandbox)" />
+                        }
+                        @if (shown.Grid == _active && _previewUpto is { } upto)
+                        {
+                            <div class="preview-banner" id="preview-banner" role="status">
+                                <strong>Previewing</strong>
+                                <span class="preview-marks">the data after @(upto == 0 ? "the source" : $"step {upto}: {shown.Steps.ElementAtOrDefault(upto - 1)?.Description}").</span>
+                                <span class="status-spacer"></span>
+                                <button type="button" class="btn primary small" @onclick="() => PreviewAsync(null)">Back to the full view</button>
+                            </div>
+                        }
+                    </Banner>
+                </GridPane>
+            }
+            @if (_dragging is { } dragged && _split is null && dragged != _active)
+            {
+                <div class="pane-drop left" @ondragover:preventDefault="true" @ondrop='() => DropOnGridAsync(dragged, "left")'>Put it on the left</div>
+                <div class="pane-drop right" @ondragover:preventDefault="true" @ondrop='() => DropOnGridAsync(dragged, "right")'>Put it on the right</div>
             }
         </div>
     }
@@ -61,7 +102,7 @@
 {
     @if (_editor is { } editor)
     {
-        <StepEditor Kind="@editor.Kind" Grid="@open.Grid" Columns="EnteringColumns(editor.Index)" Start="editor.Start" Index="editor.Index" Save="SaveStepAsync" OnClose="() => _editor = null" />
+        <StepEditor Kind="@editor.Kind" Grid="@open.Grid" Dataset="@open.Dataset" Columns="EnteringColumns(editor.Index)" Start="editor.Start" Index="editor.Index" Save="SaveStepAsync" OnClose="() => _editor = null" />
     }
     @switch (_dialog)
     {
@@ -69,25 +110,72 @@
             <MatchingDialog Settings="open.Settings" Save="SaveMatchingAsync" OnClose="CloseDialog" />
             break;
         case "export":
-            <ExportDialog Info="open" Selection="_selection.Descriptor" OnClose="CloseDialog" />
+            <ExportDialog Info="open" Selection="_selection.Descriptor" SelectedRows="_selectedRows" OnClose="CloseDialog" />
             break;
         case "profile":
-            <TableProfileDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
+            <TableProfileDialog Grid="@open.Grid" Dataset="@open.Dataset" Upto="_previewUpto" OnSend="p => SendCardsAsync(ProfileCards.Table(p, open.Dataset))" OnClose="CloseDialog" />
             break;
-        case "keyfinder":
-            <KeyFinderDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
+        case ColumnProfile when _profileColumn is { } profiled:
+            <ColumnProfileDialog Grid="@open.Grid" Column="@profiled" Columns="EnteringColumns(_previewUpto).Select(c => c.Name).ToList()" Upto="_previewUpto"
+                                 OnFilter="FilterFromProfileAsync" OnSend="ProfileToAnalyzeAsync" OnClose="CloseDialog" />
+            break;
+        case ViewValue when _viewing is { } viewing:
+            <ValueViewer Title="@viewing.Title" Value="viewing.Value" OnSend="v => SendCardsAsync(GridCards.Value(v.Value, v.Trail, open.Dataset))" OnClose="CloseDialog" />
             break;
         case "code":
             <CodeDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
             break;
         case "connection":
-            <ConnectionDialog Table="@open.Dataset" Grid="@open.Grid" Current="_connection" OnSwapped="SwappedAsync" OnClose="CloseDialog" />
+            <ConnectionDialog Table="@open.Dataset" OnSwapped="SwappedAsync" OnReview="Review" OnUndone="UndoActiveSwapAsync" OnClose="CloseDialog" />
+            break;
+        case "relationships":
+            <RelationshipsDialog Grid="@open.Grid" OnClose="CloseDialog" />
+            break;
+        case AddRow when SandboxOf(open.Dataset) is { } sandboxed:
+            <AddRowDialog Table="sandboxed" OnClose="CloseDialog" />
+            break;
+        case CompareKeys when SplitPair is { } pair:
+            <CompareDialog Left="pair.Left" Right="pair.Right" Existing="_compare" OnCompare="StartCompareAsync" OnClose="CloseDialog" />
+            break;
+        case DiffOptions when _compare is { } cmp:
+            <DiffOptionsDialog Info="cmp" OnApply="ApplyDiffOptionsAsync" OnClose="CloseDialog" />
             break;
         default:
             break;
     }
-    @if (_menu is { } menu)
-    {
-        <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
-    }
+}
+@switch (_dialog)
+{
+    case TablesList:
+        <TablesDialog OnClose="CloseDialog" />
+        break;
+    case PasteData:
+        <PasteDataDialog OnClose="CloseDialog" />
+        break;
+    default:
+        break;
+}
+@if (_sheets is { } asking)
+{
+    <SheetsDialog File="@asking.File" Sheets="asking.Sheets" OnPicked="SheetsPicked" />
+}
+@if (_repointing is { } repointing)
+{
+    <RepointDialog From="@repointing.From" To="@repointing.To" References="repointing.References" OnClose="() => _repointing = null" />
+}
+@if (_editing is { } editing)
+{
+    <CellEditor Table="editing.Table" At="editing.At" Value="editing.Value" OnClose="() => _editing = null" />
+}
+@if (Palette.Open == "find")
+{
+    <FindDataDialog OnClose="Palette.Close" />
+}
+@if (_pasted is { } pasted)
+{
+    <PastedNote Name="@pasted" OnRename="to => RenameAsync((pasted, to))" OnClose="() => _pasted = null" />
+}
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
 }

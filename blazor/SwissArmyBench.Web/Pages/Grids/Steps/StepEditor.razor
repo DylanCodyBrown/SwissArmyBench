@@ -33,6 +33,9 @@
                 case "categorize":
                     <CategorizeForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
                     break;
+                case "sql":
+                    <SqlForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" Dataset="@Dataset" />
+                    break;
                 default:
                     <p>@StepKinds.Label(Kind) steps are edited in the classic front end.</p>
                     break;
@@ -67,6 +70,10 @@
 
     [Parameter]
     public System.Text.Json.JsonElement Start { get; set; }
+
+    /// <summary>The grid's table (a SQL step may name it).</summary>
+    [Parameter]
+    public string Dataset { get; set; } = "grid";
 
     /// <summary>The step edited, or null for a new one at the end.</summary>
     [Parameter]
@@ -107,7 +114,8 @@
 
     private async Task KeyAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !e.ShiftKey)
+        // Enter saves, except in a SQL step's box (a new line there).
+        if (e.Key == "Enter" && !e.ShiftKey && Kind != "sql")
         {
             await SaveAsync();
         }

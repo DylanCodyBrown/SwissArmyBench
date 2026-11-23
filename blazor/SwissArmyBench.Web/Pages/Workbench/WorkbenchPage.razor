@@ -200,10 +200,6 @@
     {
         <LineageOverlay Ask="() => TraceAsync(lineage.Doc, lineage.Cell)" OnClose="() => _lineage = null" OnGo="GoToNodeAsync" />
     }
-    @if (_palette)
-    {
-        <CommandPalette Commands="Commands()" Recent="_recentCommands" OnClose="() => _palette = false" OnRun="RunCommandAsync" />
-    }
 </section>
 
 @code {

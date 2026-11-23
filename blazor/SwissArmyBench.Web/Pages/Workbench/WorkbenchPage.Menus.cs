@@ -35,7 +35,7 @@ public partial class WorkbenchPage
         new("Layout: standard", "restore", () => LayoutAsync(true)),
         new(_showExplorer ? "Close the Data Explorer" : "Data Explorer", "data", ToggleExplorerAsync, Keys: "Ctrl+Shift+E"),
         MenuEntry.Separator,
-        new("Commands…", "steps", () => Toggle(() => _palette = true), Keys: "Ctrl+Shift+P"),
+        new("Commands…", "steps", () => ShowPalette(), Keys: "Ctrl+Shift+P"),
         new("Settings…", "cog", () => Go("settings")),
         MenuEntry.Separator,
         _betaOn ? new("Turn beta mode off", "exclude", () => GuardAsync(() => SetBetaAsync(false))) : new("Turn beta mode on", "check", () => GuardAsync(() => SetBetaAsync(true))),

@@ -1,6 +1,7 @@
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Components;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -70,12 +71,12 @@ public partial class WorkbenchPage
         });
     }
 
-    private List<WorkbenchCommand> WorkbookCommands() =>
+    private List<PaletteCommand> WorkbookCommands() =>
     [
         new("workbook.new", "Workbook", "New Excel workbook", NewWorkbookAsync,
-            Disabled: _canvases.Contains("excel") ? null : "the open project's mode offers no Excel canvas"),
-        new("workbook.play", "Workbook", "Play the workbook", () => Task.CompletedTask, Disabled: NoWorkbook),
-        new("workbook.edit", "Workbook", "Edit the workbook's blocks", () => Task.CompletedTask, Disabled: NoWorkbook),
-        new("workbook.report", "Workbook", "The workbook in front, as it stands", () => Task.CompletedTask, Disabled: NoWorkbook),
+            WhyNot: _canvases.Contains("excel") ? null : "the open project's mode offers no Excel canvas"),
+        new("workbook.play", "Workbook", "Play the workbook", () => Task.CompletedTask, WhyNot: NoWorkbook),
+        new("workbook.edit", "Workbook", "Edit the workbook's blocks", () => Task.CompletedTask, WhyNot: NoWorkbook),
+        new("workbook.report", "Workbook", "The workbook in front, as it stands", () => Task.CompletedTask, WhyNot: NoWorkbook),
     ];
 }

@@ -12,10 +12,11 @@
         }
         else
         {
-            <div class="toast" role="status">@note.Words
-                @if (note.ActionLabel is { } label && note.Action is { } action)
+            <div class="toast" role="status">
+                @note.Words
+                @if (note.Action is { } action)
                 {
-                    <button type="button" class="btn small ghost toast-action" @onclick="async () => { Notes.Dismiss(note); await action(); }">@label</button>
+                    <button type="button" class="btn small ghost toast-action" @onclick="() => RunAsync(note, action)">@note.ActionLabel</button>
                 }
             </div>
         }
@@ -26,6 +27,12 @@
     protected override void OnInitialized() => Notes.Changed += Redraw;
 
     private void Redraw() => InvokeAsync(StateHasChanged);
+
+    private async Task RunAsync(Note note, Func<Task> action)
+    {
+        Notes.Dismiss(note);
+        await action();
+    }
 
     public void Dispose() => Notes.Changed -= Redraw;
 }

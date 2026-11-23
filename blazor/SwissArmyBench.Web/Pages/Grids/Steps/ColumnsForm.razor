@@ -7,10 +7,10 @@
         var index = at;
         var name = _order[at];
         <div class="form-row">
-            <label class="check"><input type="checkbox" checked="@_keep.Contains(name)" @onchange="e => Keep(name, e.Value is true)" /> @name</label>
+            <label class="check"><input type="checkbox" aria-label="@name" checked="@_keep.Contains(name)" @onchange="e => Keep(name, e.Value is true)" /> @name</label>
             <span class="status-spacer"></span>
-            <button type="button" class="btn ghost icon small" aria-label="@($"Move {name} up")" disabled="@(index == 0)" @onclick="() => Move(index, -1)"><Icon Name="collapse" /></button>
-            <button type="button" class="btn ghost icon small" aria-label="@($"Move {name} down")" disabled="@(index == _order.Count - 1)" @onclick="() => Move(index, 1)"><Icon Name="expand" /></button>
+            <button type="button" class="btn ghost icon small" aria-label="Move up" title="@($"Move {name} up")" disabled="@(index == 0)" @onclick="() => Move(index, -1)"><Icon Name="collapse" /></button>
+            <button type="button" class="btn ghost icon small" aria-label="Move down" title="@($"Move {name} down")" disabled="@(index == _order.Count - 1)" @onclick="() => Move(index, 1)"><Icon Name="expand" /></button>
         </div>
     }
 </div>

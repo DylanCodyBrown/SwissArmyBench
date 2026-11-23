@@ -1,17 +1,23 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Projects;
+using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Home;
 
 public partial class Home : IDisposable
 {
+    private bool _pasting;
+    private (double X, double Y)? _importMenu;
+    private string? _importing;
+    private SyncFolder? _sync;
+
     private const string CustomSort = "custom";
-    private const int ConflictStatus = 409;
     private const int TypingPauseMilliseconds = 200;
 
     /// <summary>The sorts, in the classic Explorer's order and words.</summary>
@@ -27,6 +33,7 @@ public partial class Home : IDisposable
 
     private ExplorerAnswer? _listing;
     private Exception? _error;
+    private bool _errorFromLoading;
     private bool _busy;
     private string _query = string.Empty;
     private string _type = string.Empty;
@@ -69,14 +76,21 @@ public partial class Home : IDisposable
         try
         {
             _listing = await Projects.ExplorerAsync(_query, _type, _where);
-            _error = null;
+            // Only the listing's own failure goes when it reads again: an action's refusal stays until closed.
+            if (_errorFromLoading)
+            {
+                _error = null;
+                _errorFromLoading = false;
+            }
         }
         catch (ApiException error)
         {
             _error = error;
+            _errorFromLoading = true;
         }
         _busy = false;
         StateHasChanged();
+        await ReadSyncAsync();
     }
 
     private void Failed(Exception error)
@@ -163,51 +177,20 @@ public partial class Home : IDisposable
     /// <summary>Open a project's folder; with unsaved work open the server asks first (409), and so does this page.</summary>
     private async Task OpenAtAsync(string path)
     {
-        try
-        {
-            await Projects.OpenAsync(path);
-        }
-        catch (ApiException error) when (error.Status == ConflictStatus)
-        {
-            if (!await Dialogs.AskYesNoAsync("Open project", error.Refusal.Error, "Discard and open", danger: true))
-            {
-                return;
-            }
-            await GuardAsync(() => Projects.OpenAsync(path, discard: true));
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-        await Project.RefreshAsync();
+        await GuardAsync(() => ProjectAsks.OpenAsync(Dialogs, Project, Projects, path));
         await LoadAsync();
     }
 
     private async Task CloseProjectAsync()
     {
-        try
-        {
-            await Projects.CloseAsync();
-        }
-        catch (ApiException error) when (error.Status == ConflictStatus)
-        {
-            if (await Dialogs.AskYesNoAsync("Close project", error.Refusal.Error, "Close without saving", danger: true))
-            {
-                await GuardAsync(() => Projects.CloseAsync(discard: true));
-            }
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-        await Project.RefreshAsync();
+        await GuardAsync(() => ProjectAsks.CloseAsync(Dialogs, Project, Projects));
         await LoadAsync();
     }
 
     /// <summary>Open a file as a table (CSV, Parquet, Excel, JSON): it opens on the Grids page.</summary>
     private async Task OpenFileAsync()
     {
-        var path = await Files.ChooseAsync("open", "Open a file", null, "table");
+        var path = await Files.ChooseAsync("file", "Open a file", null, "table");
         if (path is null)
         {
             return;
@@ -231,6 +214,51 @@ public partial class Home : IDisposable
         {
             _error = error;
         }
+    }
+
+    // Import… (the classic projectImport.ts, from the Workbench, the Connections layer and the Blades pane there):
+    // notebooks, scripts and apps into the open project; connections and blades into this computer's library.
+    private void ImportMenu(MouseEventArgs e) => _importMenu = (e.ClientX, e.ClientY + 12);
+
+    private IReadOnlyList<MenuEntry> ImportEntries =>
+    [
+        new("Notebooks, scripts and apps…", "notebook", () => Importing(ImportDialog.Documents)),
+        new("Connections…", "plug", () => Importing(ImportDialog.Connections)),
+        new("Blades…", "code", () => Importing(ImportDialog.Blades)),
+    ];
+
+    private Task Importing(string kind)
+    {
+        _importing = kind;
+        return Task.CompletedTask;
+    }
+
+    private async Task ImportedAsync(Imported? done)
+    {
+        _importing = null;
+        if (done is { Documents.Count: > 0 })
+        {
+            await LoadAsync();
+        }
+    }
+
+    // A shared card's sync words and its Pull and Push come from the Git extension when it is on (asked as the
+    // cards draw; the server asks GitHub at most once a minute).
+    private async Task ReadSyncAsync()
+    {
+        if (_listing?.Projects.Any(p => p.Where == "shared") != true)
+        {
+            return;
+        }
+        try
+        {
+            _sync = await Projects.SharedSyncAsync();
+        }
+        catch (ApiException)
+        {
+            _sync = null;
+        }
+        StateHasChanged();
     }
 
     private void OnProjectChanged() => _ = InvokeAsync(LoadAsync);

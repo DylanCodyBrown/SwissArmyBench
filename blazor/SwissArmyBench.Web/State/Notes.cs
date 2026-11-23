@@ -23,7 +23,8 @@ public sealed class Notes
         var note = new Note(words, null, actionLabel, action);
         _shown.Add(note);
         Changed?.Invoke();
-        await Task.Delay(ShownMilliseconds);
+        // A line with an action ("Closed orders" with Undo) stays twice as long, so it can be pressed.
+        await Task.Delay(action is null ? ShownMilliseconds : ShownMilliseconds * 2);
         Dismiss(note);
     }
 

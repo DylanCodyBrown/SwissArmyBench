@@ -53,6 +53,12 @@
     [Inject]
     private FileChooser Files { get; set; } = default!;
 
+    [Inject]
+    private Dialogs Dialogs { get; set; } = default!;
+
+    [Inject]
+    private ProjectState Project { get; set; } = default!;
+
     [Parameter, EditorRequired]
     public ExplorerAnswer Listing { get; set; } = default!;
 
@@ -118,8 +124,15 @@
         _making = true;
         try
         {
-            await Projects.NewAsync(body);
-            await OnDone.InvokeAsync(true);
+            var made = await ProjectAsks.WithQuestionAsync(Dialogs, Project, discard =>
+            {
+                body["discard"] = discard ? true : null;
+                return Projects.NewAsync(body);
+            }, "New project", "Let them go and start a new project?");
+            if (made is not null)
+            {
+                await OnDone.InvokeAsync(true);
+            }
         }
         catch (ApiException error)
         {

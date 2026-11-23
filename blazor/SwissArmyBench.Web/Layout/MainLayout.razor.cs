@@ -32,6 +32,12 @@ public partial class MainLayout : IDisposable
     [Inject]
     private ProjectState Project { get; set; } = default!;
 
+    [Inject]
+    private BetaState Beta { get; set; } = default!;
+
+    [Inject]
+    private TourState Tour { get; set; } = default!;
+
     private string AccentColour => Theme.IsDark ? DarkAccent : LightAccent;
 
     protected override async Task OnInitializedAsync()
@@ -45,7 +51,7 @@ public partial class MainLayout : IDisposable
         await Theme.StartAsync();
         await Live.StartAsync();
         _state = Ready;
-        await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync());
+        await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync(), Beta.StartAsync(), Tour.StartAsync());
     }
 
     public void Dispose()

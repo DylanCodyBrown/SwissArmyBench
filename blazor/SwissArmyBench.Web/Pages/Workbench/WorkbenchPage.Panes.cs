@@ -7,6 +7,7 @@ using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Components;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -116,10 +117,10 @@ public partial class WorkbenchPage
     private string ExplorerTarget => Front is null ? "Nothing: open a notebook or a script"
         : Front.NotebookView?.Selected is { } cell ? $"{Front.Title}, cell {cell.Number}" : Front.Title;
 
-    private List<WorkbenchCommand> PaneCommands() =>
+    private List<PaletteCommand> PaneCommands() =>
     [
         new("view.explorer", "View", "Show or hide the Data Explorer", ToggleExplorerAsync, "Ctrl+Shift+E"),
-        new("view.toggleConsole", "View", "Show or hide the console", ToggleConsoleAsync, Disabled: Front?.ScriptView is null ? "A script's console: put a script in front" : null),
+        new("view.toggleConsole", "View", "Show or hide the console", ToggleConsoleAsync, WhyNot: Front?.ScriptView is null ? "A script's console: put a script in front" : null),
         new("view.source", "View", "Go to the source", FocusSourceAsync, "Ctrl+1"),
         new("view.nextPane", "View", "Next pane", () => CyclePaneAsync(1), "F6"),
         new("view.previousPane", "View", "Previous pane", () => CyclePaneAsync(-1), "Shift+F6"),

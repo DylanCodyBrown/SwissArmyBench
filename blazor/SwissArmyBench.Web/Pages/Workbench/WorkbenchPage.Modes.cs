@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Workbench;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -115,19 +116,19 @@ public partial class WorkbenchPage
         return GoToNodeAsync(node);
     }
 
-    private List<WorkbenchCommand> ModeCommands()
+    private List<PaletteCommand> ModeCommands()
     {
         var data = Front is { IsData: true } ? null : NoData;
         var notebook = Front?.NotebookView is null ? NoNotebook : null;
         return
         [
-            new("data.view", "Data", "data.ipynb's view: Cells, Lineage or Dictionary", DataViewAskAsync, Disabled: data),
+            new("data.view", "Data", "data.ipynb's view: Cells, Lineage or Dictionary", DataViewAskAsync, WhyNot: data),
             new("dictionary.list", "Data", "The data dictionary: each table's columns, plain types, descriptions and where each comes from",
-                () => Front is { } doc ? OpenDictionaryAsync(doc) : Task.CompletedTask, Disabled: data),
-            new("dictionary.describe", "Data", "Describe a table or a column in the data dictionary (kept in data.ipynb, written into data.py)", DescribeAskAsync, Disabled: data),
-            new("notebook.present", "Notebook", "Present: the notebook as a document (no code)", () => Front is { } doc ? PresentAsync(doc) : Task.CompletedTask, Disabled: notebook),
+                () => Front is { } doc ? OpenDictionaryAsync(doc) : Task.CompletedTask, WhyNot: data),
+            new("dictionary.describe", "Data", "Describe a table or a column in the data dictionary (kept in data.ipynb, written into data.py)", DescribeAskAsync, WhyNot: data),
+            new("notebook.present", "Notebook", "Present: the notebook as a document (no code)", () => Front is { } doc ? PresentAsync(doc) : Task.CompletedTask, WhyNot: notebook),
             new("script.runSettings", "Run", "Run settings: the script's arguments and variables", () => Front is { } doc ? ToggleRunSettingsAsync(doc) : Task.CompletedTask,
-                Disabled: Front?.ScriptView is null ? "A script's command: put a script in front" : null),
+                WhyNot: Front?.ScriptView is null ? "A script's command: put a script in front" : null),
         ];
     }
 

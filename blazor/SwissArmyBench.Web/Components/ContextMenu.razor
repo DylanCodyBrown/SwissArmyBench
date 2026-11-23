@@ -1,6 +1,7 @@
 @* A menu at the pointer (the classic dom.ts showMenu: the right-click menus): its heading, its lines, a click anywhere
    else or Escape closes it; its first line takes focus and the arrow keys move between its lines (shell.js). *@
 @inject IJSRuntime Js
+@inject BetaState Beta
 <div class="menu-shade" @onclick="OnClose" @oncontextmenu="OnClose" @oncontextmenu:preventDefault="true"></div>
 <div class="menu context-menu" role="menu" aria-label="@Title" style="@Place" @onkeydown="KeyAsync" @ref="_menu">
     @if (Title.Length > 0)
@@ -23,6 +24,11 @@
                 }
             </button>
         }
+    }
+    @if (Beta.On && !NoBetaNote)
+    {
+        <div class="menu-separator" role="separator"></div>
+        <button type="button" class="menu-item" role="menuitem" @onclick="NoteAsync"><Icon Name="edit" /> Leave a note…</button>
     }
 </div>
 
@@ -47,6 +53,10 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
+    /// <summary>A menu that is itself beta mode's (the Beta mark's) leaves out the Leave a note… it already has.</summary>
+    [Parameter]
+    public bool NoBetaNote { get; set; }
+
     private string Place => FormattableString.Invariant($"left: min({X}px, calc(100vw - {MenuWidth}px)); top: min({Y}px, calc(100vh - {Entries.Count * 30 + 40}px));");
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -63,9 +73,18 @@
         await entry.Run();
     }
 
+    // Leave a note… (beta mode, the classic betaNotes.ts): the note is about the element right-clicked (this menu's
+    // heading when none is known).
+    private async Task NoteAsync()
+    {
+        await OnClose.InvokeAsync();
+        Beta.AskNote(BetaElement.Named("menu", Title), fromRightClick: true);
+    }
+
     private async Task KeyAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape")
+        // Escape closes it; Tab too, the focus going on to what is next (the classic dom.ts showEntries).
+        if (e.Key is "Escape" or "Tab")
         {
             await OnClose.InvokeAsync();
         }

@@ -1,0 +1,15 @@
+@* The footer's common right side (the classic appFooter.ts), in its order: Update available (Settings' UpdateFlow:
+   Update to X, asked first when work would be lost; What's new), the zoom (− 100% +, with Ctrl+=, Ctrl+- and Ctrl+0),
+   Beta (BetaMark: Leave a note…, Export beta log…, Turn off beta mode), Launch Claude (ClaudeLaunch: the one found, a
+   choice when both are, the install help when none is, Desktop's questions), and the credit. Logic in
+   FooterMarks.razor.cs. *@
+
+<SwissArmyBench.Web.Pages.Settings.UpdateFlow Corner="true" />
+<span class="zoom-control status-zoom" role="group" aria-label="Zoom">
+    <button type="button" class="btn ghost icon small" aria-label="Zoom out" title="Zoom out (Ctrl+-, or Ctrl + wheel down)" @onclick="() => StepAsync(-1)"><Icon Name="minus" /></button>
+    <output aria-live="polite" title="Zoom (Ctrl + mouse wheel, Ctrl+= and Ctrl+-; Ctrl+0 resets)">@($"{Math.Round(_zoom * 100)}%")</output>
+    <button type="button" class="btn ghost icon small" aria-label="Zoom in" title="Zoom in (Ctrl+=, or Ctrl + wheel up)" @onclick="() => StepAsync(1)"><Icon Name="plus" /></button>
+</span>
+<SwissArmyBench.Web.Pages.Settings.BetaMark />
+<SwissArmyBench.Web.Pages.Settings.ClaudeLaunch />
+<span class="credit">Created by Dylan Brown</span>

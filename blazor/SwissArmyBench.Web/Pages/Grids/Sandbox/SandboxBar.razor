@@ -1,0 +1,51 @@
+@* The bar above a sandbox table's grid (the classic sandboxGrid.ts drawSandboxBar): the Sandbox badge, its
+   designation and origin, "Local test data, never live", then Add row, Delete rows (the selected rows) and Reset. *@
+
+<div class="sandbox-bar" role="group" aria-label="@($"Sandbox table {Table.Name}")" data-connections="Sandbox">
+    <span class="sandbox-badge"><Icon Name="@(Table.IsVariant ? "branch" : "sandbox")" /> Sandbox</span>
+    <strong class="sandbox-designation">@Table.Title</strong>
+    <span class="sandbox-origin muted">@(Table.OriginWords is { Length: > 0 } origin ? origin : Table.SourceWords)</span>
+    <span class="sandbox-live muted">Local test data, never live</span>
+    <span class="status-spacer"></span>
+    <button type="button" class="btn small" @onclick="OnAdd"><Icon Name="plus" /> Add row</button>
+    <button type="button" class="btn small" title="Delete the selected rows from the sandbox table" disabled="@_busy" @onclick="() => RunAsync(OnDelete)"><Icon Name="trash" /> @(_busy && _what == "delete" ? "Deleting…" : "Delete rows")</button>
+    <button type="button" class="btn small" title="@($"Put {Table.Name} back to the baseline")" disabled="@_busy" @onclick="ResetAsync"><Icon Name="reset" /> @(_busy && _what == "reset" ? "Resetting…" : $"Reset {Table.Name}")</button>
+</div>
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+
+@code {
+    private bool _busy;
+    private string _what = "delete";
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public SandboxTable Table { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnAdd { get; set; }
+
+    /// <summary>Delete rows: the page reads the selected rows and deletes them (a refusal is thrown).</summary>
+    [Parameter]
+    public Func<Task> OnDelete { get; set; } = () => Task.CompletedTask;
+
+    [Parameter]
+    public Func<Task> OnReset { get; set; } = () => Task.CompletedTask;
+
+    private Task ResetAsync() => RunAsync(OnReset, "reset");
+
+    private async Task RunAsync(Func<Task> work, string what = "delete")
+    {
+        _busy = true;
+        _what = what;
+        try
+        {
+            await work();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _busy = false;
+    }
+}

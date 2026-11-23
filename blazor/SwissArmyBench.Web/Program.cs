@@ -25,6 +25,7 @@ using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Api.Sharing;
 using SwissArmyBench.Web.Api.Structures;
+using SwissArmyBench.Web.Api.Variables;
 using SwissArmyBench.Web.Api.Widgets;
 using SwissArmyBench.Web.Api.Workbench;
 using SwissArmyBench.Web.Components;
@@ -70,9 +71,9 @@ public static class Program
         services.AddScoped<SandboxClient>();
         services.AddScoped<SwissArmyBench.Web.Api.LocalApi.LocalApiClient>();
         services.AddScoped<GridsClient>();
+        services.AddScoped<ComparesClient>();
         services.AddScoped<WorkbenchClient>();
         services.AddScoped<LineageClient>();
-        services.AddScoped<ImportClient>();
         services.AddScoped<DocumentModesClient>();
         services.AddScoped<PythonsClient>();
         services.AddScoped<StructureTabClient>();
@@ -96,6 +97,7 @@ public static class Program
         services.AddScoped<PanelClient>();
         services.AddScoped<CodeAppClient>();
         services.AddScoped<AccountingClient>();
+        services.AddScoped<VariablesClient>();
     }
 
     private static void AddState(IServiceCollection services)
@@ -106,6 +108,7 @@ public static class Program
         services.AddScoped<RailState>();
         services.AddScoped<Notes>();
         services.AddScoped<Dialogs>();
+        services.AddScoped<Commands>();
         services.AddScoped<GridStatus>();
         services.AddScoped<PythonSession>();
         services.AddScoped<ConnectionColours>();
@@ -114,5 +117,9 @@ public static class Program
         // The page plug-ins: an extension's page (Power BI export, Source Control, Code App) registered under the id its
         // PAGE_ACTIONS names (Components/PagePlugins.cs).
         services.AddSingleton(ExtensionPlugins.RegisterIn(new PagePlugins()));
+        services.AddScoped<PackagePrompts>();
+        services.AddScoped<VariableAsks>();
+        services.AddScoped<FilePicks>();
+        services.AddScoped<TourState>();
     }
 }

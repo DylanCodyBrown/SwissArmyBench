@@ -1,4 +1,5 @@
 using SwissArmyBench.Web.Api;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -12,7 +13,7 @@ public partial class WorkbenchPage
 
     private string? _helpCard;
 
-    private List<WorkbenchCommand> PaletteCommands()
+    private List<PaletteCommand> PaletteCommands()
     {
         var code = Front is { IsBlade: false, IsStructure: false } ? null : NoCode;
         var notebook = Front?.NotebookView;
@@ -20,26 +21,26 @@ public partial class WorkbenchPage
         return
         [
             new("file.openCell", "File", "Open a document at a cell (a connection's reference)", OpenAtCellAsync),
-            new("cell.select", "Cell", "Select a cell", () => notebook!.GoToCellAsync(), Disabled: noNotebook),
+            new("cell.select", "Cell", "Select a cell", () => notebook!.GoToCellAsync(), WhyNot: noNotebook),
             new("cell.edit", "Cell", "Edit the cell (an HTML or Markdown cell that shows as drawn)", () => notebook!.EditSelectedAsync(), "Enter", noNotebook),
-            new("lineage.open", "Cell", "Lineage: the cell back to the data, with its values", LineageOfFrontAsync, Disabled: code ?? (notebook?.Selected is null && Front?.ScriptView is null ? NoCell : null)),
+            new("lineage.open", "Cell", "Lineage: the cell back to the data, with its values", LineageOfFrontAsync, WhyNot: code ?? (notebook?.Selected is null && Front?.ScriptView is null ? NoCell : null)),
             new("notebook.runOrder", "Notebook", "The run order: each cell's makes, reads and state (notRun, edited, outOfDate)",
-                () => ShowHelp("The run order", notebook?.RunOrderText() ?? string.Empty), Disabled: noNotebook),
+                () => ShowHelp("The run order", notebook?.RunOrderText() ?? string.Empty), WhyNot: noNotebook),
             new("tables.list", "Tables", "The document's tables and each cell's state",
-                () => ShowHelp("The document's tables", string.Join('\n', notebook?.TablesShown().Select(t => $"{t.Table}: cell {t.Cell}") ?? [])), Disabled: noNotebook),
-            new("tables.run", "Tables", "Run a table's cell", () => AskTableAsync("Run a table's cell", t => notebook!.RunTableNamedAsync(t)), Disabled: noNotebook),
-            new("tables.runOutOfDate", "Tables", "Run every table's cell that is not up to date", () => notebook!.RunTablesAsync(), Disabled: noNotebook),
-            new("tables.fold", "Tables", "Fold the Tables group (or one table)", () => Toggle(() => notebook!.FoldTables(true)), Disabled: noNotebook),
-            new("tables.unfold", "Tables", "Open the Tables group (or one table)", () => Toggle(() => notebook!.FoldTables(false)), Disabled: noNotebook),
-            new("data.goToTable", "Data", "Go to a table's cell in the focused document", () => AskTableAsync("Go to a table's cell", t => GoToTableAsync(t)), Disabled: noNotebook),
+                () => ShowHelp("The document's tables", string.Join('\n', notebook?.TablesShown().Select(t => $"{t.Table}: cell {t.Cell}") ?? [])), WhyNot: noNotebook),
+            new("tables.run", "Tables", "Run a table's cell", () => AskTableAsync("Run a table's cell", t => notebook!.RunTableNamedAsync(t)), WhyNot: noNotebook),
+            new("tables.runOutOfDate", "Tables", "Run every table's cell that is not up to date", () => notebook!.RunTablesAsync(), WhyNot: noNotebook),
+            new("tables.fold", "Tables", "Fold the Tables group (or one table)", () => Toggle(() => notebook!.FoldTables(true)), WhyNot: noNotebook),
+            new("tables.unfold", "Tables", "Open the Tables group (or one table)", () => Toggle(() => notebook!.FoldTables(false)), WhyNot: noNotebook),
+            new("data.goToTable", "Data", "Go to a table's cell in the focused document", () => AskTableAsync("Go to a table's cell", t => GoToTableAsync(t)), WhyNot: noNotebook),
             new("html.list", "HTML", "The document's HTML cells (and Markdown cells with names): each one's text, names and state",
-                () => ShowHelp("The HTML cells", string.Join("\n\n", notebook?.HtmlCells().Select(c => $"# [{c.Number}]\n{c.Source}") ?? [])), Disabled: noNotebook),
-            new("html.run", "HTML", "Run an HTML cell (or a Markdown cell with names): fill its names", () => notebook!.RunHtmlCellsAsync(), Disabled: noNotebook),
-            new("html.resize", "HTML", "Size an HTML cell's pane", ResizeHtmlAsync, Disabled: noNotebook),
-            new("html.edit", "HTML", "Open an HTML cell's HTML", () => notebook!.EditSelectedAsync(), Disabled: noNotebook),
-            new("tables.add", "Tables", "Add a table open in Grids to the document in front (its read-only cell)", () => AskTableAsync("Add a table", AddTableAsync), Disabled: noNotebook),
-            new("doc.repoint", "Documents", "Point an open document's cells at another connection (unsaved until Save)", RepointAsync, Disabled: noNotebook),
-            new("explorer.insert", "Data", "Insert a Data Explorer result's code into the focused document", InsertFoundAsync, Disabled: code),
+                () => ShowHelp("The HTML cells", string.Join("\n\n", notebook?.HtmlCells().Select(c => $"# [{c.Number}]\n{c.Source}") ?? [])), WhyNot: noNotebook),
+            new("html.run", "HTML", "Run an HTML cell (or a Markdown cell with names): fill its names", () => notebook!.RunHtmlCellsAsync(), WhyNot: noNotebook),
+            new("html.resize", "HTML", "Size an HTML cell's pane", ResizeHtmlAsync, WhyNot: noNotebook),
+            new("html.edit", "HTML", "Open an HTML cell's HTML", () => notebook!.EditSelectedAsync(), WhyNot: noNotebook),
+            new("tables.add", "Tables", "Add a table open in Grids to the document in front (its read-only cell)", () => AskTableAsync("Add a table", AddTableAsync), WhyNot: noNotebook),
+            new("doc.repoint", "Documents", "Point an open document's cells at another connection (unsaved until Save)", RepointAsync, WhyNot: noNotebook),
+            new("explorer.insert", "Data", "Insert a Data Explorer result's code into the focused document", InsertFoundAsync, WhyNot: code),
             new("tabs.reopen", "Tabs", "Reopen the last closed table (in the home window)", ReopenTableAsync),
             new("help.atCursor", "Help", "Help on the name at the cursor", HelpAtCursorAsync, "F1", code),
         ];

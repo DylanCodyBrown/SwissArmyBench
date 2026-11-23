@@ -123,4 +123,7 @@ public partial class SessionPage : IDisposable
         Live.NoticeArrived -= OnNotice;
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>The empty log's Launch Claude: the footer's own button does the launch (one way to launch).</summary>
+    private Task LaunchClaudeAsync() => Js.InvokeVoidAsync("sab.click", ".status-bar .claude-launch").AsTask();
 }

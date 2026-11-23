@@ -1,0 +1,63 @@
+@* Find relationships (the classic relationshipsDialog.ts find): how the open tables join, worked out from the data;
+   the confident joins added at once (one Undo), the tables they join drawn as a diagram beside the list; a row's
+   tick adds or takes out one, Why its evidence, Reject never suggests it again; Find again. *@
+
+<section class="rel-section" aria-labelledby="rel-find">
+    <h3 id="rel-find">Find relationships</h3>
+    @if (_finding)
+    {
+        <div class="loading-block">Looking for relationships among the open tables…</div>
+    }
+    else if (_found is { } found)
+    {
+        <p class="hint">@found.Suggestions.Count joins across @found.Tables.Count tables (@found.Seconds.ToString("0.##") seconds).</p>
+        @if (found.Suggestions.Count == 0)
+        {
+            <p class="hint">No joins found.</p>
+        }
+        else
+        {
+            <div class="rel-found">
+                <div class="rel-found-diagram" aria-label="The joins in use as a diagram">
+                    @if (_diagram is { Length: > 0 } diagram)
+                    {
+                        <MermaidDiagram Text="@diagram" />
+                    }
+                </div>
+                <ul class="suggestion-list rel-found-list" aria-label="Joins found">
+                    @foreach (var s in found.Suggestions)
+                    {
+                        var known = _known.Contains(s.AsJoin.Key);
+                        var sure = (int)Math.Round(s.Confidence * 100);
+                        <li class="suggestion @(known ? "known" : string.Empty)" data-join="@s.AsJoin.Key">
+                            <input type="checkbox" aria-label="@($"Use {s.From} to {s.To}")" checked="@known" @onchange="e => ToggleAsync(s, e.Value is true)" />
+                            <div class="set-text">
+                                <div class="rel-found-join">
+                                    <strong>@s.From</strong> → <strong>@s.To</strong><span class="hint"> on @s.AsJoin.On · @s.Kind</span>
+                                    @if (!s.Active)
+                                    {
+                                        <span class="badge">inactive</span>
+                                    }
+                                </div>
+                                <div class="confidence @(sure >= SureAt ? "sure" : "unsure")" title="@($"Confidence {sure}%")"><span style="@($"--share: {sure}%")"></span></div>
+                                <details><summary>@(s.Evidence ?? "Why")</summary><ul class="hint">@foreach (var reason in s.Reasons)
+                                        {
+                                            <li>@reason</li>
+                                        }</ul></details>
+                            </div>
+                            @if (!known)
+                            {
+                                <button type="button" class="btn ghost icon small" aria-label="Reject" title="Do not suggest again" @onclick="() => RejectAsync(s)"><Icon Name="close" /></button>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        <div class="row-actions"><button type="button" class="btn ghost" @onclick="FindAsync"><Icon Name="zoom" /> Find again</button></div>
+    }
+    else
+    {
+        <button type="button" class="btn primary" @onclick="FindAsync"><Icon Name="zoom" /> Find relationships</button>
+    }
+</section>

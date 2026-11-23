@@ -48,6 +48,7 @@ public partial class AnalyzePage
 
     protected override void OnParametersSet()
     {
+        TakeAddress();
         if (CardToShow is { Length: > 0 } card)
         {
             (_revealing, _fresh) = (card, [card]);

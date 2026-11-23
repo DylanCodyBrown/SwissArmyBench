@@ -15,4 +15,5 @@ public sealed record ProjectCard(
     ProjectCounts Counts,
     IReadOnlyList<string> Documents,
     ProjectGit? Git = null,
-    ProjectNeeds? Needs = null);
+    ProjectNeeds? Needs = null,
+    string? CopiedFrom = null);

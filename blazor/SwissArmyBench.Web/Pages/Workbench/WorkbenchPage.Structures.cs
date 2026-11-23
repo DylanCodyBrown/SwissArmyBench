@@ -1,3 +1,5 @@
+using SwissArmyBench.Web.State;
+
 namespace SwissArmyBench.Web.Pages.Workbench;
 
 // A structure's tab beside the code (the classic structureDoc.ts and workbenchPage.ts's structure tabs): a JSON, YAML,
@@ -30,19 +32,19 @@ public partial class WorkbenchPage
 
     private StructureDoc? FrontStructure => Front?.StructureDoc;
 
-    private List<WorkbenchCommand> StructureCommands()
+    private List<PaletteCommand> StructureCommands()
     {
         var none = FrontStructure is null ? NoStructure : null;
         return
         [
             new("structure.open", "Structure", "Open a JSON, YAML, XML or TOML file beside the code…", OpenStructureFileAsync),
-            new("structure.search", "Structure", "Search the structure in front", SearchStructureAsync, Disabled: none),
+            new("structure.search", "Structure", "Search the structure in front", SearchStructureAsync, WhyNot: none),
             new("structure.next", "Structure", "Next match", () => Toggle(() => FrontStructure?.Step(1)), "Enter", none),
-            new("structure.select", "Structure", "Select a node by its path (its way unfolded)", SelectNodeAsync, Disabled: none),
-            new("structure.view", "Structure", "Tree, Text or Both", StructureViewAsync, Disabled: none),
-            new("structure.format", "Structure", "Format the structure in front", () => FrontStructure?.FormatAsync() ?? Task.CompletedTask, Disabled: none),
+            new("structure.select", "Structure", "Select a node by its path (its way unfolded)", SelectNodeAsync, WhyNot: none),
+            new("structure.view", "Structure", "Tree, Text or Both", StructureViewAsync, WhyNot: none),
+            new("structure.format", "Structure", "Format the structure in front", () => FrontStructure?.FormatAsync() ?? Task.CompletedTask, WhyNot: none),
             new("structure.state", "Structure", "The structure in front: its view, selection, search and problems",
-                () => ShowHelp("The structure in front", System.Text.Json.JsonSerializer.Serialize(FrontStructure?.State(), _indented)), Disabled: none),
+                () => ShowHelp("The structure in front", System.Text.Json.JsonSerializer.Serialize(FrontStructure?.State(), _indented)), WhyNot: none),
         ];
     }
 

@@ -1,5 +1,5 @@
-using SwissArmyBench.Web.Pages.Workbench;
 using SwissArmyBench.Web.Pages.Workbench.Tabs;
+using SwissArmyBench.Web.State;
 
 using Xunit;
 
@@ -86,18 +86,27 @@ public sealed class WorkbenchTabsTests
     }
 
     [Fact]
-    public void ThePaletteMatchesEveryWordAndPutsRecentCommandsFirst()
+    public async Task TheOnePaletteTakesAPagesCommandsAndPutsRecentOnesFirstAsync()
     {
-        static Task none() => Task.CompletedTask;
-        List<WorkbenchCommand> commands =
+        var ran = new List<string>();
+        Task RunAsync(string id)
+        {
+            ran.Add(id);
+            return Task.CompletedTask;
+        }
+        var palette = new Commands();
+        palette.SetPageCommands(() =>
         [
-            new("a", "File", "New notebook", none),
-            new("b", "Run", "Run the selected cell", none),
-            new("c", "Cell", "Delete the cell", none),
-        ];
+            new("a", "File", "New notebook", () => RunAsync("a")),
+            new("b", "Run", "Run the selected cell", () => RunAsync("b")),
+            new("c", "Cell", "Delete the cell", () => RunAsync("c"), WhyNot: "No cell is selected"),
+        ]);
 
-        Assert.Equal(["c", "b"], CommandPalette.Matching(commands, ["c"], "cell").Select(c => c.Id));
-        Assert.Equal(["b"], CommandPalette.Matching(commands, [], "run SELECTED").Select(c => c.Id));
-        Assert.Equal(3, CommandPalette.Matching(commands, [], " ").Count);
+        Assert.True(await palette.RunIdAsync("b"));
+        Assert.False(await palette.RunIdAsync("c"));
+        Assert.Equal(["b", "a", "c"], palette.All().Take(3).Select(c => c.Id));
+        Assert.Equal(["b"], ran);
+        palette.SetPageCommands(null);
+        Assert.DoesNotContain(palette.All(), c => c.Id == "a");
     }
 }

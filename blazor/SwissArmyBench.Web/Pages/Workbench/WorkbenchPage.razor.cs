@@ -17,14 +17,11 @@ public partial class WorkbenchPage
 {
     private const string NothingSaves = "Nothing that saves is in front";
 
-    // The commands remembered as run lately (the palette's first lines).
-    private const int RecentCommands = 8;
 
     private readonly TabLayout _layout = new();
     private readonly List<OpenDocument> _documents = [];
     private readonly Dictionary<int, OpenDocument> _byKey = [];
     private readonly Dictionary<int, int> _problems = [];
-    private readonly List<string> _recentCommands = [];
     private int _nextKey;
     private bool _loading;
     private CodeTree? _tree;
@@ -33,7 +30,6 @@ public partial class WorkbenchPage
     private bool _showFiles = true;
     private bool _showBlades;
     private bool _full;
-    private bool _palette;
     private ShownMenu? _menu;
     private (string Words, string Address)? _wrongPage;
     private Exception? _error;
@@ -81,6 +77,9 @@ public partial class WorkbenchPage
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
+    [Inject]
+    private Commands Palette { get; set; } = default!;
+
     /// <summary>notebooks or scripts: the two pages share this component.</summary>
     [Parameter, EditorRequired]
     public string Page { get; set; } = "notebooks";
@@ -113,6 +112,7 @@ public partial class WorkbenchPage
     {
         Session.Changed += Redraw;
         Project.Changed += Redraw;
+        Palette.SetPageCommands(PageCommands);
         _showFiles = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.files") != "0";
         _showBlades = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.blades") == "1";
         _showExplorer = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.explorer") == "1";
@@ -186,7 +186,7 @@ public partial class WorkbenchPage
     private Task PageKeyAsync(string name) => name switch
     {
         _ when name.StartsWith("cell:", StringComparison.Ordinal) => Front?.NotebookView?.CommandAsync(name[5..]) ?? Task.CompletedTask,
-        "palette" => Toggle(() => _palette = !_palette),
+        "palette" => ShowPalette(),
         "save" => SaveFrontAsync(),
         "saveAs" => SaveAsAsync(Front),
         "open" => OpenAsync(),
@@ -262,16 +262,19 @@ public partial class WorkbenchPage
         return Task.CompletedTask;
     }
 
-    private async Task RunCommandAsync(WorkbenchCommand command)
-    {
-        _recentCommands.Remove(command.Id);
-        _recentCommands.Insert(0, command.Id);
-        if (_recentCommands.Count > RecentCommands)
+    /// <summary>The page's commands for the one palette (State/Commands, Layout/CommandPalette): each runs under the
+    /// page's error note and the page draws its outcome, the palette that asked having gone.</summary>
+    private IReadOnlyList<PaletteCommand> PageCommands() =>
+        [.. Commands().Select(c => c with { Run = () => InvokeAsync(async () =>
         {
-            _recentCommands.RemoveAt(RecentCommands);
-        }
-        await GuardAsync(command.Run);
-        StateHasChanged(); // the palette that asked has gone: the page draws the command's outcome itself
+            await GuardAsync(c.Run);
+            StateHasChanged();
+        }) })];
+
+    private Task ShowPalette()
+    {
+        Palette.Show("palette");
+        return Task.CompletedTask;
     }
 
     /// <summary>An action whose refusal shows in the page's error note.</summary>
@@ -342,6 +345,7 @@ public partial class WorkbenchPage
 
     public async ValueTask DisposeAsync()
     {
+        Palette.SetPageCommands(null);
         Session.Changed -= Redraw;
         Project.Changed -= Redraw;
         Live.NoticeArrived -= OnInlineNotice;
