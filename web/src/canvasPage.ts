@@ -37,7 +37,7 @@ import { analyzerAddress, openAnalyzer, openBuilds } from "./canvasBuilds";
 import { type Guide, type Rect } from "./canvasSnap";
 import { dotSpacing, gridLines, nudgeBy, snapRect, type Step } from "./canvasGrid";
 import { watchTheme } from "./catalogRail";
-import { askText, button, clear, h, icon, type MenuEntry, showEntries, toast } from "./dom";
+import { askText, button, clear, dragPointer, dragResize, h, icon, type MenuEntry, showEntries, toast } from "./dom";
 import { clearError, errorHere, showError } from "./errorNote";
 import { intoApp, type Missing, promptInstall } from "./missingPackages";
 import { chooseFile } from "./fileChooser";
@@ -620,21 +620,28 @@ function pagePoint(e: MouseEvent): { x: number; y: number } {
 }
 
 function hook(element: HTMLElement, node: Node): void {
-  element.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
-    e.stopPropagation();
-    board.focus({ preventScroll: true });
-    const additive = e.shiftKey || e.ctrlKey || e.metaKey;
-    if (additive) select(selected.includes(node.id) ? selected.filter((i) => i !== node.id) : [...selected, node.id]);
-    else if (!selected.includes(node.id)) select([node.id]);
-    if (!editable() || additive) return;
-    const sizing = (e.target as HTMLElement).dataset.handle === "se";
-    const start = pagePoint(e);
-    const at = find(node.id);
-    if (!at) return;
-    let moved: Rect | null = null;
-    const ghost = element;
-    const move = (m: PointerEvent): void => {
+  let sizing = false;
+  let start = { x: 0, y: 0 };
+  let at: ReturnType<typeof find> = null;
+  let moved: Rect | null = null;
+  const ghost = element;
+  dragPointer(element, {
+    onStart: (e) => {
+      if ((e.target as HTMLElement).closest("button")) return false;
+      e.stopPropagation();
+      board.focus({ preventScroll: true });
+      const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      if (additive) select(selected.includes(node.id) ? selected.filter((i) => i !== node.id) : [...selected, node.id]);
+      else if (!selected.includes(node.id)) select([node.id]);
+      if (!editable() || additive) return false;
+      sizing = (e.target as HTMLElement).dataset.handle === "se";
+      start = pagePoint(e);
+      at = find(node.id);
+      moved = null;
+      return at ? undefined : false;
+    },
+    onMove: (_dx, _dy, m) => {
+      if (!at) return;
       const now = pagePoint(m);
       const dx = now.x - start.x;
       const dy = now.y - start.y;
@@ -648,13 +655,12 @@ function hook(element: HTMLElement, node: Node): void {
       ghost.style.height = `${moved.height}px`;
       ghost.classList.add("dragging");
       drawGuides(done.guides, at.parent);
-    };
-    const up = (u: PointerEvent): void => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+    },
+    onEnd: (u) => {
       ghost.classList.remove("dragging");
       if (guidesLayer) clear(guidesLayer);
-      if (!moved) return;
+      if (!moved || !at) return;
+      if (!u) return drawBoard(); // the pointer was taken away: it stays where it was
       const r: Rect = moved;
       if (sizing) {
         void send("move", { id: node.id, w: Math.max(1, r.width), h: Math.max(1, r.height) }).then((s) => (s ? undefined : drawBoard()));
@@ -673,9 +679,7 @@ function hook(element: HTMLElement, node: Node): void {
         return;
       }
       void send("move", { id: node.id, x: Math.max(0, r.left), y: Math.max(0, r.top) }).then((s) => (s ? undefined : drawBoard()));
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    },
   });
   element.addEventListener("dblclick", (e) => {
     e.stopPropagation();
@@ -708,39 +712,47 @@ function hook(element: HTMLElement, node: Node): void {
 }
 
 // Drawing a container on empty grid (or empty room in a container).
-board.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0 || !state) return;
-  const target = e.target as HTMLElement;
-  if (target.closest(".cvs-node") && !target.classList.contains("cvs-container")) return;
-  select([]);
-  if (!editable()) return;
-  board.focus({ preventScroll: true });
-  const start = pagePoint(e);
-  const parent = containerAt(start.x, start.y, null);
-  const origin = parent ? absolute(parent.id) : { x: 0, y: 0 };
-  const band = h("div", { class: "cvs-band" });
-  board.append(band);
+{
+  let start = { x: 0, y: 0 };
+  let parent: Node | null = null;
+  let origin = { x: 0, y: 0 };
+  let band: HTMLElement | null = null;
   let made: Rect | null = null;
-  const move = (m: PointerEvent): void => {
-    const now = pagePoint(m);
-    const raw: Rect = { id: "new", left: Math.min(start.x, now.x) - origin.x, top: Math.min(start.y, now.y) - origin.y, width: Math.abs(now.x - start.x), height: Math.abs(now.y - start.y) };
-    const fake: Node = { id: "new", kind: "container", x: 0, y: 0, w: 0, h: 0 };
-    const placed = snapRect({ ...raw }, snapFor(fake, parent, false, m.altKey)).rect;
-    const sized = snapRect({ ...placed, width: raw.left + raw.width - placed.left, height: raw.top + raw.height - placed.top }, snapFor(fake, parent, true, m.altKey)).rect;
-    made = sized;
-    Object.assign(band.style, { left: `${X(origin.x + sized.left)}px`, top: `${origin.y + sized.top}px`, width: `${X(sized.width)}px`, height: `${sized.height}px` });
-  };
-  const up = (): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    band.remove();
-    const r: Rect | null = made;
-    if (!r || r.width < 16 || r.height < 16) return;
-    void send("add_container", { page, parent: parent?.id ?? null, x: Math.max(0, r.left), y: Math.max(0, r.top), w: r.width, h: r.height }).then((s) => (s?.made ? select([s.made]) : undefined));
-  };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
-});
+  dragPointer(board, {
+    onStart: (e) => {
+      if (!state) return false;
+      const target = e.target as HTMLElement;
+      if (target.closest(".cvs-node") && !target.classList.contains("cvs-container")) return false;
+      select([]);
+      if (!editable()) return false;
+      board.focus({ preventScroll: true });
+      start = pagePoint(e);
+      parent = containerAt(start.x, start.y, null);
+      origin = parent ? absolute(parent.id) : { x: 0, y: 0 };
+      band = h("div", { class: "cvs-band" });
+      board.append(band);
+      made = null;
+      return undefined;
+    },
+    onMove: (_dx, _dy, m) => {
+      if (!band) return;
+      const now = pagePoint(m);
+      const raw: Rect = { id: "new", left: Math.min(start.x, now.x) - origin.x, top: Math.min(start.y, now.y) - origin.y, width: Math.abs(now.x - start.x), height: Math.abs(now.y - start.y) };
+      const fake: Node = { id: "new", kind: "container", x: 0, y: 0, w: 0, h: 0 };
+      const placed = snapRect({ ...raw }, snapFor(fake, parent, false, m.altKey)).rect;
+      const sized = snapRect({ ...placed, width: raw.left + raw.width - placed.left, height: raw.top + raw.height - placed.top }, snapFor(fake, parent, true, m.altKey)).rect;
+      made = sized;
+      Object.assign(band.style, { left: `${X(origin.x + sized.left)}px`, top: `${origin.y + sized.top}px`, width: `${X(sized.width)}px`, height: `${sized.height}px` });
+    },
+    onEnd: (up) => {
+      band?.remove();
+      band = null;
+      const r: Rect | null = made;
+      if (!up || !r || r.width < 16 || r.height < 16) return;
+      void send("add_container", { page, parent: parent?.id ?? null, x: Math.max(0, r.left), y: Math.max(0, r.top), w: r.width, h: r.height }).then((s) => (s?.made ? select([s.made]) : undefined));
+    },
+  });
+}
 
 board.addEventListener("contextmenu", (e) => {
   if ((e.target as HTMLElement).closest(".cvs-node")) return;
@@ -1431,23 +1443,17 @@ function showOn(node: Node): HTMLElement {
 function widthHandle(): HTMLElement {
   const label = h("span", { class: "cvs-width-label" }, `${previewWidth[layout]} px`);
   const grip = h("div", { class: "cvs-width-handle", role: "separator", "aria-orientation": "vertical", "aria-label": "Page width", title: "Drag to preview another width" }, label);
-  grip.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const start = e.clientX;
-    const from = previewWidth[layout];
-    const [low, high] = RANGE[layout];
-    const move = (m: PointerEvent): void => {
-      previewWidth[layout] = Math.round(Math.max(low, Math.min(high, from + (m.clientX - start) / zoom)));
+  let from = 0;
+  // The board (this grip with it) is drawn again at each step: dragPointer hears the moves at the window.
+  dragResize(grip, {
+    start: () => void (from = previewWidth[layout]),
+    move: (dx) => {
+      const [low, high] = RANGE[layout];
+      previewWidth[layout] = Math.round(Math.max(low, Math.min(high, from + dx / zoom)));
       drawBoard();
-    };
-    const up = (): void => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      rememberView();
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    },
+    end: rememberView,
+    stop: true,
   });
   return grip;
 }

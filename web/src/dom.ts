@@ -569,6 +569,52 @@ export function setMenuExtras(extras: (() => MenuExtra[]) | null): void {
 
 export const extraMenuItems = (): MenuExtra[] => menuExtras?.() ?? [];
 
+/** One press-and-drag of the pointer, whatever it does (a move, a size, a tab carried to another group). */
+export interface PointerDragOptions {
+  /** As the pointer goes down: measure here. Answering false: no drag. `drag.cancel()` ends it early (a key). */
+  onStart?: (down: PointerEvent, drag: { cancel: () => void }) => void | false;
+  /** The pointer's distance from where it went down, with the event itself. */
+  onMove: (dx: number, dy: number, event: PointerEvent) => void;
+  /** Once it lets go (its event), or the drag is cancelled (null). */
+  onEnd?: (up: PointerEvent | null) => void;
+  /** Keep the browser's own answer to the press away (a text selection, a picture's drag). */
+  prevent?: boolean;
+  /** Keep the pointer's press from handlers further out (a grip inside something that itself drags). */
+  stop?: boolean;
+}
+
+/** The app's one pointer drag (dragResize is this one too): the element captures the pointer, so the drag
+ *  follows it over frames and out of the window; the moves are heard at the window, so an element drawn again
+ *  under the pointer (its capture gone with it) still ends its drag; letting go or a cancelled pointer ends
+ *  it, always, and the listeners go with it. */
+export function dragPointer(el: HTMLElement, options: PointerDragOptions): void {
+  el.addEventListener("pointerdown", (down) => {
+    if (down.button !== 0 && down.pointerType === "mouse") return;
+    let over = false;
+    const finish = (up: PointerEvent | null): void => {
+      if (over) return;
+      over = true;
+      window.removeEventListener("pointermove", moved, true);
+      window.removeEventListener("pointerup", finish, true);
+      window.removeEventListener("pointercancel", cancelled, true);
+      options.onEnd?.(up);
+    };
+    const moved = (event: PointerEvent): void => options.onMove(event.clientX - down.clientX, event.clientY - down.clientY, event);
+    const cancelled = (): void => finish(null);
+    if (options.onStart?.(down, { cancel: cancelled }) === false) return;
+    if (options.prevent) down.preventDefault();
+    if (options.stop) down.stopPropagation();
+    try {
+      el.setPointerCapture(down.pointerId);
+    } catch {
+      // a pointer that is already gone: the drag ends on the next event
+    }
+    window.addEventListener("pointermove", moved, true);
+    window.addEventListener("pointerup", finish, true);
+    window.addEventListener("pointercancel", cancelled, true);
+  });
+}
+
 /** One drag of a handle (a splitter, a grip): what every drag-to-resize shares. */
 export interface DragOptions {
   /** As the pointer goes down: measure here. Answering false: no drag (the handle is off). */
@@ -584,34 +630,24 @@ export interface DragOptions {
   stop?: boolean;
 }
 
-/** Drag-to-resize, once (the craft review of 2026-11-22: nine hand-written copies): the handle captures the
- *  pointer, so the drag follows it over frames and out of the window; `move` hears the distance from where
- *  it went down; letting go or a cancelled pointer ends it, always, and the listeners go with it. The keys
- *  stay each handle's own (they differ: a width, a fraction, a grid's cells). */
+/** Drag-to-resize, once (the craft review of 2026-11-22: nine hand-written copies), on dragPointer: `move`
+ *  hears the distance from where the pointer went down; a class is worn while it drags. The keys stay each
+ *  handle's own (they differ: a width, a fraction, a grid's cells). */
 export function dragResize(handle: HTMLElement, options: DragOptions): void {
-  handle.addEventListener("pointerdown", (down) => {
-    if (down.button !== 0 && down.pointerType === "mouse") return;
-    if (options.start?.(down) === false) return;
-    down.preventDefault();
-    if (options.stop) down.stopPropagation();
-    try {
-      handle.setPointerCapture(down.pointerId);
-    } catch {
-      // a pointer that is already gone: the drag ends on the next event
-    }
-    const worn = options.on ?? handle;
-    if (options.dragging) worn.classList.add(options.dragging);
-    const moved = (event: PointerEvent): void => options.move(event.clientX - down.clientX, event.clientY - down.clientY, event);
-    const up = (): void => {
+  const worn = options.on ?? handle;
+  dragPointer(handle, {
+    onStart: (down) => {
+      if (options.start?.(down) === false) return false;
+      if (options.dragging) worn.classList.add(options.dragging);
+      return undefined;
+    },
+    onMove: options.move,
+    onEnd: () => {
       if (options.dragging) worn.classList.remove(options.dragging);
-      handle.removeEventListener("pointermove", moved);
-      handle.removeEventListener("pointerup", up);
-      handle.removeEventListener("pointercancel", up);
       options.end?.();
-    };
-    handle.addEventListener("pointermove", moved);
-    handle.addEventListener("pointerup", up);
-    handle.addEventListener("pointercancel", up);
+    },
+    prevent: true,
+    stop: options.stop,
   });
 }
 

@@ -19,7 +19,7 @@
  *   [SAVE]     the layout as plain data (the groups, their tabs, the sizes, the focused group), which the
  *              page keeps with its session restore
  */
-import { button, dragResize, h, icon } from "./dom";
+import { button, dragPointer, dragResize, h, icon } from "./dom";
 
 // ===== kinds =====
 
@@ -236,7 +236,7 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
       }, { icon: "close", iconOnly: true, class: "tab-close" });
       close.addEventListener("pointerdown", (e) => e.stopPropagation());
       el = h("div", { class: "tab-item wb-tab", role: "tab" }, h("span", { class: "wb-tab-icon" }), h("span", { class: "wb-tab-dirty", title: "Unsaved changes" }), h("span", { class: "tab-label" }), close);
-      el.addEventListener("pointerdown", (e) => press(tab, e));
+      pressable(tab, el);
       host.tabMade?.(tab, el);
       el.addEventListener("auxclick", (e) => {
         if (e.button === 1) host.close(tab);
@@ -490,37 +490,34 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
 
   // ----- dragging a tab
 
-  function press(tab: T, e: PointerEvent): void {
-    if (e.button !== 0) return;
-    const from = groupOf(tab);
-    if (!from) return;
-    const x0 = e.clientX;
-    const y0 = e.clientY;
+  /** A press on a tab shows it; carried six pixels, it is dragged (Escape puts it back). */
+  function pressable(tab: T, el: HTMLElement): void {
     let drag: Drag | null = null;
-    const moved = (m: PointerEvent): void => {
-      if (!drag && Math.hypot(m.clientX - x0, m.clientY - y0) < 6) return;
-      drag ??= startDrag(tab);
-      drag.over(m.clientX, m.clientY);
-    };
-    const up = (u: PointerEvent): void => {
-      stop();
-      if (drag) drag.drop(u.clientX, u.clientY);
-      else show(tab);
-    };
-    const key = (k: KeyboardEvent): void => {
-      if (k.key !== "Escape") return;
-      k.preventDefault();
-      stop();
-      drag?.cancel();
-    };
-    const stop = (): void => {
-      document.removeEventListener("pointermove", moved);
-      document.removeEventListener("pointerup", up);
-      document.removeEventListener("keydown", key, true);
-    };
-    document.addEventListener("pointermove", moved);
-    document.addEventListener("pointerup", up);
-    document.addEventListener("keydown", key, true);
+    let key: ((k: KeyboardEvent) => void) | null = null;
+    dragPointer(el, {
+      onStart: (_down, pointer) => {
+        if (!groupOf(tab)) return false;
+        drag = null;
+        key = (k) => {
+          if (k.key !== "Escape") return;
+          k.preventDefault();
+          pointer.cancel();
+        };
+        document.addEventListener("keydown", key, true);
+        return undefined;
+      },
+      onMove: (dx, dy, m) => {
+        if (!drag && Math.hypot(dx, dy) < 6) return;
+        drag ??= startDrag(tab);
+        drag.over(m.clientX, m.clientY);
+      },
+      onEnd: (up) => {
+        if (key) document.removeEventListener("keydown", key, true);
+        if (!up) drag?.cancel();
+        else if (drag) drag.drop(up.clientX, up.clientY);
+        else show(tab);
+      },
+    });
   }
 
   interface Drag {
