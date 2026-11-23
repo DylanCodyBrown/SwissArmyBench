@@ -32,7 +32,6 @@ public sealed partial class LocalApiSection : IDisposable
     [Inject]
     private LiveUpdates Live { get; set; } = default!;
 
-
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 

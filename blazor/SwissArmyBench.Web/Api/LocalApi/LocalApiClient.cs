@@ -37,4 +37,7 @@ public sealed class LocalApiClient
 
     /// <summary>Add to API.py: the pattern's endpoints appended.</summary>
     public Task<Scaffolded> ScaffoldAsync(IReadOnlyDictionary<string, object?> asked) => _api.PostAsync<Scaffolded>("/local-api/scaffold", asked);
+
+    /// <summary>Payload shapes: what each canvas widget that uses an endpoint expects beside what it answers.</summary>
+    public Task<PayloadShapes> ShapesAsync() => _api.GetAsync<PayloadShapes>("/local-api/shapes");
 }
