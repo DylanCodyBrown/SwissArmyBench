@@ -1,49 +1,250 @@
 @* The Structures page (off the rail: the Environment's rows, an API's answer and a kernel's value open into it; the
-   classic structuresPage.ts): the open structures and the project's structure files on the left, New, Open a
-   file…, Paste…, and the one shown (?id=) as a tree or its text. Logic in StructuresPage.razor.cs. *@
+   classic structuresPage.ts): an open structure is a tab (×, asked when unsaved); New, Open…, Paste; with none open
+   the project's structure files as cards. One structure: its Format, Tree | Both | Text, Search, Undo, Redo, Run again
+   (an API's answer), Lineage, Save, Save as…; where an answer came from; the steps strip (each ×); the selected node's
+   path and its actions (Copy path, Pick, Filter…, Sort…, Flatten, Open as grid, Make a sandbox variant, Return as
+   table…, Add key…, Rename key…, Set value…, Remove); the tree and the text side by side. Logic in
+   StructuresPage.razor.cs and StructuresPage.Steps.cs. *@
 @page "/structures"
 @implements IDisposable
 
 <section class="area-page structures-page">
     <header class="area-page-head">
-        <h1 class="area-page-title"><Icon Name="structures" /> Structures</h1>
+        <h1 class="area-page-title">Structures</h1>
         <div class="area-page-actions">
-            <button type="button" class="btn small" @onclick="NewAsync"><Icon Name="plus" /> New</button>
-            <button type="button" class="btn small" @onclick="OpenFileAsync"><Icon Name="folder" /> Open a file…</button>
-            <button type="button" class="btn small" @onclick="PasteAsync"><Icon Name="import" /> Paste…</button>
-            @if (_shown is { } shown)
-            {
-                <button type="button" class="btn small ghost" @onclick="() => CloseAsync(shown.Id)"><Icon Name="close" /> Close</button>
-            }
+            <button type="button" class="btn primary" @onclick='() => NewAsync("object")'><Icon Name="plus" /> New</button>
+            <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="folder" /> Open…</button>
+            <button type="button" class="btn" @onclick="() => _pasting = true"><Icon Name="copy" /> Paste</button>
         </div>
     </header>
-    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-    <div class="structures-main">
-        <nav class="side-pane structures-list" aria-label="Open structures">
-            @if (_list is { Open.Count: 0 })
-            {
-                <p class="muted side-pane-note">Nothing open: New, Open a file…, Paste…, or an API's answer (APIs, Try it).</p>
-            }
-            <ul class="files-list" role="list">
-                @foreach (var entry in _list?.Open ?? [])
+    <div class="area-page-body">
+        @if (_tabs is { Open.Count: > 0 } tabs)
+        {
+            <div class="structures-tabs" role="tablist" aria-label="Structures">
+                @foreach (var s in tabs.Open)
                 {
-                    <li>
-                        <a class="files-item @(entry.Id == _shown?.Id ? "current" : string.Empty)" href="@($"structures?id={Uri.EscapeDataString(entry.Id)}")" aria-current="@(entry.Id == _shown?.Id ? "page" : null)">
-                            <Icon Name="structures" /> @entry.Name <span class="chip">@entry.Format</span>
-                        </a>
-                    </li>
+                    <div class="structures-tab @(s.Id == _front ? "current" : null)" role="tab" aria-selected="@(s.Id == _front ? "true" : "false")" data-structure="@s.Id">
+                        <button type="button" class="structures-tab-name" @onclick="() => GoAsync(s.Id)"><Icon Name="@(s.Origin.Kind == "api" ? "bolt" : "json")" /> @s.Name
+                            @if (s.Dirty)
+                            {
+                                <span class="structures-dirty" aria-label="Unsaved">●</span>
+                            }
+                        </button>
+                        <button type="button" class="structures-tab-close" aria-label="@($"Close {s.Name}")" title="Close" @onclick="() => CloseAsync(s)"><Icon Name="close" /></button>
+                    </div>
                 }
-            </ul>
-        </nav>
-        <div class="structures-shown">
-            @if (_shown is { } document)
-            {
-                <StructureView @key="document.Id + document.Version" Document="document" OnChanged="ChangedAsync" />
-            }
-            else if (_list is { Open.Count: > 0 })
-            {
-                <p class="muted structures-pick">Pick a structure on the left.</p>
-            }
-        </div>
+            </div>
+        }
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        <Busy IsBusy="_tabs is null || _busyWords is not null" Words="@(_busyWords ?? "Loading structures…")">
+            <div class="structures-main">
+                @if (_doc is { } doc)
+                {
+                    @DocView(doc)
+                }
+                else if (_tabs is { Files.Count: > 0 } withFiles)
+                {
+                    <div class="structures-cards" role="list">
+                        @foreach (var file in withFiles.Files)
+                        {
+                            <button type="button" class="structures-card" role="listitem" data-file="@file.File" @onclick="() => OpenPathAsync(file.Path)">
+                                <span class="structures-card-name"><Icon Name="json" /> @file.Name</span>
+                                <span class="structures-card-meta muted">@FormatWords(file.Format) · @SizeWords(file.Size)</span>
+                                <span class="structures-card-used muted">@UsedWords(file.Name)</span>
+                            </button>
+                        }
+                    </div>
+                }
+                else if (_tabs is not null)
+                {
+                    <div class="structures-empty">
+                        <p class="empty-note">Nothing open.</p>
+                        <div class="structures-empty-actions">
+                            <button type="button" class="btn" @onclick='() => NewAsync("object")'><Icon Name="plus" /> New object</button>
+                            <button type="button" class="btn" @onclick='() => NewAsync("list")'><Icon Name="plus" /> New list</button>
+                            <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="folder" /> Open…</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </Busy>
     </div>
 </section>
+@if (_pasting)
+{
+    <PasteStructureDialog OnDone="PastedAsync" />
+}
+@if (_asking is { } asking)
+{
+    <AskDialog Title="@asking.Title" Fields="asking.Fields" OnDone="AnsweredAsync" />
+}
+@if (_asTable is { } asTable)
+{
+    <ReturnAsTableDialog Saved="asTable.Saved" Api="@asTable.Api" Operation="@asTable.Operation" OnClose="() => _asTable = null" />
+}
+@if (_lineage is { } lineage)
+{
+    <AppDialog Title="@($"Lineage · {_doc?.Name}")" OnClose="() => _lineage = null">
+        <div class="structures-lineage">
+            <MermaidDiagram Text="@lineage.Mermaid" />
+            <ol class="structures-lineage-list">
+                @foreach (var node in lineage.Nodes)
+                {
+                    <li data-kind="@node.Kind"><strong>@node.Label</strong>@(node.Where.Length > 0 ? $" · {node.Where}" : string.Empty)</li>
+                }
+            </ol>
+            @if (lineage.Origin.TryGetProperty("kind", out var kind) && kind.GetString() == "api")
+            {
+                <details class="structures-lineage-sent"><summary>What was sent</summary><pre class="mono">@SentText(lineage.Origin)</pre></details>
+            }
+        </div>
+    </AppDialog>
+}
+@if (_variantPath is { } variantPath && _doc is { } variantOf)
+{
+    <SwissArmyBench.Web.Pages.Connections.Sandbox.SandboxVariantDialog From="structure" Origin="@variantOf.Name" Path="@variantPath" OnClose="_ => _variantPath = null" />
+}
+
+@code {
+    /// <summary>One structure: its toolbar, where it came from, its steps, the selected node's actions, the views.</summary>
+    private RenderFragment DocView(StructureShown doc) => __builder =>
+    {
+        <div class="structures-toolbar" role="toolbar" aria-label="@doc.Name">
+            <select class="structures-format" aria-label="Format" @onchange="e => FormatAsync(e.Value?.ToString())">
+                @foreach (var format in _formats)
+                {
+                    <option value="@format" selected="@(format == doc.Format)">@FormatWords(format)</option>
+                }
+            </select>
+            <div class="segmented" role="group" aria-label="View">
+                @foreach (var (view, label) in _views)
+                {
+                    <button type="button" class="btn @(_view == view ? "on" : null)" aria-pressed="@(_view == view ? "true" : "false")" data-view="@view" @onclick="() => _view = view">@label</button>
+                }
+            </div>
+            <input type="search" class="structures-search" placeholder="Search" aria-label="Search the tree" spellcheck="false" @bind="_search" @bind:event="oninput" />
+            <button type="button" class="btn icon" aria-label="Undo" title="Undo" @onclick='() => ActAsync("/undo")'><Icon Name="undo" /></button>
+            <button type="button" class="btn icon" aria-label="Redo" title="Redo" @onclick='() => ActAsync("/redo")'><Icon Name="redo" /></button>
+            @if (doc.Origin.Kind == "api")
+            {
+                <button type="button" class="btn" title="The same call, the steps kept" @onclick="RunAgainAsync"><Icon Name="play" /> Run again</button>
+            }
+            <button type="button" class="btn" @onclick="LineageAsync"><Icon Name="lineage" /> Lineage</button>
+            <button type="button" class="btn @(doc.Dirty ? "primary" : null)" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+            <button type="button" class="btn" @onclick="SaveAs"><Icon Name="save" /> Save as…</button>
+        </div>
+        @if (doc.Origin is { Kind: "api" } origin)
+        {
+            <div class="structures-origin">
+                <Icon Name="bolt" />
+                <span class="structures-call">@origin.Method @origin.Path</span>
+                <span class="muted">@origin.Api · @origin.Operation</span>
+                <span class="structures-status @(origin.Status is < 300 ? "ok" : "bad")">@origin.Status</span>
+                <span class="muted">@(origin.Ms ?? 0) ms</span>
+                @if (origin.Said is { } said)
+                {
+                    <span class="error-mark"><Icon Name="problem" /> @said</span>
+                }
+                <details class="structures-headers"><summary>Headers</summary>
+                    <table>
+                        @foreach (var (name, value) in origin.Headers ?? new Dictionary<string, string>())
+                        {
+                            <tr><th>@name</th><td class="mono">@value</td></tr>
+                        }
+                    </table>
+                </details>
+            </div>
+        }
+        <div class="structures-steps" role="list" aria-label="Steps">
+            @if (doc.Steps.Count == 0)
+            {
+                <span class="muted structures-no-steps">No steps</span>
+            }
+            @foreach (var (s, i) in doc.Steps.Select((s, i) => (s, i)))
+            {
+                <span class="structures-step" role="listitem" data-op="@s.Op"><span>@s.Words</span><button type="button" class="structures-step-x" aria-label="@($"Remove step {i + 1}")" title="Remove" @onclick='() => ActAsync("/steps/remove", new { index = i })'><Icon Name="close" /></button></span>
+            }
+        </div>
+        @if (doc.Error is { } problem)
+        {
+            <ErrorNote Words="@problem" />
+        }
+        <div class="structures-actions-slot">@NodeActions(doc)</div>
+        <div class="structures-split view-@_view">
+            @if (_view != "text" && doc.Value is { } treeValue)
+            {
+                <div class="structures-pane tree-pane">
+                    <StructureTree @key="doc.Id" Value="treeValue" Label="@doc.Name" Depth="@(doc.Nodes > 5000 ? 1 : 2)" Search="@_search" OnSelect="Selected" OnSet="SetValueAsync" OnRename="RenameKeyAsync" />
+                </div>
+            }
+            @if (_view != "tree")
+            {
+                <div class="structures-pane text-pane">
+                    <div class="structure-text">
+                        <CodeEditor @key="TextKey(doc)" Value="@((doc.Steps.Count > 0 ? doc.ResultText : doc.Text) ?? string.Empty)" Language="@EditorLanguage(doc.Format)" ReadOnly="@(doc.Steps.Count > 0)" Grow="true" MinLines="8" Label="@($"{doc.Name} as {FormatWords(doc.Format)}")" OnChange="TextTyped" />
+                        @if ((_textError ?? doc.TextError) is { } textError)
+                        {
+                            <div class="structure-text-error">@textError</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    };
+
+    /// <summary>The selected node's path and what can be done there, by its kind.</summary>
+    private RenderFragment NodeActions(StructureShown doc) => __builder =>
+    {
+        var where = StructureTree.PathText(_selected);
+        var kind = _node is { } node ? TreeRow.KindOf(node) : string.Empty;
+        var records = IsRecords(_node);
+        <div class="structures-node-actions" role="toolbar" aria-label="The selected node">
+            <code class="structures-path" title="Its path">@where</code>
+            <button type="button" class="btn ghost icon" aria-label="Copy path" title="Copy path" @onclick="() => CopyPathAsync(where)"><Icon Name="copy" /></button>
+            @if (doc.Error is null)
+            {
+                @if (_selected.Count > 0)
+                {
+                    <button type="button" class="btn" title="The tree becomes this branch" @onclick='() => StepAsync(new() { ["op"] = "pick", ["path"] = where })'><Icon Name="zoom" /> Pick</button>
+                }
+                @if (kind == "list")
+                {
+                    <button type="button" class="btn" @onclick="() => AskFilter(where)"><Icon Name="filter" /> Filter…</button>
+                    <button type="button" class="btn" @onclick="() => AskSort(where)"><Icon Name="sortup" /> Sort…</button>
+                    @if (records)
+                    {
+                        <button type="button" class="btn" title="Nested objects as dotted keys" @onclick='() => StepAsync(new() { ["op"] = "flatten", ["path"] = where })'><Icon Name="rows" /> Flatten</button>
+                    }
+                    @if (records || _node?.GetArrayLength() > 0)
+                    {
+                        <button type="button" class="btn structures-to-grid" @onclick="() => OpenAsGridAsync(where)"><Icon Name="grids" /> Open as grid</button>
+                        @if (records)
+                        {
+                            <button type="button" class="btn structures-to-sandbox" @onclick="() => _variantPath = where"><Icon Name="branch" /> Make a sandbox variant</button>
+                        }
+                    }
+                    @if (doc.Origin is { Kind: "api", Api: not null, Operation: not null })
+                    {
+                        <button type="button" class="btn" title="Save its web call with Return as table on (its API's table in SQL)" @onclick="() => ReturnAsTableAsync(where)"><Icon Name="table" /> Return as table…</button>
+                    }
+                }
+                @if (kind == "object")
+                {
+                    <button type="button" class="btn" @onclick="() => AskAddKey(where)"><Icon Name="plus" /> Add key…</button>
+                }
+                @if (_selected.Count > 0)
+                {
+                    @if (_selected[^1] is string last)
+                    {
+                        <button type="button" class="btn" @onclick="() => AskRenameKey(last)"><Icon Name="rename" /> Rename key…</button>
+                    }
+                    @if (kind is not "object" and not "list")
+                    {
+                        <button type="button" class="btn" @onclick="() => AskSetValue(where)"><Icon Name="edit" /> Set value…</button>
+                    }
+                    <button type="button" class="btn" @onclick='() => StepAsync(new() { ["op"] = "remove", ["path"] = where })'><Icon Name="trash" /> Remove</button>
+                }
+            }
+        </div>
+    };
+}

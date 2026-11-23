@@ -1,0 +1,107 @@
+@* The key vaults on the Settings and secrets tab (the classic keyVaults.ts): a card per vault (its name, kind, the
+   variables it gives; a click opens its detail on the Connections page), a vault whose names are from an earlier read
+   with Read again; Add key vault's kinds, each opening its form, and Cancel. *@
+@inject EnvironmentClient Environment
+@inject ConnectionsClient Connections
+
+<div class="env-vaults">
+    <div class="variables-form-slot">
+        @if (_kinds is { } kinds)
+        {
+            <div class="variables-form variables-vault-types" role="group" aria-label="Add key vault">
+                @foreach (var kind in kinds)
+                {
+                    <a class="btn connection-type fam-vault" href="@($"connections?kind={Uri.EscapeDataString(kind.Id)}")"><Icon Name="@kind.Id" /> @kind.Label</a>
+                }
+                <button type="button" class="btn ghost" @onclick="() => _kinds = null">Cancel</button>
+            </div>
+        }
+    </div>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_vaults is { Count: > 0 } vaults)
+    {
+        <section class="variables-vaults" aria-label="Key vaults">
+            <h2><Icon Name="key" /> Key vaults <span class="count">@vaults.Count</span></h2>
+            <ul class="variables-vault-cards">
+                @foreach (var vault in vaults)
+                {
+                    <li>
+                        <a class="variables-vault-card" data-vault="@vault.Name" href="@($"connections?name={Uri.EscapeDataString(vault.Name)}")">
+                            <Icon Name="@(vault.Template ?? "key")" />
+                            <strong>@vault.Name</strong>
+                            <span class="muted">@(vault.Type ?? "Key vault")</span>
+                            @if (vault.Names is { } names)
+                            {
+                                <span class="muted variables-vault-count">@(names.Count == 1 ? "1 variable" : $"{names.Count} variables")</span>
+                            }
+                        </a>
+                        @if (vault.Names is { Error: not null } stale)
+                        {
+                            <p class="variables-vault-stale" title="@stale.Error">
+                                <Icon Name="warning" />
+                                <span>@(stale.ReadAt is { } at && DateTimeOffset.TryParse(at, out var when) ? $"Names from {when.ToLocalTime():g}" : "Not read")</span>
+                                <Busy IsBusy="_reading == vault.Name" Words="Reading…"><button type="button" class="link" @onclick="() => ReadAgainAsync(vault.Name)">Read again</button></Busy>
+                            </p>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (vaults.Where(v => v.Every).Select(v => v.Name).ToList() is { Count: > 0 } every)
+            {
+                <p class="hint variables-every">@string.Join(", ", every): every secret, named when it runs.</p>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<KeyVault>? _vaults;
+    private IReadOnlyList<ConnectionForm>? _kinds;
+    private string? _reading;
+    private Exception? _error;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    /// <summary>Read the vaults again (a vault saved, renamed or read again).</summary>
+    public async Task RefreshAsync()
+    {
+        try
+        {
+            _vaults = await Environment.VaultsAsync();
+        }
+        catch (ApiException)
+        {
+            // an older server: no cards
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Add key vault: the vault kinds, each opening its form on the Connections page.</summary>
+    public async Task AddAsync()
+    {
+        try
+        {
+            _kinds = (await Connections.FormsAsync()).Where(f => f.Connection == "vault").ToList();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReadAgainAsync(string name)
+    {
+        _reading = name;
+        try
+        {
+            await Environment.ReadVaultAsync(name);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _reading = null;
+        await RefreshAsync();
+    }
+}

@@ -1,0 +1,69 @@
+@* A structure as a tree (the classic structureTree.ts mountTree): each node's key and value, an object's or a list's
+   kind and count with Fold or Unfold, a long list two hundred at a time (Show more), the search's words marked (the
+   way to a match unfolded), a click selects (its path above), a double click edits a value or a key in place (Enter
+   keeps it, Escape leaves it); the arrows move, Right and Left unfold and fold. Logic in StructureTree.razor.cs. *@
+
+<div class="structure-tree" role="tree" aria-label="@Label" tabindex="0" @onkeydown="KeyAsync">
+    @foreach (var row in Rows())
+    {
+        @if (row.More > 0)
+        {
+            <button type="button" class="structure-more" style="@($"margin-left:{(row.Level * 16) + 24}px")" @onclick="() => ShowMore(row)">Show more (@row.More)</button>
+            continue;
+        }
+        var here = row.Id == _selectedId;
+        <div class="structure-row @(here ? "selected" : null)" role="treeitem" aria-level="@(row.Level + 1)" aria-selected="@(here ? "true" : "false")" aria-expanded="@(row.Container ? (row.Open ? "true" : "false") : null)" data-path="@row.Id" style="@($"padding-left:{(row.Level * 16) + 4}px")" @onclick="() => SelectAsync(row)">
+            @if (row.Container)
+            {
+                <button type="button" class="structure-caret" aria-label="@(row.Open ? "Fold" : "Unfold")" tabindex="-1" @onclick="() => Fold(row)" @onclick:stopPropagation="true"><Icon Name="@(row.Open ? "down" : "forward")" /></button>
+            }
+            else
+            {
+                <span class="structure-caret-space"></span>
+            }
+            @if (_editing == (row.Id, true))
+            {
+                <input class="structure-edit" aria-label="Edit" spellcheck="false" value="@_editText" @oninput="e => _editText = e.Value?.ToString() ?? string.Empty" @onkeydown="e => EditKeyAsync(e, row, true)" @onblur="() => FinishAsync(row, true, true)" @ref="_editBox" />
+            }
+            else
+            {
+                <span class="structure-key @(row.IsIndex ? "index" : null)" @ondblclick="() => EditKey(row)">@Marked(row.Key)</span>
+            }
+            @if (row.Container)
+            {
+                <span class="structure-type t-@row.Kind">@(row.Kind == "list" ? $"list · {row.Count}" : $"object · {row.Count}")</span>
+            }
+            else
+            {
+                <span class="structure-colon">:</span>
+                @if (_editing == (row.Id, false))
+                {
+                    <input class="structure-edit" aria-label="Edit" spellcheck="false" value="@_editText" @oninput="e => _editText = e.Value?.ToString() ?? string.Empty" @onkeydown="e => EditKeyAsync(e, row, false)" @onblur="() => FinishAsync(row, false, true)" @ref="_editBox" />
+                }
+                else
+                {
+                    <span class="structure-value t-@row.Kind" @ondblclick="() => EditValue(row)">@Marked(row.Shown)</span>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private RenderFragment Marked(string text) => __builder =>
+    {
+        var words = _words;
+        if (words.Length == 0)
+        {
+            @text
+            return;
+        }
+        var at = 0;
+        for (var i = text.IndexOf(words, StringComparison.OrdinalIgnoreCase); i >= 0; i = text.IndexOf(words, at, StringComparison.OrdinalIgnoreCase))
+        {
+            @text[at..i]<mark>@text.Substring(i, words.Length)</mark>
+            at = i + words.Length;
+        }
+        @text[at..]
+    };
+}

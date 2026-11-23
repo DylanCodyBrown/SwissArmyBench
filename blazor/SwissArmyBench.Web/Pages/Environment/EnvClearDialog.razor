@@ -1,0 +1,65 @@
+@* Clear the environment (the classic environmentPage.ts clearDialog): a tick per kind with what it would clear
+   (none: greyed out); kept tables, settings and libraries stay. *@
+@inject EnvironmentClient Environment
+
+<AppDialog Title="Clear the environment" OnClose="() => OnDone.InvokeAsync(false)">
+    <ChildContent>
+        <p>Kept tables, settings and libraries stay.</p>
+        @foreach (var (key, label) in Choices.Choices)
+        {
+            var names = Choices.Would.GetValueOrDefault(key) ?? [];
+            <label class="env-clear-row">
+                <input type="checkbox" data-clear="@key" disabled="@(names.Count == 0)" checked="@_ticks.Contains(key)" @onchange="e => Tick(key, e.Value is true)" />
+                <span>@label (@names.Count)</span>
+                @if (names.Count > 0)
+                {
+                    <span class="env-keys">@string.Join(", ", names.Take(6))@(names.Count > 6 ? "…" : string.Empty)</span>
+                }
+            </label>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnDone.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_busy" Words="Clearing…"><button type="button" class="btn danger" @onclick="ClearAsync">Clear</button></Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private readonly HashSet<string> _ticks = [];
+    private bool _busy;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public ClearChoices Choices { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<bool> OnDone { get; set; }
+
+    private void Tick(string key, bool on)
+    {
+        if (on)
+        {
+            _ticks.Add(key);
+        }
+        else
+        {
+            _ticks.Remove(key);
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Environment.ClearAsync(Choices.Choices.Keys.ToDictionary(k => k, _ticks.Contains));
+            await OnDone.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _busy = false;
+    }
+}

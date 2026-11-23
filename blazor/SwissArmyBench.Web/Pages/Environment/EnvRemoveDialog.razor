@@ -1,0 +1,67 @@
+@* Remove a row (the classic environmentPage.ts removeDialog): what removing it does in words, where it is used, a
+   table's "Also delete it in Python" tick. *@
+@inject EnvironmentClient Environment
+
+<AppDialog Title="@($"Remove {Item.Name}")" OnClose="() => OnDone.InvokeAsync(false)">
+    <ChildContent>
+        <p>@Words</p>
+        @if (Item.Used is { Count: > 0 } used)
+        {
+            <p class="env-keys">Used in @used.Count place@(used.Count == 1 ? string.Empty : "s"): @string.Join("; ", used.Take(4).Select(u => u.Words))@(used.Count > 4 ? "…" : string.Empty)</p>
+        }
+        @if (Item.Kind == "table" && Item.InPython)
+        {
+            <label class="env-python-label"><input type="checkbox" class="env-python-too" @bind="_python" /> Also delete it in Python</label>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnDone.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_busy" Words="Removing…"><button type="button" class="btn danger" @onclick="RemoveAsync">Remove</button></Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private bool _python;
+    private bool _busy;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public EnvironmentItem Item { get; set; } = default!;
+
+    /// <summary>The viewer's tick, carried over.</summary>
+    [Parameter]
+    public bool PythonToo { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnDone { get; set; }
+
+    private bool IsOpen => Item.Open?.ValueKind is JsonValueKind.True or JsonValueKind.String;
+
+    private string Words => Item.Kind switch
+    {
+        "table" when IsOpen => $"The table closes with {(Item.Grids is { Count: > 0 } grids ? $"{grids.Count} grid{(grids.Count == 1 ? string.Empty : "s")}" : "no grid")}; its source is not touched.",
+        "table" => "It is a table in Python only.",
+        "variable" => "The variable is deleted in Python.",
+        "structure" => Item.Saved ? $"Its file {Item.From} is deleted from the project." : "The open structure closes; it was never saved.",
+        "setting" => "The setting goes from this computer; what uses it will ask for it.",
+        _ => "The library is taken out of the project's environment and of requirements.txt.",
+    };
+
+    protected override void OnInitialized() => _python = PythonToo || !IsOpen;
+
+    private async Task RemoveAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Environment.RemoveAsync(Item.Kind, Item.Name, _python && Item.InPython);
+            await OnDone.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _busy = false;
+    }
+}

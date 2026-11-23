@@ -122,6 +122,12 @@ window.sab = {
     target.focus();
   },
 
+  /** Whether the focus is in a box the user types in (an input, a text area, a list, an editable part). */
+  typing() {
+    const at = document.activeElement;
+    return Boolean(at && at.matches("input, textarea, select, [contenteditable='true']"));
+  },
+
   /** The first element under `root` that matches `selector` takes the focus (a palette's chosen colour). */
   focusFirst(root, selector) {
     root?.querySelector(selector)?.focus();

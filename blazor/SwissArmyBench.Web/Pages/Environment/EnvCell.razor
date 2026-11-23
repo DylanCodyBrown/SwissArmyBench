@@ -1,0 +1,122 @@
+@* One cell of an Environment row, by its column's heading (the classic environmentPage.ts COLUMNS): a table's rows by
+   columns, columns, grids, used in, from; a variable's type, value; a structure's format, size, paths, file; a
+   setting's kind, value (shown on the user's click), where it comes from; a library's Pinned, version (→ newer), what
+   it is for, where it is imported. *@
+
+@switch (Head)
+{
+    case "Rows by columns" or "Size":
+        <span class="env-size">@Item.Size</span>
+        break;
+    case "Grids":
+        <span class="env-from">
+            @if (Item.Grids is { Count: > 0 } grids)
+            {
+                <span class="env-tag env-tag-grid" title="A grid is a view of this table, never a copy">In @Plural(grids.Count, "grid")</span>
+            }
+            else
+            {
+                <span class="env-none">no grid</span>
+            }
+        </span>
+        break;
+    case "Used in" or "Imported in":
+        @if (Item.Used is { Count: > 0 } used)
+        {
+            <span class="env-from"><button type="button" class="env-link" data-used="@Item.Id" @onclick="OnUsed" @onclick:stopPropagation="true">@Plural(used.Count, "place")</button></span>
+        }
+        else
+        {
+            <span class="env-from env-none">@(Head == "Imported in" ? "not imported yet" : "not used yet")</span>
+        }
+        break;
+    case "Type" or "Format":
+        <span class="env-type">@Marked(Item.Type)</span>
+        break;
+    case "Kind":
+        <span class="env-type">@Item.Type</span>
+        break;
+    case "Value" when Revealed is not null:
+        <span class="env-val env-shown">@Revealed</span>
+        break;
+    case "Value" or "Columns" or "Paths":
+        <span class="env-val">@Marked(Item.Value)</span>
+        break;
+    case "Pinned":
+        @if (Item.Installed)
+        {
+            <button type="button" class="env-pin @(Item.Pinned ? "on" : null)" data-pin="@Item.Name" aria-pressed="@(Item.Pinned ? "true" : "false")" title="@(Item.Pinned ? $"Pinned to {Item.Version} in requirements.txt: click to let it update" : $"Not pinned: click to keep it at {Item.Version}")" @onclick="OnPin" @onclick:stopPropagation="true">
+                @if (Item.Pinned)
+                {
+                    <Icon Name="pin" />
+                }
+                @(Item.Pinned ? "Pinned" : "Pin")
+            </button>
+        }
+        else
+        {
+            <span class="env-none"></span>
+        }
+        break;
+    case "Version":
+        <span class="env-type">
+            @(Item.Version is { Length: > 0 } version ? version : "not installed")
+            @if (Item.Latest is { } latest)
+            {
+                <button type="button" class="env-update" data-update="@Item.Name" title="@($"Update to {latest}")" @onclick="OnUpdate" @onclick:stopPropagation="true">→ @latest</button>
+            }
+            else if (Item.Installed && Checked)
+            {
+                <span class="env-latest">latest</span>
+            }
+        </span>
+        break;
+    default:
+        <span class="env-from">@Marked(Item.From)</span>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public EnvironmentItem Item { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Head { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Query { get; set; } = string.Empty;
+
+    /// <summary>A setting's value the user asked to see (Show), else null.</summary>
+    [Parameter]
+    public string? Revealed { get; set; }
+
+    /// <summary>The package index was asked: an installed library with no newer version says "latest".</summary>
+    [Parameter]
+    public bool Checked { get; set; }
+
+    [Parameter]
+    public EventCallback OnUsed { get; set; }
+
+    [Parameter]
+    public EventCallback OnPin { get; set; }
+
+    [Parameter]
+    public EventCallback OnUpdate { get; set; }
+
+    private static string Plural(int n, string word) => $"{n:N0} {word}{(n == 1 ? string.Empty : "s")}";
+
+    private RenderFragment Marked(string text) => __builder =>
+    {
+        foreach (var (part, marked) in TextMarks.Of(text, Query))
+        {
+            if (marked)
+            {
+                <mark>@part</mark>
+            }
+            else
+            {
+                @part
+            }
+        }
+    };
+}

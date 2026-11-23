@@ -1,0 +1,50 @@
+@* Paste (the classic structuresPage.ts paste): its name, its format (Find the format, or one named) and the text. *@
+@using SwissArmyBench.Web.Api.Structures
+@inject StructuresClient Structures
+
+<AppDialog Title="Paste" OnClose="() => OnDone.InvokeAsync(null)">
+    <ChildContent>
+        <div class="structures-paste-row">
+            <input aria-label="Name" placeholder="Name" @bind="_name" />
+            <select aria-label="Format" @bind="_format">
+                <option value="">Find the format</option>
+                <option value="json">JSON</option>
+                <option value="yaml">YAML</option>
+                <option value="xml">XML</option>
+                <option value="toml">TOML</option>
+            </select>
+        </div>
+        <textarea class="mono structures-paste" rows="14" spellcheck="false" aria-label="Text" placeholder="@Hint" @bind="_text" @bind:event="oninput"></textarea>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnDone.InvokeAsync(null)">Cancel</button>
+        <button type="button" class="btn primary" @onclick="OpenAsync">Open</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private const string Hint = "{\"gates\": []}";
+
+    private string _name = "Pasted";
+    private string _format = string.Empty;
+    private string _text = string.Empty;
+    private Exception? _error;
+
+    /// <summary>The pasted structure's id (null: Cancel).</summary>
+    [Parameter]
+    public EventCallback<string?> OnDone { get; set; }
+
+    private async Task OpenAsync()
+    {
+        try
+        {
+            var made = await Structures.PasteAsync(_text, _format.Length > 0 ? _format : null, _name.Length > 0 ? _name : "Pasted");
+            await OnDone.InvokeAsync(made.Id);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

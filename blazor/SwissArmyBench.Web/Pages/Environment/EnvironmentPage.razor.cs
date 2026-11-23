@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
-using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
 using SwissArmyBench.Web.State;
 
@@ -14,28 +13,47 @@ public partial class EnvironmentPage : IDisposable
     private const string Structure = "structure";
     private const string Setting = "setting";
     private const string Library = "library";
-    private const int TypingPauseMilliseconds = 200;
+    private const int TypingPauseMilliseconds = 120;
 
-    /// <summary>The address's word for each tab (?at=), as the classic page names them.</summary>
+    private static readonly string[] _kinds = [Table, "variable", Structure, Setting, Library];
+
     private static readonly Dictionary<string, string> _tabWords = new()
+    {
+        [Table] = "Tables",
+        ["variable"] = "Variables",
+        [Structure] = "Structures",
+        [Setting] = "Settings and secrets",
+        [Library] = "Libraries",
+    };
+
+    /// <summary>A tab named in an address: its kind, or the word the tab shows (at=settings, at=libraries).</summary>
+    private static readonly Dictionary<string, string> _tabNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["tables"] = Table,
         ["variables"] = "variable",
         ["structures"] = Structure,
         ["settings"] = Setting,
+        ["secrets"] = Setting,
         ["libraries"] = Library,
     };
 
+    private readonly HashSet<string> _opened = [];
+    private readonly Dictionary<string, IReadOnlyList<IReadOnlyList<string>>> _columnsOf = [];
+    private readonly Dictionary<string, string> _revealed = [];
     private EnvironmentAnswer? _answer;
     private Exception? _error;
-    private string _search = string.Empty;
+    private string _tab = Table;
+    private string? _selected;
+    private string _typed = string.Empty;
+    private string _query = string.Empty;
     private CancellationTokenSource? _typing;
-    private EnvironmentShown? _shown;
-    private bool _adding;
-    private IReadOnlyList<ConnectionForm>? _vaultKinds;
-
-    [Inject]
-    private ConnectionsClient Connections { get; set; } = default!;
+    private bool _folded;
+    private bool _checking;
+    private bool _pythonToo;
+    private int _asked;
+    private ElementReference _searchBox;
+    private KeyVaultsSection? _vaults;
+    private HashSet<string> _hidden = [];
 
     [Inject]
     private EnvironmentClient Environment { get; set; } = default!;
@@ -44,7 +62,7 @@ public partial class EnvironmentPage : IDisposable
     private LiveUpdates Live { get; set; } = default!;
 
     [Inject]
-    private Dialogs Dialogs { get; set; } = default!;
+    private Notes Notes { get; set; } = default!;
 
     [Inject]
     private NavigationManager Nav { get; set; } = default!;
@@ -55,98 +73,182 @@ public partial class EnvironmentPage : IDisposable
     [SupplyParameterFromQuery(Name = "at")]
     public string? At { get; set; }
 
-    /// <summary>The tab shown: the address's, else Tables.</summary>
-    private string Tab => At is not null && _tabWords.TryGetValue(At, out var kind) ? kind : Table;
+    [SupplyParameterFromQuery(Name = "name")]
+    public string? RowName { get; set; }
+
+    private EnvironmentItem? Selected => _answer?.Items.FirstOrDefault(i => i.Id == _selected);
+
+    private IReadOnlyList<string> OtherTabs =>
+        _kinds.Where(k => k != _tab && (_answer?.Counts.GetValueOrDefault(k) ?? 0) > 0).ToList();
+
+    private string EmptyWords => _query.Length > 0 ? $"Nothing in {_tabWords[_tab]} matches “{_query}”." : _tab switch
+    {
+        Table => "No tables yet. Add one on the Connections page, or make one in code.",
+        "variable" => "No variables yet: they show here as your code makes them.",
+        Structure => "No structures yet: open a JSON, YAML, XML or TOML file, or send one from code.",
+        Setting => "No settings yet.",
+        _ => "No libraries yet: Install a library… adds one to the project.",
+    };
+
+    /// <summary>The list's grid: the twist, the name, the tab's shown columns, the actions.</summary>
+    private string ListColumns =>
+        $"--env-cols: {string.Join(" ", new[] { "18px", "minmax(170px,1.3fr)" }.Concat(Shown(_tab).Select(c => c.Width)).Append("30px"))}";
 
     protected override async Task OnInitializedAsync()
     {
-        await Js.InvokeVoidAsync("sab.setTitle", "Environment");
         Live.NoticeArrived += OnNotice;
-        await LoadAsync();
+        _folded = await Js.InvokeAsync<string?>("sab.recall", "env.viewer.page") == "1";
     }
 
-    private static string TabParameterOf(string kind) => _tabWords.First(w => w.Value == kind).Key;
+    protected override async Task OnParametersSetAsync()
+    {
+        var tab = At is not null && _tabNames.TryGetValue(At, out var named) ? named : At is not null && _kinds.Contains(At) ? At : Table;
+        var changed = tab != _tab || _answer is null;
+        _tab = tab;
+        _hidden = await HiddenAsync(_tab);
+        if (RowName is { } row)
+        {
+            _selected = $"{_tab}:{row}";
+        }
+        if (_answer is null)
+        {
+            await LoadAsync();
+        }
+        if (changed && _tab == Library)
+        {
+            await CheckAsync();
+        }
+        await Js.InvokeVoidAsync("sab.setTitle", "Environment");
+    }
 
     private async Task LoadAsync()
     {
+        var mine = ++_asked;
         try
         {
-            _answer = await Environment.ListingAsync(_search);
+            var got = await Environment.ListingAsync(_query);
+            if (mine != _asked)
+            {
+                return;
+            }
+            _answer = got;
             _error = null;
+            if (_tab == Setting && _vaults is not null)
+            {
+                await _vaults.RefreshAsync(); // a vault saved, renamed or read again: its card follows
+            }
         }
         catch (ApiException error)
         {
             _error = error;
         }
+        if (Selected is not { } chosen || chosen.Kind != _tab)
+        {
+            _selected = Rows(_tab).FirstOrDefault()?.Id;
+        }
     }
 
-    private async Task SearchAsync(ChangeEventArgs e)
+    /// <summary>The Libraries tab asks the index for newer versions when it opens (never in the background).</summary>
+    private async Task CheckAsync()
     {
-        _search = e.Value?.ToString() ?? string.Empty;
-        _typing?.Cancel();
-        _typing = new CancellationTokenSource();
-        try
+        if (_checking || _answer?.Checked == true)
         {
-            await Task.Delay(TypingPauseMilliseconds, _typing.Token);
-        }
-        catch (TaskCanceledException)
-        {
-            return; // more typing came: only the last pause looks
-        }
-        await LoadAsync();
-    }
-
-    /// <summary>A table opens as its grid on the Grids page; a structure on the classic Structures page for now.</summary>
-    private async Task OpenAsync(EnvironmentItem item)
-    {
-        if (item.Kind == Structure)
-        {
-            Nav.NavigateTo($"/workspace?open=structures&name={Uri.EscapeDataString(item.Name)}", forceLoad: true);
             return;
         }
-        await RunAsync(async () =>
-        {
-            var opened = await Environment.OpenAsync(item.Kind, item.Name);
-            var grid = opened.Link?.Grid;
-            Nav.NavigateTo(grid is null ? "grids" : $"grids?grid={Uri.EscapeDataString(grid)}");
-        });
-    }
-
-    private async Task RenameAsync(EnvironmentItem item)
-    {
-        var to = await Dialogs.AskTextAsync($"Rename {item.Name}", "Every place that uses it follows.", "Name", item.Name, "Rename");
-        if (!string.IsNullOrWhiteSpace(to) && to != item.Name)
-        {
-            await RunAsync(() => Environment.RenameAsync(item.Kind, item.Name, to.Trim()));
-        }
-    }
-
-    private async Task RemoveAsync(EnvironmentItem item)
-    {
-        if (await Dialogs.AskYesNoAsync($"Remove {item.Name}?", "It leaves the project's environment.", "Remove", danger: true))
-        {
-            await RunAsync(() => Environment.RemoveAsync(item.Kind, item.Name));
-        }
-    }
-
-    private Task PinAsync(EnvironmentItem item) => RunAsync(() => Environment.PinAsync(item.Name, item.Pinned != true));
-
-    private Task UpdateAsync(EnvironmentItem item) => RunAsync(() => Environment.UpdateAsync(item.Name));
-
-    private Task CheckAsync() => RunAsync(() => Environment.CheckLibrariesAsync());
-
-    private async Task RunAsync(Func<Task> work)
-    {
+        _checking = true;
         try
         {
-            await work();
-            _error = null;
+            await Environment.CheckLibrariesAsync();
+            await LoadAsync();
         }
-        catch (ApiException error)
+        catch (ApiException)
         {
-            _error = error;
+            // The index cannot be reached: the libraries show without a newer version.
         }
-        await LoadAsync();
+        _checking = false;
+    }
+
+    private IReadOnlyList<EnvironmentItem> Rows(string kind) => (_answer?.Items ?? []).Where(i => i.Kind == kind).ToList();
+
+    private IReadOnlyList<EnvColumn> Shown(string kind) => EnvColumn.Of[kind].Where(c => kind != _tab || !_hidden.Contains(c.Head)).ToList();
+
+    private async Task<HashSet<string>> HiddenAsync(string kind) =>
+        ((await Js.InvokeAsync<string?>("sab.recall", $"env.hidden.{kind}")) ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+
+    private IReadOnlyList<IReadOnlyList<string>> KidsOf(EnvironmentItem item) => _columnsOf.GetValueOrDefault(item.Id) ?? item.Kids ?? [];
+
+    private bool IsOpen(EnvironmentItem item) => _opened.Contains(item.Id) || (_query.Length > 0 && item.Match is { Own: false, Kids.Count: > 0 });
+
+    private static string PythonWords(EnvironmentPython python, EnvironmentAnswer answer) =>
+        python.Own ? "the project's own (.venv)"
+        : python.Status == "making" ? "this app's own (the project's is being made)"
+        : answer.Project is not null ? "this app's own (the project has no .venv yet)"
+        : "this app's own";
+
+    private async Task SetTabAsync(string kind, string? name = null)
+    {
+        _tab = kind;
+        _hidden = await HiddenAsync(kind);
+        _selected = name is null ? Rows(kind).FirstOrDefault()?.Id : $"{kind}:{name}";
+        Moved();
+        if (kind == Library)
+        {
+            await CheckAsync();
+        }
+    }
+
+    private void Select(string id, bool reveal = false)
+    {
+        var item = _answer?.Items.FirstOrDefault(i => i.Id == id);
+        if (item is not null && item.Kind != _tab)
+        {
+            _tab = item.Kind;
+        }
+        _selected = id;
+        if (reveal && _folded)
+        {
+            _folded = false;
+        }
+        Moved();
+    }
+
+    /// <summary>The tab and the row in the address, replaced (a row is a place, not a step back).</summary>
+    private void Moved()
+    {
+        var name = Selected?.Name;
+        Nav.NavigateTo($"environment?at={_tab}{(name is null ? string.Empty : $"&name={Uri.EscapeDataString(name)}")}", replace: true);
+    }
+
+    private async Task ToggleAsync(EnvironmentItem item, bool? to)
+    {
+        var open = to ?? !_opened.Contains(item.Id);
+        if (open)
+        {
+            _opened.Add(item.Id);
+        }
+        else
+        {
+            _opened.Remove(item.Id);
+        }
+        _selected = item.Id;
+        // A table's columns with their ranges and blanks: asked once, when the row first opens.
+        if (open && item.Kind == Table && item.Open?.ValueKind == System.Text.Json.JsonValueKind.True && !_columnsOf.ContainsKey(item.Id))
+        {
+            try
+            {
+                _columnsOf[item.Id] = await Environment.ColumnsAsync(item.Name);
+            }
+            catch (ApiException)
+            {
+                // its kids as listed stay
+            }
+        }
+    }
+
+    private async Task FoldAsync()
+    {
+        _folded = !_folded;
+        await Js.InvokeVoidAsync("sab.remember", "env.viewer.page", _folded ? "1" : "0");
     }
 
     private void OnNotice(Notice notice)
@@ -164,24 +266,8 @@ public partial class EnvironmentPage : IDisposable
     public void Dispose()
     {
         Live.NoticeArrived -= OnNotice;
+        _typing?.Cancel();
         _typing?.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    private Task ShowAsync(EnvironmentItem item) => RunAsync(async () => _shown = await Environment.ShowAsync(item.Kind, item.Name));
-
-    /// <summary>Add key vault: the vault kinds, each opening its form on the Connections page.</summary>
-    private Task VaultKindsAsync() => RunAsync(async () =>
-        _vaultKinds = _vaultKinds is null
-            ? (await Connections.FormsAsync()).Where(f => f.Connection == "vault").ToList()
-            : null);
-
-    private async Task InstallAsync()
-    {
-        var name = await Dialogs.AskTextAsync("Install a library", "Its name on the package index (a version with ==).", "Library", string.Empty, "Install");
-        if (!string.IsNullOrWhiteSpace(name))
-        {
-            await RunAsync(() => Environment.InstallAsync(name.Trim()));
-        }
     }
 }

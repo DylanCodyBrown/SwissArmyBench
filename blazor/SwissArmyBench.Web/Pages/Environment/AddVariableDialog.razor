@@ -40,11 +40,17 @@
     [Inject]
     private Notes Notes { get; set; } = default!;
 
+    /// <summary>A setting's name to change (Change…), or empty for a new one.</summary>
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+
     [Parameter]
     public EventCallback OnClose { get; set; }
 
     [Parameter]
     public EventCallback OnAdded { get; set; }
+
+    protected override void OnInitialized() => _name = Name;
 
     private void NameTyped(ChangeEventArgs e)
     {

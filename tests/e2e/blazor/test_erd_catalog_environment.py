@@ -29,9 +29,9 @@ def test_catalog_search_and_environment_open(browser: Browser, server: dict[str,
     page.fill(".catalog-search", "cust")
     expect(page.locator(".catalog-rows").first).to_contain_text("customers")
     page.click(".nav-rail-item[data-area=environment]")
-    row = page.locator(".environment-rows tr", has_text="orders").first
-    expect(row).to_contain_text("Table")
-    row.locator("button:has-text('Open')").click()
+    row = page.locator(".env-row[data-name=orders]").first
+    expect(row).to_contain_text("In 1 grid")
+    row.dblclick()
     expect(page.locator(".grid-title")).to_contain_text("orders")
     page.close()
 
@@ -41,18 +41,20 @@ def test_the_environments_viewer_and_add_variable(browser: Browser, server: dict
     # A structure's row says "open" in words where a table's says true: both read (a fix of part one).
     call(server, "POST", "/structures", {"kind": "object", "name": "made_up_regions", "value": {"north": 1}})
     page = open_page(browser, server, "environment?at=tables")
-    page.locator(".environment-name", has_text="orders").first.click()
-    viewer = page.locator(".environment-viewer")
-    expect(viewer).to_contain_text("amount")
+    page.locator(".env-row[data-name=orders]").first.click()
+    viewer = page.locator(".env-side")
+    expect(viewer).to_contain_text("orders")
     expect(viewer).to_contain_text("Used in")
+    page.locator(".env-row[data-name=orders] .env-twist").first.click()
+    expect(page.locator(".env-child").first).to_be_visible()
 
     page.goto(page.url.split("/blazor/")[0] + "/blazor/environment?at=settings")
-    page.click("button:has-text('Add variable…')")
+    page.click("button:has-text('Add a setting…')")
     page.fill(".dialog input[aria-label=Name]", "made_up_region")
     expect(page.locator(".dialog input[aria-label=Name]")).to_have_value("MADE_UP_REGION")
     page.fill(".dialog input[aria-label=Value]", "North")
     page.click(".dialog-foot .btn.primary")
-    expect(page.locator(".environment-rows")).to_contain_text("MADE_UP_REGION")
+    expect(page.locator(".env-list")).to_contain_text("MADE_UP_REGION")
     names = [v["name"] for v in call(server, "GET", "/variables")["variables"]]
     assert "MADE_UP_REGION" in names
     page.close()
