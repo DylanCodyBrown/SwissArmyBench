@@ -100,3 +100,110 @@ def test_which_snippets_a_cell_takes_and_which_cells_are_the_apps_own(run: Any) 
     assert run(*[["isHeading", r] for r in roles]) == [False, False, False, True, True, False]
     assert run(*[["hasSource", k] for k in kinds]) == [False, True, True, False, False, False]
     assert run(*[["drawn", k] for k in kinds]) == [False, False, False, True, False, False]
+
+
+def test_a_sql_cells_first_line_as_the_kernel_runs_it(run: Any) -> None:
+    assert run(
+        ["sqlLine", None], ["sqlLine", "Shop"], ["sqlLine", "Finance Captive"], ["sqlLine", "Dan's db"]
+    ) == [
+        "%%sql",
+        "%%sql Shop",
+        "%%sql 'Finance Captive'",
+        "%%sql 'Dan'\"'\"'s db'",
+    ]
+
+
+def test_whether_code_makes_a_name(run: Any) -> None:
+    makes = [
+        "orders = load()",
+        "a, orders = 1, 2",
+        "orders, b = 1, 2",
+        "def orders():\n    pass",
+        "class orders:\n    pass",
+        "import pandas as orders",
+        "from shop import orders",
+        "import orders",
+        "x = 1\n  orders = 2",
+        "for orders in batches:\n    pass",
+    ]
+    reads = [
+        "print(orders)",
+        "orders == 3",
+        "my_orders = 1",
+        "# orders = 1 is said, never made",
+        "orders2 = 1",
+    ]
+    assert run(*[["makesName", "orders", code] for code in makes]) == [True] * len(makes)
+    assert run(*[["makesName", "orders", code] for code in reads]) == [False] * len(reads)
+    # A name with a character a pattern would read is taken as written.
+    assert run(["makesName", "a.b", "a.b = 1"], ["makesName", "a.b", "axb = 1"]) == [True, False]
+
+
+def key(name: str, **held: bool) -> dict[str, Any]:
+    return {"key": name, "shift": False, "ctrl": False, "meta": False, "alt": False} | held
+
+
+def test_what_a_key_does_in_command_mode(run: Any) -> None:
+    asked = {
+        "Enter": "edit",
+        "a": "above",
+        "B": "below",
+        "d": "d",
+        "y": "code",
+        "m": "markdown",
+        "s": "sql",
+        "x": "dax",
+        "h": "html",
+        "c": "copy",
+        "v": "paste",
+        "z": "undo",
+        "j": "down",
+        "ArrowDown": "down",
+        "k": "up",
+        "ArrowUp": "up",
+        "o": "output",
+        "q": None,
+        "Escape": None,
+    }
+    assert run(*[["commandFor", key(k), ""] for k in asked]) == list(asked.values())
+    # Enter runs with Shift (and goes on) or Ctrl; on a heading's line it folds.
+    assert run(
+        ["commandFor", key("Enter", shift=True), ""],
+        ["commandFor", key("Enter", ctrl=True), ""],
+        ["commandFor", key("Enter", meta=True), ""],
+        ["commandFor", key("Enter", alt=True), ""],
+        ["commandFor", key("Enter"), "tables"],
+        ["commandFor", key("Enter"), "table"],
+        ["commandFor", key("Enter"), "transformations"],
+    ) == ["runNext", "run", "run", None, "fold", "fold", "edit"]
+    # The browser's own keys stay the browser's (Ctrl+C, Ctrl+Z), and Shift+A is not A.
+    assert run(
+        ["commandFor", key("c", ctrl=True), ""],
+        ["commandFor", key("z", meta=True), ""],
+        ["commandFor", key("A", shift=True), ""],
+        ["commandFor", key("X", shift=True), ""],
+        ["commandFor", key("M", shift=True), ""],
+    ) == [None, None, None, None, "markdown"]
+    # One of the app's own cells keeps its kind; it is still deleted (D D asks) and passed over.
+    kinds = ["y", "m", "s", "x", "h"]
+    assert run(*[["commandFor", key(k), "transformations"] for k in kinds]) == [None] * 5
+    assert run(["commandFor", key("d"), "transformations"], ["commandFor", key("j"), "tables"]) == [
+        "d",
+        "down",
+    ]
+
+
+def test_a_cells_mark_from_the_run_order(run: Any) -> None:
+    assert run(
+        ["flowWords", None],
+        ["flowWords", {"state": "current", "because": []}],
+        ["flowWords", {"state": "edited", "because": []}],
+        ["flowWords", {"state": "outOfDate", "because": ["orders", "rates"]}],
+        ["flowWords", {"state": "outOfDate", "because": []}],
+    ) == [
+        {"words": "", "title": ""},
+        {"words": "", "title": ""},
+        {"words": "edited", "title": ""},
+        {"words": "out of date", "title": "Made again since it ran: orders, rates"},
+        {"words": "out of date", "title": ""},
+    ]
