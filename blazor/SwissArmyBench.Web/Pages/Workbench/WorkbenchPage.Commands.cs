@@ -23,6 +23,7 @@ public partial class WorkbenchPage
         .. DocumentCommands(),
         .. ViewCommands(),
         .. DebugCommands(),
+        .. MoreCommands(),
         .. (IsNotebooks ? [] : new List<WorkbenchCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
     ];
 

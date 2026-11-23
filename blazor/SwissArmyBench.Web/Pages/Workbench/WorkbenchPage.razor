@@ -126,6 +126,17 @@
     {
         <SwissArmyBench.Web.Pages.Workbench.Ide.SearchScripts OnClose="() => _searching = false" OnGo="p => { _searching = false; return GoToPlaceAsync(p); }" />
     }
+    @if (_newBlade)
+    {
+        <SwissArmyBench.Web.Pages.Workbench.Blades.NewBladeDialog OnClose="() => _newBlade = false" OnMade="async n => { _newBlade = false; await OpenBladeAsync(n, fresh: true); }" />
+    }
+    @if (_helpTitle is { } helpTitle)
+    {
+        <AppDialog Title="@helpTitle" OnClose="() => _helpTitle = null">
+            <ChildContent><pre class="code-box wb-help-text">@_helpText</pre></ChildContent>
+            <Foot><button type="button" class="btn" @onclick="() => _helpTitle = null">Close</button></Foot>
+        </AppDialog>
+    }
     @if (_palette)
     {
         <CommandPalette Commands="Commands()" Recent="_recentCommands" OnClose="() => _palette = false" OnRun="RunCommandAsync" />

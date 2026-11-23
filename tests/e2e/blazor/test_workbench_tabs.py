@@ -252,3 +252,30 @@ def test_the_files_pane_finds_outlines_and_duplicates(browser: Browser, server: 
     expect(page.locator(".wb-tab.active")).to_contain_text("tools_copy", timeout=15_000)
     call(server, "POST", "/project/close", {"discard": True})
     page.close()
+
+
+def test_the_palettes_other_commands(browser: Browser, server: dict[str, Any]) -> None:
+    path = str(server["tmp"] / "workbench" / "made_up_console.py")
+    call(server, "POST", "/workbench/save", {"path": path, "text": "print('made up')\n"})
+    page = open_page(browser, server, f"scripts?path={path}")
+    expect(page.locator(".wb-script-editor .monaco-editor")).to_be_visible()
+
+    def run(words: str) -> None:
+        page.keyboard.press("Control+Shift+P")
+        page.locator(".palette input").fill(words)
+        expect(page.locator(".palette-item").first).to_contain_text(words, ignore_case=True)
+        page.keyboard.press("Enter")
+
+    run("run code in the console")
+    page.locator(".dialog input").fill("6 * 7")
+    page.click(".dialog-foot .btn.primary")
+    expect(page.locator(".wb-console-body")).to_contain_text("42", timeout=60_000)
+    run("what is open")
+    expect(page.locator(".dialog .wb-help-text")).to_contain_text("made_up_console.py")
+    page.locator(".dialog-foot button:has-text('Close')").click()
+    run("keyboard shortcuts")
+    expect(page.locator(".dialog .wb-help-text")).to_contain_text("Ctrl+Shift+P")
+    page.locator(".dialog-foot button:has-text('Close')").click()
+    run("clear the console")
+    expect(page.locator(".wb-console-body")).not_to_contain_text("42")
+    page.close()

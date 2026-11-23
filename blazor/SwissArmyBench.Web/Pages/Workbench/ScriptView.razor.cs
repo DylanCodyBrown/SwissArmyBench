@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Workbench;
@@ -21,6 +22,9 @@ public partial class ScriptView
 
     [Inject]
     private PythonSession Session { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
 
     [Parameter, EditorRequired]
     public string Text { get; set; } = string.Empty;
@@ -169,6 +173,21 @@ public partial class ScriptView
             _error = error;
         }
     }
+
+    /// <summary>Clear the console (the palette's).</summary>
+    public void ClearConsole() => Clear();
+
+    /// <summary>The console's line takes the focus (Go to the console).</summary>
+    public Task FocusConsoleAsync() => Js.InvokeVoidAsync("sab.focus", ".wb-console-line input").AsTask();
+
+    /// <summary>Run code in the console, as if typed there.</summary>
+    public Task RunInConsoleAsync(string code) => RunAsync(new RunRequest(code, Document: Path));
+
+    /// <summary>What the console shows, as text.</summary>
+    public string ConsoleText => string.Join('\n', _console.Outputs.Select(o => OutputReader.Plain(OutputReader.Text(o, "text"))));
+
+    /// <summary>The code's size (the palette's Code size): 13 px is 100%.</summary>
+    public Task SetCodeSizeAsync(int px) => _editor?.SetFontSizeAsync(px) ?? Task.CompletedTask;
 
     private void Clear()
     {

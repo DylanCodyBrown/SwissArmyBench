@@ -43,6 +43,8 @@ public sealed class WorkbenchClient
 
     public Task InterruptAsync(string kernel) => _api.PostAsync($"/workbench/kernels/{ApiClient.Part(kernel)}/interrupt");
 
+    public Task StopAsync(string kernel) => _api.DeleteAsync($"/workbench/kernels/{ApiClient.Part(kernel)}");
+
     public Task RestartAsync(string kernel) => _api.PostAsync($"/workbench/kernels/{ApiClient.Part(kernel)}/restart");
 
     /// <summary>An HTML cell's design: its names filled from its run's values (each as the kernel gave it).</summary>

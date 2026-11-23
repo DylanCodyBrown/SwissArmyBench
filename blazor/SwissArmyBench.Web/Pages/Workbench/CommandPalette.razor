@@ -31,6 +31,9 @@
 </div>
 
 @code {
+    // Long enough for the key's own events to end (one turn of the page's loop).
+    private const int KeyOver = 1;
+
     private string _query = string.Empty;
     private int _at;
     private ElementReference _box;
@@ -96,7 +99,10 @@
         {
             return;
         }
+        // Closed first (the palette goes), then run once the key that chose it is over: a dialog the command opens
+        // takes the focus, and the same Enter would press its button.
         await OnClose.InvokeAsync();
+        await Task.Delay(KeyOver);
         await OnRun.InvokeAsync(command);
     }
 }

@@ -89,6 +89,17 @@ public sealed class PythonSession : IDisposable
         }
     }
 
+    /// <summary>The session stopped (its variables gone); the next Run starts a new one.</summary>
+    public async Task StopAsync()
+    {
+        if (Kernel is not null)
+        {
+            await _workbench.StopAsync(Kernel);
+            (Kernel, Shared, _running) = (null, null, 0);
+            Changed?.Invoke();
+        }
+    }
+
     private void OnNotice(Notice notice)
     {
         if (notice.Text("kernel") != Kernel || Kernel is null)

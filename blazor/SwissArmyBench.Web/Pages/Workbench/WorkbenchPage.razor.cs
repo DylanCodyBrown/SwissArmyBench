@@ -249,6 +249,7 @@ public partial class WorkbenchPage
             _recentCommands.RemoveAt(RecentCommands);
         }
         await GuardAsync(command.Run);
+        StateHasChanged(); // the palette that asked has gone: the page draws the command's outcome itself
     }
 
     /// <summary>An action whose refusal shows in the page's error note.</summary>
