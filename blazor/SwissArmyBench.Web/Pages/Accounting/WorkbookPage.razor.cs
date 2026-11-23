@@ -47,19 +47,26 @@ public partial class WorkbookPage : IAsyncDisposable
     private Notes Notes { get; set; } = default!;
 
     [Inject]
-    private NavigationManager Nav { get; set; } = default!;
-
-    [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
     [Inject]
     private SwissArmyBench.Web.Api.Files.FileChooser Files { get; set; } = default!;
 
-    [SupplyParameterFromQuery(Name = "path")]
+    /// <summary>The design's file (a workbook.design.json); null with NewTitle: a new design.</summary>
+    [Parameter]
     public string? Path { get; set; }
 
-    [SupplyParameterFromQuery(Name = "title")]
+    /// <summary>A new design's title (the first sheet's heading): the project's name, else the tab's.</summary>
+    [Parameter]
     public string? NewTitle { get; set; }
+
+    /// <summary>The design saved: its file (the tab takes its name).</summary>
+    [Parameter]
+    public EventCallback<string> OnSaved { get; set; }
+
+    /// <summary>Unsaved changes or none (the tab's dot).</summary>
+    [Parameter]
+    public EventCallback<bool> OnDirty { get; set; }
 
     private WorkbookSheet? Sheet => _state?.Design.Sheets.FirstOrDefault(s => s.Id == _sheetId) ?? _state?.Design.Sheets.FirstOrDefault();
 
@@ -96,6 +103,10 @@ public partial class WorkbookPage : IAsyncDisposable
 
     private void Take(WorkbookState next)
     {
+        if (next.Unsaved != (_state?.Unsaved ?? false))
+        {
+            _ = OnDirty.InvokeAsync(next.Unsaved);
+        }
         _state = next;
         if (!next.Design.Sheets.Any(s => s.Id == _sheetId))
         {

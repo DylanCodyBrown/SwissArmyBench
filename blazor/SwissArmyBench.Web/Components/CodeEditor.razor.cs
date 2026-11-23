@@ -106,7 +106,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline, menu = await MenuOptionsAsync() };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, path = Path, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline, menu = await MenuOptionsAsync() };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {

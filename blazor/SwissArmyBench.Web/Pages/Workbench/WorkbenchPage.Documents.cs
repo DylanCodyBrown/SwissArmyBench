@@ -14,6 +14,19 @@ public partial class WorkbenchPage
 
     private async Task OpenPathAsync(string path)
     {
+        if (path.EndsWith(".design.json", StringComparison.OrdinalIgnoreCase))
+        {
+            // A workbook's design opens as a tab of the Notebooks page (whatever the mode: the classic's own rule).
+            if (IsNotebooks)
+            {
+                OpenWorkbook(path);
+            }
+            else
+            {
+                _wrongPage = ($"{System.IO.Path.GetFileName(path)} is a workbook: it opens on the Notebooks page.", $"notebooks?path={Uri.EscapeDataString(path)}");
+            }
+            return;
+        }
         if (StructureFiles.IsStructure(path))
         {
             OpenStructure(path, null);
@@ -78,7 +91,7 @@ public partial class WorkbenchPage
     {
         var path = Front?.Path;
         _shownFor = $"{path}|{path is null && Front is { IsBlade: false }}|{Front?.Blade}";
-        Nav.NavigateTo(BladeAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new=1") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
+        Nav.NavigateTo(BladeAddress ?? CodeFileAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new=1") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
         await Js.InvokeVoidAsync("sab.setTitle", Title);
     }
 
@@ -172,11 +185,18 @@ public partial class WorkbenchPage
         await Notes.SayAsync("Saved");
     }
 
-    private Task SaveAsync(OpenDocument? doc) => doc is { StructureDoc: { } structure } ? structure.SaveAsync()
+    private Task SaveAsync(OpenDocument? doc) => doc is { CodeFileView: { } codeFile } ? SaveCodeFileAsync(doc, codeFile)
+        : doc is { WorkbookView: { } workbook } ? workbook.SaveAsync()
+        : doc is { StructureDoc: { } structure } ? structure.SaveAsync()
         : doc is null ? Task.CompletedTask : doc.Path is null ? SaveAsAsync(doc) : SaveToAsync(doc, doc.Path);
 
     private async Task SaveAsAsync(OpenDocument? doc)
     {
+        if (doc is { WorkbookView: { } workbook })
+        {
+            await workbook.SaveAsync(asNew: true);
+            return;
+        }
         if (doc is { StructureDoc: { } structure })
         {
             await structure.SaveAsAsync();
@@ -249,7 +269,7 @@ public partial class WorkbenchPage
 
     /// <summary>API.py, the project's local sandbox API: its main Run is Run API.</summary>
     private static bool IsApiFile(OpenDocument doc) =>
-        !doc.IsNotebook && !doc.IsStructure && !doc.IsBlade && doc.Path is { } path && (path.EndsWith("/API.py", StringComparison.Ordinal) || path.EndsWith("\\API.py", StringComparison.Ordinal) || path == "API.py");
+        !doc.IsNotebook && doc.IsCode && doc.Path is { } path && (path.EndsWith("/API.py", StringComparison.Ordinal) || path.EndsWith("\\API.py", StringComparison.Ordinal) || path == "API.py");
 
     /// <summary>Run API: saved first, then hosted as the APIs page's Run hosts it; another project's API.py runs as a plain file.</summary>
     private Task RunApiAsync(OpenDocument doc) => GuardAsync(async () =>

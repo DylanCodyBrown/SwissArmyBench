@@ -33,6 +33,22 @@ public sealed class OpenDocument
 
     public StructureDoc? StructureDoc { get; set; }
 
+    /// <summary>A workbook's design on the Excel canvas (the Accounting extension's; the classic tab kind workbook).</summary>
+    public bool IsWorkbook { get; init; }
+
+    /// <summary>A new workbook's title (the first sheet's heading), until it is saved.</summary>
+    public string? WorkbookTitle { get; init; }
+
+    public SwissArmyBench.Web.Pages.Accounting.WorkbookPage? WorkbookView { get; set; }
+
+    /// <summary>A code app's file (the Power Apps extension's; the classic tab kind codefile): its path in the app.</summary>
+    public string? CodeFile { get; init; }
+
+    public CodeFileView? CodeFileView { get; set; }
+
+    /// <summary>A notebook or a script: code that runs in the session (not a blade, structure or workbook).</summary>
+    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && CodeFile is null;
+
     /// <summary>A project's data.ipynb's view: cells, lineage or dictionary.</summary>
     public string DataView { get; set; } = "cells";
 
@@ -42,7 +58,7 @@ public sealed class OpenDocument
     /// <summary>A notebook shown as a document (no code): Present.</summary>
     public bool Presenting { get; set; }
 
-    /// <summary>A script's Run settings shown beside it.</summary>
+    /// <summary>A script's side panel shown beside it: its Run settings (API.py: its Endpoints).</summary>
     public bool RunSettingsOpen { get; set; }
 
     /// <summary>A project's data.ipynb: its Cells, Lineage and Dictionary views.</summary>
@@ -88,12 +104,12 @@ public sealed class OpenDocument
 
     public ScriptView? ScriptView { get; set; }
 
-    public string KindWord => IsStructure ? "structure" : IsNotebook ? "notebook" : "script";
+    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : "script";
 
-    public string Title => Blade ?? (Path is { } path
+    public string Title => Blade ?? (CodeFile is { } file ? System.IO.Path.GetFileName(file) : Path is { } path
         ? System.IO.Path.GetFileName(path)
         : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsBlade ? "Blade" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : "Script";
 }

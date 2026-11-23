@@ -24,6 +24,10 @@
                 <option value="dax">DAX</option>
                 <option value="html">HTML</option>
                 <option value="markdown">Markdown</option>
+                @foreach (var (kind, words) in RoutedKinds)
+                {
+                    <option value="@kind">@words</option>
+                }
             </select>
             @if (Cell.Kind is "sql" or "dax")
             {
@@ -81,6 +85,10 @@
                     OnChange="TextChangedAsync" OnKey="KeyAsync" Inline="Inline" InlineDocument="InlineDocument"
                     AgentWhere="@($"cell {Cell.Number} of {Document}")" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
     }
+    @if (Cell.Kind == "tsx" && Cell.Preview is { } drawn)
+    {
+        <HtmlDesign Cell="Cell" Page="@drawn" OnRun="() => OnRun.InvokeAsync(Cell)" OnResized="() => OnChanged.InvokeAsync(Cell)" />
+    }
     @if (Cell.OutputHidden)
     {
         <button type="button" class="link wb-output-hidden" @onclick="() => Cell.OutputHidden = false">Show output</button>
@@ -88,6 +96,6 @@
     else if (Cell.Outputs.Count > 0 || Cell.ErrorDetail is not null || Cell.Asking is not null)
     {
         <OutputArea Outputs="Cell.Outputs" ErrorDetail="Cell.ErrorDetail" Asking="Cell.Asking" OnAnswer="line => OnAnswer.InvokeAsync((Cell, line))"
-                    Document="@Document" OnFix="fix => OnFix.InvokeAsync((Cell, fix))" OnGoTo="frame => OnGoTo.InvokeAsync((Cell, frame))" />
+                    Document="@Document" OnOpenTable="id => OnOpenTable.InvokeAsync((Cell, id))" OnFix="fix => OnFix.InvokeAsync((Cell, fix))" OnGoTo="frame => OnGoTo.InvokeAsync((Cell, frame))" />
     }
 </section>

@@ -54,13 +54,6 @@ public sealed class SettingsClient
         _ => _api.PutAsync("/variables", new { name = fix.Name, value, from = "keyring" }),
     };
 
-    /// <summary>GitHub sign-in with a token (the user's own: the Git extension's route).</summary>
-    public Task SignInWithTokenAsync(string token) => _api.PostAsync("/git/sign-in/token", new { token });
-
-    public Task<JsonElement> SignInDeviceAsync() => _api.PostAsync<JsonElement>("/git/sign-in/device");
-
-    public Task<JsonElement> SignInPollAsync() => _api.PostAsync<JsonElement>("/git/sign-in/device/poll");
-
     public Task<UpdateStarted> StartUpdateAsync(string version, bool confirmed) =>
         _api.PostAsync<UpdateStarted>("/updates/install", new { version, confirmed });
 

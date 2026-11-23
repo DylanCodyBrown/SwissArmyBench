@@ -154,14 +154,14 @@ public partial class CodeAppPage
         StateHasChanged();
     }
 
-    /// <summary>A code app's file or its data notebook in the Workbench's window (the classic Workbench: its
-    /// TypeScript editor with Monaco's language service, and the notebook's Deno cells).</summary>
+    /// <summary>A code app's file or its data notebook in the Workbench's window (this front end's Scripts page: its
+    /// TypeScript editor with Monaco's language service; the Notebooks page: the notebook's TypeScript, SQL and TSX
+    /// cells on their routes).</summary>
     public async Task OpenInWorkbenchAsync(string path, bool notebook = false)
     {
-        var page = notebook ? "notebooks" : "scripts";
-        var key = notebook ? "open" : "codefile";
+        var address = notebook ? $"notebooks?path={Uri.EscapeDataString(path)}" : $"scripts?codefile={Uri.EscapeDataString(path)}";
         var module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/canvas.js");
-        var opened = await module.InvokeAsync<bool>("openPage", $"/{page}#{key}={Uri.EscapeDataString(path)}", "swissarmybench-codeapp-workbench", string.Empty);
+        var opened = await module.InvokeAsync<bool>("openPage", address, "swissarmybench-codeapp-workbench", string.Empty);
         if (!opened)
         {
             Notes.Error(new InvalidOperationException("The browser blocked the new window: allow pop-ups for this address."));

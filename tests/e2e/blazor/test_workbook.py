@@ -15,7 +15,7 @@ import openpyxl
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 from tests.e2e.blazor.extension_server import extension_server
 
 
@@ -32,9 +32,11 @@ def opened(browser: Browser, server: dict[str, Any]) -> Page:
     if call(server, "GET", "/project")["project"] is None:
         call(server, "POST", "/project/open", {"path": server["project"]})
         call(server, "POST", "/samples/store", {})
-    page = open_page(browser, server, "workbook")
-    expect(page.locator(".nav-rail a", has_text="Workbook")).to_have_count(1)
-    page.locator(".cvs-landing-item", has_text="workbook").click()
+    # A workbook is a tab of the Notebooks page (the classic's own place), not a rail area of its own.
+    page = open_page(browser, server, "notebooks")
+    expect(page.locator(".nav-rail a", has_text="Workbook")).to_have_count(0)
+    page.locator(".xc-landing .cvs-landing-item", has_text="workbook").click()
+    expect(page.locator(".wb-tab.active")).to_contain_text("workbook.design.json")
     expect(page.locator(".xc-block")).not_to_have_count(0)
     return page
 
@@ -114,8 +116,7 @@ def test_templates_and_statements(browser: Browser, server: dict[str, Any]) -> N
     dialog = page.locator(".dialog[aria-label='Templates']")
     expect(dialog.locator(".cv-empty")).to_have_text("Import an existing workbook: a statement, an invoice")
     dialog.locator(".xc-import").click()
-    page.fill(".question-text", str(source))
-    page.click(".dialog-foot button:has-text('Choose')")
+    choose_path(page, source)
     expect(page.locator(".note-corner")).to_contain_text("Imported statement")
     dialog.locator("td[data-cell=B1]").click()
     expect(dialog.locator(".xc-bind h4")).to_have_text("Statement!B1")
@@ -143,4 +144,25 @@ def test_templates_and_statements(browser: Browser, server: dict[str, Any]) -> N
     expect(page.locator(".note-corner")).to_contain_text(re.compile(r"Built \d+ in "))
     built.locator(".xc-register").click()
     expect(page.locator(".note-corner")).to_contain_text("The register is open as a grid")
+    page.close()
+
+
+def test_new_excel_workbook_is_a_notebooks_tab(browser: Browser, server: dict[str, Any]) -> None:
+    opened(browser, server).close()
+    page = open_page(browser, server, "notebooks")
+    page.locator(".xc-landing button", has_text="New Excel workbook").click()
+    expect(page.locator(".wb-tab.active")).to_contain_text("Untitled workbook")
+    expect(page.locator(".xc-sheet")).to_have_count(1)
+
+    # The palette's Workbook commands act on the workbook tab in front.
+    page.keyboard.press("Control+Shift+P")
+    palette = page.get_by_role("dialog", name="Command palette")
+    palette.locator("input").fill("play the workbook")
+    expect(palette.locator(".wb-palette-item").first).not_to_have_class(re.compile("off"))
+    page.keyboard.press("Enter")
+    expect(page.locator(".cv-play")).to_have_attribute("aria-pressed", "true")
+    page.keyboard.press("Control+Shift+P")
+    palette.locator("input").fill("the workbook in front")
+    page.keyboard.press("Enter")
+    expect(page.locator(".dialog .wb-help-text")).to_contain_text("Played.")
     page.close()

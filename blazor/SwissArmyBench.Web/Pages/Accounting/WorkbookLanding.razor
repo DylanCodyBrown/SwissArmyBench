@@ -1,15 +1,13 @@
-@* The Excel canvas with no design named: the open project's workbook designs (its *.design.json at its top), and
-   New workbook (its title asked). No project: open one first. *@
+@* The Notebooks page's workbooks while the open project's mode offers the Excel canvas: the project's workbook
+   designs (its *.design.json at its top), each opening as a tab, and New Excel workbook. No project: open one first. *@
 @using SwissArmyBench.Web.Api
 @using SwissArmyBench.Web.Api.Projects
 @inject ProjectsClient Projects
 @inject ApiClient Api
-@inject SwissArmyBench.Web.State.Dialogs Dialogs
-@inject NavigationManager Nav
 
-<section class="area-page">
+<section class="xc-landing-section" aria-label="Workbooks">
     <div class="cvs-landing xc-landing">
-        <h1>Workbook</h1>
+        <h2>Workbooks</h2>
         <p class="hint">A workbook's design: its sheets, titles, tables, pivots and charts, built from the open tables.</p>
         <ErrorNote Error="_error" OnClose="() => _error = null" />
         @if (_loaded)
@@ -20,9 +18,9 @@
             }
             @foreach (var file in _files)
             {
-                <a class="cvs-landing-item" href="@($"workbook?path={Uri.EscapeDataString(file)}")"><Icon Name="excel" />@WorkbookPage.NameOf(file)</a>
+                <button type="button" class="cvs-landing-item" @onclick="() => OnOpen.InvokeAsync(file)"><Icon Name="excel" />@WorkbookPage.NameOf(file)</button>
             }
-            <button type="button" class="btn primary" @onclick="NewAsync"><Icon Name="plus" /><span class="btn-label">New workbook</span></button>
+            <button type="button" class="btn primary" @onclick="() => OnNew.InvokeAsync()"><Icon Name="plus" /><span class="btn-label">New Excel workbook</span></button>
         }
         else if (_error is null)
         {
@@ -36,6 +34,14 @@
     private IReadOnlyList<string> _files = [];
     private bool _loaded;
     private Exception? _error;
+
+    /// <summary>A design picked: the page opens it as a tab.</summary>
+    [Parameter]
+    public EventCallback<string> OnOpen { get; set; }
+
+    /// <summary>New Excel workbook: the page opens an untitled one.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,14 +62,5 @@
             _error = error;
         }
         _loaded = true;
-    }
-
-    private async Task NewAsync()
-    {
-        var title = await Dialogs.AskTextAsync("New workbook", "Its title: the first sheet's heading.", "Title", "Workbook", "Make");
-        if (!string.IsNullOrWhiteSpace(title))
-        {
-            Nav.NavigateTo($"workbook?title={Uri.EscapeDataString(title.Trim())}");
-        }
     }
 }

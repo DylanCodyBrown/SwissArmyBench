@@ -7,9 +7,57 @@
 // straight to the server, so the member list stays quick.
 import * as monaco from "monaco-editor";
 
+// TypeScript and JavaScript have Monaco's own language service in a worker of their own (a code app's files, a
+// data notebook's TypeScript cells); every other language the editor's worker.
 self.MonacoEnvironment = {
-  getWorker: () => new Worker(new URL("./editor.worker.js", import.meta.url), { type: "module" }),
+  getWorker: (_id, label) =>
+    new Worker(new URL(label === "typescript" || label === "javascript" ? "./ts.worker.js" : "./editor.worker.js", import.meta.url), { type: "module" }),
 };
+
+// ===== TypeScript: a code app's files and a data notebook's cells (the classic lazy/codeEditor.ts) =====
+
+let typescriptReady = false;
+let notebookReady = false;
+// 2307/2792: a package not read here; 7016: its types; 2875: JSX's runtime package; 17004: JSX flag; 7026: JSX's
+// element types (React's own types are in node_modules). A notebook's cells: 1375/1378 a top-level await in a
+// cell (the kernel runs it), 2451 a name a cell declares again (run again, it replaces the first).
+const IGNORED = [2307, 2792, 7016, 2875, 17004, 7026, 1375, 1378, 2451];
+const projectLibs = new Map();
+
+/** The language service set for a code app (React's JSX, modern modules), and the project's own files known to it
+ *  (its generated models and services, its other modules), so imports between them resolve. */
+export function typescriptProject(files) {
+  const ts = monaco.typescript;
+  if (!typescriptReady) {
+    typescriptReady = true;
+    ts.typescriptDefaults.setCompilerOptions({
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeJs,
+      jsx: ts.JsxEmit.ReactJSX,
+      allowNonTsExtensions: true,
+      allowJs: true,
+      esModuleInterop: true,
+      strict: true,
+      skipLibCheck: true,
+    });
+    ts.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false, diagnosticCodesToIgnore: IGNORED });
+    ts.typescriptDefaults.setEagerModelSync(true);
+  }
+  for (const file of files ?? []) {
+    const uri = `file:///${file.path.replace(/^\/+/, "")}`;
+    projectLibs.get(uri)?.dispose();
+    projectLibs.set(uri, ts.typescriptDefaults.addExtraLib(file.text, uri));
+  }
+}
+
+/** A notebook's TypeScript cells: the kernel's `sab` known to the language service (once a page). */
+export function typescriptNotebook(declarations) {
+  if (notebookReady) return;
+  notebookReady = true;
+  typescriptProject([]);
+  monaco.typescript.typescriptDefaults.addExtraLib(declarations, "file:///sab-notebook.d.ts");
+}
 
 // Monaco's own CSS, bundled beside this file: loaded once, by the first editor.
 const css = new URL("./codeEditor.css", import.meta.url).href;
@@ -275,13 +323,20 @@ function variableCompletion() {
   });
 }
 
+function modelAt(path, value, language) {
+  const uri = monaco.Uri.parse(`file:///${path.replace(/\\/g, "/").replace(/^\/+/, "")}`);
+  monaco.editor.getModel(uri)?.dispose();
+  return monaco.editor.createModel(value, language, uri);
+}
+
 export function create(host, dotnet, options) {
   registerIntel();
   const language = LANGUAGES[options.language] ?? options.language ?? "plaintext";
   const grow = !!options.grow;
+  // A file of a project (a code app's): its model by its path, so the TypeScript service resolves its imports.
+  const pathModel = options.path ? modelAt(options.path, options.value ?? "", language) : null;
   const editor = monaco.editor.create(host, {
-    value: options.value ?? "",
-    language,
+    ...(pathModel ? { model: pathModel } : { value: options.value ?? "", language }),
     theme: THEMES[options.theme] ?? "vs",
     automaticLayout: !grow,
     minimap: { enabled: false },
@@ -489,6 +544,20 @@ export function create(host, dotnet, options) {
       .filter((m) => m.severity >= monaco.MarkerSeverity.Warning)
       .map((m) => ({ line: m.startLineNumber, col: m.startColumn, message: m.message })),
     ruffMissing: () => owners.get(model)?.ruffMissing === true,
+    /** Problems the page's own rule found (a code app's pages rule): {line, col, endLine, endCol, message, severity}. */
+    setProblems: (list) =>
+      monaco.editor.setModelMarkers(
+        model,
+        "sab-app",
+        (list ?? []).map((p) => ({
+          startLineNumber: p.line,
+          startColumn: p.col ?? 1,
+          endLineNumber: p.endLine ?? p.end_line ?? p.line,
+          endColumn: p.endCol ?? p.end_col ?? (p.col ?? 1) + 1,
+          message: p.hover ? `${p.message}\n${p.hover}` : p.message,
+          severity: SEVERITY[p.severity] ?? monaco.MarkerSeverity.Warning,
+        })),
+      ),
     /** A place in the code shown, the cursor there. */
     reveal: (line, col) => {
       editor.revealLineInCenter(line);

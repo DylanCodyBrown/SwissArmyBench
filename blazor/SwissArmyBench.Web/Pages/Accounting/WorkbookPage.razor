@@ -1,18 +1,12 @@
-@page "/workbook"
-@* The Excel canvas (the classic excelCanvas.ts, the Accounting extension's plug-in on the Notebooks page): the
+@* The Excel canvas (the classic excelCanvas.ts, the Accounting extension's plug-in): a tab of kind workbook on the
+   Notebooks page (the classic workbenchPage.ts openWorkbook), which places it and names the design. The
    workbook's sheets as tabs, its blocks on a grid of cells with Properties beside them (the sheet's own when none is
    selected), Play builds the workbook and shows each sheet as built, Download gives the .xlsx, Export workbook.py the
    automation; Templates… and Statements and invoices…. With no design named: the landing. Logic in
    WorkbookPage.razor.cs and WorkbookPage.Actions.cs. *@
 @using SwissArmyBench.Web.Api.Accounting
 
-<PageTitle>@Title</PageTitle>
-
-@if (_landing)
-{
-    <WorkbookLanding />
-}
-else
+@if (!_landing)
 {
     <section class="area-page xc-page">
         <div class="cv xc @(_playing ? "live" : null)" tabindex="-1" @onkeydown="KeyAsync" @ref="_root">

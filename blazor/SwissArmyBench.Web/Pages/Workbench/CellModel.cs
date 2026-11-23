@@ -48,6 +48,12 @@ public sealed class CellModel
     /// <summary>The kernel's question while it waits for a line (input(), getpass), with whether it is a password.</summary>
     public (string Prompt, bool Password)? Asking { get; set; }
 
+    /// <summary>A TSX cell's page as its route drew it (shown in the HTML cells' frame under its code).</summary>
+    public string? Preview { get; set; }
+
+    /// <summary>The last run failed (its number shows [!]).</summary>
+    public bool Failed { get; set; }
+
     /// <summary>A cell of the app's (the Tables group): read-only, it follows the grid.</summary>
     public bool IsAppCell => Role.Length > 0;
 

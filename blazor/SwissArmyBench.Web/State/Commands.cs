@@ -27,6 +27,16 @@ public sealed class Commands
         _page = page;
     }
 
+    /// <summary>A page that closes takes its commands back, unless the page now in front has already given its own
+    /// (a page opened is drawn before the one it replaces goes).</summary>
+    public void WithdrawPageCommands(Func<IReadOnlyList<PaletteCommand>> page)
+    {
+        if (_page is not null && _page.Equals(page))
+        {
+            _page = null;
+        }
+    }
+
     public void Show(string which)
     {
         Open = which;

@@ -78,7 +78,8 @@
                     {
                         <div class="ide-editor" aria-label="@($"{shown.Name} code")" hidden="@_running">
                             <CodeEditor @ref="_editor" @key="shown.Name" Value="@_code" Language="python" ReadOnly="shown.Prebuilt" ReadOnlyMessage="A prebuilt widget is read-only: Copy as your own to change it." Label="@($"{shown.Name} code")"
-                                        Intel="IntelOf" OnChange="CodeChangedAsync" OnKey="EditorKeyAsync" />
+                                        Intel="IntelOf" OnChange="CodeChangedAsync" OnKey="EditorKeyAsync" OnProblems="ProblemsChangedAsync"
+                                        Inline="_inline" InlineDocument="InlineDocument" />
                         </div>
                         <div class="ide-stage" hidden="@(!_running)">
                             <Busy IsBusy="_starting" Words="@($"Running {shown.Name}…")">
@@ -104,6 +105,26 @@
                     else if (_widgets is not null)
                     {
                         <div class="loading-block">Loading the editor…</div>
+                    }
+                    @if (_current is { } panelOf)
+                    {
+                        <IdeRunPanel Tab="@(_panelTab ?? IdeRunPanel.OutputTab)" Folded="_panelTab is null" Output="@_runOutput" Problems="PanelProblems" Said="@_runSaid"
+                                     OnTab="PanelTab" OnGoTo="GoToLineAsync">
+                            <Result>
+                                @if (_failed is { } runFailed)
+                                {
+                                    <ErrorNote Error="runFailed" />
+                                }
+                                else if (_frame is not null)
+                                {
+                                    <p class="hint">@panelOf.Name is running in the Preview.</p>
+                                }
+                                else
+                                {
+                                    <p class="hint">Nothing ran yet.</p>
+                                }
+                            </Result>
+                        </IdeRunPanel>
                     }
                 </div>
                 @if (_propertiesOpen && _current is { } current)

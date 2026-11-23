@@ -12,6 +12,25 @@ public partial class GridsPage
 {
     private (string From, string To, IReadOnlyList<CodeReference> References)? _repointing;
 
+    // Tables sent to the SQL window to run on another connection: its first swap heard offers Point these at it.
+    private (string From, string To, HashSet<string> Waiting)? _reviewed;
+
+    /// <summary>A table_connection notice from the SQL window: a table it moved to the reviewed connection.</summary>
+    private void HeardSwap(SwissArmyBench.Web.State.Notice notice)
+    {
+        if (notice.Type != "table_connection" || _reviewed is not { } reviewed || notice.Text("dataset") is not { } table
+            || !reviewed.Waiting.Contains(table) || !string.Equals(notice.Text("connection"), reviewed.To, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        _reviewed = null;
+        _ = InvokeAsync(async () =>
+        {
+            await OfferRepointAsync(reviewed.From, reviewed.To);
+            StateHasChanged();
+        });
+    }
+
     private async Task SwappedAsync(Swapped done)
     {
         _ = Notes.SayAsync($"{done.Table}: {done.To}", "Undo", () => InvokeAsync(() => UndoSwapAsync(done.Table)));

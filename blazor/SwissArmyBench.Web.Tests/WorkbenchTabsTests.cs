@@ -95,18 +95,22 @@ public sealed class WorkbenchTabsTests
             return Task.CompletedTask;
         }
         var palette = new Commands();
-        palette.SetPageCommands(() =>
+        Func<IReadOnlyList<PaletteCommand>> page = () =>
         [
             new("a", "File", "New notebook", () => RunAsync("a")),
             new("b", "Run", "Run the selected cell", () => RunAsync("b")),
             new("c", "Cell", "Delete the cell", () => RunAsync("c"), WhyNot: "No cell is selected"),
-        ]);
+        ];
+        palette.SetPageCommands(page);
 
         Assert.True(await palette.RunIdAsync("b"));
         Assert.False(await palette.RunIdAsync("c"));
         Assert.Equal(["b", "a", "c"], palette.All().Take(3).Select(c => c.Id));
         Assert.Equal(["b"], ran);
-        palette.SetPageCommands(null);
+        // Another page going takes only its own commands back: this page's stay until it goes.
+        palette.WithdrawPageCommands(() => []);
+        Assert.Contains(palette.All(), c => c.Id == "a");
+        palette.WithdrawPageCommands(page);
         Assert.DoesNotContain(palette.All(), c => c.Id == "a");
     }
 }

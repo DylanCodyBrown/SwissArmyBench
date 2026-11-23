@@ -1,0 +1,25 @@
+@* A code app's file in the Scripts page's editor (the classic workbenchCodeFile.ts, the Power Apps extension's): TypeScript
+   and TSX with Monaco's own language service over the project's own files (its generated models and services among
+   them), so the member list, parameter info, hovers and errors are the project's; the app's own rule beside it (a page
+   never imports another page's code). A file the Power Apps CLI made says so. Save (Ctrl+S) writes it back. Logic in
+   CodeFileView.razor.cs. *@
+
+<div class="wb-codefile" data-path="@Path" data-language="@(_file?.Language ?? string.Empty)">
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_file is { } file)
+    {
+        <div class="wb-codefile-head"><code>@file.Path</code>
+            @if (file.Generated)
+            {
+                <span class="muted"> made by the Power Apps CLI: adding or refreshing its data source writes it again</span>
+            }
+        </div>
+        <div class="wb-codefile-editor">
+            <CodeEditor @ref="_editor" Value="@file.Text" Language="@EditorLanguage" Path="@file.Path" Label="@file.Path" OnChange="ChangedAsync" OnKey="KeyAsync" />
+        </div>
+    }
+    else if (_error is null)
+    {
+        <div class="loading-block">Opening @Path…</div>
+    }
+</div>

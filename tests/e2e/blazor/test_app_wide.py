@@ -145,12 +145,19 @@ def test_leave_a_note_in_every_right_click_menu(browser: Browser, server: dict[s
         menu = page.get_by_role("menu", name="Text")
         menu.get_by_role("menuitem", name="Leave a note…").click()
         form = page.locator(".dialog", has_text="Leave a note")
-        expect(form.locator(".beta-note-where")).to_have_text("Menu: Text")
+        # The note is about the element right-clicked (the classic betaNotes.ts describe: the field's label),
+        # outlined while the form is open, and it offers the window's picture.
+        expect(form.locator(".beta-note-where")).to_have_text("label: Name")
+        expect(page.locator(".beta-outline")).to_have_count(1)
         form.get_by_label("What is wrong").fill("made-up note about the menu")
+        form.locator(".beta-note-picture").check()
         form.get_by_role("button", name="Save").click()
         expect(form).to_have_count(0)
         notes = call(server, "GET", "/beta/notes")["notes"]
-        assert any(n["text"] == "made-up note about the menu" for n in notes)
+        note = next(n for n in notes if n["text"] == "made-up note about the menu")
+        assert note["element"]["tag"] == "label"
+        assert note["element"]["path"]
+        assert note.get("picture")
         page.close()
     finally:
         call(server, "PUT", "/beta", {"on": False})

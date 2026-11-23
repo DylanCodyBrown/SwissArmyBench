@@ -48,7 +48,7 @@ public partial class WorkbenchPage
             new("view.sourceOnly", "View", "Layout: source only", () => LayoutAsync(false), "Ctrl+Shift+1"),
             new("view.standard", "View", "Layout: standard", () => LayoutAsync(true)),
             new("view.wideData", "View", "Layout: wide data", () => LayoutAsync(true)),
-            new("view.environment2", "View", "Show or hide the Environment", () => Go("environment")),
+            new("view.environment2", "View", "Show or hide the Environment", ToggleEnvironmentAsync),
             new("view.readEnvironment", "View", "Read the Environment again (its rows: tables, variables, structures, settings)", () => Go("environment")),
             new("help.every", "Help", "Every command and its arguments", () => ShowHelp("Every command", Listing(Commands()))),
         ];

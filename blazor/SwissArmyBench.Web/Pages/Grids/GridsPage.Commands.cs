@@ -47,7 +47,7 @@ public partial class GridsPage
     private void WithdrawCommands()
     {
         Palette.FindData = false;
-        Palette.SetPageCommands(null);
+        Palette.WithdrawPageCommands(PageCommands);
         Palette.Changed -= PaletteChanged;
     }
 

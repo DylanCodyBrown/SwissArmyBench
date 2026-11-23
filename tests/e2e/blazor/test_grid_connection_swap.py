@@ -4,6 +4,7 @@ note's Undo puts it back. Two made-up DuckDB files, each with the same table."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,7 @@ def add_duckdb(page: Page, name: str, path: Path) -> None:
     field = page.locator(".connection-field[data-field=path]")
     field.fill(str(path))
     field.press("Tab")
-    expect(page.locator(".connection-code pre")).to_contain_text(path.name)
+    expect(page.locator(".connection-code-text")).to_have_value(re.compile(re.escape(path.name)))
     page.click("button:has-text('Save')")
     expect(page.locator("h1")).to_contain_text(name)
 
@@ -44,7 +45,7 @@ def test_a_table_reads_from_another_connection_and_back(browser: Browser, server
     page.wait_for_selector(".nav-rail")
     add_duckdb(page, "SouthBooks", south)
     page.goto(page.url.split("/blazor/")[0] + "/blazor/connections?name=NorthBooks")
-    page.locator(".connection-tables tr", has_text="ledger").locator("button:has-text('Open')").click()
+    page.locator(".conn-tree-table[data-table=ledger]").locator("button:has-text('Open')").click()
     expect(page.locator(".status-rows")).to_contain_text("of 30")
 
     page.click("[data-tool=connection]")

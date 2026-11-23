@@ -32,6 +32,7 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<RailState>();
         Services.AddScoped<ThemeState>();
         Services.AddScoped<Notes>();
+        Services.AddScoped<Commands>();
         Services.AddScoped<Dialogs>();
         Services.AddScoped<GridStatus>();
         Services.AddScoped<SettingsClient>();

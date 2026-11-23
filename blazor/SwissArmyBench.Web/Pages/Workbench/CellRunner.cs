@@ -72,7 +72,7 @@ public sealed class CellRunner
     }
 
     /// <summary>One record into the cell; whether the next output clears the ones before it (a clear that waits).</summary>
-    private static bool Take(CellModel cell, JsonElement record, bool clearNext)
+    internal static bool Take(CellModel cell, JsonElement record, bool clearNext)
     {
         if (record.TryGetProperty("input_request", out var asked))
         {

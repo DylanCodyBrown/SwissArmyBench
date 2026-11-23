@@ -159,7 +159,16 @@ else if (Commands.Open == "shortcuts")
         }
     }
 
-    private void Redraw() => InvokeAsync(StateHasChanged);
+    private void Redraw() => InvokeAsync(() =>
+    {
+        // The palette or the sheet newly opened (by a key or by a command): it starts with nothing typed.
+        if (Commands.Open != _drawn)
+        {
+            _text = string.Empty;
+            _at = 0;
+        }
+        StateHasChanged();
+    });
 
     public async ValueTask DisposeAsync()
     {

@@ -935,7 +935,8 @@
 .ca-this {
   font-weight: 600;
 }
-.wb-gbody:has(> .wb-doc-body.kind-codefile) {
+.wb-gbody:has(> .wb-doc-body.kind-codefile),
+.wb-gbody:has(> .wb-doc-body.kind-workbook:not([hidden])) {
   overflow: hidden;
 }
 .wb-doc-body.kind-codefile {
@@ -960,7 +961,8 @@
 
 /* ===== The Excel canvas's page (Pages/Accounting): the classic page's canvas frame and tabs (grid.css .cv,
    .tab-item, .card-grip), scoped to it ===== */
-.page-main > .xc-page {
+.page-main > .xc-page,
+.wb-doc-body.kind-workbook > .xc-page {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -974,6 +976,11 @@
   flex-direction: column;
   min-height: 0;
   outline: none;
+}
+/* A workbook as a Notebooks tab is narrower than a page: the sheets' tabs keep room for one tab, so the tools wrap
+   onto a line of their own rather than lying over the tabs. */
+.cv.xc .cv-tabs {
+  min-width: min(100%, 200px);
 }
 
 .xc-page .busy-host {

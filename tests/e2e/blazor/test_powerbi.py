@@ -33,7 +33,7 @@ def test_export_to_power_bi_from_the_erd(browser: Browser, server: dict[str, Any
     call(server, "POST", "/relationships", {"model": {"relationships": joins}})
     page = open_page(browser, server, "erd")
     page.click("button:has-text('All tables')")
-    page.click("button[data-action=powerbi_export]")
+    page.click("button[data-plugin=powerbi_export]")
     dialog = page.locator(".dialog[aria-label='Export to Power BI']")
     expect(dialog.locator(".pbi-table[data-table=orders]")).to_be_visible(timeout=20_000)
     expect(dialog.locator(".pbi-table[data-table=orders] .pbi-why")).to_contain_text(

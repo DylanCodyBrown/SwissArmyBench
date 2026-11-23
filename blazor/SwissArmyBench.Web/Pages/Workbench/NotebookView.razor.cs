@@ -195,6 +195,7 @@ public partial class NotebookView
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        await KnowTypesAsync();
         if (_focusNext is { } cell && _views.TryGetValue(cell, out var view))
         {
             _focusNext = null;
@@ -207,6 +208,10 @@ public partial class NotebookView
         if (cell.Kind == "markdown" || _runner is null)
         {
             cell.Editing = false;
+            return;
+        }
+        if (await RunRoutedAsync(cell))
+        {
             return;
         }
         var request = cell.Role == "transformations" && cell.Table is { } table

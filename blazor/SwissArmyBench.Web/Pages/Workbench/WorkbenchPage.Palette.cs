@@ -15,7 +15,7 @@ public partial class WorkbenchPage
 
     private List<PaletteCommand> PaletteCommands()
     {
-        var code = Front is { IsBlade: false, IsStructure: false } ? null : NoCode;
+        var code = Front is { IsCode: true } ? null : NoCode;
         var notebook = Front?.NotebookView;
         var noNotebook = notebook is null ? "The document in front is not a notebook" : null;
         return

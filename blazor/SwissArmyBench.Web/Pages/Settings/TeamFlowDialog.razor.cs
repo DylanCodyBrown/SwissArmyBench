@@ -3,25 +3,19 @@ using System.Text.Json;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Settings;
 
 namespace SwissArmyBench.Web.Pages.Settings;
 
-public sealed partial class TeamFlowDialog : IDisposable
+public sealed partial class TeamFlowDialog
 {
-    private const int DefaultPollSeconds = 5;
-
-    private readonly CancellationTokenSource _closing = new();
     private string _at = string.Empty;
     private TeamStatus? _status;
     private Exception? _error;
     private string? _busyWords;
     private bool _installing;
-    private (string UserCode, string Uri)? _code;
-    private string _token = string.Empty;
     private IReadOnlyList<TeamRepository> _repositories = [];
     private string _search = string.Empty;
     private IReadOnlyList<string> _owners = [];
@@ -31,9 +25,6 @@ public sealed partial class TeamFlowDialog : IDisposable
 
     [Inject]
     private SettingsClient Settings { get; set; } = default!;
-
-    [Inject]
-    private IJSRuntime Js { get; set; } = default!;
 
     /// <summary>"join" or "start".</summary>
     [Parameter, EditorRequired]
@@ -101,83 +92,6 @@ public sealed partial class TeamFlowDialog : IDisposable
         });
     }
 
-    private async Task DeviceAsync()
-    {
-        try
-        {
-            var got = await Settings.SignInDeviceAsync();
-            _code = (got.GetProperty("user_code").GetString() ?? string.Empty, got.GetProperty("verification_uri").GetString() ?? string.Empty);
-            await Js.InvokeVoidAsync("open", _code.Value.Uri, "_blank", "noopener");
-            var every = got.TryGetProperty("interval", out var interval) ? interval.GetInt32() : DefaultPollSeconds;
-            _ = PollAsync(every);
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-    }
-
-    private async Task PollAsync(int seconds)
-    {
-        while (!_closing.IsCancellationRequested)
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(seconds), _closing.Token);
-                var answer = await Settings.SignInPollAsync();
-                var state = answer.GetProperty("state").GetString();
-                if (state == "signed_in")
-                {
-                    await InvokeAsync(NextAsync);
-                    await InvokeAsync(StateHasChanged);
-                    return;
-                }
-                if (state != "pending")
-                {
-                    _code = (answer.TryGetProperty("words", out var words) ? words.GetString() ?? state ?? string.Empty : state ?? string.Empty, string.Empty);
-                    await InvokeAsync(StateHasChanged);
-                    return;
-                }
-                seconds = answer.TryGetProperty("interval", out var next) ? next.GetInt32() : seconds;
-            }
-            catch (TaskCanceledException)
-            {
-                return;
-            }
-            catch (ApiException error)
-            {
-                _error = error;
-                await InvokeAsync(StateHasChanged);
-                return;
-            }
-        }
-    }
-
-    private async Task TokenKeyAsync(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && _token.Trim().Length > 0)
-        {
-            await UseTokenAsync();
-        }
-    }
-
-    private async Task UseTokenAsync()
-    {
-        if (_token.Trim().Length == 0)
-        {
-            return;
-        }
-        await GuardAsync("Signing in…", async () =>
-        {
-            await Settings.SignInWithTokenAsync(_token.Trim());
-            _token = string.Empty;
-        });
-        if (_error is null)
-        {
-            await NextAsync();
-        }
-    }
-
     private async Task SearchKeyAsync(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && Shown.FirstOrDefault() is { } first)
@@ -219,11 +133,5 @@ public sealed partial class TeamFlowDialog : IDisposable
             _error = error;
         }
         _busyWords = null;
-    }
-
-    public void Dispose()
-    {
-        _closing.Cancel();
-        _closing.Dispose();
     }
 }

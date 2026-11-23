@@ -160,6 +160,16 @@ def test_a_widgets_properties_and_the_bottom_bar(browser: Browser, server: dict[
     page.click(".cvs-menu-item:has-text('Builds…')")
     expect(page.locator(".dialog[aria-label=Builds]")).to_contain_text("No build yet: Launch makes the first")
     page.keyboard.press("Escape")
+
+    # Narrow, the bottom bar wraps onto a second line: every tool stays on screen, none cut off.
+    page.set_viewport_size({"width": 760, "height": 900})
+    expect(bottom.locator(".cvs-fit")).to_be_in_viewport()
+    assert bottom.evaluate("e => e.scrollWidth <= e.clientWidth + 1")
+    within = bottom.evaluate(
+        "e => [...e.children].every(c => c.getBoundingClientRect().right"
+        " <= e.getBoundingClientRect().right + 1)"
+    )
+    assert within
     page.close()
 
 

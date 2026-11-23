@@ -176,6 +176,12 @@ window.sab = {
   commandKeys(listener) {
     const typing = (t) => t instanceof Element && t.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), .monaco-editor") !== null;
     const heard = (e) => {
+      // The palette's own Enter and arrows: its list acts on them (C#); the browser's default goes, so the Enter that
+      // runs a command never also presses the button of a dialog the command opens (Chrome clicks on keypress).
+      if (e.target instanceof Element && e.target.id === "wb-palette-input" && ["Enter", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        e.preventDefault();
+        return;
+      }
       if (e.defaultPrevented || e.altKey) return;
       const ctrl = e.ctrlKey || e.metaKey;
       let which = null;

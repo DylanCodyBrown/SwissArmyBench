@@ -105,6 +105,7 @@ public partial class EnvironmentView : IDisposable
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
+        OfferCommands();
         _folded = await Js.InvokeAsync<string?>("sab.recall", FoldKey) == "1";
     }
 
@@ -285,6 +286,7 @@ public partial class EnvironmentView : IDisposable
     public void Dispose()
     {
         Live.NoticeArrived -= OnNotice;
+        WithdrawCommands();
         _typing?.Cancel();
         _typing?.Dispose();
         GC.SuppressFinalize(this);

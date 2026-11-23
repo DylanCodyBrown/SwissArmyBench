@@ -15,7 +15,8 @@ public partial class WorkbookPage
     private async Task<IJSObjectReference> ModuleAsync() =>
         _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/workbook.js");
 
-    private async Task PlayAsync()
+    /// <summary>Play: the workbook built from the open tables and each sheet shown as built (the palette's too).</summary>
+    public async Task PlayAsync()
     {
         if (_building || _state is null)
         {
@@ -36,7 +37,18 @@ public partial class WorkbookPage
         _building = false;
     }
 
-    private void Edit() => _playing = false;
+    /// <summary>Edit the blocks again (the palette's Edit the workbook's blocks).</summary>
+    public void Edit()
+    {
+        _playing = false;
+        StateHasChanged();
+    }
+
+    /// <summary>The workbook as it stands, in words (the palette's report): its sheets and their blocks.</summary>
+    public string Report() => _state is not { } state
+        ? "The workbook is still opening."
+        : string.Join('\n', state.Design.Sheets.Select(s => $"{s.Name}: {(s.Blocks.Count == 0 ? "no blocks" : string.Join(", ", s.Blocks.Select(b => b.Kind)))}"))
+            + (_playing ? "\nPlayed." : string.Empty) + (state.Unsaved ? "\nUnsaved changes." : string.Empty);
 
     private async Task AddBlockAsync(string kind)
     {
@@ -126,7 +138,7 @@ public partial class WorkbookPage
     }
 
     /// <summary>Save (a new design asks where: the system's dialog, else the path typed).</summary>
-    private async Task<bool> SaveAsync(bool asNew = false)
+    public async Task<bool> SaveAsync(bool asNew = false)
     {
         if (_state is not { } state)
         {
@@ -135,7 +147,7 @@ public partial class WorkbookPage
         var where = asNew ? null : state.Path;
         if (where is null)
         {
-            var chosen = await Files.ChooseAsync("save", asNew ? "Save workbook design as" : "Save workbook design", state.Path, "workbook");
+            var chosen = await Files.ChooseAsync("save", asNew ? "Save workbook design as" : "Save workbook design", state.Path, "workbook", name: $"workbook{Ending}");
             if (string.IsNullOrWhiteSpace(chosen))
             {
                 return false;
@@ -146,7 +158,7 @@ public partial class WorkbookPage
         {
             var done = await CallAsync(HttpMethod.Post, "/save", new { path = where });
             _opened = done.Path ?? where;
-            Nav.NavigateTo($"workbook?path={Uri.EscapeDataString(_opened)}", replace: true);
+            await OnSaved.InvokeAsync(_opened);
             _ = Notes.SayAsync($"Saved {System.IO.Path.GetFileName(_opened)}");
             return true;
         }
@@ -222,8 +234,6 @@ public partial class WorkbookPage
         .. _state?.Missing is { Count: > 0 } missing ? [$"Not open: {string.Join(", ", missing)}"] : Array.Empty<string>(),
         .. _state?.Problems ?? [],
     ];
-
-    private string Title => _state?.Path is { } path ? NameOf(path) : _state?.Title ?? "Workbook";
 
     /// <summary>A design's file as its name: workbook.design.json is "workbook".</summary>
     public static string NameOf(string path)

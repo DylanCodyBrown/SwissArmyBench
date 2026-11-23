@@ -39,29 +39,8 @@
                         }
                         break;
                     case "sign_in":
-                        <div class="team-sign-in">
-                            @if (_status?.Device == true)
-                            {
-                                <div class="row"><button type="button" class="btn primary team-device" @onclick="DeviceAsync"><Icon Name="user" /> Sign in with GitHub</button></div>
-                            }
-                            @if (_code is { } device)
-                            {
-                                <p class="team-device-code">Type <strong class="mono">@device.UserCode</strong> at <a href="@device.Uri" target="_blank" rel="noopener">@device.Uri</a></p>
-                            }
-                            <details class="team-token-part" open="@(_status?.Device != true)">
-                                <summary>Use a token</summary>
-                                <ol class="team-token-steps">
-                                    @foreach (var step in _status?.TokenSteps ?? [])
-                                    {
-                                        <li>@step</li>
-                                    }
-                                </ol>
-                                <div class="row">
-                                    <input type="password" class="input team-token" placeholder="github_pat_…" aria-label="Personal access token" autocomplete="off" spellcheck="false" @bind="_token" @bind:event="oninput" @onkeydown="TokenKeyAsync" />
-                                    <button type="button" class="btn line" @onclick="UseTokenAsync">Use the token</button>
-                                </div>
-                            </details>
-                        </div>
+                        @* The Git extension's own sign-in step (the classic scmPage.ts teamSignIn), borrowed here. *@
+                        <SwissArmyBench.Web.Pages.Scm.TeamSignIn Device="_status?.Device == true" TokenSteps="@(_status?.TokenSteps ?? [])" OnSignedIn="NextAsync" />
                         break;
                     case "pick":
                         <input type="search" class="input team-search" placeholder="Search" aria-label="Search the repositories" autocomplete="off" @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyAsync" />

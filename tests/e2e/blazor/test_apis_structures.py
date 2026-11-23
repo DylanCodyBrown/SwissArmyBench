@@ -12,7 +12,7 @@ import pytest
 from playwright.sync_api import Browser, expect
 
 from tests.api_standins import API_KEY, Service
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 
 
 @pytest.fixture(scope="module")
@@ -189,7 +189,7 @@ def test_add_api_from_a_document_and_from_the_form(
 
 def test_open_a_structure_asks_for_a_file(browser: Browser, server: dict[str, Any], tmp_path: Any) -> None:
     """Open…: the system's dialog asked for a file (mode "file", the classic page's word; "open" was
-    refused with 400), none here, so the path is typed in the app's own box and the structure opens."""
+    refused with 400), none here, so the page's own picker opens and the structure opens."""
     made = tmp_path / "made_up_regions.json"
     made.write_text('{"regions": [{"name": "Westmarch", "stores": 3}]}', encoding="utf-8")
     page = open_page(browser, server, "structures")
@@ -197,9 +197,7 @@ def test_open_a_structure_asks_for_a_file(browser: Browser, server: dict[str, An
         page.locator(".area-page-actions button:has-text('Open…')").click()
     assert asked.value.status == 200
     assert asked.value.request.post_data_json["mode"] == "file"
-    box = page.locator(".dialog[aria-label='Open a structure']")
-    box.locator("input").fill(str(made))
-    box.locator("button:has-text('Choose')").click()
+    choose_path(page, made)
     expect(page.locator(".structures-tab", has_text="made_up_regions")).to_be_visible()
     expect(page.locator(".structure-tree")).to_contain_text("regions")
     page.locator(".structures-tab", has_text="made_up_regions").locator(".structures-tab-close").click()

@@ -22,7 +22,7 @@
     </ChildContent>
     <Foot>
         <button type="button" class="btn" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
-        <button type="button" class="btn primary" @onclick="SaveAsync">Add</button>
+        <button type="button" class="btn primary" disabled="@(_name.Length == 0)" @onclick="SaveAsync">Add</button>
     </Foot>
 </AppDialog>
 

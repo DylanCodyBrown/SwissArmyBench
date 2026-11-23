@@ -82,3 +82,26 @@ def test_preview_runs_the_widget_in_place(browser: Browser, server: dict[str, An
     expect(page.locator(".wg-frame")).to_have_count(0)
     expect(page.locator("button[data-mode=code]")).to_have_attribute("aria-pressed", "true")
     page.close()
+
+
+def test_the_panel_under_the_code_and_its_problems(browser: Browser, server: dict[str, Any]) -> None:
+    """The IDE's Output | Result | Problems panel under the code (the classic codeIde.ts runPanel): folded to
+    its tabs until wanted, Problems the lint's, each a link to its line."""
+    page = open_widgets(browser, server)
+    page.click("button:has-text('New widget')")
+    panel = page.locator(".wg-main .ide-run")
+    expect(panel).to_have_class("ide-run folded")
+    expect(panel.get_by_role("tab", name="Output")).to_be_visible()
+    panel.get_by_role("tab", name="Result").click()
+    expect(panel.locator(".ide-result")).to_contain_text("Nothing ran yet.")
+    page.locator(".wg-main .monaco-editor .view-lines").click()
+    page.keyboard.press("Control+End")
+    page.keyboard.type("\nprint(undefined_made_up_name)\n")
+    expect(panel.locator(".ide-count")).to_be_visible(timeout=20_000)
+    panel.get_by_role("tab", name="Problems").click()
+    expect(panel.locator(".ide-problem").first).to_contain_text("undefined_made_up_name")
+    panel.get_by_role("button", name="Fold the panel").click()
+    expect(panel).to_have_class("ide-run folded")
+    page.click(".wg-props-foot button:has-text('Delete widget')")
+    page.click(".dialog-foot button:has-text('Delete')")
+    page.close()

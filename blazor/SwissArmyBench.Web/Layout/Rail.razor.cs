@@ -32,7 +32,6 @@ public partial class Rail : IDisposable
             var shown = Areas.All
                 .Where(area => RailState.CanvasOn || area.Area is not (Areas.Canvas or Areas.Widgets))
                 .Where(area => RailState.CodeAppOn || area.Area != Areas.CodeApp)
-                .Where(area => RailState.WorkbookOn || area.Area != Areas.Workbook)
                 .ToList();
             var session = shown.FindIndex(area => area.Area == Areas.Session);
             return shown

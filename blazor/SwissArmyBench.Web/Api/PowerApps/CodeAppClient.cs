@@ -29,6 +29,21 @@ public sealed class CodeAppClient
 
     public Task<CodeAppProject> CloseAsync() => _api.PostAsync<CodeAppProject>("/powerapps/project/close");
 
+    public Task<CodeAppProject> ProjectAsync() => _api.GetAsync<CodeAppProject>("/powerapps/project");
+
+    /// <summary>One file of the open code app (a code file's tab).</summary>
+    public Task<CodeAppFile> FileAsync(string path) => _api.GetAsync<CodeAppFile>($"/powerapps/project/file?path={ApiClient.Part(path)}");
+
+    /// <summary>A code file written back (Save); Run live reloads.</summary>
+    public Task SaveFileAsync(string path, string text) => _api.PutAsync("/powerapps/project/file", new { path, text });
+
+    /// <summary>The app's own rule over one file as typed (a page never imports another page's code).</summary>
+    public async Task<IReadOnlyList<System.Text.Json.JsonElement>> LintAsync(string path, string text)
+    {
+        var found = await _api.PostAsync<System.Text.Json.JsonElement>("/powerapps/project/lint", new { path, text });
+        return found.TryGetProperty("problems", out var problems) && problems.ValueKind == System.Text.Json.JsonValueKind.Array ? [.. problems.EnumerateArray()] : [];
+    }
+
     public Task<CodeAppFiles> FilesAsync(bool all) => _api.GetAsync<CodeAppFiles>($"/powerapps/project/files{(all ? "?all=1" : string.Empty)}");
 
     public Task<CodeAppOpened> NewPageAsync(string name) => _api.PostAsync<CodeAppOpened>("/powerapps/pages", new { name });

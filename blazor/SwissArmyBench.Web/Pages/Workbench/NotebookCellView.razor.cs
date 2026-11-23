@@ -109,7 +109,20 @@ public partial class NotebookCellView
     [Parameter]
     public EventCallback<(CellModel Cell, string Line)> OnAnswer { get; set; }
 
-    private Func<IntelContext>? EditorIntel => Cell.IsAppCell || Cell.Kind == "markdown" ? null : () => IntelFor(Cell);
+    // TypeScript and TSX cells have Monaco's own language service (the route's declarations given to it).
+    private Func<IntelContext>? EditorIntel => Cell.IsAppCell || Cell.Kind is "markdown" or "typescript" or "tsx" ? null : () => IntelFor(Cell);
+
+    /// <summary>The cell kinds another kernel runs, as the open project's mode declares them.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, SwissArmyBench.Web.Api.App.CellRoute> Routes { get; set; } = new Dictionary<string, SwissArmyBench.Web.Api.App.CellRoute>();
+
+    /// <summary>A routed table result's Open as grid, by its id.</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, string Id)> OnOpenTable { get; set; }
+
+    /// <summary>The routed kinds the picker offers: the mode's (TypeScript, TSX), and the cell's own.</summary>
+    private IEnumerable<(string Kind, string Words)> RoutedKinds =>
+        new[] { ("typescript", "TypeScript"), ("tsx", "TSX") }.Where(k => Routes.ContainsKey(k.Item1) || Cell.Kind == k.Item1);
 
     private string Label => $"Cell {Cell.Number}, {KindWords}";
 
@@ -119,6 +132,8 @@ public partial class NotebookCellView
         "dax" => "DAX",
         "markdown" => "Markdown",
         "html" => "HTML",
+        "typescript" => "TypeScript",
+        "tsx" => "TSX",
         _ => "Python",
     };
 
@@ -129,6 +144,8 @@ public partial class NotebookCellView
         "dax" => "dax",
         "markdown" => "markdown",
         "html" => "html",
+        "typescript" => "typescript",
+        "tsx" => "tsx",
         _ => "python",
     };
 

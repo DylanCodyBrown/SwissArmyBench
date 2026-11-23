@@ -79,14 +79,14 @@ public partial class HtmlDesign
     private async Task DrawAsync()
     {
         var values = Values();
-        var key = $"{Cell.Source}\u0000{values?.GetRawText()}\u0000{Theme.Effective}";
+        var key = $"{Cell.Source}\u0000{values?.GetRawText()}\u0000{Page}\u0000{Theme.Effective}";
         if (_design is null || key == _drawn)
         {
             return;
         }
         _drawn = key;
-        var names = Names(Cell.Source);
-        var html = Cell.Source;
+        var names = Page is null ? Names(Cell.Source) : [];
+        var html = Page ?? Cell.Source;
         (_state, _notes) = (string.Empty, []);
         if (names.Count > 0 && values is null)
         {
@@ -114,6 +114,10 @@ public partial class HtmlDesign
         .Where(d => d.ValueKind == JsonValueKind.Object && d.TryGetProperty("values", out _))
         .Select(d => (JsonElement?)d.GetProperty("values"))
         .LastOrDefault();
+
+    /// <summary>A whole page to draw as it is (a TSX cell's, from its route), instead of the cell's HTML.</summary>
+    [Parameter]
+    public string? Page { get; set; }
 
     [JSInvokable]
     public Task Fits(double height)

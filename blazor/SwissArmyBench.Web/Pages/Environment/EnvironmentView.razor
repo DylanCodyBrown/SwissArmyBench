@@ -52,7 +52,7 @@ else
 }
 @if (_setting is { } setting)
 {
-    <AddVariableDialog Name="@setting" OnClose="() => _setting = null" OnAdded="SettingAddedAsync" />
+    <VariableAddDialog Name="@setting" OnClose="() => _setting = null" OnAdded="SettingAddedAsync" />
 }
 
 @code {

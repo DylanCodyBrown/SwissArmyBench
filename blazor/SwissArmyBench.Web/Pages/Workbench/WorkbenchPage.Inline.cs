@@ -28,6 +28,7 @@ public partial class WorkbenchPage
             _canvases = mode.Canvases;
             _cellKinds = mode.CellKinds ?? [];
             _languages = mode.Languages ?? [];
+            _routes = mode.CellRoutes ?? new Dictionary<string, SwissArmyBench.Web.Api.App.CellRoute>();
             _inline = mode.InlineCompletion ?? [];
             _inlineStatus = _inline.FirstOrDefault()?.Status is { } route ? await AppApi.InlineStatusAsync(route) : null;
         }

@@ -52,6 +52,10 @@
             @if (_documents.Count == 0)
             {
                 <WorkbenchLanding Page="@Page" Tree="_tree" Recent="_recent" OnNew="NewAsync" OnOpen="OpenAsync" />
+                @if (IsNotebooks && _canvases.Contains("excel"))
+                {
+                    <SwissArmyBench.Web.Pages.Accounting.WorkbookLanding OnNew="NewWorkbookAsync" OnOpen="OpenWorkbookAsync" />
+                }
             }
             else
             {
@@ -60,6 +64,10 @@
                 </div>
             }
         </div>
+        @if (_showEnvironment)
+        {
+            <SwissArmyBench.Web.Pages.Environment.EnvironmentPane OnClose="ToggleEnvironmentAsync" />
+        }
         @if (_showFiles)
         {
             <FilesPane Page="@Page" Tree="_tree" Current="@Front?.Path" OnRefresh="LoadTreeAsync" OnNew="NewAsync" OnOpenAt="OpenAtAsync" OnAction="FileActionAsync" />
@@ -75,7 +83,7 @@
         </span>
         <button type="button" class="btn small ghost" disabled="@(!Session.Busy)" @onclick="InterruptAsync">Interrupt</button>
         <button type="button" class="btn small ghost" disabled="@(Session.Kernel is null)" @onclick="RestartAsync">Restart</button>
-        @if (Front is { IsBlade: false, IsStructure: false } codeFront)
+        @if (Front is { IsCode: true } codeFront)
         {
             @PythonFragment(codeFront)
         }
@@ -83,7 +91,7 @@
         {
             <span class="muted">@said</span>
         }
-        @if (Front is { IsBlade: true } or { IsStructure: true })
+        @if (Front is { IsCode: false })
         {
             <span class="muted wb-kind">@Front.KindLabel</span>
         }
@@ -108,9 +116,17 @@
         }
         @if (Front is { ScriptView: not null } runFront)
         {
-            <button type="button" class="btn small ghost wb-toggle wb-mode-toggle-runSettings" aria-pressed="@(runFront.RunSettingsOpen ? "true" : "false")" @onclick="() => ToggleRunSettingsAsync(runFront)">Run settings</button>
+            @* API.py's Run is Run API: its side panel is its Endpoints, not a script's Run settings. *@
+            @if (IsApiFile(runFront))
+            {
+                <button type="button" class="btn small ghost wb-toggle wb-mode-toggle-endpoints" aria-pressed="@(runFront.RunSettingsOpen ? "true" : "false")" title="The endpoints beside the code, Try it there" @onclick="() => ToggleRunSettingsAsync(runFront)">Endpoints</button>
+            }
+            else
+            {
+                <button type="button" class="btn small ghost wb-toggle wb-mode-toggle-runSettings" aria-pressed="@(runFront.RunSettingsOpen ? "true" : "false")" @onclick="() => ToggleRunSettingsAsync(runFront)">Run settings</button>
+            }
         }
-        <button type="button" class="btn small ghost" @onclick='() => Go("environment")'>Environment</button>
+        <button type="button" class="btn small ghost wb-environment-toggle" aria-pressed="@(_showEnvironment ? "true" : "false")" title="The Environment beside the code" @onclick="ToggleEnvironmentAsync">Environment</button>
         <button type="button" class="btn small ghost" aria-pressed="@(_showExplorer ? "true" : "false")" title="Data Explorer (Ctrl+Shift+E)" @onclick="ToggleExplorerAsync">Data Explorer</button>
         <button type="button" class="btn small ghost" aria-pressed="@(_showFiles ? "true" : "false")" title="Files (Ctrl+B)" @onclick="ToggleFilesAsync">Files</button>
         <button type="button" class="btn small ghost" aria-pressed="@(_showBlades ? "true" : "false")" @onclick="ToggleBladesAsync">Blades</button>
@@ -257,7 +273,16 @@
                     }
                 </div>
             }
-            @if (doc.IsStructure)
+            @if (doc.IsWorkbook)
+            {
+                <SwissArmyBench.Web.Pages.Accounting.WorkbookPage @key="doc.Key" @ref="doc.WorkbookView" Path="@doc.Path" NewTitle="@doc.WorkbookTitle"
+                    OnSaved="p => WorkbookSavedAsync(doc, p)" OnDirty="d => doc.Dirty = d" />
+            }
+            else if (doc.CodeFile is { } codeFile)
+            {
+                <CodeFileView @key="doc.Key" @ref="doc.CodeFileView" Path="@codeFile" OnChanged="() => doc.Dirty = true" OnPageKey="EditorPageKeyAsync" />
+            }
+            else if (doc.IsStructure)
             {
                 <StructureDoc @key="doc.Key" @ref="doc.StructureDoc" Path="@doc.Path" At="@doc.StructureAt" PythonBeside="_documents.Any(d => !d.IsStructure && !d.IsBlade)"
                               OnDirty="d => doc.Dirty = d" OnRenamed="p => StructureRenamedAsync(doc, p)" OnClose="() => CloseAsync(doc.Key, force: true)" />
@@ -285,7 +310,7 @@
                     }
                 }
                 <div class="wb-notebook-host @(doc.Presenting ? "presenting" : string.Empty)" hidden="@(doc.IsData && doc.DataView != "cells")">
-                <NotebookView @key="doc.Version" @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
+                <NotebookView @key="doc.Version" @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections" Routes="_routes"
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" OnLineage="n => ShowLineageAsync(doc, n)" />
                 </div>
             }
@@ -295,7 +320,16 @@
                 <ScriptView @ref="doc.ScriptView" Console="doc.Console" Inline="_inline" Text="@doc.ScriptText" Path="@doc.Path" Saved="!doc.Dirty && doc.Path is not null"
                             OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)"
                             OnIde="m => IdeAsync(doc, m)" OnLineage="n => ShowLineageAsync(doc, n)" />
-                @if (doc.RunSettingsOpen)
+                @if (doc.RunSettingsOpen && IsApiFile(doc))
+                {
+                    <aside class="side-pane wb-endpoints" aria-label="Endpoints">
+                        <div class="side-pane-head"><strong>Endpoints</strong>
+                            <button type="button" class="btn small ghost icon" aria-label="Close" title="Close" @onclick="() => doc.RunSettingsOpen = false"><Icon Name="close" /></button>
+                        </div>
+                        <SwissArmyBench.Web.Pages.Apis.EndpointsPane />
+                    </aside>
+                }
+                else if (doc.RunSettingsOpen)
                 {
                     <RunSettingsPanel Path="@doc.Path" Vaults="_vaults" OnClose="() => doc.RunSettingsOpen = false" />
                 }
@@ -305,7 +339,15 @@
 
     private RenderFragment<OpenDocument> ControlsFragment => doc =>
         @<text>
-            @if (doc.IsStructure)
+            @if (doc.IsWorkbook)
+            {
+                @* The Excel canvas's own bar holds its Save, Play and the rest. *@
+            }
+            else if (doc.CodeFile is not null)
+            {
+                <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
+            }
+            else if (doc.IsStructure)
             {
                 <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             }
@@ -345,7 +387,7 @@
                 }
                 <button type="button" class="btn small ghost icon wb-debug-start" aria-label="Start debugging" title="Start debugging (Ctrl+Shift+D)" @onclick="() => DebugAsync(doc)"><Icon Name="bug" /></button>
             }
-            @if (!doc.IsBlade && !doc.IsStructure)
+            @if (doc.IsCode)
             {
             <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, DocumentMenu(doc))"><Icon Name="more" /></button>

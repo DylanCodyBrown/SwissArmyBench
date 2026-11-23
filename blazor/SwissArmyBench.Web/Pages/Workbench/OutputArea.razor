@@ -4,7 +4,7 @@
 <div class="wb-outputs" aria-live="polite">
     @foreach (var output in Outputs.Where(o => ErrorDetail is null || OutputReader.Type(o) != "error"))
     {
-        <OutputView Output="output" Document="@Document" />
+        <OutputView Output="output" Document="@Document" OnOpenTable="OnOpenTable" />
     }
     @if (ErrorDetail is { } detail)
     {
@@ -88,6 +88,10 @@
 
     [Parameter]
     public EventCallback<string> OnOpenGrid { get; set; }
+
+    /// <summary>A routed kernel's table result opened as a grid by its id.</summary>
+    [Parameter]
+    public EventCallback<string> OnOpenTable { get; set; }
 
     /// <summary>Python's traceback of the run's error output, its colours kept (the panel holds it).</summary>
     private string Traceback => Outputs

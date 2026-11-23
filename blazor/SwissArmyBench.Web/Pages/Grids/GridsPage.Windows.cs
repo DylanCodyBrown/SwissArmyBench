@@ -23,8 +23,15 @@ public partial class GridsPage
         : Task.CompletedTask;
 
     /// <summary>The SQL window: each table's query looked over, then run on the other connection.</summary>
-    private void Review((string To, IReadOnlyList<string> Tables, string? Sql) review) =>
+    private void Review((string To, IReadOnlyList<string> Tables, string? Sql) review)
+    {
+        // The window's runs come back as the live notices (table_connection): the first one offers the code to point.
+        if (_connection?.Connection is { } from)
+        {
+            _reviewed = (from, review.To, [.. review.Tables]);
+        }
         _ = OpenWindowAsync(PanelWindow.SqlAddress(review.To, review.Tables, review.Sql), "sab-connsql", SqlFeatures, "The browser blocked the SQL window: allow pop-ups for this address.");
+    }
 
     private async Task OpenWindowAsync(string address, string name, string features, string blocked)
     {

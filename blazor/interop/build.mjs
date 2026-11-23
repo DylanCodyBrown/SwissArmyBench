@@ -35,6 +35,8 @@ const entries = {
   appKeys: "appKeys.js",
   // Monaco's own worker (the editor's tokens and folding off the page's thread), beside codeEditor.js.
   "editor.worker": path.join(modules, "monaco-editor", "esm", "vs", "editor", "editor.worker.js"),
+  // TypeScript's language service (a code app's files, a data notebook's TypeScript cells), beside it.
+  "ts.worker": path.join(modules, "monaco-editor", "esm", "vs", "language", "typescript", "ts.worker.js"),
 };
 
 const started = Date.now();

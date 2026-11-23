@@ -11,4 +11,5 @@ public sealed record ModeInfo(
     IReadOnlyList<InlineProvider>? InlineCompletion = null,
     IReadOnlyList<string>? Families = null,
     IReadOnlyList<string>? CellKinds = null,
-    IReadOnlyList<string>? Languages = null);
+    IReadOnlyList<string>? Languages = null,
+    IReadOnlyDictionary<string, CellRoute>? CellRoutes = null);

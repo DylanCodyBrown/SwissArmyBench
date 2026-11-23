@@ -11,6 +11,7 @@ public partial class GridsPage
     private void OnNotice(Notice notice)
     {
         FollowDiskMark(notice);
+        HeardSwap(notice);
         var mine = notice.Text("grid") is { } grid && _infos.ContainsKey(grid);
         if (notice.Type == "grid_shown" && notice.Text("grid") is { } arrived)
         {

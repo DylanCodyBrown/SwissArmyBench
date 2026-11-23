@@ -24,6 +24,12 @@ public partial class OutputView
     [Parameter]
     public string Document { get; set; } = "the Workbench";
 
+    /// <summary>A routed kernel's table result opened as a grid by its id (none: no button).</summary>
+    [Parameter]
+    public EventCallback<string> OnOpenTable { get; set; }
+
+    private static ResultTable? TableOf(JsonElement output) => ResultTable.Of(output);
+
     /// <summary>A picture's address (a PNG or JPEG as it came; an SVG encoded), or null.</summary>
     private string? Picture
     {

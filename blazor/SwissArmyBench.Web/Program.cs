@@ -73,6 +73,7 @@ public static class Program
         services.AddScoped<GridsClient>();
         services.AddScoped<ComparesClient>();
         services.AddScoped<WorkbenchClient>();
+        services.AddScoped<RoutedCellsClient>();
         services.AddScoped<LineageClient>();
         services.AddScoped<DocumentModesClient>();
         services.AddScoped<PythonsClient>();

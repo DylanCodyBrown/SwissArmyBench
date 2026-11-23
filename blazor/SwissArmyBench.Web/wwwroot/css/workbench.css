@@ -187,6 +187,7 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .ide-prop-check.ok, .table-name-check.ok { color: var(--ok, var(--muted)); }
 .ide-note-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); }
 .ide-run { display: flex; flex: 0 0 36%; flex-direction: column; min-height: 120px; border-top: 1px solid var(--border-strong); background: var(--surface); }
+.ide-run.folded { flex: none; min-height: 0; }
 .ide-run-tabs { display: flex; flex: none; align-items: center; gap: 4px; padding: 2px 8px; border-bottom: 1px solid var(--border); }
 .ide-run-tab { padding: 4px 10px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; cursor: pointer; }
 .ide-run-tab.active { border-bottom-color: var(--accent); color: var(--fg); }

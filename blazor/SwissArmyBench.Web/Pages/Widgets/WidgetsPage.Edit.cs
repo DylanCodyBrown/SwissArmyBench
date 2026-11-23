@@ -109,6 +109,7 @@ public partial class WidgetsPage
         }
         var code = _editor is null ? _code : await _editor.TextAsync();
         (_running, _starting, _failed, _failedLine, _frame) = (true, true, null, null, null);
+        RunStarted(widget.Name);
         await Js.InvokeVoidAsync("sab.remember", $"widgets.view:{widget.Name}", "preview");
         StateHasChanged();
         try
@@ -122,14 +123,17 @@ public partial class WidgetsPage
             {
                 var words = said.Problem?.Message ?? (said.Problem?.Kind == "missing" ? $"Streamlit widgets need {said.Problem.Command ?? "Streamlit"} in this Python." : "The widget did not run.");
                 _failed = new InvalidOperationException(words);
+                RunEnded(null, _failed);
                 return;
             }
             _frame = said.Url;
+            RunEnded(said.Url, null);
             _ = CheckAsync(widget, code);
         }
         catch (ApiException error)
         {
             _failed = error;
+            RunEnded(null, error);
         }
         finally
         {
@@ -151,6 +155,7 @@ public partial class WidgetsPage
             var line = Regex.Match(string.Join('\n', found), @"\(line (\d+)\)");
             _failedLine = line.Success ? int.Parse(line.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : null;
             _failed = new InvalidOperationException(found[0]);
+            RunEnded(null, _failed);
             await InvokeAsync(StateHasChanged);
         }
         catch (ApiException)

@@ -23,6 +23,23 @@
             <figure class="wb-figure"><img class="wb-image" src="@picture" alt="Figure" />
                 <button type="button" class="btn small ghost wb-to-sandbox" @onclick='() => SendAsync("image", picture)'><Icon Name="export" /> Send to Analyze</button></figure>
         }
+        else if (TableOf(Output) is { } table)
+        {
+            <figure class="wb-figure wb-result">
+                <div class="wb-result-scroll">
+                    <table class="wb-result-table">
+                        <thead><tr>@for (var i = 0; i < table.Columns.Count; i++) { var at = i; <th scope="col" title="@(at < table.Types.Count ? table.Types[at] : string.Empty)">@table.Columns[at]</th> }</tr></thead>
+                        <tbody>@foreach (var row in table.Rows) { <tr>@foreach (var column in table.Columns) { <td>@ResultTable.Cell(row, column)</td> }</tr> }</tbody>
+                    </table>
+                </div>
+                <div class="wb-result-foot"><span class="hint">@table.Said</span>
+                    @if (OnOpenTable.HasDelegate && table.Id.Length > 0)
+                    {
+                        <button type="button" class="btn small ghost wb-to-grid" @onclick="() => OnOpenTable.InvokeAsync(table.Id)"><Icon Name="export" /> Open as grid</button>
+                    }
+                </div>
+            </figure>
+        }
         else if (OutputReader.Data(Output, PlotlyMime) is { } figure)
         {
             <figure class="wb-figure"><PlotlyChart Figure="@figure" Label="Figure" />

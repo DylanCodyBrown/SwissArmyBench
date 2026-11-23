@@ -81,7 +81,7 @@ public partial class WidgetsPage
         Live.NoticeArrived += OnNotice;
         _listFolded = await Js.InvokeAsync<string?>("sab.recall", "widgets.folded") == "1";
         await Js.InvokeVoidAsync("sab.setTitle", "Widgets");
-        await Task.WhenAll(LoadListAsync(), LoadContextAsync());
+        await Task.WhenAll(LoadListAsync(), LoadContextAsync(), LoadInlineAsync());
         var first = Name is { } wanted && (_widgets ?? []).Any(w => w.Name == wanted)
             ? wanted
             : ((_widgets ?? []).FirstOrDefault(w => !w.Prebuilt) ?? (_widgets ?? []).FirstOrDefault())?.Name;

@@ -1420,7 +1420,9 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   font-size: 0.8rem;
   min-height: 32px;
   white-space: nowrap;
-  overflow: hidden;
+  /* Narrow, the bar wraps onto a second line rather than cutting its tools off (the classic one overflows). */
+  flex-wrap: wrap;
+  row-gap: 2px;
 }
 .cvs-bottom .btn {
   padding: 2px 8px;
@@ -1506,6 +1508,25 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   }
   .cvs-sizing-more {
     display: inline-flex;
+  }
+}
+/* Narrower still, the panes' buttons and the layouts fold to their icons (their titles still name them), and the
+   spacer that pushes the zoom to the right gives way so the zoom wraps with the rest. */
+@media (max-width: 1000px) {
+  .cvs-bottom .cvs-toggle .btn-label {
+    display: none;
+  }
+  .cvs-bottom .cvs-grow {
+    flex-basis: 0;
+  }
+}
+@media (max-width: 640px) {
+  .cvs-bottom .cvs-layouts .cvs-seg-item {
+    font-size: 0;
+  }
+  .cvs-bottom .cvs-layouts .cvs-seg-item .icon-svg {
+    width: 16px;
+    height: 16px;
   }
 }
 .cvs-menu {

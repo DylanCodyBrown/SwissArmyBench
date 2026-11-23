@@ -116,6 +116,7 @@ public partial class WorkbenchPage
         _showFiles = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.files") != "0";
         _showBlades = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.blades") == "1";
         _showExplorer = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.explorer") == "1";
+        await RecallEnvironmentAsync();
         Live.NoticeArrived += OnInlineNotice;
         Live.NoticeArrived += OnFileNotice;
         Live.NoticeArrived += OnPythonNotice;
@@ -148,7 +149,7 @@ public partial class WorkbenchPage
 
     protected override async Task OnParametersSetAsync()
     {
-        var wanted = $"{Path}|{New}|{Blade}|{Line}|{Cell}";
+        var wanted = $"{Path}|{New}|{Blade}|{Line}|{Cell}|{CodeFile}";
         if (wanted == _shownFor)
         {
             return;
@@ -158,6 +159,10 @@ public partial class WorkbenchPage
         if (Blade is { Length: > 0 } blade && !IsNotebooks)
         {
             await OpenBladeAsync(blade);
+        }
+        else if (CodeFile is { Length: > 0 } file && !IsNotebooks)
+        {
+            await OpenCodeFileAsync(file);
         }
         else if (Path is { Length: > 0 } path)
         {
@@ -345,7 +350,7 @@ public partial class WorkbenchPage
 
     public async ValueTask DisposeAsync()
     {
-        Palette.SetPageCommands(null);
+        Palette.WithdrawPageCommands(PageCommands);
         Session.Changed -= Redraw;
         Project.Changed -= Redraw;
         Live.NoticeArrived -= OnInlineNotice;

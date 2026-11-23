@@ -11,7 +11,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 
 
 def made_up(server: dict[str, Any], name: str, source: str) -> str:
@@ -28,8 +28,7 @@ def test_documents_are_tabs_that_split_and_close(browser: Browser, server: dict[
     expect(page.locator(".wb-tab.active")).to_contain_text("first.ipynb")
 
     page.click("button:has-text('Open…')")
-    page.fill(".dialog input", second)
-    page.click(".dialog-foot .btn.primary")
+    choose_path(page, second)
     expect(page.locator(".wb-tab")).to_have_count(2)
     expect(page.locator(".wb-tab.active")).to_contain_text("second.ipynb")
     assert "second.ipynb" in page.url
@@ -69,10 +68,10 @@ def test_the_palette_and_a_cells_menu(browser: Browser, server: dict[str, Any]) 
     page = open_page(browser, server, f"notebooks?path={path}")
     page.locator(".wb-cell").first.click()
     page.keyboard.press("Control+Shift+P")
-    palette = page.locator(".palette")
+    palette = page.locator(".wb-palette")
     expect(palette).to_be_visible()
     palette.locator("input").fill("insert below")
-    expect(palette.locator(".palette-item")).to_have_count(1)
+    expect(palette.locator(".wb-palette-item")).to_have_count(1)
     page.keyboard.press("Enter")
     expect(palette).to_have_count(0)
     expect(page.locator(".wb-cell")).to_have_count(2)
@@ -262,8 +261,8 @@ def test_the_palettes_other_commands(browser: Browser, server: dict[str, Any]) -
 
     def run(words: str) -> None:
         page.keyboard.press("Control+Shift+P")
-        page.locator(".palette input").fill(words)
-        expect(page.locator(".palette-item").first).to_contain_text(words, ignore_case=True)
+        page.locator(".wb-palette input").fill(words)
+        expect(page.locator(".wb-palette-item").first).to_contain_text(words, ignore_case=True)
         page.keyboard.press("Enter")
 
     run("run code in the console")
@@ -274,8 +273,9 @@ def test_the_palettes_other_commands(browser: Browser, server: dict[str, Any]) -
     expect(page.locator(".dialog .wb-help-text")).to_contain_text("made_up_console.py")
     page.locator(".dialog-foot button:has-text('Close')").click()
     run("keyboard shortcuts")
-    expect(page.locator(".dialog .wb-help-text")).to_contain_text("Ctrl+Shift+P")
-    page.locator(".dialog-foot button:has-text('Close')").click()
+    sheet = page.get_by_role("dialog", name="Keyboard shortcuts")
+    expect(sheet).to_contain_text("Ctrl+Shift+P")
+    sheet.get_by_role("button", name="Close").click()
     run("clear the console")
     expect(page.locator(".wb-console-body")).not_to_contain_text("42")
     page.close()
