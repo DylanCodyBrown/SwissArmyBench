@@ -9112,6 +9112,50 @@ Decided (confirm or change):
 
 Not done: the per-kind connection record (item 12), the front-end half of item 10, the canvas RUNTIME (review
 C's), the approvals (review B1's).
+## Review fixes E, 2026-11-23: the extensions' seams and the composition root's constructors
+
+docs/reviews/craft-review-2026-11-22.md, the composition section's findings 1, 4, 11 and 12, and the extensions
+section's seams item; it finishes what Review fixes B2 left open.
+
+Decided:
+- **An extension is given Seams, never Services.** server/app.py hands `ctx.seams` (services/hooks.py Seams) to
+  every extension's `routes` and `stop`, packaged or a folder's (New extension's starter and the example take
+  `seams` too). Seams grew by what the six extensions really read: the shared ports (ws, settings, approvals,
+  hooks, its own `extension` slot, process_event, export_writer) and one small Protocol per base service they
+  call (DatasetsSeam, BladesSeam, ConnectionsSeam, VariablesSeam, LibrarySeam, ProjectExplorerSeam,
+  SharedCatalogSeam, ModelsSeam, ComparesSeam, ProjectsSeam, RegistrationsSeam), plus api_document, used_tables,
+  document_python and core_files. bootstrap's `_seams` builds it, so a base rename fails mypy there (the service
+  no longer fits its port) or in the extension (the port lacks it).
+- **PowerBIProject takes a `Base` record of those ports** (extensions/powerbi services/project.py), not the
+  services record; the Streamlit extension's sharing target and Power Apps and Copilot read only their seams.
+- **tests/test_extension_layers.py** refuses an extension module that imports bootstrap, names `Services`, or
+  takes or reads a value called `services` or `ctx`, and checks that each extension's `routes` and `stop` take
+  `seams: Seams` and read only what Seams declares (a bad example proves the check finds each way).
+- **Constructor injection.** Where there was no cycle the dependency is a constructor argument now (connection
+  slots' kernels, project Python's workbench ports, the sandbox's sources, connections' variable check and so on);
+  LATE_BOUND keeps 16, each with a comment naming its cycle, and `_check_wired` still fails the start on one
+  left unset.
+- **The root's rules went to their services, each tested there with stand-ins**: a blade's runs
+  (services/blade_runs.py BladeRuns: which runs wait in a connection's line, a vault read for a kernel),
+  where the sandbox gets a table (services/sandbox_sources.py AppSources), the scaffold's sources (which project
+  documents read a variable, data.py's structures, API.py's endpoints, the project type's contract:
+  services/scaffold.py over Sources ports), an app registration's users and the kind its check reads a
+  connection as (services/app_registrations.py, domain/app_registrations.py connection_kind), the shared
+  catalog's connections (services/shared_catalog.py connections_here), the stop's save (services/sab_projects.py
+  save_before_stop), context.md's catalog summary (services/context_md.py catalog_of), where a connection's
+  references are looked for (services/connection_usage.py documents_to_search), the outline's dashboards
+  (services/project_outline.py saved_dashboards). bootstrap.py is 2,015 lines (its SHRINKING ceiling, from 2,332).
+- One small behaviour change: data.py's structures read a structure's path inside the project by the one rule
+  (project_paths.relative_in, links resolved only when the text says no), so a grid read through a link to the
+  project's folder now gives its relative path instead of a `../` one.
+
+Left:
+- What remains in bootstrap is wiring: adapting ports (lambdas over a service's listing), listener
+  registrations, and the 16 late-bound cycles. `_picker_places` (two folders added when they exist) and
+  `_use_project` (the dashboards' folder and the rescopes a project change runs) stay: each is a few lines of
+  which-service-to-tell.
+- The listener lists (`opened`, `saved`, `live.listeners`) are still appended to after construction; they are
+  subscriptions, and Seams hands the lists to the extensions as they are.
 ## Review fixes C, 2026-11-22 (decisions and open notes)
 
 Decisions:
