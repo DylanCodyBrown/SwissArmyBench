@@ -28,6 +28,7 @@ public partial class Home : IDisposable
 
     private ExplorerAnswer? _listing;
     private Exception? _error;
+    private bool _errorFromLoading;
     private bool _busy;
     private string _query = string.Empty;
     private string _type = string.Empty;
@@ -70,11 +71,17 @@ public partial class Home : IDisposable
         try
         {
             _listing = await Projects.ExplorerAsync(_query, _type, _where);
-            _error = null;
+            // Only the listing's own failure goes when it reads again: an action's refusal stays until closed.
+            if (_errorFromLoading)
+            {
+                _error = null;
+                _errorFromLoading = false;
+            }
         }
         catch (ApiException error)
         {
             _error = error;
+            _errorFromLoading = true;
         }
         _busy = false;
         StateHasChanged();

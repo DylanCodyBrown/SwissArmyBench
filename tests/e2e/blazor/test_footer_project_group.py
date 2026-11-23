@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from playwright.sync_api import Browser, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from tests.e2e.blazor.conftest import call, open_page
 
@@ -31,8 +32,14 @@ def test_the_footer_zooms_and_the_project_group_saves(browser: Browser, server: 
     group.get_by_role("button", name="Export outline").click()
     expect(page.locator(".note-corner")).to_contain_text("ARCHITECTURE.md")
     group.get_by_role("button", name="Save").click()
-    # The made-up store's tables were pushed (no source to read again): Keep its rows is asked, left unticked.
-    page.get_by_role("dialog", name="Save project").get_by_role("button", name="Save").click()
+    # The made-up store's pushed tables have no source to read again: Keep its rows is asked (once a table on
+    # this server, so another test may have answered it already), left unticked.
+    asked = page.get_by_role("dialog", name="Save project")
+    try:
+        asked.wait_for(timeout=3_000)
+        asked.get_by_role("button", name="Save").click()
+    except PlaywrightTimeoutError:
+        pass
     expect(group).not_to_contain_text("●")
     expect(page.locator(".note-corner")).to_contain_text("Saved")
     group.get_by_label("Private").check()
