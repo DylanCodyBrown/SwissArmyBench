@@ -243,3 +243,28 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .connection-form .form-row > span:first-child { min-width: 140px; color: var(--muted); }
 .connection-form input:not([type="checkbox"]):not([type="radio"]) { flex: 1 1 260px; }
 .connection-code pre { max-height: 260px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+
+/* ===== the Grids page ===== */
+.grids-page { min-height: 0; }
+.grid-tabs { display: flex; flex: none; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
+.grid-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid transparent; border-bottom: 0;
+  border-radius: 6px 6px 0 0; color: var(--muted); text-decoration: none; white-space: nowrap;
+}
+.grid-tab:hover { color: var(--fg); background: var(--surface-2); }
+.grid-tab.current { border-color: var(--border); background: var(--bg); color: var(--fg); font-weight: 600; margin-bottom: -1px; }
+.grid-title-row { display: flex; flex: none; align-items: center; gap: 12px; padding: 10px 16px 4px; }
+.grid-title { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.steps-strip { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 16px 8px; }
+.step-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 2px 1px 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.step-chip.off { opacity: 0.6; text-decoration: line-through; }
+.step-chip.failed { border-color: var(--error); }
+.grid-body { position: relative; display: flex; flex: 1 1 auto; min-height: 0; border-top: 1px solid var(--border); }
+.ag-host { flex: 1 1 auto; min-width: 0; height: 100%; }
+.grid-rownum { color: var(--muted); text-align: right; }
+.column-card { flex: none; width: 320px; overflow: auto; padding: 12px 14px; border-left: 1px solid var(--border); background: var(--raised); display: grid; gap: 8px; align-content: start; }
+.column-card h2 { flex: 1; font-size: 15px; }
+.column-card h3 { font-size: 13px; color: var(--muted); }
+.new-query { display: grid; gap: 10px; max-width: 900px; padding: 18px 24px; }
+.new-query h1 { font-size: 18px; }
+.query-sql { width: 100%; }

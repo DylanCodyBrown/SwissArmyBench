@@ -1,0 +1,49 @@
+@* The Grids page (the classic home page's grids): a tab per open table, "+" the New query page; the active grid
+   (AG Grid, rows paged from the server), the steps strip under its title (each step in plain words, on or off,
+   removed; Undo and Redo), and a column's card on a header click (its numbers and its tools: sort, keep rows,
+   remove, rename). ?grid= names the tab shown. *@
+@page "/grids"
+
+<section class="area-page grids-page">
+    <div class="grid-tabs" role="tablist" aria-label="Open tables">
+        @foreach (var tab in _tabs)
+        {
+            <a role="tab" class="grid-tab @(tab.Grid == _active ? "current" : string.Empty)" aria-selected="@(tab.Grid == _active ? "true" : "false")" href="@($"grids?grid={Uri.EscapeDataString(tab.Grid)}")">
+                <Icon Name="table" /> @tab.Dataset
+                @if (tab.Steps > 0)
+                {
+                    <span class="chip">@tab.Steps</span>
+                }
+            </a>
+        }
+        <a role="tab" class="grid-tab new-tab @(IsNewQuery ? "current" : string.Empty)" href="grids?new=1" aria-label="New query"><Icon Name="plus" /></a>
+    </div>
+    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+    @if (IsNewQuery || (_tabs.Count == 0 && _loaded))
+    {
+        <NewQuery OnMade="MadeAsync" />
+    }
+    else if (_info is { } info)
+    {
+        <div class="grid-title-row">
+            <h1 class="grid-title"><Icon Name="table" /> @info.Title</h1>
+            <span class="muted">@(_rows?.ToString("N0") ?? info.RowCount.ToString("N0")) rows · @info.Columns.Count columns</span>
+            <span class="status-spacer"></span>
+            <button type="button" class="btn small" disabled="@(!info.CanUndo)" @onclick="UndoAsync"><Icon Name="undo" /> Undo</button>
+            <button type="button" class="btn small" disabled="@(!info.CanRedo)" @onclick="RedoAsync"><Icon Name="redo" /> Redo</button>
+            <button type="button" class="btn small ghost" @onclick="CloseTableAsync"><Icon Name="close" /> Close table</button>
+        </div>
+        <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" />
+        <div class="grid-body">
+            <AgGrid @ref="_grid" GridId="@info.Grid" Columns="info.Columns" OnHeaderClicked="ShowColumn" OnCounted="Counted" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed" />
+            @if (_column is { } column)
+            {
+                <ColumnCard Grid="@info.Grid" Column="@column" Type="@TypeOf(column)" AllColumns="info.Columns.Select(c => c.Name).ToList()" OnStep="AddStepAsync" OnClose="() => _column = null" />
+            }
+        </div>
+    }
+    else if (_loaded)
+    {
+        <div class="loading-block">Loading the table…</div>
+    }
+</section>

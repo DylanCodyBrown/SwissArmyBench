@@ -1,0 +1,34 @@
+@* The steps strip under the title (the classic stepsStrip.ts): each step in plain words, its switch and its ×; the
+   failing step marked with its reason. No steps: one quiet line. *@
+<div class="steps-strip" aria-label="Steps">
+    @if (Info.Steps.Count == 0)
+    {
+        <span class="muted">No steps: click a column's header for its tools.</span>
+    }
+    @for (var at = 0; at < Info.Steps.Count; at++)
+    {
+        var index = at;
+        var step = Info.Steps[at];
+        var failed = Info.StepError?.Index == index;
+        <span class="step-chip @(step.Enabled ? string.Empty : "off") @(failed ? "failed" : string.Empty)" title="@(failed ? Info.StepError!.Message : step.Description)">
+            <input type="checkbox" aria-label="@($"Step {index + 1} on")" checked="@step.Enabled" @onchange="e => OnToggle.InvokeAsync((index, e.Value is true))" />
+            <span>@(index + 1). @step.Description</span>
+            <button type="button" class="btn ghost icon small" aria-label="@($"Remove step {index + 1}")" @onclick="() => OnDelete.InvokeAsync(index)"><Icon Name="close" /></button>
+        </span>
+    }
+</div>
+@if (Info.StepError is { } stepError)
+{
+    <ErrorNote Words="@($"Step {stepError.Index + 1} failed: {stepError.Message}")" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public GridInfo Info { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<(int Index, bool Enabled)> OnToggle { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnDelete { get; set; }
+}
