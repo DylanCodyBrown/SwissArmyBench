@@ -320,8 +320,12 @@ def main(folder: Path, shots: Path | None) -> int:
         enter = QDragEnterEvent(QPoint(60, 60), action, mime, button, none)
         QApplication.sendEvent(target, enter)
         results["drop_accepted"] = enter.isAccepted()
+        windows_before = len(shell.windows)
         QApplication.sendEvent(target, QDropEvent(QPointF(60, 60), action, mime, button, none))
         wait(lambda: "drop_me" in tables(), 30, "the dropped file")
+        here = "!!document.querySelector('.tab-item[title=\"drop_me\"]')"
+        wait(lambda: js(home, here), 30, "its tab, in this window")
+        results["windows_grew_on_drop"] = len(shell.windows) - windows_before
         results["drop_origin"] = tables()["drop_me"]["origin"]["kind"]
         results["opened_files"] = [Path(p).name for p in shell.opened_files]
 

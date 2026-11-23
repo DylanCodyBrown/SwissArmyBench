@@ -451,3 +451,15 @@ def test_a_stale_record_never_takes_the_page(tmp_path: Path, monkeypatch: pytest
     assert launch.tell({"open": "/workspace"}, info) is None
     assert launch.open_page(f"{OURS}/workspace#token=secret", info)
     assert started == ["/workspace"]
+
+
+def test_a_table_dropped_on_a_window_shows_in_that_window() -> None:
+    """The owner, 2026-11-23: a file dropped on Grids opened another window. On Grids the table arrives as
+    a tab by itself (nothing loads); on another page that window moves to Grids with it; anything else as
+    before."""
+    table = "/workspace#grid=g7"
+    assert rules.dropped_into(table, "http://127.0.0.1:8123/blazor/grids?grid=g2") is None
+    assert rules.dropped_into(table, "http://127.0.0.1:8123/workspace") is None
+    assert rules.dropped_into(table, "http://127.0.0.1:8123/blazor/connections") == "/blazor/grids?grid=g7"
+    notebook = "/notebooks?path=%2Fmade-up%2Fdata.ipynb"
+    assert rules.dropped_into(notebook, "http://127.0.0.1:8123/blazor/grids") == notebook

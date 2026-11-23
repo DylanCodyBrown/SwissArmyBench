@@ -209,6 +209,24 @@ def _extra(url: str) -> bool:
     return any(k != "token" for k, _ in parse_qsl(urlsplit(url).fragment, keep_blank_values=True))
 
 
+GRIDS_PAGE = "/blazor/grids"
+
+
+def dropped_into(page: str, window_url: str) -> str | None:
+    """A file dropped on a window goes into that window (the owner, 2026-11-23: "it opens another instance
+    of the grid instead of using the current one"). `page` is what the server said shows the file; a table's
+    is `/workspace#grid=<id>`. Answers the page that window loads, or None when it only comes forward: it
+    already shows Grids, where the new table arrives as a tab by itself (the server's grid_shown notice).
+    Anything that is not a table (a notebook, a blade, a project) answers `page` itself, as before."""
+    parts = urlsplit(page)
+    grid = dict(parse_qsl(parts.fragment)).get("grid")
+    if parts.path != HOME_PAGE or not grid:
+        return page
+    if urlsplit(window_url).path.rstrip("/") in (GRIDS_PAGE, HOME_PAGE):  # Grids, or the classic home's tabs
+        return None
+    return f"{GRIDS_PAGE}?{urlencode([('grid', grid)])}"
+
+
 @dataclass(frozen=True)
 class Open:
     """A window the shell has: its id, its page's window.name, the address it shows."""
