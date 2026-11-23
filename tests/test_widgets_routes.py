@@ -220,6 +220,9 @@ def test_a_python_without_streamlit_is_said_with_its_install(served: tuple[TestC
     runner.missing = ["streamlit"]
     ran = ok(client.post("/streamlit/widgets/button/run", headers=AUTH, json={"python": "/p"}))
     assert not ran["ok"] and ran["problem"]["kind"] == "missing" and runner.started == []
+    # The page's one install prompt reads what is missing and where it goes: no project open, the app's own.
+    problem = ran["problem"]
+    assert problem["packages"][0] == "streamlit" and problem["python"] == "/p" and problem["install"] == "app"
 
 
 def test_the_agents_delete_waits_for_the_users_allow(served: tuple[TestClient, FakeRunner]) -> None:

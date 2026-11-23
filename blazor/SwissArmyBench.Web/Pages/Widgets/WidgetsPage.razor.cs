@@ -16,6 +16,16 @@ public partial class WidgetsPage
     private const int SaveMs = 700;
     private const int LivePropertiesMs = 250;
 
+    // The dock's panes and where this browser keeps their places.
+    private const string LibraryPaneId = "library";
+    private const string PropertiesPaneId = "properties";
+    private const string DockKey = "widgets.dock";
+
+    /// <summary>The Library on the left, Properties on the right, until the user moves them.</summary>
+    private static readonly DockLayout _defaultDock = new([new(LibraryPaneId, DockSide.Left), new(PropertiesPaneId, DockSide.Right)], LeftWidth: 260);
+
+    private readonly Dictionary<string, ElementReference> _itemRefs = [];
+
     private IReadOnlyList<WidgetEntry>? _widgets;
     private WidgetFull? _current;
     private WidgetContext? _context;
@@ -24,8 +34,10 @@ public partial class WidgetsPage
     private string _query = string.Empty;
     private string _saved = string.Empty;
     private bool _projectOpen;
-    private bool _listFolded;
-    private bool _propertiesOpen = true;
+    private PaneDockState _dock = default!;
+    private string? _focusName;
+    private MissingPackages? _missing;
+    private string? _missingPlace;
     private bool _running;
     private bool _starting;
     private string? _frame;
@@ -53,6 +65,9 @@ public partial class WidgetsPage
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
+    [Inject]
+    private PackagePrompts Prompts { get; set; } = default!;
+
     [SupplyParameterFromQuery(Name = "name")]
     public string? Name { get; set; }
 
@@ -76,10 +91,22 @@ public partial class WidgetsPage
         }
     }
 
+    /// <summary>The widgets in the order the Library shows them (the arrow keys walk it).</summary>
+    private IReadOnlyList<string> Flat => Groups.SelectMany(g => g.Items).Select(w => w.Name).ToList();
+
+    /// <summary>The one line the Tab key reaches in the Library: the one with the focus, else the chosen one.</summary>
+    private string? RovingName => _focusName is { } focused && Flat.Contains(focused) ? focused : _current?.Name ?? Flat.FirstOrDefault();
+
+    protected override void OnInitialized()
+    {
+        _dock = new PaneDockState(Js, DockKey, _defaultDock);
+        _dock.Changed += OnDockChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
-        _listFolded = await Js.InvokeAsync<string?>("sab.recall", "widgets.folded") == "1";
+        await _dock.LoadAsync();
         await Js.InvokeVoidAsync("sab.setTitle", "Widgets");
         await Task.WhenAll(LoadListAsync(), LoadContextAsync(), LoadInlineAsync());
         var first = Name is { } wanted && (_widgets ?? []).Any(w => w.Name == wanted)
@@ -154,7 +181,7 @@ public partial class WidgetsPage
         _ = PrimeAsync(_current);
         if (await Js.InvokeAsync<string?>("sab.recall", $"widgets.view:{name}") == "preview")
         {
-            await RunAsync();
+            await StartRunAsync(prompt: true, asked: false);
         }
     }
 

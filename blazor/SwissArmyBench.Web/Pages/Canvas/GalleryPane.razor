@@ -5,10 +5,6 @@
 @using SwissArmyBench.Web.Api.Widgets
 @implements IDisposable
 
-<div class="cvs-pane-head">
-    <h2>Widgets</h2>
-    <button type="button" class="btn ghost icon" aria-label="Open the Widgets window" title="Open the Widgets window" @onclick="OpenWidgetsAsync"><Icon Name="popout" /></button>
-</div>
 <input type="search" class="cvs-gallery-search" placeholder="Search widgets" aria-label="Search widgets" data-no-variables @bind="_query" @bind:event="oninput" />
 <div class="cvs-cards">
     @foreach (var group in Shown)

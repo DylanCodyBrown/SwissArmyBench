@@ -509,3 +509,29 @@ body:has(> .tour) > .context-menu {
 .panel-window > .dialog-shade:not(.dialog-shade ~ .dialog-shade) > .dialog { width: 100%; max-width: none; max-height: none; min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
 .panel-window > .window-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
 .panel-window > .window-top + .error-note ~ .dialog-shade > .dialog, .panel-window > .window-top ~ .dialog-shade:not(.dialog-shade ~ .dialog-shade) > .dialog { min-height: calc(100vh - 48px); }
+
+/* ===== the dock (Components/PaneDock): a page's own work between a zone at each side holding its panes, top to
+   bottom; each pane's header (its name, its buttons, "…", Hide) dragged to the other side; the sides' grips and the
+   line between two stacked panes resize them ===== */
+.dock { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
+.dock-center { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.dock-zone { display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; background: var(--surface); }
+.dock-pane { display: flex; flex-direction: column; min-height: 72px; overflow: hidden; }
+.dock-pane-head {
+  display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border); cursor: grab; user-select: none;
+}
+.dock-pane-title { flex: 1; margin: 0; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.dock-pane-actions { display: flex; align-items: center; gap: 2px; }
+.dock-pane-actions .btn.icon { padding: 2px; }
+.dock-pane-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+.dock-split { height: 5px; flex-shrink: 0; cursor: row-resize; background: var(--border); }
+.dock-split:hover, .dock-split:focus-visible { background: var(--border-strong); }
+.dock-drop {
+  position: absolute; top: 0; bottom: 0; z-index: 30; width: 88px; display: flex; align-items: center; justify-content: center;
+  border: 2px dashed var(--accent); border-radius: 6px; background: var(--accent-soft); color: var(--fg); font-size: 0.8rem; text-align: center;
+  opacity: 0.85;
+}
+.dock-drop-left { left: 0; }
+.dock-drop-right { right: 0; }
+.dock-drop.over { opacity: 1; box-shadow: inset 0 0 0 2px var(--accent); }

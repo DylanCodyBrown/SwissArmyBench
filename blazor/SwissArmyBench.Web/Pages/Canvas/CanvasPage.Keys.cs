@@ -179,18 +179,4 @@ public partial class CanvasPage
         _showWires = !_showWires;
         return Js.InvokeVoidAsync("sab.remember", "canvas.wires", _showWires ? "1" : "0").AsTask();
     }
-
-    private Task TogglePaneAsync(string pane)
-    {
-        _panes = pane == "properties" ? _panes with { Properties = !_panes.Properties } : _panes with { Widgets = !_panes.Widgets };
-        return RememberPanesAsync();
-    }
-
-    private Task PaneWidthAsync(string pane, double width)
-    {
-        _panes = pane == "properties" ? _panes with { PropertiesWidth = width } : _panes with { WidgetsWidth = width };
-        return RememberPanesAsync();
-    }
-
-    private Task RememberPanesAsync() => _view.State is { } state ? RememberAsync($"canvas.panes:{state.Path}", _panes) : Task.CompletedTask;
 }

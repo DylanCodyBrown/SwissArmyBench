@@ -5,6 +5,7 @@ using Microsoft.JSInterop;
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Canvas;
 using SwissArmyBench.Web.Api.Widgets;
+using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Canvas;
@@ -17,10 +18,6 @@ public partial class CanvasPage
     // Another window changed the canvas meanwhile (the server's 409).
     private const int Conflict = 409;
 
-    // The one missing-package prompt is asked once a page for the same packages.
-    private readonly HashSet<string> _askedInstall = [];
-
-    // The one missing-package prompt is asked once a page for the same packages.
     private readonly CanvasView _view = new();
     private WidgetPreviews _previews = default!;
     private IReadOnlyList<WidgetEntry> _widgets = [];
@@ -30,7 +27,7 @@ public partial class CanvasPage
     private bool _loading = true;
     private string? _opened;
     private bool _showWires;
-    private CanvasPanes _panes = new();
+    private PaneDockState _dock = default!;
     private OpenMenu? _menu;
     private (double X, double Y, string Id)? _replacing;
     private bool _buildsOpen;
@@ -55,7 +52,7 @@ public partial class CanvasPage
     private ThemeState Theme { get; set; } = default!;
 
     [Inject]
-    private Dialogs Dialogs { get; set; } = default!;
+    private PackagePrompts Prompts { get; set; } = default!;
 
     [Inject]
     private Notes Notes { get; set; } = default!;
@@ -77,6 +74,8 @@ public partial class CanvasPage
     protected override void OnInitialized()
     {
         _previews = new WidgetPreviews(WidgetsApi) { Theme = PreviewTheme, OnMissing = AskInstallAsync };
+        _dock = new PaneDockState(Js, DockKey, _defaultDock);
+        _dock.Changed += OnDockChanged;
         Live.NoticeArrived += OnNotice;
         Theme.Changed += OnThemeChanged;
     }
@@ -125,8 +124,7 @@ public partial class CanvasPage
     /// <summary>The first state of a canvas: the panes, the zoom and the layout it was left with, then drawn.</summary>
     private async Task TakeFirstAsync(CanvasState state)
     {
-        var panes = await RecallAsync<CanvasPanes>($"canvas.panes:{state.Path}");
-        _panes = panes ?? new CanvasPanes();
+        await _dock.LoadAsync();
         var kept = await RecallAsync<KeptView>($"canvas.view:{state.Path}");
         if (kept is not null)
         {

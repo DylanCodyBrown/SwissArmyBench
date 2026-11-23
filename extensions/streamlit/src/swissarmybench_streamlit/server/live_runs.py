@@ -109,6 +109,10 @@ class LiveRuns:
         # Told a run's key when the run ends or its app is written again (a launch again): a share of a
         # launched app ends with it (services/sharing_target.py).
         self.ended: list[Callable[[str], Awaitable[None]]] = []
+        # Where a missing package goes for a run in a Python: "project" (the open project's own: the
+        # Environment's Install) or "app" (the app's own: /blades/install), said with the problem so the
+        # page's one install prompt installs into the Python the run uses (services/widgets.py sets it).
+        self.install_place: Callable[[str], str] = lambda _python: "app"
 
     def use_runner(self, runner: Any) -> None:
         """The Streamlit processes started by `runner` from now on (a test's stand-in: start, check,
@@ -134,8 +138,11 @@ class LiveRuns:
         except ValueError as error:
             return {"kind": "failed", "message": str(error)}
         if found["missing"]:  # set up for Streamlit: the Excel widgets' packages come along
-            return {"kind": "missing"} | missing_packages(
-                "Streamlit widgets", [*found["missing"], *found.get("extras", [])], python, own=False
+            packages = [*found["missing"], *found.get("extras", [])]
+            return (
+                {"kind": "missing"}
+                | missing_packages("Streamlit widgets", packages, python, own=False)
+                | {"install": self.install_place(python)}
             )
         return None
 
