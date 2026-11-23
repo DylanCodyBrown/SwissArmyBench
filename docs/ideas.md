@@ -9271,3 +9271,45 @@ sys.partitions, so its row count before a read is now a plain COUNT(*): a starte
 reads the starter's first). Databricks' starter named dialect "other" although the adapter knows Databricks:
 it now names "databricks", with its own record (sqlglot databricks, filters folded, named marks, COUNT(*)),
 so Open as grid reads it through the adapter like the other SQL databases.
+
+## Review fixes E, 2026-11-23 (decisions and open notes)
+
+The rest of the craft review's domain items (docs/reviews/craft-review-2026-11-22.md), one commit each.
+
+Done:
+- **Every connection code the app writes is linted** (tests/test_generated_code_lint.py): pyflakes (or Ruff's
+  pyflakes rules) and the editors' own lint over each starter in each sign-in, the kinds' own modules, Add
+  API's made file in every auth type, the starter pack's Python blades, connections.py (the scaffold's and an
+  API export's) and the sandbox mirror. It found one real bug (a lake's Azure store named an undefined
+  `host`, reached only against real Azure) and a dozen unused or doubled imports. A made file's head is one
+  list of imports for every connection, so connections.py now keeps only those its connections read
+  (script_runtime.without_unused_imports).
+- **sab_excel 1.1.2**: build_statements in parts over one record (the review named it under adapter.py; it is
+  sab_excel's). Its public signature stays: 13 arguments, because it is the call people write.
+- **adapter 1.10.0**: a client may say what it is (`sab_source`: odata, lake, list, rows), read before its
+  methods; the generated Dataverse, lake and SharePoint clients say it. A saved connection's older code says
+  nothing and is told by its methods as before; a word the adapter does not know falls back the same way.
+- **connection_tables.py is two modules**: what a connection is and how a table is named (connection_tables),
+  and the DuckDB SQL work (connection_sql). It no longer imports dataverse (the record's `unless_sql`) or lakes
+  (path_parts and split_at were read only there and moved in). web_calls stays: an API blade is told by its
+  tags, which no record holds.
+- **The access report's per-kind branches are the record's**: `entra_path` (the storage path a check lists)
+  and `app_sign_in` (whose app-registration code a kind is signed in with); each kind module has app_code.
+- **arrange, _detect and script_export.plan** are their phases over one record each, every piece under 80
+  lines; each compared with the old function (6,000 made-up documents; 1,830 codes; every plan the export
+  tests make) as well as by its unchanged tests. script_export's records went to domain/script_records.py to
+  keep the file under 1,500 lines.
+
+Left, and why:
+- **client/write_sql.py ENGINES and client/sql_cell.py _SCANNED** stay by driver: ENGINES holds code (each
+  database's quoting function and type maps), which the record never holds; _SCANNED's drivers are a subset
+  of the adapter's _DRIVERS with different answers for some (pg8000, sqlite3: no scanning today), so deriving
+  it from a record would change how a `${NAME}` is bound for those drivers. A behaviour change for its own
+  commit, if wanted.
+- **The starters' text still repeats each label and group** (server/blade_templates.py), held to the records
+  by a test as before.
+- **Found, not fixed (refactor only): blade_settings' first pass reads a chained assignment (`a = b = "x"`)
+  with the previous statement's target**, and as the code's first statement it raises UnboundLocalError, so a
+  connection whose code starts so shows no settings. Kept exactly as it was in the split; the fix is one line
+  (skip a statement with more than one target) and wants its own test.
+- **test_adapter_observe compared the adapter's version as text** ("10" < "2"); it compares numbers now.

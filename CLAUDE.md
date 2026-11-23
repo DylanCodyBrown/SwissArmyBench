@@ -1083,7 +1083,8 @@ src/swissarmybench/
                          table(name) and refresh(name) (a table is the data, a grid its view); Connection (what
                          API.py's connection(name) gives, here and exported: tables, columns, read, query, write,
                          write_all, planned);
-                         source_from(client) (a connection's own client or a file's path in its backend);
+                         source_from(client) (a connection's own client or a file's path in its backend; what
+                         the client says it is first, its sab_source: SAB_SOURCES, else its methods);
                          catalog_rows (tables as a listing's rows, descriptions too), listed(source) (a database's
                          whole catalog as its starter lists it: Dialect.listing and listing_shape); the Plan
                          (columns, filters (contains: in any case, literal), sort, limit, offset, group, periods
@@ -1110,7 +1111,7 @@ src/swissarmybench/
                          rows written into a sheet by insert or truncate, the other sheets kept, the file
                          replaced safely; openpyxl imported only when a workbook is used, missing said in
                          one sentence; header_names, typed, sheet_value: the same answers as
-                         sab_excel.cell_value, tests/test_cell_value_copies.py). Version 1.9.2. One file; it
+                         sab_excel.cell_value, tests/test_cell_value_copies.py). Version 1.10.0. One file; it
                          only grows (design principle 12b); no function over 80 lines, and one generous
                          ceiling (6,000 lines) that is the owner's to raise (tests/test_architecture.py)
     api_adapter.py       THE API adapter (Plans/api-adapter.plan.md; 12b), one file the app, the API's process and an
