@@ -1,0 +1,92 @@
+@* Home: the Projects page (the classic projectsPage.ts and projectExplorer.ts). The project open now with its
+   Close, New project, Open project…, Open a file…, What kind of project?, the filters and sort, and every project as
+   a card (Local or Shared). *@
+@page "/"
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="home" /> Projects</h1>
+        <div class="area-page-actions">
+            <button type="button" class="btn primary" @onclick="() => _newOpen = true"><Icon Name="plus" /> New project</button>
+            <button type="button" class="btn" @onclick="OpenProjectAsync"><Icon Name="folder" /> Open project…</button>
+            <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="file" /> Open a file…</button>
+            @if (Project.Current is { } open)
+            {
+                <button type="button" class="btn ghost" @onclick="CloseProjectAsync"><Icon Name="close" /> Close project</button>
+            }
+        </div>
+    </header>
+    <div class="area-page-body">
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        <Busy IsBusy="_busy" Words="Loading the projects…">
+            @if (_listing is { } listing)
+            {
+                @if (listing.Projects.Count == 0 && string.IsNullOrEmpty(_query) && string.IsNullOrEmpty(_type) && string.IsNullOrEmpty(_where))
+                {
+                    <section class="section explorer-empty" aria-label="Create your first project">
+                        <h2>Create your first project</h2>
+                        <ProjectTypes Types="listing.Types" OnCreate="CreateOfType" />
+                    </section>
+                }
+                else
+                {
+                    @if (!listing.Explained)
+                    {
+                        <section class="section" aria-label="What kind of project?">
+                            <div class="section-head">
+                                <h2>What kind of project?</h2>
+                                <button type="button" class="btn small ghost" @onclick="() => ExplainedAsync(true)">Put away</button>
+                            </div>
+                            <ProjectTypes Types="listing.Types" OnCreate="CreateOfType" />
+                        </section>
+                    }
+                    <section class="section" aria-label="Your projects">
+                        <div class="toolbar-row">
+                            <input type="search" class="explorer-search" placeholder="Search projects" aria-label="Search projects" value="@_query" @oninput="SearchAsync" />
+                            <select aria-label="Type" value="@_type" @onchange="TypeAsync">
+                                <option value="">All types</option>
+                                @foreach (var type in listing.Types)
+                                {
+                                    <option value="@type.Type">@type.Title</option>
+                                }
+                            </select>
+                            <select aria-label="Local or shared" value="@_where" @onchange="WhereAsync">
+                                <option value="">All</option>
+                                <option value="local">Local</option>
+                                <option value="shared">Shared</option>
+                            </select>
+                            <select aria-label="Sort by" value="@listing.Sort.By" @onchange="SortByAsync">
+                                @foreach (var (value, label) in _sorts)
+                                {
+                                    <option value="@value">@label</option>
+                                }
+                            </select>
+                            <button type="button" class="btn small" @onclick="FlipSortAsync">@(listing.Sort.Descending ? "Descending" : "Ascending")</button>
+                            @if (listing.Explained)
+                            {
+                                <button type="button" class="btn small ghost" @onclick="() => ExplainedAsync(false)">What kind of project?</button>
+                            }
+                        </div>
+                        @if (listing.Projects.Count == 0)
+                        {
+                            <p class="explorer-none">No project matches.</p>
+                        }
+                        <div class="card-grid">
+                            @for (var at = 0; at < listing.Projects.Count; at++)
+                            {
+                                var card = listing.Projects[at];
+                                <ProjectCardView Card="card" First="at == 0" Last="at == listing.Projects.Count - 1" Custom="listing.Sort.By == CustomSort" OnChanged="LoadAsync" OnError="Failed" />
+                            }
+                        </div>
+                    </section>
+                    <p class="muted">New projects go in <span title="@listing.Folder">@listing.Folder</span>.</p>
+                }
+            }
+        </Busy>
+    </div>
+</section>
+
+@if (_newOpen && _listing is { } forNew)
+{
+    <NewProjectDialog Listing="forNew" Type="_newType" OnDone="NewDoneAsync" />
+}

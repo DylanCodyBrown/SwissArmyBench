@@ -1,0 +1,25 @@
+@* One kind of Claude on Settings: where it was found, or how to install it. *@
+<div class="form-row claude-row">
+    <span>@Title</span>
+    @if (Kind.Found.Count == 0)
+    {
+        <span class="muted">@(Kind.Help?.Message ?? "Not found on this computer.")</span>
+        @if (Kind.Help?.Url is { } url)
+        {
+            <a href="@url" target="_blank" rel="noopener">Download</a>
+        }
+    }
+    else
+    {
+        <span class="mono" title="@Kind.Chosen">@(Kind.Found.FirstOrDefault(f => f.Path == Kind.Chosen)?.Name ?? Kind.Found[0].Name)</span>
+        <span class="muted mono">@Kind.Chosen</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public ClaudeKind Kind { get; set; } = default!;
+}

@@ -1,0 +1,60 @@
+@* The one open question of Dialogs (yes or no, or words in a box), drawn over every page. *@
+@implements IDisposable
+@inject Dialogs Dialogs
+
+@if (Dialogs.Open is { } question)
+{
+    <AppDialog Title="@question.Title" OnClose="() => Dialogs.Answer(null)">
+        <ChildContent>
+            <p>@question.Words</p>
+            @if (question.Asks is not null)
+            {
+                <label class="form-row">
+                    <span>@question.Asks</span>
+                    <input class="question-text" @bind="_text" @bind:event="oninput" @onkeydown="OnKey" autofocus />
+                </label>
+            }
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="() => Dialogs.Answer(null)">Cancel</button>
+            <button type="button" class="btn @(question.Danger ? "danger" : "primary")" @onclick="Agree">@question.Yes</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private string _text = string.Empty;
+    private Question? _shown;
+
+    protected override void OnInitialized() => Dialogs.Changed += Redraw;
+
+    protected override void OnParametersSet() => TakeValue();
+
+    private void Redraw()
+    {
+        TakeValue();
+        InvokeAsync(StateHasChanged);
+    }
+
+    // A new question starts with its own first value in the box.
+    private void TakeValue()
+    {
+        if (Dialogs.Open is { } question && !ReferenceEquals(question, _shown))
+        {
+            _shown = question;
+            _text = question.Value;
+        }
+    }
+
+    private void Agree() => Dialogs.Answer(Dialogs.Open?.Asks is null ? string.Empty : _text);
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Agree();
+        }
+    }
+
+    public void Dispose() => Dialogs.Changed -= Redraw;
+}

@@ -1,0 +1,61 @@
+@* The Session page (the classic sessionPage.ts): this session's log, newest first and live; The agent / Me / Both;
+   Changes only; Follow the agent; each entry a link to its place. Names and counts only. *@
+@page "/session"
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="session" /> Session</h1>
+        <div class="area-page-actions">
+            <div class="form-grid" role="radiogroup" aria-label="Whose">
+                @foreach (var (value, label) in _whose)
+                {
+                    <button type="button" class="btn small" aria-pressed="@(_who == value ? "true" : "false")" @onclick="() => WhoAsync(value)">@label</button>
+                }
+            </div>
+            <label class="check"><input type="checkbox" checked="@_changesOnly" @onchange="ChangesAsync" /> Changes</label>
+            <label class="check"><input type="checkbox" role="switch" checked="@_follow" @onchange="FollowAsync" /> Follow the agent</label>
+        </div>
+    </header>
+    <div class="area-page-body">
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        <Busy IsBusy="_entries is null" Words="Loading the session…">
+            @if (_entries is { Count: 0 })
+            {
+                <div class="empty-state">
+                    <Icon Name="session" />
+                    <p>@(_who == "user" ? "Nothing you did this session yet." : "Nothing the agent did this session yet: what it makes shows here as it happens.")</p>
+                </div>
+            }
+            else if (_entries is { } entries)
+            {
+                <table class="rows session-log">
+                    <thead><tr><th>When</th><th>Who</th><th>What</th><th>Where</th></tr></thead>
+                    <tbody>
+                        @foreach (var entry in entries)
+                        {
+                            <tr data-id="@entry.Id">
+                                <td class="muted">@TimeOf(entry.Time)</td>
+                                <td>@(entry.Actor == "agent" ? "The agent" : "You")</td>
+                                <td>
+                                    @if (LinkOf(entry) is { } link)
+                                    {
+                                        <a href="@link">@entry.What</a>
+                                    }
+                                    else
+                                    {
+                                        @entry.What
+                                    }
+                                    @if (entry.Change is { } change)
+                                    {
+                                        <div class="muted">@change</div>
+                                    }
+                                </td>
+                                <td class="muted">@entry.Area</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </Busy>
+    </div>
+</section>

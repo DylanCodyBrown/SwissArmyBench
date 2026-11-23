@@ -1,0 +1,130 @@
+@* New project (the classic projectFile.ts newProject): a name, its type (each explained), Local or Shared, the folder
+   it goes in (Choose another folder…), Create. *@
+<AppDialog Title="New project" OnClose="() => OnDone.InvokeAsync(false)">
+    <ChildContent>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <label class="form-row">
+            <span>Name</span>
+            <input class="new-project-name" placeholder="Name" maxlength="60" @bind="_name" @bind:event="oninput" @onkeydown="OnKeyAsync" autofocus />
+        </label>
+        <div class="form-row" role="radiogroup" aria-label="Type">
+            <span>Type</span>
+            @foreach (var type in Listing.Types)
+            {
+                <button type="button" role="radio" class="btn small" aria-checked="@(type == _type ? "true" : "false")" aria-pressed="@(type == _type ? "true" : "false")" title="@type.ForWhom" @onclick="() => _type = type">@type.Title</button>
+            }
+        </div>
+        @if (_type is { } chosen)
+        {
+            <p class="muted">@chosen.Explain</p>
+        }
+        <div class="form-row" role="radiogroup" aria-label="Where">
+            <span>Where</span>
+            <button type="button" role="radio" class="btn small" aria-pressed="@(_shared ? "false" : "true")" @onclick="() => Place(false)">Local</button>
+            <button type="button" role="radio" class="btn small" aria-pressed="@(_shared ? "true" : "false")" disabled="@(Listing.SharedFolder is null)" @onclick="() => Place(true)">Shared</button>
+            @if (Listing.SharedFolder is null)
+            {
+                <span class="muted">Set the shared projects folder in Settings</span>
+            }
+        </div>
+        <div class="form-row">
+            <span>In</span>
+            <span class="mono" title="@Folder">@Folder</span>
+            <button type="button" class="btn small ghost" @onclick="ChooseFolderAsync"><Icon Name="folder" /> Choose another folder…</button>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnDone.InvokeAsync(false)">Cancel</button>
+        <button type="button" class="btn primary" disabled="@_making" @onclick="CreateAsync"><Icon Name="plus" /> Create</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _name = string.Empty;
+    private ProjectType? _type;
+    private bool _shared;
+    private string? _folder;
+    private bool _making;
+    private Exception? _error;
+
+    [Inject]
+    private ProjectsClient Projects { get; set; } = default!;
+
+    [Inject]
+    private FileChooser Files { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ExplorerAnswer Listing { get; set; } = default!;
+
+    /// <summary>The type chosen on its card's Create, or null (the first type).</summary>
+    [Parameter]
+    public ProjectType? Type { get; set; }
+
+    /// <summary>Closed: true when a project was made (and opened).</summary>
+    [Parameter]
+    public EventCallback<bool> OnDone { get; set; }
+
+    private string Folder => _folder ?? (_shared ? Listing.SharedFolder ?? Listing.Folder : Listing.Folder);
+
+    protected override void OnInitialized() => _type = Type ?? Listing.Types.FirstOrDefault();
+
+    private void Place(bool shared)
+    {
+        _shared = shared;
+        _folder = null;
+    }
+
+    private async Task ChooseFolderAsync()
+    {
+        var picked = await Files.ChooseAsync("folder", "New project: where its folder goes", Folder, "project");
+        if (picked is not null)
+        {
+            _folder = picked;
+        }
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CreateAsync();
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        var name = _name.Trim();
+        if (name.Length == 0)
+        {
+            return;
+        }
+        var body = new Dictionary<string, object?> { ["name"] = name };
+        if (_folder is not null)
+        {
+            body["folder"] = _folder;
+        }
+        else if (_shared)
+        {
+            body["where"] = "shared";
+        }
+        // The type's own fields as the backend gives them ({"type": "bi", "app": true}).
+        if (_type?.Make is { ValueKind: JsonValueKind.Object } make)
+        {
+            foreach (var field in make.EnumerateObject())
+            {
+                body[field.Name] = field.Value;
+            }
+        }
+        _making = true;
+        try
+        {
+            await Projects.NewAsync(body);
+            await OnDone.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _making = false;
+    }
+}

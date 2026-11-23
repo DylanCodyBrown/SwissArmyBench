@@ -4,8 +4,10 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
+using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.SessionLog;
+using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web;
@@ -38,6 +40,8 @@ public static class Program
         services.AddScoped<AppClient>();
         services.AddScoped<ProjectsClient>();
         services.AddScoped<SessionLogClient>();
+        services.AddScoped<FileChooser>();
+        services.AddScoped<SettingsClient>();
     }
 
     private static void AddState(IServiceCollection services)
@@ -47,5 +51,6 @@ public static class Program
         services.AddScoped<ProjectState>();
         services.AddScoped<RailState>();
         services.AddScoped<Notes>();
+        services.AddScoped<Dialogs>();
     }
 }

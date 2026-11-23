@@ -1,0 +1,136 @@
+@* Settings' Team box (the classic library.ts teamSection): no team, Join a team… and Start a team… (their step
+   dialogs are the classic page's for now); joined, "Team: owner/repo", its sync words only when something is to
+   do, Pull, Push, Show its folder; the local projects folder's row; Advanced, the two folders. *@
+<fieldset class="fieldset team-fieldset">
+    <legend><Icon Name="user" /> Team</legend>
+    @if (_team is null)
+    {
+        <div class="loading-block">Loading…</div>
+    }
+    else if (_team.State == "joined")
+    {
+        <div class="form-row">
+            <strong>Team: @_team.Repository</strong>
+            @if (_team.Sync is { } sync)
+            {
+                <span class="chip">@sync.Words</span>
+            }
+            <button type="button" class="btn small" @onclick="PullAsync">Pull</button>
+            <button type="button" class="btn small" @onclick="PushAsync">Push</button>
+            <button type="button" class="btn small ghost" @onclick="ShowAsync">Show its folder</button>
+            @if (_team.Url is { } url)
+            {
+                <a href="@url" target="_blank" rel="noopener">Open on GitHub</a>
+            }
+            <a href="/workspace?open=settings">Leave the team…</a>
+        </div>
+    }
+    else
+    {
+        <div class="form-row">
+            @if (_team.Needs is { } needs)
+            {
+                <span class="muted">@needs.Words.</span>
+                <a href="extensions">Extensions</a>
+            }
+            <a class="btn small" href="/workspace?open=settings">Join a team…</a>
+            <a class="btn small" href="/workspace?open=settings">Start a team…</a>
+        </div>
+    }
+    @if (_team is { } team)
+    {
+        <div class="form-row">
+            <span>New projects go in <span class="mono" title="@team.LocalProjects">@team.LocalProjects</span></span>
+            <button type="button" class="link" @onclick="ChangeLocalAsync">Change…</button>
+            @if (!team.LocalProjectsDefault)
+            {
+                <button type="button" class="link" @onclick="DefaultLocalAsync">Default</button>
+            }
+        </div>
+        <details>
+            <summary>Advanced</summary>
+            <div class="form-row"><span>Library folder</span><span class="mono">@team.LibraryFolder</span></div>
+            <div class="form-row">
+                <span>Shared projects folder</span>
+                <span class="mono">@(team.SharedFolder ?? "None")</span>
+                <button type="button" class="btn small" @onclick="ChangeSharedAsync"><Icon Name="folder" /> Change…</button>
+            </div>
+        </details>
+    }
+</fieldset>
+
+@code {
+    private TeamStatus? _team;
+
+    [Inject]
+    private SettingsClient Settings { get; set; } = default!;
+
+    [Inject]
+    private ProjectsClient Projects { get; set; } = default!;
+
+    [Inject]
+    private FileChooser Files { get; set; } = default!;
+
+    [Inject]
+    private Notes Notes { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Exception> OnError { get; set; }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _team = await Settings.TeamAsync();
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+    }
+
+    private Task PullAsync() => RunAsync(() => Settings.TeamPullAsync(), "Pulled.");
+
+    private Task PushAsync() => RunAsync(() => Settings.TeamPushAsync(), "Pushed.");
+
+    private Task ShowAsync() => RunAsync(() => Settings.TeamShowAsync(), null);
+
+    private Task DefaultLocalAsync() => RunAsync(() => Projects.DefaultFolderAsync(), null);
+
+    private async Task ChangeLocalAsync()
+    {
+        var folder = await Files.ChooseAsync("folder", "The local projects folder", _team?.LocalProjects, "projects");
+        if (folder is not null)
+        {
+            await RunAsync(() => Projects.SetFolderAsync("local", folder), null);
+        }
+    }
+
+    private async Task ChangeSharedAsync()
+    {
+        var folder = await Files.ChooseAsync("folder", "The shared projects folder", _team?.SharedFolder ?? _team?.LocalProjects, "projects");
+        if (folder is not null)
+        {
+            await RunAsync(() => Projects.SetFolderAsync("shared", folder), null);
+        }
+    }
+
+    private async Task RunAsync<T>(Func<Task<T>> work, string? said)
+    {
+        try
+        {
+            await work();
+            if (said is not null)
+            {
+                _ = Notes.SayAsync(said);
+            }
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+        await LoadAsync();
+    }
+}

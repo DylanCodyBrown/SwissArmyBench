@@ -29,6 +29,8 @@ public sealed class ProjectsClient
 
     public Task<JsonElement> RemoveAsync(string path) => _api.PostAsync<JsonElement>("/projects/remove", new { path });
 
+    public Task<JsonElement> LocateAsync(string path, string to) => _api.PostAsync<JsonElement>("/projects/locate", new { path, to });
+
     public Task<JsonElement> ShowAsync(string path) => _api.PostAsync<JsonElement>("/projects/show", new { path });
 
     public Task<JsonElement> DeleteAsync(string path, string confirm) => _api.PostAsync<JsonElement>("/projects/delete", new { path, confirm });
@@ -44,8 +46,8 @@ public sealed class ProjectsClient
 
     public Task<ProjectAnswer> CurrentAsync() => _api.GetAsync<ProjectAnswer>("/project");
 
-    public Task<ProjectAnswer> NewAsync(string name, string type, string? folder) =>
-        _api.PostAsync<ProjectAnswer>("/project/new", new { name, type, folder });
+    /// <summary>New project: its name, where (a folder, or "where": "shared"), and its type's own fields (make).</summary>
+    public Task<ProjectAnswer> NewAsync(IReadOnlyDictionary<string, object?> body) => _api.PostAsync<ProjectAnswer>("/project/new", body);
 
     public Task<ProjectAnswer> OpenAsync(string path, bool discard = false) => _api.PostAsync<ProjectAnswer>("/project/open", new { path, discard });
 
