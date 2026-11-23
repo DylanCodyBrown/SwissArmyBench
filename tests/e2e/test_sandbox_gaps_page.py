@@ -100,9 +100,13 @@ def test_the_sandbox_list_sorts_mocks_and_the_connections_page_shows_the_sandbox
     names = panel.locator("tbody tr")
     expect(names).to_have_count(2, timeout=20000)
     expect(names.first).to_have_attribute("data-table", "notes")  # by name: notes before orders
+    # Each click waits for the sort it made before the next (a redraw from the sandbox's own notices can
+    # take a click aimed at the heading it replaced).
     panel.locator("th button", has_text="Rows").click()
+    expect(panel.locator("th[aria-sort='ascending']")).to_contain_text("Rows", timeout=20000)
     expect(names.first).to_have_attribute("data-table", "notes", timeout=20000)  # 0 rows first
     panel.locator("th button", has_text="Rows").click()
+    expect(panel.locator("th[aria-sort='descending']")).to_contain_text("Rows", timeout=20000)
     expect(names.first).to_have_attribute("data-table", "orders", timeout=20000)  # then the other way
     expect(panel.locator("th[aria-sort='descending']")).to_contain_text("Rows")
     shot(page, "sandbox-list-sorted-by-rows", ".sandbox-panel")

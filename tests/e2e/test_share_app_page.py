@@ -151,7 +151,11 @@ def test_share_a_launched_canvas_app_from_plays_menu(
     share.click()
     dialog = page.locator("dialog.share-dialog")
     expect(dialog.locator("h2")).to_have_text("Share regional_sales")
-    if dialog.locator(".share-install").count():
+    # The dialog draws its state once devtunnel's status answers: Install now, a sign-in, or Share. Wait for
+    # one of them before choosing (a slow machine's status came after a look that saw none of them).
+    ready = dialog.locator(".share-install, .share-device-code, .share-start")
+    expect(ready.first).to_be_visible(timeout=20_000)
+    if dialog.locator(".share-install").is_visible():
         dialog.locator(".share-install").click()
     # Signed in already when the test before it signed in to the same stand-in (its sign-in is devtunnel's,
     # kept beside it): then Share comes straight away, as it does for a person who signed in earlier.
