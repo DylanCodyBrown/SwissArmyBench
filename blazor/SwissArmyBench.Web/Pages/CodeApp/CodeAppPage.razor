@@ -1,0 +1,113 @@
+@* The Code App page (the classic codeAppPage.ts; the Power Apps extension's, shown while the app's modes list the code
+   app type): the strip (the tools with their versions or Install, who is signed in with Sign in, the environment);
+   New code app and Open code app…, or Close; the tabs Project, Connectors, Run live, Push (these two need a code app
+   open), Custom connector and Runs. Logic in CodeAppPage.razor.cs and its tabs. *@
+@page "/codeapp"
+@using SwissArmyBench.Web.Api.PowerApps
+@implements IDisposable
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title">Code App@(_state?.Project is { Open: true, App: { } app } ? $" › {app.Name}" : string.Empty)</h1>
+        <div class="area-page-actions">
+            @if (_state?.Project.Open == true)
+            {
+                <button type="button" class="btn ghost ca-close" @onclick="CloseAsync"><Icon Name="close" /><span class="btn-label">Close</span></button>
+            }
+            else
+            {
+                <button type="button" class="btn ca-open" @onclick="() => OpenAsync(null)"><Icon Name="folder" /><span class="btn-label">Open code app…</span></button>
+                <button type="button" class="btn primary ca-new" @onclick="() => _newOpen = true"><Icon Name="plus" /><span class="btn-label">New code app</span></button>
+            }
+        </div>
+    </header>
+    <div class="area-page-body ca-page">
+        @if (_state is { } state)
+        {
+            <div class="ca-strip" aria-label="Tools and sign-in">
+                <div class="ca-tools">
+                    @foreach (var tool in Tools(state))
+                    {
+                        <span class="ca-tool @(tool.Ok ? "ok" : tool.Phase > 1 ? "later" : "missing")" data-tool="@tool.Id" title="@($"{tool.Name}: {tool.Purpose}{(tool.Problem is { } p ? $" ({p})" : string.Empty)}")">
+                            <Icon Name="@(tool.Ok ? "check" : tool.Phase > 1 ? "clock" : "warning")" />
+                            <span>@tool.Name</span>
+                            @if (tool.Version is { } version)
+                            {
+                                <span class="muted">@version</span>
+                            }
+                            @if (!tool.Ok && tool.Phase == 1)
+                            {
+                                <button type="button" class="btn ghost ca-install" disabled="@(_installing == tool.Id)" @onclick="() => InstallAsync(tool)">@(_installing == tool.Id ? "Installing…" : "Install")</button>
+                            }
+                            @if (!tool.Ok && tool.Phase > 1)
+                            {
+                                <span class="muted">phase 2</span>
+                            }
+                        </span>
+                    }
+                </div>
+                <span class="ca-account">
+                    <Icon Name="user" />
+                    @if (state.Account is null)
+                    {
+                        <button type="button" class="link" @onclick="AccountAsync">Who is signed in?</button>
+                    }
+                    else if (state.Account.SignedIn)
+                    {
+                        <span>@state.Account.Active</span>
+                    }
+                    else
+                    {
+                        <span class="muted">Not signed in</span>
+                        <button type="button" class="btn primary ca-sign-in" disabled="@_signingIn" @onclick="SignInAsync">@(_signingIn ? "Signing in…" : "Sign in")</button>
+                    }
+                </span>
+                @if (state.Project.Open)
+                {
+                    <span class="ca-env" title="@state.Project.App?.EnvironmentId"><Icon Name="globe" />@(state.Project.Environment ?? state.Project.App?.EnvironmentId)</span>
+                }
+            </div>
+            <div class="ca-tabs" role="tablist" aria-label="Code App">
+                @foreach (var (id, label, needs) in _tabs)
+                {
+                    <button type="button" role="tab" class="ca-tab" data-tab="@id" aria-selected="@(_tab == id ? "true" : "false")" disabled="@(needs && !state.Project.Open)" @onclick="() => _tab = id">@label</button>
+                }
+            </div>
+            <div class="ca-panel" role="tabpanel">
+                @switch (_tab)
+                {
+                    case "project":
+                        <CodeAppProjectTab Project="state.Project" Host="this" />
+                        break;
+                    case "connectors":
+                        <CodeAppConnectorsTab Project="state.Project" Host="this" />
+                        break;
+                    case "live":
+                        <CodeAppLiveTab Live="state.Live" Host="this" />
+                        break;
+                    case "push":
+                        <CodeAppPushTab />
+                        break;
+                    case "custom":
+                        <CodeAppCustomTab />
+                        break;
+                    default:
+                        <CodeAppRunsTab Runs="state.Runs" Lines="_lines" />
+                        break;
+                }
+            </div>
+        }
+        else
+        {
+            <ErrorNote Error="_error" OnRetry="LoadAsync" />
+            @if (_error is null)
+            {
+                <div class="loading-block">Loading…</div>
+            }
+        }
+    </div>
+</section>
+@if (_newOpen)
+{
+    <NewCodeAppDialog Environments="_state?.Environments" OnClose="() => _newOpen = false" OnMade="MadeAsync" />
+}

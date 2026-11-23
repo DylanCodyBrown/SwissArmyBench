@@ -1,0 +1,86 @@
+@* Add <a connector> to the app (the classic codeAppPage.ts addToApp): its connection (none yet: make one in Power Apps
+   first), and for a connector with tables how it goes in (A table, with its dataset and table, or Its actions). *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.PowerApps
+@inject CodeAppClient CodeApps
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<AppDialog Title="@($"Add {Connector.DisplayName} to the app")" OnClose="OnClose">
+    <ChildContent>
+        @if (Connections.Count > 0)
+        {
+            <label class="ca-field"><span>Connection</span>
+                <select aria-label="Its connection" @bind="_connection">
+                    @foreach (var c in Connections)
+                    {
+                        <option value="@c.Id">@c.DisplayName (@(c.Status.Length > 0 ? c.Status : "connection"))</option>
+                    }
+                </select>
+            </label>
+        }
+        else
+        {
+            <ErrorNote Words="@($"No connection to {Connector.DisplayName} yet: make one in Power Apps (Connections), then come back.")" />
+        }
+        @if (Connector.Tabular)
+        {
+            <label class="ca-field"><span>Add it as</span>
+                <select aria-label="Add it as" @bind="_as">
+                    <option value="">A table</option>
+                    <option value="action">Its actions</option>
+                    <option value="table">A table</option>
+                </select>
+            </label>
+            <label class="ca-field"><span>Dataset</span><input aria-label="Dataset" placeholder="A site, or server,database" @bind="_dataset" /></label>
+            <label class="ca-field"><span>Table</span><input aria-label="Table" placeholder="A list or a table" @bind="_table" /></label>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary ca-add" @onclick="AddAsync">Add</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _connection = string.Empty;
+    private string _as = string.Empty;
+    private string _dataset = string.Empty;
+    private string _table = string.Empty;
+
+    [Parameter, EditorRequired]
+    public CodeAppConnector Connector { get; set; } = new();
+
+    [Parameter]
+    public IReadOnlyList<CodeAppConnection> Connections { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnAdded { get; set; }
+
+    protected override void OnInitialized() => _connection = Connections.FirstOrDefault()?.Id ?? string.Empty;
+
+    private async Task AddAsync()
+    {
+        var wanted = Connector.Tabular ? (_as.Length > 0 ? _as : "table") : string.Empty;
+        var body = new Dictionary<string, object?>
+        {
+            ["kind"] = "connector",
+            ["connector"] = Connector.Name,
+            ["connection_id"] = _connection,
+            ["as"] = wanted == "action" ? "action" : null,
+            ["dataset"] = wanted == "table" ? _dataset : null,
+            ["table"] = wanted == "table" ? _table : null,
+        };
+        try
+        {
+            await CodeApps.AddSourceAsync(body);
+            await OnAdded.InvokeAsync(Connector.DisplayName);
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+}

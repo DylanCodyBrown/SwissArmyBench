@@ -15,6 +15,7 @@ using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Git;
 using SwissArmyBench.Web.Api.Grids;
 using SwissArmyBench.Web.Api.Panels;
+using SwissArmyBench.Web.Api.PowerApps;
 using SwissArmyBench.Web.Api.PowerBi;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
@@ -75,6 +76,7 @@ public static class Program
         services.AddScoped<GitClient>();
         services.AddScoped<PowerBiClient>();
         services.AddScoped<PanelClient>();
+        services.AddScoped<CodeAppClient>();
     }
 
     private static void AddState(IServiceCollection services)

@@ -31,6 +31,7 @@ public partial class Rail : IDisposable
                 .Select(extra => new RailArea(extra.Area, extra.Name, extra.Icon, $"x-{extra.Area}", $"/workspace?open={extra.Area}"));
             var shown = Areas.All
                 .Where(area => RailState.CanvasOn || area.Area is not (Areas.Canvas or Areas.Widgets))
+                .Where(area => RailState.CodeAppOn || area.Area != Areas.CodeApp)
                 .ToList();
             var session = shown.FindIndex(area => area.Area == Areas.Session);
             return shown

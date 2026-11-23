@@ -9,6 +9,7 @@ namespace SwissArmyBench.Web.Navigation;
 public static class Areas
 {
     public const string Canvas = "canvas";
+    public const string CodeApp = "codeapp";
     public const string Widgets = "widgets";
     public const string Session = "session";
     public const string Extensions = "extensions";
@@ -24,6 +25,8 @@ public static class Areas
         new("erd", "ERD", "diagram", "erd", "/workspace?view=erd"),
         new("scripts", "Scripts", "code", "scripts", "/scripts?kind=script&view=list", Kind: "script"),
         new("notebooks", "Notebooks", "notebook", "notebooks", "/notebooks?kind=notebook&view=list", Kind: "notebook"),
+        // The Power Apps extension's area: shown while the app's modes list the code app type.
+        new(CodeApp, "Code App", "codeapp", "codeapp", "/workspace?open=codeapp"),
         new(Canvas, "Canvas", "page", "canvas", "/streamlit/canvas"),
         new(Widgets, "Widgets", "sliders", "widgets", "/streamlit/widget"),
         new("analyze", "Analyze", "sandbox", "analyze", "/workspace?view=analyze"),
