@@ -11,7 +11,7 @@ namespace SwissArmyBench.Web.Pages.Environment;
 /// <summary>What a row does (the classic environmentPage.ts actionsOf): open it where it lives, insert it as code,
 /// copy its name, rename, keep, make a sandbox variant, send it to the agent, remove; a setting's Change and Show;
 /// a library's Update, Pin and Install; Clear…; following a use to its place.</summary>
-public partial class EnvironmentPage
+public partial class EnvironmentView
 {
     private EnvironmentItem? _renaming;
     private EnvironmentItem? _removing;

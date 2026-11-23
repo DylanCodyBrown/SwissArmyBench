@@ -5,7 +5,7 @@ using Microsoft.JSInterop;
 namespace SwissArmyBench.Web.Pages.Environment;
 
 /// <summary>The Environment's search box (the server's search once typing pauses) and its keys.</summary>
-public partial class EnvironmentPage
+public partial class EnvironmentView
 {
     private void SearchTyped(ChangeEventArgs e)
     {

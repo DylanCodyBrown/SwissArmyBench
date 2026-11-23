@@ -7,7 +7,7 @@ using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Environment;
 
-public partial class EnvironmentPage : IDisposable
+public partial class EnvironmentView : IDisposable
 {
     private const string Table = "table";
     private const string Structure = "structure";
@@ -70,11 +70,19 @@ public partial class EnvironmentPage : IDisposable
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
-    [SupplyParameterFromQuery(Name = "at")]
+    /// <summary>The tab shown (its kind, or its word: at=settings); none: Tables on the page, Variables in the pane.</summary>
+    [Parameter]
     public string? At { get; set; }
 
-    [SupplyParameterFromQuery(Name = "name")]
+    /// <summary>The row shown, by its name.</summary>
+    [Parameter]
     public string? RowName { get; set; }
+
+    /// <summary>The Workbench's right-hand pane: the list narrower, no page heading, the address left alone.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    private string FoldKey => Compact ? "env.viewer.pane" : "env.viewer.page";
 
     private EnvironmentItem? Selected => _answer?.Items.FirstOrDefault(i => i.Id == _selected);
 
@@ -97,12 +105,16 @@ public partial class EnvironmentPage : IDisposable
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
-        _folded = await Js.InvokeAsync<string?>("sab.recall", "env.viewer.page") == "1";
+        _folded = await Js.InvokeAsync<string?>("sab.recall", FoldKey) == "1";
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        var tab = At is not null && _tabNames.TryGetValue(At, out var named) ? named : At is not null && _kinds.Contains(At) ? At : Table;
+        var tab = At is not null && _tabNames.TryGetValue(At, out var named) ? named : At is not null && _kinds.Contains(At) ? At : Compact ? "variable" : Table;
+        if (Compact && _answer is not null)
+        {
+            tab = _tab; // the pane's tab is its own once it is drawn
+        }
         var changed = tab != _tab || _answer is null;
         _tab = tab;
         _hidden = await HiddenAsync(_tab);
@@ -118,7 +130,10 @@ public partial class EnvironmentPage : IDisposable
         {
             await CheckAsync();
         }
-        await Js.InvokeVoidAsync("sab.setTitle", "Environment");
+        if (!Compact)
+        {
+            await Js.InvokeVoidAsync("sab.setTitle", "Environment");
+        }
     }
 
     private async Task LoadAsync()
@@ -215,6 +230,10 @@ public partial class EnvironmentPage : IDisposable
     /// <summary>The tab and the row in the address, replaced (a row is a place, not a step back).</summary>
     private void Moved()
     {
+        if (Compact)
+        {
+            return;
+        }
         var name = Selected?.Name;
         Nav.NavigateTo($"environment?at={_tab}{(name is null ? string.Empty : $"&name={Uri.EscapeDataString(name)}")}", replace: true);
     }
@@ -248,7 +267,7 @@ public partial class EnvironmentPage : IDisposable
     private async Task FoldAsync()
     {
         _folded = !_folded;
-        await Js.InvokeVoidAsync("sab.remember", "env.viewer.page", _folded ? "1" : "0");
+        await Js.InvokeVoidAsync("sab.remember", FoldKey, _folded ? "1" : "0");
     }
 
     private void OnNotice(Notice notice)

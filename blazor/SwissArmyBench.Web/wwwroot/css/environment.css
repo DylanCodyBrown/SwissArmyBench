@@ -1038,3 +1038,56 @@
 .structures-page .structures-pane { min-width: 0; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
 .segmented .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
 .segmented .btn[aria-pressed="true"]::before { content: "\2713"; font-weight: 700; margin-right: 4px; }
+
+/* ===== The Workbench's Environment pane (the classic grid.css .wb-vars; EnvironmentPane.razor) ===== */
+.wb-vars {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 8px 12px;
+  overflow: auto;
+  background: var(--surface);
+}
+
+.wb-vars.wb-environment {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wb-environment > .wb-vars-head {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-environment > .env-pane-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wb-environment > .env-pane-body > .env {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.wb-vars[hidden] {
+  display: none;
+}
+
+.wb-vars-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wb-vars-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1em;
+}

@@ -1,0 +1,19 @@
+@* The Environment as the Workbench's right-hand pane (the classic environmentPage.ts environmentPane): its heading,
+   Open the Environment page, Hide Environment, and the same list narrower (EnvironmentView, Compact) on the Variables
+   tab. The Workbench places it and says what Hide does. *@
+@inject NavigationManager Nav
+
+<section class="wb-vars wb-environment" aria-label="Environment">
+    <div class="wb-vars-head">
+        <h2>Environment</h2>
+        <button type="button" class="btn ghost icon" aria-label="Open the Environment page" title="Open the Environment page" @onclick='() => Nav.NavigateTo("environment")'><Icon Name="popout" /></button>
+        <button type="button" class="btn ghost icon" aria-label="Hide Environment" title="Hide Environment" @onclick="OnClose"><Icon Name="close" /></button>
+    </div>
+    <EnvironmentView Compact="true" />
+</section>
+
+@code {
+    /// <summary>Hide Environment: the Workbench closes its pane.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}
