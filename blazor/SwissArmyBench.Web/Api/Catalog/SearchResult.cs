@@ -35,4 +35,12 @@ public sealed record SearchResult(
     public string? Structure { get; init; }
 
     public string? File { get; init; }
+
+    /// <summary>The browse tree's: an open table's columns, a structure's paths.</summary>
+    public IReadOnlyList<SearchResult>? Children { get; init; }
+
+    /// <summary>A shared catalog's table: connected on this computer or not, and the projects that use it.</summary>
+    public bool? Here { get; init; }
+
+    public IReadOnlyList<string>? UsedBy { get; init; }
 }

@@ -98,6 +98,7 @@ public partial class DataExplorer : IDisposable
         var mine = ++_asked;
         try
         {
+            await BrowseIfAsync(mine);
             var answer = await Catalog.SearchAsync(_text, _on, _connection, _column);
             if (mine == _asked)
             {

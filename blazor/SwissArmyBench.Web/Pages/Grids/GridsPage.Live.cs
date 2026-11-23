@@ -58,6 +58,12 @@ public partial class GridsPage
                 StateHasChanged();
             });
         }
+        else if (notice.Type == "process_error")
+        {
+            // A Python session's table that did not arrive (the classic openMenu.ts): said, with its reason.
+            var from = notice.Text("label") is { Length: > 0 } label ? label : "Python";
+            _ = Notes.SayAsync($"{notice.Text("name") ?? "A table"} did not open from {from}: {notice.Text("message") ?? "no reason given"}");
+        }
         else if (notice.Type == "compare_shown" && notice.Text("compare") is { } shown)
         {
             _ = InvokeAsync(() => ShowCompareAsync(shown));

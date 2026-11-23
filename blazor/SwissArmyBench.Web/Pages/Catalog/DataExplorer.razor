@@ -39,7 +39,7 @@
         }
     </div>
     <div class="ex-offers">
-        @foreach (var offer in _answer?.Offers ?? [])
+        @foreach (var offer in ShowsTree ? [] : _answer?.Offers ?? [])
         {
             <div class="ex-offer" data-connections="@offer.Connection">
                 @if (offer.State == "loading")
@@ -56,7 +56,11 @@
     </div>
     <ErrorNote Error="_error" OnClose="() => _error = null" />
     <div class="ex-results" role="region" aria-label="Results">
-        @if (_answer is { } answer)
+        @if (ShowsTree && _browsed is { } browsed)
+        {
+            <CatalogTree Answer="browsed" Actions="Actions" Previews="_previews" SandboxSort="@_sandboxSort" OnOnly="OnlyAsync" OnLoad="LoadCatalogAsync" OnSort="SortSandboxAsync" />
+        }
+        else if (_answer is { } answer)
         {
             @foreach (var group in answer.Groups)
             {

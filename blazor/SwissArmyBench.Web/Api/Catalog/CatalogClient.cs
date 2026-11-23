@@ -40,6 +40,30 @@ public sealed class CatalogClient
         return _api.GetAsync<SearchAnswer>($"/explorer/search?{string.Join('&', parts)}");
     }
 
+    /// <summary>The tree with nothing typed: every connection's tables and the sections, narrowed by kind and
+    /// connection, the sandbox's tables in the order asked (name, rows, source, created, changed).</summary>
+    public Task<BrowseAnswer> BrowseAsync(IReadOnlyCollection<string> kinds, string connection, string sort = "name", string order = "asc")
+    {
+        var parts = new List<string> { $"sort={ApiClient.Part(sort)}", $"order={ApiClient.Part(order)}" };
+        if (kinds.Count > 0)
+        {
+            parts.Add($"kinds={ApiClient.Part(string.Join(',', kinds))}");
+        }
+        if (connection.Length > 0)
+        {
+            parts.Add($"connection={ApiClient.Part(connection)}");
+        }
+        return _api.GetAsync<BrowseAnswer>($"/explorer/browse?{string.Join('&', parts)}");
+    }
+
+    /// <summary>A connection's table for the detail side: its columns, SQL name and code.</summary>
+    public Task<TableDetail> TableAsync(string connection, TablePlace place) =>
+        _api.GetAsync<TableDetail>($"/explorer/table?connection={ApiClient.Part(connection)}&database={ApiClient.Part(place.Database ?? string.Empty)}&schema={ApiClient.Part(place.Schema ?? string.Empty)}&table={ApiClient.Part(place.Table)}");
+
+    /// <summary>A connection's (a dataset's, a schema's) relationships into the model.</summary>
+    public Task<ImportedRelationships> ImportRelationshipsAsync(string connection, string dataset) =>
+        _api.PostAsync<ImportedRelationships>($"/connections/{ApiClient.Part(connection)}/relationships", dataset.Length > 0 ? new { dataset } : (object)new { });
+
     /// <summary>A connection's catalog loaded in the background (its notice draws the search again).</summary>
     public Task LoadCatalogAsync(string connection) => _api.PostAsync($"/connections/{ApiClient.Part(connection)}/catalog");
 }
