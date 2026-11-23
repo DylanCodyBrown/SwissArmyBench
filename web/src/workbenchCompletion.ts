@@ -25,7 +25,7 @@
 import { api } from "./api";
 import { connectionSuggestions } from "./connectionSql";
 import type { Suggestion } from "./lazy/codeEditor";
-import { sqlLine } from "./workbenchNotebook";
+import { sqlLine } from "./notebookCells";
 import type { Kernel } from "./workbenchKernel";
 
 interface Found {

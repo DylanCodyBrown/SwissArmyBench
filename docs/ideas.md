@@ -9357,3 +9357,38 @@ Left, and why:
   connection whose code starts so shows no settings. Kept exactly as it was in the split; the fix is one line
   (skip a statement with more than one target) and wants its own test.
 - **test_adapter_observe compared the adapter's version as text** ("10" < "2"); it compares numbers now.
+
+## Review fixes E, 2026-11-23: the four big closures in parts (craft review refactor 8)
+
+What was done (behaviour and looks the same; the browser tests are what covers them):
+
+- **`notebookView`** (workbenchNotebook.ts) was one closure of about 1,800 lines; it is now about 225, the
+  view only. Its shared variables are one record, `Notebook` (workbenchNotebookState.ts), handed as the
+  first argument to each part: the cells' text faces (…Text), the Tables group (…Tables), runs (…Runs),
+  edits (…Edits), snippets (…Snippets), errors (…Errors), one cell made and drawn (…Cell), command mode's
+  keys (…Keys), Notebook mode (…Mode). A part reaches back only through `nb.act` (run, make). The pure rules
+  joined notebookCells.ts (command mode's keys, whether code makes a name, a SQL cell's line, the flow's
+  words) and are tested in Node (tests/test_notebook_cells.py).
+- **`scriptView`** (workbenchScript.ts): about 160 lines, its parts …State, …Cells, …Runs, …Html, …Errors;
+  the script's text rules (pieces, markers, a new cell's place, safe runs, indents) in scriptCells.ts,
+  tested in Node (tests/test_script_cells.py). cellClipboard.ts re-exports the marker words from there.
+- **`mountEnvironment`** (environmentPage.ts): about 50 lines over environmentRules.ts (pure:
+  tests/test_environment_page_rules.py), …State (the record), …Moves (load, the index check, tabs, select,
+  unfold, fold), …Actions (a row's actions, its dialogs, the libraries), …Columns and …Draw.
+- **`mountStructureDoc`** (structureDoc.ts): about 480 lines; its menus, small form, step chips and notes in
+  structureDocMenus.ts, and the pure partsOf, parseProblem, parseValue in structurePaths.ts
+  (tests/test_structure_doc_rules.py). partsOf is still exported from structureDoc.ts for its callers.
+- tests/web_unit.py's esbuild and Node calls have a time limit (120 s and 60 s), so a hang fails fast.
+
+Left, and why:
+
+- `mountStructureDoc` stayed one closure under 500 lines rather than a state record: its save, reload and
+  changed-on-disk parts share six variables with the linter and the tree (the text sent, the hash, saving,
+  heard), and the gain over the target did not justify a second record. The same record pattern takes it
+  if it grows.
+- workbenchNotebook.ts is 451 lines as a file (the view interface's comments are most of it); the function
+  is the 225.
+- Browser tests from a worktree need `PYTHONPATH=<worktree>/src`: without it the shared environment's
+  editable install starts the main checkout's server, which serves the main checkout's `web/static`, so the
+  pages under test are not the worktree's. Measured with it: the whole browser suite in one process, 415
+  passed, 15 skipped.

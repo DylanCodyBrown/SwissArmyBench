@@ -32,13 +32,14 @@
  */
 import { api, ApiError } from "./api";
 import { codeIde, type CodeIde } from "./codeIde";
-import { button, h, icon, openDialog, showMenu, toast, type MenuItem } from "./dom";
+import { button, h, icon, showMenu, toast } from "./dom";
 import { errorHere } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import type { EditorLanguage, IntelProblem } from "./lazy/codeEditor";
 import { promptForError } from "./missingPackages";
-import { accessCode, errorPlace, matchPaths } from "./structurePaths";
-import { FORMAT_NAMES, type Format, isRecords, kindOf, mountTree, nodeAt, type Part, pathText, type Tree, type Value } from "./structureTree";
+import { askFields, nodeMenuItems, noteRow, stepChips, transformItems } from "./structureDocMenus";
+import { accessCode, matchPaths, parseProblem, parseValue, partsOf } from "./structurePaths";
+import { FORMAT_NAMES, type Format, kindOf, mountTree, nodeAt, type Part, pathText, type Tree, type Value } from "./structureTree";
 import { effectiveTheme } from "./theme";
 
 interface Step {
@@ -101,6 +102,8 @@ export interface StructureDoc {
   dispose: () => void;
 }
 
+export { partsOf } from "./structurePaths";
+
 const LANGUAGE: Record<Format, EditorLanguage> = { json: "json", yaml: "yaml", xml: "xml", toml: "toml" };
 const VIEW_KEY = "sab-structure-view";
 
@@ -113,20 +116,6 @@ function keptView(): StructureView {
   }
 }
 
-/** A path's text read back into its parts (the tree's own: no [*]). */
-export function partsOf(path: string): Part[] {
-  const parts: Part[] = [];
-  const re = /\.([A-Za-z_][A-Za-z0-9_-]*)|\[(-?\d+)\]|\[("(?:[^"\\]|\\.)*")\]/g;
-  const body = path.trim().replace(/^\$/, "");
-  let at = 0;
-  for (let m = re.exec(body); m; m = re.exec(body)) {
-    if (m.index !== at) throw new Error(`${path}: a path goes on with .name, [n] or ["key"].`);
-    at = re.lastIndex;
-    parts.push(m[1] ?? (m[2] !== undefined ? Number(m[2]) : (JSON.parse(m[3]!) as string)));
-  }
-  if (at !== body.length) throw new Error(`${path}: a path goes on with .name, [n] or ["key"].`);
-  return parts;
-}
 
 /** Open a structure's file (or an open structure by its id) as a tab's view. A missing package (YAML needs
  *  PyYAML) is the app's one prompt, and nothing opens. */
@@ -221,12 +210,7 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
   void ide.ready.then((editor) => editor.onChange(() => tellDirty()), () => undefined);
 
   // ----- the text's realtime linter: the server's parse, the tree following -----
-  function problemOf(message: string): IntelProblem[] {
-    const place = errorPlace(message) ?? { line: 1, column: 1 };
-    // Underlined from where it is to its line's end (at least one character), as a code editor marks it.
-    const length = (sent.split("\n")[place.line - 1] ?? "").length;
-    return [{ line: place.line, col: place.column, end_line: place.line, end_col: Math.max(place.column + 1, length + 1), message, severity: "error", code: "parse", source: FORMAT_NAMES[shown.format] }];
-  }
+  const problemOf = (message: string): IntelProblem[] => [parseProblem(message, sent, FORMAT_NAMES[shown.format])];
   async function lint(text: string): Promise<IntelProblem[] | null> {
     if (text === sent) return problems;
     let done: Shown;
@@ -335,23 +319,7 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
   }
 
   function nodeMenu(p: Part[], v: Value, place: { x: number; y: number }): void {
-    const last = p[p.length - 1];
-    const items: MenuItem[] = [
-      ["copy", "Copy path", () => copyPath()],
-      ...(host.pythonBeside() ? ([["code", "Copy as code", () => copyCode()]] as MenuItem[]) : []),
-      "-",
-    ];
-    if (kindOf(v) === "object") items.push(["plus", "Add key…", () => addKey(p)]);
-    if (p.length) {
-      items.push(["duplicate", "Duplicate", () => void edit({ op: "duplicate", path: pathText(p) })]);
-      if (typeof last === "number") {
-        const parent = nodeAt(fileValue, p.slice(0, -1));
-        const size = Array.isArray(parent) ? parent.length : 0;
-        if (last > 0) items.push(["up", "Move up", () => void edit({ op: "move", path: pathText(p), to: last - 1 })]);
-        if (last < size - 1) items.push(["down", "Move down", () => void edit({ op: "move", path: pathText(p), to: last + 1 })]);
-      }
-      items.push(["trash", "Delete", () => void edit({ op: "remove", path: pathText(p) })]);
-    }
+    const items = nodeMenuItems(p, v, fileValue, { pythonBeside: host.pythonBeside(), copyPath, copyCode, addKey, edit: (body) => void edit(body) });
     showMenu(place.x, place.y, `${pathText(p)} actions`, items);
   }
 
@@ -364,39 +332,9 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
     tellDirty();
   }
 
-  function ask(title: string, fields: { name: string; label: string; value?: string; options?: string[] }[], run: (values: Record<string, string>) => void): void {
-    const { body, foot, close } = openDialog(title);
-    const inputs = new Map<string, HTMLInputElement | HTMLSelectElement>();
-    for (const f of fields) {
-      const input = f.options
-        ? (h("select", { "aria-label": f.label }, ...f.options.map((o) => h("option", { value: o, selected: o === f.value }, o))) as HTMLSelectElement)
-        : (h("input", { "aria-label": f.label, value: f.value ?? "", spellcheck: false }) as HTMLInputElement);
-      inputs.set(f.name, input);
-      body.append(h("label", { class: "structures-field" }, h("span", {}, f.label), input));
-    }
-    const go = (): void => {
-      const values: Record<string, string> = {};
-      for (const [k, v] of inputs) values[k] = v.value;
-      close();
-      run(values);
-    };
-    body.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") (e.preventDefault(), go());
-    });
-    foot.append(button("Cancel", () => close()), button(title.replace(/…$/, ""), go, { class: "primary" }));
-    (body.querySelector("input, select") as HTMLElement | null)?.focus();
-  }
-
-  const parseValue = (text: string): Value => {
-    try {
-      return JSON.parse(text) as Value;
-    } catch {
-      return text;
-    }
-  };
 
   function addKey(p: Part[]): void {
-    ask("Add key…", [{ name: "key", label: "Key" }, { name: "value", label: "Value (JSON, or plain text)", value: '""' }], (v) => void edit({ op: "add", path: pathText(p), key: v.key, value: parseValue(v.value ?? "") }));
+    askFields("Add key…", [{ name: "key", label: "Key" }, { name: "value", label: "Value (JSON, or plain text)", value: '""' }], (v) => void edit({ op: "add", path: pathText(p), key: v.key, value: parseValue(v.value ?? "") }));
   }
 
   // ----- the path bar: Copy path, Copy as code, the node's edits and the transform side -----
@@ -433,23 +371,9 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
   }
 
   function transformButton(node: Value, at2: string): HTMLElement {
-    const fields = isRecords(node) ? [...new Set((node as Record<string, Value>[]).slice(0, 50).flatMap((r) => Object.keys(r)))] : [];
-    const list = Array.isArray(node);
     const b = button("Transform", () => {
       const r = b.getBoundingClientRect();
-      const items: MenuItem[] = [];
-      if (at2 !== "$") items.push(["zoom", "Pick: only this branch", () => void addStep({ op: "pick", path: at2 })]);
-      if (list) {
-        items.push(
-          ["filter", "Filter…", () => ask("Filter…", [{ name: "field", label: "Field", value: fields[0] ?? "" }, { name: "test", label: "Test", value: "=", options: ["=", "!=", ">", ">=", "<", "<=", "contains", "starts with", "exists", "missing"] }, { name: "value", label: "Value" }], (v) => void addStep({ op: "filter", path: at2, field: v.field, test: v.test, value: v.value }))],
-          ["sortup", "Sort…", () => ask("Sort…", [{ name: "field", label: "Field", value: fields[0] ?? "" }, { name: "order", label: "Order", value: "Smallest first", options: ["Smallest first", "Largest first"] }], (v) => void addStep({ op: "sort", path: at2, field: v.field, descending: v.order === "Largest first" }))],
-        );
-        if (isRecords(node)) items.push(["rows", "Flatten", () => void addStep({ op: "flatten", path: at2 })]);
-      }
-      if (list && (node as Value[]).length && (through || !shown.steps.length)) {
-        items.push(["grids", "Open as grid", () => void openGrid(at2)]);
-      }
-      if (!items.length) items.push(["info", "Pick a list or a branch to transform it", () => undefined]);
+      const items = transformItems(node, at2, { grid: through || !shown.steps.length, addStep: (s) => void addStep(s), openGrid: (at3) => void openGrid(at3) });
       showMenu(r.left, r.bottom + 2, "Transform", items);
     }, { icon: "steps", class: "ghost sd-transform", title: "Make a view of it through steps, or a grid (the file stays as it is)" });
     return b;
@@ -473,22 +397,18 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
 
   function drawSteps(): void {
     stepsBar.hidden = !shown.steps.length;
-    stepsBar.replaceChildren(
-      h("span", { class: "muted sd-steps-label" }, "Steps"),
-      ...shown.steps.map((s, i) =>
-        h("span", { class: "structures-step", role: "listitem", "data-op": s.op }, h("span", {}, s.words), h("button", { type: "button", class: "structures-step-x", "aria-label": `Remove step ${i + 1}`, title: "Remove", onclick: async () => {
-          const done = await call<Shown>(`${where}/steps/remove`, "POST", { index: i });
-          if (!done) return;
-          shown = { ...shown, ...done, text: shown.text };
-          resultValue = done.value ?? null;
-          if (!shown.steps.length) through = false;
-          drawSteps();
-          drawTree();
-          drawPath();
-        } }, icon("close"))),
-      ),
-    );
+    stepsBar.replaceChildren(...stepChips(shown.steps, (index) => void removeStep(index)));
     drawThrough();
+  }
+  async function removeStep(index: number): Promise<void> {
+    const done = await call<Shown>(`${where}/steps/remove`, "POST", { index });
+    if (!done) return;
+    shown = { ...shown, ...done, text: shown.text };
+    resultValue = done.value ?? null;
+    if (!shown.steps.length) through = false;
+    drawSteps();
+    drawTree();
+    drawPath();
   }
 
   // ----- search and explore -----
@@ -573,7 +493,7 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
   }
 
   function warn(words: string): void {
-    ide.note(h("div", { class: "ide-note-row sd-warning", role: "status" }, icon("warning"), h("span", {}, words), button("OK", () => ide.note(null), { class: "ghost ide-btn" })));
+    ide.note(noteRow("sd-warning", words, button("OK", () => ide.note(null), { class: "ghost ide-btn" })));
   }
 
   async function saveAs(): Promise<boolean> {
@@ -604,23 +524,16 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
   }
 
   function changedNote(onSave = false): void {
-    ide.note(
-      h(
-        "div",
-        { class: "ide-note-row sd-elsewhere", role: "status" },
-        icon("warning"),
-        h("span", {}, onSave ? `${shown.name} changed on disk since it was read: nothing was written.` : `${shown.name} changed on disk.`),
-        button("Reload", () => void reloadNow(), { class: "primary ide-btn" }),
-        button("Keep mine", async () => {
-          const kept = await call<Shown>(`${where}/keep-mine`, "POST", {});
-          if (!kept) return;
-          hash = kept.hash;
-          ide.note(null);
-          ide.setExtraDirty(true); // what is on disk is not this text: Save writes
-          tellDirty();
-        }, { class: "ghost ide-btn" }),
-      ),
-    );
+    const words = onSave ? `${shown.name} changed on disk since it was read: nothing was written.` : `${shown.name} changed on disk.`;
+    ide.note(noteRow("sd-elsewhere", words, button("Reload", () => void reloadNow(), { class: "primary ide-btn" }), button("Keep mine", () => void keepMine(), { class: "ghost ide-btn" })));
+  }
+  async function keepMine(): Promise<void> {
+    const kept = await call<Shown>(`${where}/keep-mine`, "POST", {});
+    if (!kept) return;
+    hash = kept.hash;
+    ide.note(null);
+    ide.setExtraDirty(true); // what is on disk is not this text: Save writes
+    tellDirty();
   }
 
   let saving = false;
@@ -633,7 +546,7 @@ function mountStructureDoc(first: Shown, host: StructureDocHost, at: Part[] | nu
     }
     if (said !== null && said === hash) return; // its own Save, or the same text
     if (said === null) {
-      ide.note(h("div", { class: "ide-note-row sd-elsewhere", role: "status" }, icon("warning"), h("span", {}, "This file is gone."), button("Save as…", () => void saveAs(), { class: "ide-btn" }), button("Close", () => host.close(), { class: "ghost ide-btn" })));
+      ide.note(noteRow("sd-elsewhere", "This file is gone.", button("Save as…", () => void saveAs(), { class: "ide-btn" }), button("Close", () => host.close(), { class: "ghost ide-btn" })));
       return;
     }
     if (!ide.dirty()) void reloadNow();

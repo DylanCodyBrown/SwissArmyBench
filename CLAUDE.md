@@ -1478,7 +1478,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Save as…, Cancel, Tree | Text | Both, Format; the text editable at all times, the server's
                          parse its realtime linter; the tree and the text in step both ways; search with Next and
                          Previous, the path with Copy path and Copy as code; Transform: steps as a view, Open as grid;
-                         Reload / Keep mine on a change on disk);
+                         Reload / Keep mine on a change on disk); structureDocMenus.ts its menus, its small form, the
+                         steps' chips and notes (no tab state); structurePaths.ts's partsOf, parseProblem, parseValue;
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
@@ -1519,7 +1520,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (the code's own zoom, full screen), workbenchFileChanged.ts (a document whose file
                          changed anywhere: followed in place, or its bar: Reload, Keep mine, Compare),
                          workbenchRestore.ts (the documents kept over a reload)), notebookCells.ts (a cell's
-                         rules that need no page: its kind, its role, a run's time, a cell as it is saved), workbenchLayout.ts (RStudio's panes: the groups, the console,
+                         rules that need no page: its kind, its role, a run's time, a cell as it is saved, command mode's
+                         keys, a SQL cell's line; scriptCells.ts a script's: its pieces, markers, safe runs; both tested
+                         in Node), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a
                          card; pictures go to Analyze), workbenchGroups.ts (tab groups as VS Code's
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
@@ -1560,7 +1563,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchCommands.ts (every window action by one name: the palette (recent first), the keys (? lists
                          them: the shortcuts sheet, the grid page's too), and
                          the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command
-                         mode), workbenchScript.ts, workbenchConsole.ts (each document's console),
+                         mode; the view only: its state one record, workbenchNotebookState.ts, handed to its parts
+                         …Text, …Tables, …Runs, …Edits, …Snippets, …Errors, …Cell, …Keys, …Mode: 2026-11-23),
+                         workbenchScript.ts (the same: …State, …Cells, …Runs, …Html, …Errors), workbenchConsole.ts (each document's console),
                          workbenchKernel.ts (runs), workbenchOutputs.ts (outputs drawn as they arrive:
                          colours, `\r`, caps, input boxes), workbenchErrors.ts (the error panel: Visual
                          Studio's Exception Helper; squiggles, hover cards and Ctrl+. fixes in the editor),
@@ -1574,7 +1579,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Install through missingPackages.ts; the Settings and secrets tab's key vaults and Add
                          key vault; the Libraries tab's line about the project's Python; follows
                          environment_changed, no Refresh; it replaced workbenchVariables.ts and the Variables
-                         page), projectSession.ts (one Python per project as the pages say it: the project's
+                         page; in parts, 2026-11-23: environmentRules.ts (pure, tested in Node), …State (the record),
+                         …Moves (load, tabs, select), …Actions (a row's actions and dialogs), …Columns, …Draw),
+                         projectSession.ts (one Python per project as the pages say it: the project's
                          Python's state and its one line, Make it now, a notebook's older environment offered;
                          workbenchKernel.ts holds the project's one session for each of its documents: Python
                          session in the status bar, Restart asked first, every window told), lazy/codeEditor.ts (Monaco: line edits that keep the

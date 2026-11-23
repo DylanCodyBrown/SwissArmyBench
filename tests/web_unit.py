@@ -52,6 +52,7 @@ def bundled(folder: Path, source: str, more: str = "") -> Callable[..., list[Any
         capture_output=True,
         text=True,
         check=False,
+        timeout=120,
     )
     assert built.returncode == 0, built.stderr
     (folder / "calls.mjs").write_text(_CALLS, encoding="utf-8")
@@ -62,6 +63,7 @@ def bundled(folder: Path, source: str, more: str = "") -> Callable[..., list[Any
             capture_output=True,
             text=True,
             check=False,
+            timeout=60,
         )
         assert done.returncode == 0, done.stderr
         return list(json.loads(done.stdout))
