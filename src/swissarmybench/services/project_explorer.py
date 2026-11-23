@@ -130,14 +130,14 @@ class ProjectExplorer:
         current = self._projects.current.folder if self._projects.current is not None else None
         cards = []
         for path in paths:
-            said = recent.get(key(path))
+            seen = recent.get(key(path))
             facts = self._files.facts(path) if self._files.is_folder(path) else None
             card = rules.card(
                 path,
                 facts,
                 kinds,
                 off,
-                float(said["opened"]) if said else None,
+                float(seen["opened"]) if seen else None,
                 current,
                 key(path) in inside_keys,
                 rules.where_of(path, shared),
