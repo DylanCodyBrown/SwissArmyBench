@@ -1,0 +1,87 @@
+@* Write rows with this call (the classic apisPage.ts writeRows): an open table's rows through a POST, PUT, PATCH or
+   DELETE: The rows (the open tables), the Mapping (each field from a column, a value, or not sent; matched by name
+   at first), One call for many rows, Dry run (the rows, the calls, the first requests; nothing sent), Send (written
+   and failed, the results opened in Structures), Save as web call, Back. *@
+@using SwissArmyBench.Web.Api.Apis
+@using SwissArmyBench.Web.Api.Grids
+@inject ApisClient Apis
+@inject GridsClient Grids
+@inject Notes Notes
+@inject NavigationManager Nav
+
+<div class="api-author-screen api-write-screen">
+    <h2 class="api-op-title"><span class="api-method method-@Operation.Method.ToLowerInvariant()">@Operation.Method</span> <code>@Operation.Path</code></h2>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_tables is { Count: 0 })
+    {
+        <p class="empty-note">No table is open.</p>
+    }
+    else if (_tables is { } tables)
+    {
+        <label class="api-input"><span>The rows</span>
+            <select aria-label="The rows" @onchange="TableChosenAsync">
+                @foreach (var t in tables)
+                {
+                    <option value="@t" selected="@(t == _table)">@t</option>
+                }
+            </select>
+        </label>
+        <section><h3>Mapping</h3>
+            <table class="api-params api-mapping">
+                <thead><tr><th>Field</th><th>From</th></tr></thead>
+                <tbody>
+                    @foreach (var (field, required) in Targets)
+                    {
+                        var name = field;
+                        <tr data-field="@name">
+                            <td class="mono">@name@if (required) { <span class="required">*</span> }</td>
+                            <td>
+                                <select aria-label="@($"{name} from")" @onchange="e => _from[name] = e.Value?.ToString() ?? string.Empty">
+                                    <option value="" selected="@(From(name).Length == 0)">(not sent)</option>
+                                    @foreach (var c in _columns)
+                                    {
+                                        <option value="@($"column:{c}")" selected="@(From(name) == $"column:{c}")">@c</option>
+                                    }
+                                    <option value="value" selected="@(From(name) == "value")">A value…</option>
+                                </select>
+                                @if (From(name) == "value")
+                                {
+                                    <input class="mono" aria-label="@($"{name}'s value")" value="@_values.GetValueOrDefault(name)" @oninput="e => _values[name] = e.Value?.ToString() ?? string.Empty" />
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+        <div class="api-author-actions">
+            <label class="autosave-switch"><input type="checkbox" role="switch" class="switch-input" aria-label="Batch" checked="@_batch" @onchange="e => _batch = e.Value is true" /> <span>One call for many rows</span></label>
+            <Busy IsBusy="@(_working == "dry")" Words="Trying it…"><button type="button" class="btn primary api-dry-run" @onclick="() => RunAsync(true)"><Icon Name="eye" /> Dry run</button></Busy>
+            <Busy IsBusy="@(_working == "send")" Words="Sending…"><button type="button" class="btn api-write-send" @onclick="() => RunAsync(false)"><Icon Name="play" /> Send</button></Busy>
+            <button type="button" class="btn" @onclick="SaveAsync"><Icon Name="save" /> Save as web call</button>
+            <button type="button" class="btn ghost" @onclick="OnBack">Back</button>
+        </div>
+        <div class="api-write-result" role="status">
+            @if (_answer is { DryRun: true } dry)
+            {
+                <p>@dry.Rows rows, @dry.Calls call@(dry.Calls == 1 ? string.Empty : "s"). Nothing was sent.</p>
+                @if (dry.Missing is { Count: > 0 } missing)
+                {
+                    <ErrorNote Words="@($"Map these first: {string.Join(", ", missing)}")" />
+                }
+                @for (var i = 0; i < (dry.First?.Count ?? 0); i++)
+                {
+                    <details open="@(i == 0)"><summary>Request @(i + 1)</summary><pre class="mono">@Pretty(dry.First![i])</pre></details>
+                }
+            }
+            else if (_answer is { } done)
+            {
+                <p>@done.Written written, @done.Failed failed.</p>
+                @if (done.Structure is { } id)
+                {
+                    <a class="btn" href="@($"structures?id={Uri.EscapeDataString(id)}")"><Icon Name="structures" /> Open the results in Structures</a>
+                }
+            }
+        </div>
+    }
+</div>

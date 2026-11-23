@@ -709,3 +709,136 @@
 .wizard-said.bad {
   color: var(--error);
 }
+
+/* ===== The explorer: Write rows, What it answers, Discover (the classic apisPage.ts, apiLearned.ts) ===== */
+.api-op-kind {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.api-learned {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.api-learned-line {
+  margin: 0;
+  color: var(--muted);
+}
+
+.api-learned-kind {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text, inherit);
+}
+
+.api-learned-kind.declared {
+  border-style: dashed;
+}
+
+.api-learned-fields {
+  border-collapse: collapse;
+  max-width: 640px;
+}
+
+.api-learned-fields td,
+.api-learned-fields th {
+  padding: 2px 10px 2px 0;
+  text-align: left;
+}
+
+.api-learned-mark {
+  color: var(--warn);
+}
+
+.api-learned-fields .mark-missing td:first-child {
+  text-decoration: line-through;
+}
+
+.api-learned-offer,
+.api-learned-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-built-code {
+  max-height: 50vh;
+  overflow: auto;
+  white-space: pre;
+}
+
+.api-params {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.api-params th,
+.api-params td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.api-author-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 70vh;
+}
+
+.api-inputs-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.api-input {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.api-input .required {
+  color: var(--error);
+  margin-left: 2px;
+}
+
+.api-input-help {
+  font-size: 12px;
+}
+
+.api-records input {
+  width: 140px;
+  margin-left: 6px;
+}
+
+.api-conversion {
+  margin: 8px 0 12px;
+}
+
+.api-conversion > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.api-conversion-sql {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.api-conversion-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}

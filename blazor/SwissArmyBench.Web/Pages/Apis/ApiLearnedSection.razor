@@ -1,0 +1,96 @@
+@* One endpoint's learned section (the classic apiLearned.ts learnedSection): What it answers (its kind, seen when or
+   as its specification declares it, what it maps to), the drift, a rename offered once (Use it, No), each field's
+   path and type with its mark, Run (not for a write) and Build: a notebook cell, a script function (into a script
+   picked: Put the function in a script) or a widget on a canvas; the code to copy when no project takes it. It
+   follows api_shape_changed by itself. Logic in ApiLearnedSection.razor.cs. *@
+@using SwissArmyBench.Web.Api.Apis
+
+<section class="api-learned" data-action="@Action" aria-label="What it answers">
+    <h3>What it answers</h3>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_contract is { } c)
+    {
+        <p class="api-learned-line">
+            <span class="api-learned-kind @(c.Learned ? "learned" : "declared")">@(c.Kind.Length > 0 ? c.Kind : "not known yet")</span>@(c.Learned ? $" · seen {c.Seen}" : " · as its specification declares it")@MapsWords(c)
+        </p>
+        @if (c.Drift.Length > 0)
+        {
+            <ErrorNote Words="@c.Drift" Warning="true" />
+        }
+        @foreach (var o in c.Offers)
+        {
+            <div class="api-learned-offer"><span>@o.Said</span>
+                <button type="button" class="btn primary" @onclick="() => AnswerAsync(o, true)">Use it</button>
+                <button type="button" class="btn" @onclick="() => AnswerAsync(o, false)">No</button>
+            </div>
+        }
+        @if (c.Fields.Count == 0 && c.Missing.Count == 0)
+        {
+            <p class="muted">No fields.</p>
+        }
+        else
+        {
+            <table class="api-learned-fields">
+                <thead><tr><th>Field</th><th>Type</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var f in c.Fields)
+                    {
+                        <tr data-field="@f.Path" class="@(f.Mark.Length > 0 ? $"mark-{f.Mark}" : null)"><td class="mono">@f.Path</td><td>@TypeWords(f)</td><td class="api-learned-mark">@f.Mark</td></tr>
+                    }
+                    @foreach (var p in c.Missing)
+                    {
+                        <tr data-field="@p" class="mark-missing"><td class="mono">@p</td><td class="muted">gone</td><td class="api-learned-mark">missing</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <div class="api-learned-actions">
+            @if (!Writes)
+            {
+                <Busy IsBusy="_running" Words="Running…"><button type="button" class="btn api-run" @onclick="RunAsync"><Icon Name="play" /> Run</button></Busy>
+            }
+            <span class="muted">Build:</span>
+            <Busy IsBusy="@(_building == "cell")" Words="Building…"><button type="button" class="btn api-build-cell" @onclick='() => BuildAsync("cell")'><Icon Name="notebook" /> Notebook cell</button></Busy>
+            <Busy IsBusy="@(_building == "function")" Words="Building…"><button type="button" class="btn api-build-function" @onclick="PickScriptAsync"><Icon Name="code" /> Script function</button></Busy>
+            <Busy IsBusy="@(_building == "widget")" Words="Building…"><button type="button" class="btn api-build-widget" @onclick='() => BuildAsync("widget")'><Icon Name="page" /> Widget on a canvas</button></Busy>
+        </div>
+    }
+    else if (_error is null)
+    {
+        <div class="loading-block">Reading what it answers…</div>
+    }
+</section>
+@if (_scripts is { } scripts)
+{
+    <AppDialog Title="Put the function in a script" OnClose="() => _scripts = null">
+        <ChildContent>
+            <label class="field"><span>Script</span>
+                <select aria-label="Script" @onchange="e => _script = e.Value?.ToString() ?? string.Empty">
+                    @foreach (var p in scripts)
+                    {
+                        <option value="@p" selected="@(p == _script)">@p</option>
+                    }
+                    <option value="" selected="@(_script.Length == 0)">A new script…</option>
+                </select>
+            </label>
+            @if (_script.Length == 0)
+            {
+                <label class="field"><span>Its name</span><input aria-label="New script" spellcheck="false" data-no-variables="" value="@_newScript" @oninput="e => _newScript = e.Value?.ToString() ?? string.Empty" /></label>
+            }
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _scripts = null">Cancel</button>
+            <button type="button" class="btn primary api-build-put" @onclick="PutItThereAsync">Put it there</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_code is { } shown)
+{
+    <AppDialog Title="@shown.Title" OnClose="() => _code = null">
+        <ChildContent><pre class="mono api-built-code">@shown.Code</pre></ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _code = null">Close</button>
+            <button type="button" class="btn primary" @onclick="CopyCodeAsync"><Icon Name="copy" /> Copy</button>
+        </Foot>
+    </AppDialog>
+}

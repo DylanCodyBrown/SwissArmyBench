@@ -27,6 +27,11 @@ public partial class ApiExplorerView
     private bool _queryEdited;
     private bool _saving;
     private string? _sqlName;
+    private bool _writing;
+    private bool _discovering;
+    private string? _allowedSince;
+    private IReadOnlyDictionary<string, ActionLearned> _learned = new Dictionary<string, ActionLearned>();
+    private ApiExplorer? _learnedFor;
 
     [Inject]
     private ApisClient Apis { get; set; } = default!;
@@ -49,8 +54,13 @@ public partial class ApiExplorerView
 
     private ApiOperation? Picked => Explorer.Operations.FirstOrDefault(o => o.Id == Operation) ?? Explorer.Operations.FirstOrDefault();
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
+        if (!ReferenceEquals(_learnedFor, Explorer))
+        {
+            _learnedFor = Explorer;
+            await LearnedAsync();
+        }
         if (Picked?.Id == _shownFor)
         {
             return;
@@ -65,6 +75,82 @@ public partial class ApiExplorerView
         _query = TableText(Picked, "conversion") ?? string.Empty;
         _queryEdited = false;
         _sqlName = null;
+        _writing = false;
+    }
+
+    private static bool Writes(ApiOperation op) => op.Method is "POST" or "PUT" or "PATCH" or "DELETE";
+
+    private IReadOnlyDictionary<string, string> TypedInputs() => _inputs.Where(i => i.Value.Length > 0).ToDictionary(i => i.Key, i => i.Value);
+
+    /// <summary>What was learned of each action (the operations' kind and drift marks) and since when Discover is
+    /// allowed.</summary>
+    private async Task LearnedAsync()
+    {
+        try
+        {
+            var got = (await Apis.ActionsAsync(Explorer.Name)).Apis.FirstOrDefault();
+            _allowedSince = got?.AllowedSince;
+            _learned = (got?.Actions ?? []).ToDictionary(a => a.Name);
+        }
+        catch (ApiException)
+        {
+            _learned = new Dictionary<string, ActionLearned>(); // nothing learned to show
+        }
+    }
+
+    /// <summary>Discover: the read-only probe on the user's Allow (asked once per API, then remembered).</summary>
+    private async Task DiscoverAsync()
+    {
+        _discovering = true;
+        try
+        {
+            var got = await Apis.DiscoverAsync(Explorer.Name);
+            _ = Notes.SayAsync($"{Explorer.Name}: {got.Calls} call{(got.Calls == 1 ? string.Empty : "s")} made, nothing that writes.");
+            await LearnedAsync();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _discovering = false;
+    }
+
+    private async Task ForgetAsync()
+    {
+        try
+        {
+            await Apis.ForgetDiscoverAsync(Explorer.Name);
+            _allowedSince = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    /// <summary>A saved table's DuckDB query: Save the query as typed, or Make it again from the rows path.</summary>
+    private async Task SaveQueryAsync(bool made)
+    {
+        if (Picked is not { } op)
+        {
+            return;
+        }
+        try
+        {
+            var call = made
+                ? new Dictionary<string, object?> { ["as_table"] = true, ["records"] = _records.Trim().Length > 0 ? _records.Trim() : "$" }
+                : new Dictionary<string, object?> { ["as_table"] = true, ["conversion"] = _query };
+            var done = await Apis.SaveCallAsync(Explorer.Name, op.Id, call);
+            _query = done.WebCall?.Conversion ?? _query;
+            _queryEdited = false;
+            _ = Notes.SayAsync(made ? "The query is made again from the settings." : "Saved the query.");
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
     }
 
     private static string? TableText(ApiOperation? op, string key) =>

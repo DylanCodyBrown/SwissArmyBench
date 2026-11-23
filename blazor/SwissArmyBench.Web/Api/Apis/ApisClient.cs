@@ -55,4 +55,37 @@ public sealed class ApisClient
     /// DuckDB's query over them) as a web call blade.</summary>
     public Task<SavedWebCall> SaveCallAsync(string name, string operation, IReadOnlyDictionary<string, object?> call) =>
         _api.PutAsync<SavedWebCall>($"/apis/{ApiClient.Part(name)}/calls/{ApiClient.Part(operation)}", call);
+
+    /// <summary>Write rows with this call: a dry run (nothing sent) or the write.</summary>
+    public Task<WriteRowsAnswer> WriteRowsAsync(string name, string operation, IReadOnlyDictionary<string, object?> write) =>
+        _api.PostAsync<WriteRowsAnswer>($"/apis/{ApiClient.Part(name)}/calls/{ApiClient.Part(operation)}/write", write);
+
+    /// <summary>The write saved as its web call blade.</summary>
+    public Task<SavedBlade> SaveWriteAsync(string name, string operation, IReadOnlyDictionary<string, object?> write) =>
+        _api.PutAsync<SavedBlade>($"/apis/{ApiClient.Part(name)}/calls/{ApiClient.Part(operation)}/write", write);
+
+    /// <summary>An API's actions with what was learned of them, and since when its Discover is allowed.</summary>
+    public Task<ActionListing> ActionsAsync(string api) => _api.GetAsync<ActionListing>($"/actions?api={ApiClient.Part(api)}");
+
+    public Task<ActionDescribed> DescribeAsync(string api, string action) =>
+        _api.GetAsync<ActionDescribed>($"/actions/{ApiClient.Part(api)}/{ApiClient.Part(action)}");
+
+    public Task<ActionRun> RunActionAsync(string api, string action, IReadOnlyDictionary<string, string> inputs) =>
+        _api.PostAsync<ActionRun>("/actions/run", new { api, action, inputs });
+
+    /// <summary>Discover: one read-only call per read endpoint (the user's Allow asked once per API).</summary>
+    public Task<Discovered> DiscoverAsync(string api) => _api.PostAsync<Discovered>("/actions/discover", new { api });
+
+    /// <summary>Take back Discover's remembered Allow.</summary>
+    public Task ForgetDiscoverAsync(string api) => _api.PostAsync("/actions/allow", new { api, allow = false });
+
+    /// <summary>A rename offered once: Use it, or No.</summary>
+    public Task OfferAsync(string api, string action, ActionOffer offer, bool take) =>
+        _api.PostAsync("/actions/offer", new { api, action, from = offer.From, to = offer.To, take });
+
+    /// <summary>Build: a notebook cell, a script function (into the script named) or a widget on a canvas.</summary>
+    public Task<BuiltAction> BuildAsync(IReadOnlyDictionary<string, object?> build) => _api.PostAsync<BuiltAction>("/actions/build", build);
+
+    /// <summary>The open project's scripts (where a built function may go).</summary>
+    public Task<ProjectScripts> ScriptsAsync() => _api.GetAsync<ProjectScripts>("/project/documents?kind=script");
 }

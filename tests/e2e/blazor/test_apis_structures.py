@@ -45,6 +45,9 @@ def test_an_api_explored_and_tried(browser: Browser, server: dict[str, Any], ord
     page.locator(".api-operation button:has-text('Save as web call')").click()
     expect(page.locator(".note-corner")).to_contain_text("is a table")
     expect(page.locator(".api-operation button:has-text('Copy name for SQL')")).to_be_visible()
+    page.locator(".api-conversion summary").click()
+    page.locator(".api-conversion button:has-text('Make it again')").click()
+    expect(page.locator(".note-corner")).to_contain_text("The query is made again from the settings.")
     tree.locator(".tree-row", has_text="items").first.click()
     expect(page.locator(".structure-path code")).to_have_text("$.items")
     page.click(".structure-path button:has-text('Open as grid')")
@@ -238,4 +241,58 @@ def test_new_endpoint_the_wizard(browser: Browser, server: dict[str, Any]) -> No
     expect(again.locator("select[aria-label=Table]")).to_have_value("orders")
     again.locator("button:has-text('Cancel')").click()
     call(server, "POST", "/project/close", {})
+    page.close()
+
+
+def test_what_it_answers_write_rows_and_discover(
+    browser: Browser, server: dict[str, Any], orders_service: Service
+) -> None:
+    """An operation's What it answers (as its specification declares it, Run, Build: the cell's code to
+    copy with no project open), Write rows with this call (the rows, the mapping, a dry run that sends
+    nothing) and Discover with its Allow remembered (Take it back)."""
+    if not any(a["name"] == "Orders" for a in call(server, "GET", "/apis")["apis"]):
+        call(
+            server,
+            "POST",
+            "/apis",
+            {"spec_url": orders_service.url + "/openapi.json", "auth": {"type": "none"}},
+        )
+    call(server, "POST", "/samples/store", {})
+    page = open_page(browser, server, "apis?name=Orders")
+    learned = page.locator(".api-learned")
+    expect(learned.locator(".api-learned-line")).to_be_visible()
+    expect(learned.locator(".api-learned-kind")).to_be_visible()
+    learned.locator("button:has-text('Notebook cell')").click()
+    shown = page.locator(".dialog[aria-label='A notebook cell']")
+    expect(shown.locator(".api-built-code")).to_contain_text("sab.run")
+    shown.locator("button:has-text('Close')").click()
+    learned.locator("button.api-run").click()
+    expect(page.locator(".note-corner")).to_contain_text("page")
+    call(server, "POST", "/project/new", {"name": "Made up builds"})
+    learned.locator("button:has-text('Script function')").click()
+    pick = page.locator(".dialog[aria-label='Put the function in a script']")
+    expect(pick.locator("select[aria-label=Script]")).to_be_visible()
+    expect(pick.locator("input[aria-label='New script']")).to_have_value("api_functions.py")
+    pick.locator("button:has-text('Cancel')").click()
+    call(server, "POST", "/project/close", {})
+    call(server, "POST", "/samples/store", {})  # the project's close closed its tables
+
+    page.locator(".api-operations a", has_text="POST").first.click()
+    page.locator("button:has-text('Write rows with this call')").click()
+    write = page.locator(".api-write-screen")
+    expect(write.locator("select[aria-label='The rows'] option").first).to_be_attached()
+    expect(write.locator(".api-mapping tbody tr").first).to_be_visible()
+    write.locator("button:has-text('Dry run')").click()
+    expect(write.locator(".api-write-result")).to_contain_text("Nothing was sent.")
+    write.locator("button:has-text('Back')").click()
+    expect(page.locator(".api-write-screen")).to_have_count(0)
+
+    page.locator(".api-discover").click()
+    allow = page.locator(".dialog", has_text="Discover")
+    if allow.count():
+        allow.locator("button:has-text('Allow')").first.click()
+    expect(page.locator(".note-corner")).to_contain_text("nothing that writes", timeout=30000)
+    expect(page.locator(".api-discover-allowed")).to_contain_text("Discover allowed since")
+    page.locator(".api-discover-forget").click()
+    expect(page.locator(".api-discover-allowed")).to_have_count(0)
     page.close()
