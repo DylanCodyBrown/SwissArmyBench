@@ -71,6 +71,7 @@ public partial class Ribbon
             yield return new("keyfinder", "Key Finder", "zoom", "Key Finder: the likely join keys");
             yield return new("relationships", "Relationships", "crown", "Relationships: keys and joins, found from the data");
             yield return new("export", "Export", "export", "Export: CSV, Excel or Parquet");
+            yield return new("code", "Copy as code", "code", "Copy as code: the steps as one DuckDB query, verified");
             if (!Info.Dataset.StartsWith("sandbox_", StringComparison.Ordinal))
             {
                 yield return new("variant", "Make a sandbox variant", "branch", "Make a sandbox variant: a copy of this view in the project's sandbox, with its own name");

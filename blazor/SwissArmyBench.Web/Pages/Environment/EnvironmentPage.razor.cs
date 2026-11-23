@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
+using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
 using SwissArmyBench.Web.State;
 
@@ -29,6 +30,12 @@ public partial class EnvironmentPage : IDisposable
     private Exception? _error;
     private string _search = string.Empty;
     private CancellationTokenSource? _typing;
+    private EnvironmentShown? _shown;
+    private bool _adding;
+    private IReadOnlyList<ConnectionForm>? _vaultKinds;
+
+    [Inject]
+    private ConnectionsClient Connections { get; set; } = default!;
 
     [Inject]
     private EnvironmentClient Environment { get; set; } = default!;
@@ -159,5 +166,22 @@ public partial class EnvironmentPage : IDisposable
         Live.NoticeArrived -= OnNotice;
         _typing?.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private Task ShowAsync(EnvironmentItem item) => RunAsync(async () => _shown = await Environment.ShowAsync(item.Kind, item.Name));
+
+    /// <summary>Add key vault: the vault kinds, each opening its form on the Connections page.</summary>
+    private Task VaultKindsAsync() => RunAsync(async () =>
+        _vaultKinds = _vaultKinds is null
+            ? (await Connections.FormsAsync()).Where(f => f.Connection == "vault").ToList()
+            : null);
+
+    private async Task InstallAsync()
+    {
+        var name = await Dialogs.AskTextAsync("Install a library", "Its name on the package index (a version with ==).", "Library", string.Empty, "Install");
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            await RunAsync(() => Environment.InstallAsync(name.Trim()));
+        }
     }
 }

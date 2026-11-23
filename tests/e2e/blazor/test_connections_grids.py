@@ -5,6 +5,7 @@ rows step, the steps strip, Undo."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -60,4 +61,19 @@ def test_add_a_connection_then_open_its_table_as_a_grid(browser: Browser, server
     expect(page.locator(".steps-strip")).not_to_contain_text("Keep rows")
     page.click(".nav-rail-item[data-area=connections]")
     expect(page.locator(".connection-card[data-name=Shop]")).to_contain_text("Works")
+    page.close()
+
+
+def test_a_python_connections_three_boxes(browser: Browser, server: dict[str, Any]) -> None:
+    page = open_page(browser, server, "connections?kind=python")
+    form = page.locator(".python-form")
+    expect(form.locator(".python-box .monaco-editor")).to_have_count(3)
+    expect(form.locator("[data-box=connect] .monaco-editor")).to_contain_text("class Api")
+    # The variables the starter's code reads, each not set on this computer yet.
+    expect(form.locator(".python-variable[data-variable=ORDERS_API_URL]")).to_contain_text("Not set")
+    form.locator(".connection-name").fill("Made-up shop")
+    form.locator("button:has-text('Save')").click()
+    expect(page).to_have_url(re.compile(r"connections\?name=Made-up(%20| )shop"))
+    saved = call(server, "GET", "/connections/Made-up shop".replace(" ", "%20"))
+    assert "class Api" in saved["code"] and saved["read"]["command"]
     page.close()

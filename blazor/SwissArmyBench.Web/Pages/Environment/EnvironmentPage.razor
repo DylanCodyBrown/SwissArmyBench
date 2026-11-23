@@ -1,6 +1,7 @@
 @* The Environment (the classic environmentPage.ts): everything the project holds, a tab per kind (Tables,
    Variables, Structures, Settings and secrets, Libraries) with its count, one search over every tab, each row's
-   Used in, and its actions (Open, Rename, Remove; a library's Pin and Update). ?at= names the tab. *@
+   Used in and its actions (Open, Rename, Remove; a library's Pin and Update), the viewer beside the list (a row's
+   name opens it), Add variable and Add key vault on Settings and secrets, Install on Libraries. ?at= names the tab. *@
 @page "/environment"
 
 <section class="area-page">
@@ -31,11 +32,20 @@
                 {
                     <div class="toolbar-row">
                         <button type="button" class="btn small" @onclick="CheckAsync"><Icon Name="reset" /> Check for newer versions</button>
+                        <button type="button" class="btn small" @onclick="InstallAsync"><Icon Name="plus" /> Install a library…</button>
                     </div>
                 }
                 @if (Tab == Setting)
                 {
-                    <p class="muted">Settings and secrets: a secret's value stays in this computer's keyring and is never shown here. <a href="/workspace?open=environment&at=settings">Add a variable or a key vault in the classic front end</a>.</p>
+                    <div class="toolbar-row">
+                        <button type="button" class="btn small" @onclick="() => _adding = true"><Icon Name="plus" /> Add variable…</button>
+                        <button type="button" class="btn small" aria-expanded="@(_vaultKinds is null ? "false" : "true")" @onclick="VaultKindsAsync"><Icon Name="key" /> Add key vault…</button>
+                        @foreach (var kind in _vaultKinds ?? [])
+                        {
+                            <a class="btn small ghost" href="@($"connections?kind={Uri.EscapeDataString(kind.Id)}")"><Icon Name="@kind.Id" /> @kind.Label</a>
+                        }
+                    </div>
+                    <p class="muted">A secret's value stays in this computer's keyring and is never shown here.</p>
                 }
                 var rows = answer.Items.Where(i => i.Kind == Tab).ToList();
                 @if (rows.Count == 0)
@@ -44,6 +54,7 @@
                 }
                 else
                 {
+                    <div class="environment-split">
                     <table class="rows environment-rows">
                         <thead>
                             <tr><th>Name</th><th>Type</th><th>Size</th><th>Value</th><th>Used in</th><th>From</th><th></th></tr>
@@ -52,7 +63,7 @@
                             @foreach (var item in rows)
                             {
                                 <tr data-id="@item.Id">
-                                    <td><strong>@item.Name</strong></td>
+                                    <td><button type="button" class="link environment-name" @onclick="() => ShowAsync(item)"><strong>@item.Name</strong></button></td>
                                     <td>@item.Type</td>
                                     <td>@item.Size</td>
                                     <td class="environment-value">@item.Value</td>
@@ -84,9 +95,18 @@
                             }
                         </tbody>
                     </table>
+                    @if (_shown is { } shown)
+                    {
+                        <EnvironmentViewer Shown="shown" OnClose="() => _shown = null" />
+                    }
+                    </div>
                 }
                 <p class="muted">The project's tables use @answer.Memory of memory.</p>
             }
         </Busy>
     </div>
 </section>
+@if (_adding)
+{
+    <AddVariableDialog OnClose="() => _adding = false" OnAdded="LoadAsync" />
+}

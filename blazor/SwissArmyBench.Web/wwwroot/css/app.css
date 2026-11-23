@@ -436,3 +436,13 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .tree-number { color: var(--kind-notebook); }
 .tree-true, .tree-false, .tree-null { color: var(--warn); }
 .tree-more { margin: 2px 0 2px 4px; font-size: 12px; }
+.code-dialog-editor { height: 280px; min-width: min(720px, 80vw); border: 1px solid var(--border); }
+.python-box h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 12px 0 4px; font-size: 14px; }
+.python-box h3 .muted { font-size: 12px; font-weight: 400; }
+.python-editor { border: 1px solid var(--border); border-radius: 4px; }
+.python-variable code { min-width: 160px; }
+.environment-split { display: flex; align-items: flex-start; gap: 12px; }
+.environment-split > table { flex: 1 1 auto; }
+.environment-viewer { position: sticky; top: 0; flex: 0 0 320px; max-height: 70vh; border: 1px solid var(--border); border-radius: 8px; }
+.environment-name { color: inherit; text-decoration: none; }
+.environment-parts td { padding: 2px 8px; font-size: 12px; }

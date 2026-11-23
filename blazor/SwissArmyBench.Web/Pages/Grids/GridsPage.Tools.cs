@@ -57,7 +57,7 @@ public partial class GridsPage
         var one = target.Count == 1 ? target[0] : null;
         switch (tool)
         {
-            case "matching" or "export" or "profile" or "keyfinder" or "connection":
+            case "matching" or "export" or "profile" or "keyfinder" or "connection" or "code":
                 _dialog = tool;
                 break;
             case "filter":

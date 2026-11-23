@@ -26,6 +26,10 @@ public sealed class ConnectionsClient
         _api.PostAsync<FilledCode>("/blades/fill", new { code, values = new Dictionary<string, object> { [fieldId] = value }, template, name });
 
     /// <summary>Run the form's code, not saved, with the passwords typed into it.</summary>
+    /// <summary>The environment variables a Python connection's three boxes read (found with ast, never run).</summary>
+    public async Task<IReadOnlyList<VariableRead>> VariablesAsync(string code, string tables, string read) =>
+        (await _api.PostAsync<VariableReads>("/connections/variables", new { code, tables, read })).Variables;
+
     public Task<TestAnswer> TestAsync(IReadOnlyDictionary<string, object?> form) => _api.PostAsync<TestAnswer>("/connections/test", form);
 
     public Task SaveAsync(IReadOnlyDictionary<string, object?> form) => _api.PostAsync("/connections", form);

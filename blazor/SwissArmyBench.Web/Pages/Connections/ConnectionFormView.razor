@@ -6,7 +6,7 @@
 <Busy IsBusy="_form is null && _error is null" Words="Loading the form…">
     @if (_form is { Id: PythonKind })
     {
-        <p>A connection made of your own Python (three code boxes) is not in the Blazor front end yet. <a href="/workspace?open=connections">Open in the classic front end</a></p>
+        <PythonConnectionForm Form="_form" Editing="@_editing" />
     }
     else if (_form is { } form)
     {

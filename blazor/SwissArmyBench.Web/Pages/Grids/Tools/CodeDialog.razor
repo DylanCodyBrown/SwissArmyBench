@@ -1,0 +1,76 @@
+@* Copy as code (the classic stepsPanel.ts code view): the grid's steps as one DuckDB query and as Python, checked
+   against the grid by the server before it is offered (Verified, else the difference said), Copy as SQL and Copy
+   as Python. *@
+
+<AppDialog Title="@($"Copy as code: {Dataset}")" OnClose="OnClose">
+    <ChildContent>
+        <ErrorNote Error="_error" />
+        @if (_code is null && _error is null)
+        {
+            <div class="loading-block">Verifying the code…</div>
+        }
+        else if (_code is { } found)
+        {
+            @if (found.Verified)
+            {
+                <p class="status-ok" role="status"><Icon Name="check" /> Verified: it gives the grid's rows (@(found.RowsChecked?.ToString("N0") ?? "all") checked).</p>
+            }
+            else
+            {
+                <ErrorNote Words="@($"Not verified. {found.Difference}")" Warning="true" />
+            }
+            <div class="code-dialog-editor"><CodeEditor Value="@found.Code" Language="python" ReadOnly="true" Label="The code" /></div>
+            <p class="muted">@found.Reads</p>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Close</button>
+        <button type="button" class="btn" disabled="@(_code is not { Verified: true })" @onclick="CopySqlAsync"><Icon Name="copy" /> Copy as SQL</button>
+        <button type="button" class="btn primary" disabled="@(_code is not { Verified: true })" @onclick="CopyPythonAsync"><Icon Name="copy" /> Copy as Python</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private GridCode? _code;
+    private Exception? _error;
+
+    [Inject]
+    private GridsClient Grids { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    [Inject]
+    private Notes Notes { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Grid { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Dataset { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _code = await Grids.CodeAsync(Grid);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private Task CopySqlAsync() => CopyAsync((_code?.Sql ?? string.Empty).Trim() + "\n", "SQL query");
+
+    private Task CopyPythonAsync() => CopyAsync(_code?.Code ?? string.Empty, "Python");
+
+    private async Task CopyAsync(string text, string what)
+    {
+        var copied = await Js.InvokeAsync<bool>("sab.copy", text);
+        _ = Notes.SayAsync(copied ? $"Copied the verified {what}." : "The browser blocked the clipboard.");
+    }
+}

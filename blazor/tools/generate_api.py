@@ -155,6 +155,15 @@ ANSWERS: list[Answer] = [
         },
     ),
     Answer(
+        "Grids",
+        "GridCode",
+        "GET",
+        "/grids/{grid}/code",
+        "GET /grids/{id}/code: Copy as code, the grid's steps as one DuckDB query and as Python, checked "
+        "against the grid (Verified, else the Difference).",
+        types={"difference": "string?", "note": "string?", "reason": "string?", "rows_checked": "long?"},
+    ),
+    Answer(
         "Workbench",
         "WorkbenchHome",
         "GET",

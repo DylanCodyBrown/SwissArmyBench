@@ -105,3 +105,23 @@ def test_a_cells_copy_from_its_menu(browser: Browser, server: dict[str, Any]) ->
     expect(page.locator(".steps-strip")).to_contain_text("order_id equals")
     expect(page.locator(".grid-title-row")).to_contain_text("1 rows")
     page.close()
+
+
+def test_copy_as_code_is_verified_before_it_is_offered(browser: Browser, server: dict[str, Any]) -> None:
+    grid = orders_grid(server)
+    call(
+        server,
+        "POST",
+        f"/grids/{grid}/step-ops",
+        {"op": "add", "step": {"kind": "limit", "params": {"n": 5}}},
+    )
+    page = open_page(browser, server, f"grids?grid={grid}")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.click("[data-tool=code]")
+    dialog = page.locator(".dialog")
+    expect(dialog).to_contain_text("Verified")
+    expect(dialog.locator(".monaco-editor")).to_contain_text("LIMIT 5")
+    dialog.locator("button:has-text('Copy as SQL')").click()
+    expect(page.locator(".toast")).to_contain_text("Copied the verified SQL query.")
+    assert "LIMIT 5" in page.evaluate("navigator.clipboard.readText()")
+    page.close()

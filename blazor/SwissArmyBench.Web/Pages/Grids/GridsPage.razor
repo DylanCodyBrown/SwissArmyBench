@@ -73,6 +73,9 @@
         case "keyfinder":
             <KeyFinderDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
             break;
+        case "code":
+            <CodeDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
+            break;
         case "connection":
             <ConnectionDialog Table="@open.Dataset" Grid="@open.Grid" Current="_connection" OnSwapped="SwappedAsync" OnClose="CloseDialog" />
             break;

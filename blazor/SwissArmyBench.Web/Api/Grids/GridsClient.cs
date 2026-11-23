@@ -60,6 +60,9 @@ public sealed class GridsClient
     public Task<SelectionStats> SelectionStatsAsync(string grid, SelectionDescriptor selection) =>
         _api.PostAsync<SelectionStats>($"{Base(grid)}/selection-stats?client={ApiClient.ClientId}", new { selection });
 
+    /// <summary>Copy as code: the steps as one DuckDB query and as Python, verified against the grid.</summary>
+    public Task<GridCode> CodeAsync(string grid) => _api.GetAsync<GridCode>($"{Base(grid)}/code");
+
     public Task<KeyFinderTargets> KeyFinderTargetsAsync(string grid) => _api.GetAsync<KeyFinderTargets>($"{Base(grid)}/key-finder");
 
     public Task<KeyFinderResult> KeyFinderAsync(string grid, string target) =>

@@ -28,5 +28,17 @@ public sealed class EnvironmentClient
 
     public Task UpdateAsync(string name) => _api.PostAsync("/environment/libraries/update", new { name });
 
+    /// <summary>One row whole: what it is, every place that uses it, and its parts (a table's columns with their
+    /// ranges).</summary>
+    public Task<EnvironmentShown> ShowAsync(string kind, string name) =>
+        _api.GetAsync<EnvironmentShown>($"/environment/show?kind={ApiClient.Part(kind)}&name={ApiClient.Part(name)}");
+
+    /// <summary>A variable of this computer added or changed (PUT /variables): a plain value (shareable, or this
+    /// computer only) or a secret kept in the keyring.</summary>
+    public Task SetVariableAsync(string name, string value, bool secret, bool local) =>
+        secret
+            ? _api.PutAsync("/variables", new { name, value, from = "keyring" })
+            : _api.PutAsync("/variables", new { name, value, from = "value", local });
+
     public Task InstallAsync(string name) => _api.PostAsync("/environment/libraries/install", new { name });
 }
