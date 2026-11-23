@@ -10,6 +10,8 @@ namespace SwissArmyBench.Web.Pages.Home;
 
 public partial class Home : IDisposable
 {
+    private bool _pasting;
+
     private const string CustomSort = "custom";
     private const int ConflictStatus = 409;
     private const int TypingPauseMilliseconds = 200;

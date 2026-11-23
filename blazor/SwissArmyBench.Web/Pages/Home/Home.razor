@@ -10,6 +10,7 @@
             <button type="button" class="btn primary" @onclick="() => _newOpen = true"><Icon Name="plus" /> New project</button>
             <button type="button" class="btn" @onclick="OpenProjectAsync"><Icon Name="folder" /> Open project…</button>
             <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="file" /> Open a file…</button>
+            <button type="button" class="btn" @onclick="() => _pasting = true"><Icon Name="table" /> Paste data</button>
             @if (Project.Current is { } open)
             {
                 <button type="button" class="btn ghost" @onclick="CloseProjectAsync"><Icon Name="close" /> Close project</button>
@@ -89,4 +90,8 @@
 @if (_newOpen && _listing is { } forNew)
 {
     <NewProjectDialog Listing="forNew" Type="_newType" OnDone="NewDoneAsync" />
+}
+@if (_pasting)
+{
+    <SwissArmyBench.Web.Pages.Grids.Open.PasteDataDialog OnClose="() => _pasting = false" OnPasted='n => Nav.NavigateTo($"grids?table={Uri.EscapeDataString(n)}")' />
 }
