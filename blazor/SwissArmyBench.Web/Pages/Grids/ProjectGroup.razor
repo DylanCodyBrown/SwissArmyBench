@@ -27,9 +27,21 @@
 }
 
 @code {
+    private string? _askedShown;
+
     protected override void OnInitialized() => Project.Changed += Redraw;
 
-    private void Redraw() => InvokeAsync(StateHasChanged);
+    private void Redraw() => InvokeAsync(async () =>
+    {
+        StateHasChanged();
+        // Another program asked to open a folder while work is unsaved (the classic startView.ts answerAsked): once.
+        if (Project.Asked is { } asked && asked != _askedShown)
+        {
+            _askedShown = asked;
+            await GuardAsync(() => ProjectAsks.AnswerAskedAsync(Dialogs, Project, Projects, asked));
+            _askedShown = null;
+        }
+    });
 
     private Task SaveAsync() => GuardAsync(async () =>
     {
@@ -67,22 +79,7 @@
         _ = Notes.SayAsync($"{file} {(written ? "written" : "is up to date")}", "Download", () => Js.InvokeVoidAsync("sab.saveText", file, text).AsTask());
     });
 
-    private Task CloseAsync() => GuardAsync(async () =>
-    {
-        try
-        {
-            await Projects.CloseAsync();
-        }
-        catch (ApiException error) when (error.Status == 409)
-        {
-            if (!await Dialogs.AskYesNoAsync("Close project", $"{error.Refusal.Error} Let them go and close the project?", "OK", danger: true))
-            {
-                return;
-            }
-            await Projects.CloseAsync(discard: true);
-        }
-        await Project.RefreshAsync();
-    });
+    private Task CloseAsync() => GuardAsync(() => ProjectAsks.CloseAsync(Dialogs, Project, Projects));
 
     private Task AutosaveAsync(bool on) => GuardAsync(async () =>
     {

@@ -571,3 +571,6 @@ kbd { padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px
   }
 }
 
+
+/* A question's words keep their paragraphs (the classic confirm()'s blank line). */
+.question-words { white-space: pre-line; }

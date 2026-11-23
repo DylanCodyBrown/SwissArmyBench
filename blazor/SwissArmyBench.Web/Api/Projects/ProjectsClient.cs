@@ -47,7 +47,13 @@ public sealed class ProjectsClient
     /// <summary>New project: its name, where (a folder, or "where": "shared"), and its type's own fields (make).</summary>
     public Task<ProjectAnswer> NewAsync(IReadOnlyDictionary<string, object?> body) => _api.PostAsync<ProjectAnswer>("/project/new", body);
 
-    public Task<ProjectAnswer> OpenAsync(string path, bool discard = false) => _api.PostAsync<ProjectAnswer>("/project/open", new { path, discard });
+    public Task<ProjectAnswer> OpenAsync(string path, bool discard = false, bool make = false) =>
+        _api.PostAsync<ProjectAnswer>("/project/open", make ? new { path, discard, make } : new { path, discard });
+
+    /// <summary>Another program's open (swissarmybench open) answered: its folder opened (unsaved work let go) or
+    /// not.</summary>
+    public Task<ProjectAnswer> AnswerAskedAsync(string path, bool open) =>
+        _api.PostAsync<ProjectAnswer>("/project/open", open ? new { path, discard = true } : new { cancel = true });
 
     public Task<ProjectAnswer> SaveAsync() => _api.PostAsync<ProjectAnswer>("/project/save");
 

@@ -13,7 +13,6 @@ public partial class Home : IDisposable
     private bool _pasting;
 
     private const string CustomSort = "custom";
-    private const int ConflictStatus = 409;
     private const int TypingPauseMilliseconds = 200;
 
     /// <summary>The sorts, in the classic Explorer's order and words.</summary>
@@ -165,44 +164,13 @@ public partial class Home : IDisposable
     /// <summary>Open a project's folder; with unsaved work open the server asks first (409), and so does this page.</summary>
     private async Task OpenAtAsync(string path)
     {
-        try
-        {
-            await Projects.OpenAsync(path);
-        }
-        catch (ApiException error) when (error.Status == ConflictStatus)
-        {
-            if (!await Dialogs.AskYesNoAsync("Open project", error.Refusal.Error, "Discard and open", danger: true))
-            {
-                return;
-            }
-            await GuardAsync(() => Projects.OpenAsync(path, discard: true));
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-        await Project.RefreshAsync();
+        await GuardAsync(() => ProjectAsks.OpenAsync(Dialogs, Project, Projects, path));
         await LoadAsync();
     }
 
     private async Task CloseProjectAsync()
     {
-        try
-        {
-            await Projects.CloseAsync();
-        }
-        catch (ApiException error) when (error.Status == ConflictStatus)
-        {
-            if (await Dialogs.AskYesNoAsync("Close project", error.Refusal.Error, "Close without saving", danger: true))
-            {
-                await GuardAsync(() => Projects.CloseAsync(discard: true));
-            }
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
-        await Project.RefreshAsync();
+        await GuardAsync(() => ProjectAsks.CloseAsync(Dialogs, Project, Projects));
         await LoadAsync();
     }
 

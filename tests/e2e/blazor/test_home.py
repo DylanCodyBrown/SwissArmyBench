@@ -72,3 +72,32 @@ def test_paste_data_and_a_cards_menu(browser: Browser, server: dict[str, Any]) -
     page.locator(".dialog-foot").get_by_role("button", name="Open").click()
     expect(page.locator(".grid-tab.tab-item.current")).to_contain_text("pasted_")
     page.close()
+
+
+def test_open_project_asks_in_the_classic_words(browser: Browser, server: dict[str, Any]) -> None:
+    """Open project… on a plain folder: "is not a project yet" (Make this folder a project?, the classic
+    projectFile.ts openProject), then the folder opens as a project; then a project with unsaved changes asks
+    before Close (withQuestion: "<name> has unsaved changes." and "Let them go and close the project?")."""
+    if call(server, "GET", "/project")["project"]:
+        call(server, "POST", "/project/close", {"discard": True})
+    plain = server["tmp"] / "made_up_plain_folder"
+    plain.mkdir(exist_ok=True)
+    (plain / "notes.txt").write_text("made-up notes\n", encoding="utf-8")
+    page = open_page(browser, server, "")
+    page.get_by_role("button", name="Open project…").click()
+    page.fill(".question-text", str(plain))
+    page.locator(".dialog-foot").get_by_role("button", name="Choose").click()
+    asked = page.locator(".question-words")
+    expect(asked).to_contain_text("made_up_plain_folder is not a project yet.")
+    page.locator(".dialog-foot").get_by_role("button", name="OK").click()
+    expect(page.locator(".status-bar")).to_contain_text("made_up_plain_folder")
+    assert call(server, "GET", "/project")["project"]["name"] == "made_up_plain_folder"
+    call(server, "POST", "/project/autosave", {"on": False})
+    call(server, "POST", "/samples/store", {})
+    page.goto(page.url.split("/blazor/")[0] + "/blazor/grids")
+    page.locator(".project-group").get_by_role("button", name="Close").click()
+    expect(asked).to_contain_text("made_up_plain_folder has unsaved changes.")
+    expect(asked).to_contain_text("Let them go and close the project?")
+    page.locator(".dialog-foot").get_by_role("button", name="OK").click()
+    expect(page.locator(".project-group")).to_have_count(0)
+    page.close()

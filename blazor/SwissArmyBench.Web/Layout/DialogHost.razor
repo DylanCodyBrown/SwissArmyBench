@@ -6,7 +6,7 @@
 {
     <AppDialog Title="@question.Title" OnClose="() => Dialogs.Answer(null)">
         <ChildContent>
-            <p>@question.Words</p>
+            <p class="question-words">@question.Words</p>
             @if (question.Asks is not null)
             {
                 <label class="form-row">

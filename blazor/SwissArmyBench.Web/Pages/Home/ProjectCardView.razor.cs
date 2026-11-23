@@ -9,7 +9,6 @@ namespace SwissArmyBench.Web.Pages.Home;
 
 public partial class ProjectCardView
 {
-    private const int ConflictStatus = 409;
 
     private bool _menu;
 
@@ -74,27 +73,7 @@ public partial class ProjectCardView
     private static string When(double? seconds) =>
         seconds is { } value ? DateTimeOffset.FromUnixTimeMilliseconds((long)(value * 1000)).ToLocalTime().ToString("d MMM yyyy, HH:mm") : "Never";
 
-    private async Task OpenAsync()
-    {
-        _menu = false;
-        try
-        {
-            await Projects.OpenAsync(Card.Path);
-        }
-        catch (ApiException error) when (error.Status == ConflictStatus)
-        {
-            if (await Dialogs.AskYesNoAsync("Open project", error.Refusal.Error, "Discard and open", danger: true))
-            {
-                await RunAsync(() => Projects.OpenAsync(Card.Path, discard: true));
-            }
-        }
-        catch (ApiException error)
-        {
-            await OnError.InvokeAsync(error);
-        }
-        await Project.RefreshAsync();
-        await OnChanged.InvokeAsync();
-    }
+    private Task OpenAsync() => RunAsync(() => ProjectAsks.OpenAsync(Dialogs, Project, Projects, Card.Path));
 
     private Task ShowAsync() => RunAsync(() => Projects.ShowAsync(Card.Path));
 
