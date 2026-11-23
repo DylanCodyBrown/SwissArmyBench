@@ -107,10 +107,10 @@
 
     private void SelectAll()
     {
-        foreach (var row in (_found?.Connections ?? []).Where(r => r.Already is null && r.Supported && Matches(r)))
-        {
-            _ticked.Add(row.Id);
-        }
+        var importable = (_found?.Connections ?? [])
+            .Where(r => r.Already is null && r.Supported && Matches(r))
+            .Select(r => r.Id);
+        _ticked.UnionWith(importable);
     }
 
     private async Task ImportAsync()

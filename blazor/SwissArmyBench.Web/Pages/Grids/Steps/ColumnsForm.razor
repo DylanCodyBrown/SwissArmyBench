@@ -24,10 +24,7 @@
         var kept = Names("keep");
         var all = Columns.Select(c => c.Name).ToList();
         _order = kept.Where(all.Contains).Concat(all.Where(n => !kept.Contains(n))).ToList();
-        foreach (var name in kept.Count > 0 ? kept : all)
-        {
-            _keep.Add(name);
-        }
+        _keep.UnionWith(kept.Count > 0 ? kept : all);
     }
 
     public override Dictionary<string, object?> Read()

@@ -16,15 +16,15 @@ public partial class GroupByForm
     protected override void OnInitialized()
     {
         _keys.UnionWith(Names("keys"));
-        foreach (var given in Items("aggregates").Where(a => a.ValueKind == JsonValueKind.Object))
-        {
-            _rows.Add(new AggregateRow
+        var given = Items("aggregates")
+            .Where(a => a.ValueKind == JsonValueKind.Object)
+            .Select(a => new AggregateRow
             {
-                Fn = given.TryGetProperty("fn", out var fn) ? fn.GetString() ?? "count_rows" : "count_rows",
-                Column = given.TryGetProperty("column", out var column) ? column.GetString() ?? FirstColumn : FirstColumn,
-                As = given.TryGetProperty("as", out var name) ? name.GetString() ?? string.Empty : string.Empty,
+                Fn = Field(a, "fn", "count_rows"),
+                Column = Field(a, "column", FirstColumn),
+                As = Field(a, "as", string.Empty),
             });
-        }
+        _rows.AddRange(given);
         if (_rows.Count == 0)
         {
             _rows.Add(new AggregateRow { Column = FirstColumn });
@@ -67,6 +67,9 @@ public partial class GroupByForm
             _keys.Remove(name);
         }
     }
+
+    private static string Field(JsonElement aggregate, string name, string fallback) =>
+        aggregate.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : fallback;
 
     private void AddRow() => _rows.Add(new AggregateRow { Fn = "sum", Column = FirstColumn });
 }

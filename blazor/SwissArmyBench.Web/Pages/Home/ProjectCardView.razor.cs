@@ -49,20 +49,18 @@ public partial class ProjectCardView
     {
         get
         {
-            var parts = new List<string>();
-            AddCount(parts, Card.Counts.Notebooks, "notebook");
-            AddCount(parts, Card.Counts.Scripts, "script");
-            AddCount(parts, Card.Counts.Apps, "app");
-            AddCount(parts, Card.Counts.Tables, "table");
+            (int Count, string Word)[] counts =
+            [
+                (Card.Counts.Notebooks, "notebook"),
+                (Card.Counts.Scripts, "script"),
+                (Card.Counts.Apps, "app"),
+                (Card.Counts.Tables, "table"),
+            ];
+            var parts = counts
+                .Where(c => c.Count > 0)
+                .Select(c => $"{c.Count} {c.Word}{(c.Count == 1 ? string.Empty : "s")}")
+                .ToList();
             return parts.Count == 0 ? "Empty" : string.Join(" · ", parts);
-        }
-    }
-
-    private static void AddCount(List<string> parts, int count, string word)
-    {
-        if (count > 0)
-        {
-            parts.Add($"{count} {word}{(count == 1 ? string.Empty : "s")}");
         }
     }
 

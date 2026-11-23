@@ -27,21 +27,16 @@ public partial class Rail : IDisposable
     {
         get
         {
-            foreach (var area in Areas.All)
-            {
-                if (area.Area == Areas.Session)
-                {
-                    foreach (var extra in RailState.ExtensionAreas)
-                    {
-                        yield return new RailArea(extra.Area, extra.Name, extra.Icon, $"x-{extra.Area}", $"/workspace?open={extra.Area}");
-                    }
-                }
-                if (area.Area is Areas.Canvas or Areas.Widgets && !RailState.CanvasOn)
-                {
-                    continue;
-                }
-                yield return area;
-            }
+            var extensions = RailState.ExtensionAreas
+                .Select(extra => new RailArea(extra.Area, extra.Name, extra.Icon, $"x-{extra.Area}", $"/workspace?open={extra.Area}"));
+            var shown = Areas.All
+                .Where(area => RailState.CanvasOn || area.Area is not (Areas.Canvas or Areas.Widgets))
+                .ToList();
+            var session = shown.FindIndex(area => area.Area == Areas.Session);
+            return shown
+                .Take(session)
+                .Concat(extensions)
+                .Concat(shown.Skip(session));
         }
     }
 

@@ -29,7 +29,7 @@ public partial class FilterForm
 
     private static readonly HashSet<string> _noValue = ["blank", "not_blank", "true", "false", "in", "not_in"];
 
-    private readonly Dictionary<string, JsonElement> _picked = [];
+    private Dictionary<string, JsonElement> _picked = [];
     private string _column = string.Empty;
     private string _op = "eq";
     private string _value = string.Empty;
@@ -97,10 +97,9 @@ public partial class FilterForm
         _op = Text("op", StartOp());
         _value = Raw("value", Raw("low"));
         _high = Raw("high");
-        foreach (var value in Items("values"))
-        {
-            _picked[value.GetRawText()] = value.Clone();
-        }
+        _picked = Items("values")
+            .DistinctBy(v => v.GetRawText())
+            .ToDictionary(v => v.GetRawText(), v => v.Clone());
         await LoadValuesAsync();
     }
 
