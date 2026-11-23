@@ -6,6 +6,7 @@
  *   [PATH]    $.orders[3].lines (domain/structures.py format_path)
  *   [CODE]    the Python that reaches a node from the file's value: data["orders"][3]["lines"] (code_of)
  *   [FIND]    where words stand in keys and values, in the document's order (search)
+ *   [READ]    a path's text read back, a parse error as the editor's problem, a typed value (structureDoc.ts)
  *   [FILES]   a .json, .yaml, .yml, .xml or .toml file opens as a structure's tab beside the code; an app's
  *             canvas, a workbook design, an old app canvas and the app's .sab/ state never (workbench_pages.py)
  */
@@ -64,4 +65,36 @@ export function formatOfPath(path: string): "json" | "yaml" | "xml" | "toml" | n
 export function errorPlace(message: string): { line: number; column: number } | null {
   const found = /line (\d+)(?:, column (\d+))?/.exec(message);
   return found ? { line: Number(found[1]), column: found[2] ? Number(found[2]) : 1 } : null;
+}
+
+/** A path's text read back into its parts (the tree's own: no [*]); a path that does not read throws. */
+export function partsOf(path: string): Part[] {
+  const parts: Part[] = [];
+  const re = /\.([A-Za-z_][A-Za-z0-9_-]*)|\[(-?\d+)\]|\[("(?:[^"\\]|\\.)*")\]/g;
+  const body = path.trim().replace(/^\$/, "");
+  let at = 0;
+  for (let m = re.exec(body); m; m = re.exec(body)) {
+    if (m.index !== at) throw new Error(`${path}: a path goes on with .name, [n] or ["key"].`);
+    at = re.lastIndex;
+    parts.push(m[1] ?? (m[2] !== undefined ? Number(m[2]) : (JSON.parse(m[3]!) as string)));
+  }
+  if (at !== body.length) throw new Error(`${path}: a path goes on with .name, [n] or ["key"].`);
+  return parts;
+}
+
+/** A parse error as the editor's one problem: underlined from where it is to its line's end (at least one
+ *  character), as a code editor marks it; `text` the text that was parsed, `source` its format's name. */
+export function parseProblem(message: string, text: string, source: string): { line: number; col: number; end_line: number; end_col: number; message: string; severity: "error"; code: string; source: string } {
+  const place = errorPlace(message) ?? { line: 1, column: 1 };
+  const length = (text.split("\n")[place.line - 1] ?? "").length;
+  return { line: place.line, col: place.column, end_line: place.line, end_col: Math.max(place.column + 1, length + 1), message, severity: "error", code: "parse", source };
+}
+
+/** A value typed into Add key…'s box: JSON when it reads as JSON, else the plain text. */
+export function parseValue(text: string): Value {
+  try {
+    return JSON.parse(text) as Value;
+  } catch {
+    return text;
+  }
 }
