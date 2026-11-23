@@ -22,6 +22,7 @@ public partial class WorkbenchPage
         .. CellCommands(),
         .. DocumentCommands(),
         .. ViewCommands(),
+        .. DebugCommands(),
         .. (IsNotebooks ? [] : new List<WorkbenchCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
     ];
 
@@ -149,6 +150,29 @@ public partial class WorkbenchPage
         new("go.back", "Go", "Back", () => Js.InvokeVoidAsync("history.back").AsTask()),
         new("go.forward", "Go", "Forward", () => Js.InvokeVoidAsync("history.forward").AsTask()),
     ];
+
+    private Task DebugAsync(OpenDocument doc) => GuardAsync(() => doc.ScriptView?.DebugAsync() ?? Task.CompletedTask);
+
+    private List<WorkbenchCommand> DebugCommands()
+    {
+        if (Front is not { ScriptView: { } script } doc)
+        {
+            return [];
+        }
+        var debug = script.Debugger;
+        var paused = debug?.Paused == true ? null : "Not paused at a breakpoint";
+        Func<Task> step(string action) => () => debug?.StepAsync(action) ?? Task.CompletedTask;
+        return
+        [
+            new("debug.start", "Debug", "Start debugging", () => DebugAsync(doc), "Ctrl+Shift+D"),
+            new("debug.toggle", "Debug", "Toggle breakpoint", () => debug?.ToggleAtCursorAsync() ?? Task.CompletedTask, "F9"),
+            new("debug.continue", "Debug", "Continue", step("continue"), "F5", paused),
+            new("debug.over", "Debug", "Step over", step("over"), "F10", paused),
+            new("debug.into", "Debug", "Step into", step("into"), Disabled: paused),
+            new("debug.out", "Debug", "Step out", step("out"), "Shift+F11", paused),
+            new("debug.stop", "Debug", "Stop debugging", () => debug?.StopAsync() ?? Task.CompletedTask, "Shift+F5", debug?.Active == true ? null : "Not debugging"),
+        ];
+    }
 
     private Task FocusGroupAsync(int by)
     {

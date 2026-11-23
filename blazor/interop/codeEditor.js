@@ -210,6 +210,7 @@ export function create(host, dotnet, options) {
     readOnly: !!options.readOnly,
     readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the grid: change the table's steps there." },
     placeholder: options.placeholder,
+    glyphMargin: !!options.breakpoints,
   });
   const model = editor.getModel();
   const owner = { dotnet, intel: !!options.intel, language };
@@ -291,7 +292,58 @@ export function create(host, dotnet, options) {
     }
   }
 
+  // The debugger's gutter (the classic workbenchDebug.ts): a click in the glyph margin toggles a breakpoint, a right
+  // click there or on a line number opens its menu; both told to C# by the line.
+  const breakpointDecorations = editor.createDecorationsCollection([]);
+  const executionDecoration = editor.createDecorationsCollection([]);
+  if (options.breakpoints) {
+    // The debugger's keys in the editor (F9 toggles; while paused F10 steps over, Shift+F11 out, Shift+F5 stops).
+    const debugKeys = [
+      ["toggleBreakpoint", C.F9],
+      ["stepOver", C.F10],
+      ["stepOut", K.Shift | C.F11],
+      ["stopDebugging", K.Shift | C.F5],
+    ];
+    for (const [name, binding] of debugKeys) {
+      editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
+    }
+    const G = monaco.editor.MouseTargetType;
+    const lineOf = (e) => (e.target.type === G.GUTTER_GLYPH_MARGIN || e.target.type === G.GUTTER_LINE_NUMBERS ? (e.target.position?.lineNumber ?? null) : null);
+    editor.onMouseDown((e) => {
+      if (e.target.type !== G.GUTTER_GLYPH_MARGIN || !e.event.leftButton) return;
+      const line = lineOf(e);
+      if (line) dotnet.invokeMethodAsync("Gutter", line, false, 0, 0).catch(() => {});
+    });
+    editor.onContextMenu((e) => {
+      const line = lineOf(e);
+      if (line === null) return;
+      e.event.preventDefault();
+      dotnet.invokeMethodAsync("Gutter", line, true, e.event.posx, e.event.posy).catch(() => {});
+    });
+  }
+
   return {
+    /** The breakpoints drawn in the gutter: [{line, kind: plain | condition | log, title}]. */
+    setBreakpoints: (marks) =>
+      breakpointDecorations.set(
+        marks.map((m) => ({
+          range: new monaco.Range(m.line, 1, m.line, 1),
+          options: {
+            glyphMarginClassName: `sab-breakpoint bp-${m.kind}`,
+            glyphMarginHoverMessage: m.title ? { value: m.title } : undefined,
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        })),
+      ),
+    /** The breakpoints' lines as edits have moved them. */
+    breakpointLines: () => breakpointDecorations.getRanges().map((r) => r.startLineNumber),
+    /** The line a paused run stopped at (highlighted, scrolled to); 0 clears it. */
+    setExecutionLine: (line) => {
+      if (!line) return void executionDecoration.clear();
+      executionDecoration.set([{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "sab-paused-line", glyphMarginClassName: "sab-paused-arrow" } }]);
+      editor.revealLineInCenterIfOutsideViewport(line);
+    },
+    cursorLine: () => editor.getPosition()?.lineNumber ?? 0,
     getValue: () => editor.getValue(),
     /** Text from C#: the cursor kept where it was, and no Changed told back. */
     setValue: (text) => {

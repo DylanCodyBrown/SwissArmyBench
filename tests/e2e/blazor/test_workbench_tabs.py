@@ -163,3 +163,35 @@ def test_a_notebooks_outline(browser: Browser, server: dict[str, Any]) -> None:
     outline.locator("button[aria-label='Close Outline']").click()
     expect(outline).to_have_count(0)
     page.close()
+
+
+def test_the_debugger_stops_at_a_breakpoint(browser: Browser, server: dict[str, Any]) -> None:
+    path = str(server["tmp"] / "workbench" / "made_up_debug.py")
+    text = "total = 0\nfor n in range(3):\n    total += n\nprint('made up', total)\n"
+    call(server, "POST", "/workbench/save", {"path": path, "text": text})
+    page = open_page(browser, server, f"scripts?path={path}")
+    editor = page.locator(".wb-script-editor .monaco-editor")
+    expect(editor).to_be_visible()
+    page.wait_for_timeout(500)
+    # A click in the gutter at line 4 puts a breakpoint there.
+    line = editor.locator(".line-numbers", has_text="4").first
+    box = line.bounding_box()
+    assert box is not None
+    page.mouse.click(box["x"] - 8, box["y"] + box["height"] / 2)
+    expect(editor.locator(".sab-breakpoint")).to_have_count(1)
+    # A right click: Breakpoints at line 4.
+    page.mouse.click(box["x"] - 8, box["y"] + box["height"] / 2, button="right")
+    expect(page.locator(".context-menu")).to_contain_text("Add conditional breakpoint…")
+    page.locator(".menu-shade").click()
+
+    page.click("button[aria-label='Start debugging']")
+    debug = page.locator(".wb-debug")
+    expect(debug.locator(".wb-debug-status")).to_contain_text("Paused", timeout=90_000)
+    expect(debug.locator(".wb-debug-vars")).to_contain_text("total")
+    debug.locator("input[aria-label='Watch expression']").fill("total * 10")
+    page.keyboard.press("Enter")
+    expect(debug.locator(".wb-debug-watch")).to_contain_text("30")
+    debug.locator("button[aria-label=Continue]").click()
+    expect(debug.locator(".wb-debug-status")).to_contain_text("Ended", timeout=60_000)
+    expect(debug.locator(".wb-debug-program")).to_contain_text("made up 3")
+    page.close()

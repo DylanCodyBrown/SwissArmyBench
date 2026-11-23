@@ -157,6 +157,7 @@
             else
             {
                 <button type="button" class="btn small primary wb-run-file" title="Run file (F5)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
+                <button type="button" class="btn small ghost icon wb-debug-start" aria-label="Start debugging" title="Start debugging (Ctrl+Shift+D)" @onclick="() => DebugAsync(doc)"><Icon Name="bug" /></button>
             }
             <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, DocumentMenu(doc))"><Icon Name="more" /></button>

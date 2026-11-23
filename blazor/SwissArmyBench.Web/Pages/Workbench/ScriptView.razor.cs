@@ -11,6 +11,7 @@ public partial class ScriptView
 {
     private CellModel _console = new();
     private CodeEditor? _editor;
+    private DebugPanel? _debug;
     private CellRunner? _runner;
     private string _line = string.Empty;
     private Exception? _error;
@@ -46,6 +47,20 @@ public partial class ScriptView
     [Parameter]
     public EventCallback<IdeMove> OnIde { get; set; }
 
+    /// <summary>Start debugging (Ctrl+Shift+D): the script as it is on screen, under the debugger.</summary>
+    public async Task DebugAsync()
+    {
+        if (_debug is not null && _editor is not null)
+        {
+            await _debug.StartAsync(await _editor.TextAsync());
+        }
+    }
+
+    /// <summary>The debugger's moves for the palette: toggle at the cursor, the steps, stop.</summary>
+    public DebugPanel? Debugger => _debug;
+
+    private Task GutterAsync(GutterClick click) => _debug?.GutterAsync(click) ?? Task.CompletedTask;
+
     /// <summary>The cursor to a line, with the focus (a definition, a reference, a search result).</summary>
     public Task RevealLineAsync(int line) => _editor?.RevealLineAsync(line) ?? Task.CompletedTask;
 
@@ -74,6 +89,21 @@ public partial class ScriptView
         {
             case "save" or "saveAs":
                 await OnPageKey.InvokeAsync(key.Name);
+                break;
+            case "toggleBreakpoint" when _debug is not null:
+                await _debug.ToggleAtCursorAsync();
+                break;
+            case "stepOver" when _debug is not null:
+                await _debug.StepAsync("over");
+                break;
+            case "stepOut" when _debug is not null:
+                await _debug.StepAsync("out");
+                break;
+            case "stopDebugging" when _debug is not null:
+                await _debug.StopAsync();
+                break;
+            case "runFile" when _debug?.Paused == true:
+                await _debug.StepAsync("continue"); // paused: F5 continues
                 break;
             case "runFile":
                 await RunFileAsync();

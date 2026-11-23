@@ -62,6 +62,7 @@ public static class Program
         services.AddScoped<AgentInboxClient>();
         services.AddScoped<ScriptIdeClient>();
         services.AddScoped<BoardClient>();
+        services.AddScoped<DebugClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();

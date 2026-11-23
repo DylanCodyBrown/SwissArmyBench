@@ -68,6 +68,10 @@ public partial class CodeEditor
     [Parameter]
     public EventCallback<IdeMove> OnIde { get; set; }
 
+    /// <summary>The debugger's gutter: set, a click there toggles a breakpoint and a right click opens its menu.</summary>
+    [Parameter]
+    public EventCallback<GutterClick> OnGutter { get; set; }
+
     /// <summary>The lint's problems at warning or worse, as they change.</summary>
     [Parameter]
     public EventCallback<int> OnProblems { get; set; }
@@ -83,7 +87,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
@@ -165,6 +169,32 @@ public partial class CodeEditor
         _known = text;
         return OnIde.InvokeAsync(new IdeMove(name, text, line, column, word));
     }
+
+    [JSInvokable]
+    public Task Gutter(int line, bool menu, double x, double y) => OnGutter.InvokeAsync(new GutterClick(line, menu, x, y));
+
+    public async Task SetBreakpointsAsync(IReadOnlyList<BreakpointMark> marks)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("setBreakpoints", marks);
+        }
+    }
+
+    /// <summary>The breakpoints' lines as edits have moved them, in line order.</summary>
+    public async Task<IReadOnlyList<int>> BreakpointLinesAsync() =>
+        _editor is null ? [] : (await _editor.InvokeAsync<int[]>("breakpointLines")).Order().ToList();
+
+    /// <summary>The line a paused run stopped at, or null to clear it.</summary>
+    public async Task SetExecutionLineAsync(int? line)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("setExecutionLine", line ?? 0);
+        }
+    }
+
+    public async Task<int> CursorLineAsync() => _editor is null ? 0 : await _editor.InvokeAsync<int>("cursorLine");
 
     [JSInvokable]
     public Task Focused() => OnFocus.InvokeAsync();

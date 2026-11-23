@@ -175,6 +175,7 @@ public partial class WorkbenchPage
         "previousDoc" => ShowNextAsync(-1),
         "fullScreen" => FullScreenAsync(),
         "files" => ToggleFilesAsync(),
+        "debug" when Front is { IsNotebook: false } doc => DebugAsync(doc),
         "searchScripts" when !IsNotebooks => Toggle(() => _searching = true),
         "escape" when _full => FullScreenAsync(),
         _ => Task.CompletedTask,
