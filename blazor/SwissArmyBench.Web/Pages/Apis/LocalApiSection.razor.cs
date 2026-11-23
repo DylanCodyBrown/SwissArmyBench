@@ -20,6 +20,7 @@ public sealed partial class LocalApiSection : IDisposable
     private Exception? _error;
     private bool _props;
     private bool _newing;
+    private bool _wizard;
     private bool _exporting;
     private (double X, double Y)? _menu;
     private IReadOnlyList<RealCheck>? _checks;
@@ -31,16 +32,13 @@ public sealed partial class LocalApiSection : IDisposable
     [Inject]
     private LiveUpdates Live { get; set; } = default!;
 
-    [Inject]
-    private NavigationManager Nav { get; set; } = default!;
 
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
     private IReadOnlyList<MenuEntry> MoreEntries =>
     [
-        // The endpoint wizard is the classic page's for now.
-        new("New endpoint…", "plus", () => Go("/workspace?open=apis")),
+        new("New endpoint…", "plus", Redrawn(() => Task.FromResult(_wizard = true))),
         new("Will this work for real?", "check", Redrawn(CheckAsync)),
         new("Export…", "export", Redrawn(() => Task.FromResult(_exporting = true))),
     ];
@@ -115,10 +113,10 @@ public sealed partial class LocalApiSection : IDisposable
         _ => "Not checked",
     };
 
-    private Task Go(string to)
+    private async Task WizardClosedAsync()
     {
-        Nav.NavigateTo(to, forceLoad: true);
-        return Task.CompletedTask;
+        _wizard = false;
+        await DrawAsync();
     }
 
     private async Task PropsAsync()

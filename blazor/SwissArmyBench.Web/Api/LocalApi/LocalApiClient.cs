@@ -31,4 +31,10 @@ public sealed class LocalApiClient
 
     public Task<ExportedApi> ExportAsync(string target, bool rows, IReadOnlyList<string>? replace) =>
         _api.PostAsync<ExportedApi>("/local-api/export", new { target, rows, replace });
+
+    /// <summary>New endpoint's plan: the tables, the patterns ranked, a pattern's steps and its code; nothing written.</summary>
+    public Task<WizardPlan> PlanAsync(IReadOnlyDictionary<string, object?> asked) => _api.PostAsync<WizardPlan>("/local-api/plan", asked);
+
+    /// <summary>Add to API.py: the pattern's endpoints appended.</summary>
+    public Task<Scaffolded> ScaffoldAsync(IReadOnlyDictionary<string, object?> asked) => _api.PostAsync<Scaffolded>("/local-api/scaffold", asked);
 }

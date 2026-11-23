@@ -1,0 +1,165 @@
+@* New endpoint (the classic endpointWizard.ts): Table (the sandbox's), What the endpoint is for (every pattern ranked
+   by the table's shape, each with one sentence why; one that does not fit cannot be picked), THAT pattern's own steps
+   drawn from its data (a column, columns, a choice, a word, the other table, totals, the columns an action sets), the
+   widgets it pairs with, The code it adds (kept current, or the one thing missing); Cancel, Add to API.py. Logic in
+   EndpointWizard.razor.cs. *@
+@using SwissArmyBench.Web.Api.LocalApi
+
+<AppDialog Title="New endpoint" OnClose="OnClose">
+    <ChildContent>
+        <div class="dialog-body endpoint-wizard">
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            @if (_tables is null)
+            {
+                @if (_error is null)
+                {
+                    <div class="loading-block">Reading the sandbox…</div>
+                }
+            }
+            else if (_tables.Count == 0)
+            {
+                <p class="empty-note">The sandbox has no tables yet: Add to sandbox first.</p>
+            }
+            else
+            {
+                <label class="field"><span>Table (the sandbox's)</span>
+                    <select aria-label="Table" @onchange="e => TableChosenAsync(e.Value?.ToString())">
+                        @foreach (var t in _tables)
+                        {
+                            <option value="@t.Name" selected="@(t.Name == _table)">@TableWords(t)</option>
+                        }
+                    </select>
+                </label>
+                <div class="field"><span>What the endpoint is for</span>
+                    <div class="wizard-patterns" role="radiogroup" aria-label="Pattern">
+                        @foreach (var r in _ranked)
+                        {
+                            var pattern = r.Pattern;
+                            <label class="wizard-pattern @(r.Fits ? null : "unfit")" data-pattern="@pattern" title="@r.Question">
+                                <input type="radio" name="wizard-pattern" value="@pattern" checked="@(pattern == _pattern)" disabled="@(!r.Fits)" @onchange="() => PatternChosenAsync(pattern)" />
+                                <span class="wizard-pattern-name">@r.Label</span>
+                                <span class="wizard-pattern-why">@r.Why</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+                <div class="wizard-steps">
+                    @foreach (var s in _shown?.Steps ?? [])
+                    {
+                        <div class="field wizard-step" data-step="@s.Id">
+                            <span>@s.Label@(s.Required ? string.Empty : " (optional)")</span>
+                            @StepControl(s)
+                            @if (s.Help.Length > 0)
+                            {
+                                <small class="muted">@s.Help</small>
+                            }
+                        </div>
+                    }
+                    @if (_shown is { Widgets.Count: > 0 } paired)
+                    {
+                        <p class="muted wizard-pairs">On the Canvas: @string.Join(" ", paired.Widgets.Select(w => w.Words))</p>
+                    }
+                </div>
+                <div class="field"><span>The code it adds</span>
+                    <p class="wizard-said @(_last?.Problem is null ? null : "bad")" role="status">@Said</p>
+                    @if (_last is { Problem: null })
+                    {
+                        <pre class="wizard-code" aria-label="The code it adds" tabindex="0">@CodeText</pre>
+                    }
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        @if (_tables is { Count: 0 })
+        {
+            <button type="button" class="btn" @onclick="OnClose">Close</button>
+        }
+        else
+        {
+            <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+            <Busy IsBusy="_adding" Words="Adding…"><button type="button" class="btn primary" disabled="@(_last is null || _last.Problem is not null || _adding)" @onclick="AddAsync">Add to API.py</button></Busy>
+        }
+    </Foot>
+</AppDialog>
+
+@code {
+    /// <summary>One step's control, by its kind.</summary>
+    private RenderFragment StepControl(WizardStep s) => s.Kind switch
+    {
+        "table" => @<select aria-label="@s.Label" @onchange="SetOther">
+                @foreach (var n in _others)
+                {
+                    <option value="@n" selected="@(n == _other)">@n</option>
+                }
+            </select>,
+        "column" => @<select aria-label="@s.Label" @onchange="e => SetText(s.Id, e)">
+                @if (!s.Required)
+                {
+                    <option value="" selected="@(Text(s.Id).Length == 0)">(none)</option>
+                }
+                @foreach (var c in s.Options)
+                {
+                    <option value="@c" selected="@(c == Text(s.Id))">@c</option>
+                }
+            </select>,
+        "choice" => @<select aria-label="@s.Label" @onchange="e => SetText(s.Id, e)">
+                @foreach (var c in s.Choices)
+                {
+                    <option value="@c.Value" selected="@(c.Value == Text(s.Id))">@c.Label</option>
+                }
+            </select>,
+        "text" => @<input type="text" aria-label="@s.Label" spellcheck="false" data-no-variables="" value="@Text(s.Id)" @oninput="e => SetText(s.Id, e)" />,
+        "columns" => @<div class="wizard-chips" role="group" aria-label="@s.Label">
+                @foreach (var c in s.Options)
+                {
+                    <label class="wizard-chip"><input type="checkbox" checked="@Picked(s.Id).Contains(c)" @onchange="e => Tick(s, c, e.Value is true)" /><span>@c</span></label>
+                }
+                @if (s.Options.Count == 0)
+                {
+                    <span class="muted">No column fits.</span>
+                }
+            </div>,
+        _ => RowsControl(s),
+    };
+
+    /// <summary>Totals (a total and its column) or sets (a column and the value it is set to): rows added and removed.</summary>
+    private RenderFragment RowsControl(WizardStep s) => @<div class="wizard-rows" role="group" aria-label="@s.Label">
+            @{ var rows = Rows(s.Id); var totals = s.Kind == "totals"; }
+            @for (var i = 0; i < rows.Count; i++)
+            {
+                var at = i;
+                var row = rows[at];
+                <div class="wizard-row">
+                    @if (totals)
+                    {
+                        <select aria-label="@($"Total {at + 1}")" @onchange='e => SetRow(s.Id, at, "fn", e)'>
+                            @foreach (var (value, words) in _totals)
+                            {
+                                <option value="@value" selected="@(value == row.GetValueOrDefault("fn", "count"))">@words</option>
+                            }
+                        </select>
+                        <select aria-label="@($"Column of total {at + 1}")" @onchange='e => SetRow(s.Id, at, "column", e)'>
+                            <option value="" selected="@(row.GetValueOrDefault("column", string.Empty).Length == 0)">(none)</option>
+                            @foreach (var c in s.Options)
+                            {
+                                <option value="@c" selected="@(c == row.GetValueOrDefault("column"))">@c</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <select aria-label="@($"Column {at + 1}")" @onchange='e => SetRow(s.Id, at, "column", e)'>
+                            @foreach (var c in s.Options)
+                            {
+                                <option value="@c" selected="@(c == row.GetValueOrDefault("column"))">@c</option>
+                            }
+                        </select>
+                        <input type="text" aria-label="@($"Value {at + 1}")" placeholder="set to" data-no-variables="" value="@row.GetValueOrDefault("value")" @oninput='e => SetRow(s.Id, at, "value", e)' />
+                    }
+                    <button type="button" class="btn ghost icon" aria-label="Remove" title="Remove" @onclick="() => RemoveRow(s.Id, at)"><Icon Name="close" /></button>
+                </div>
+            }
+            <button type="button" class="btn ghost" @onclick="() => AddRow(s)"><Icon Name="plus" /> @(totals ? "Add a total" : "Add a column")</button>
+        </div>;
+}

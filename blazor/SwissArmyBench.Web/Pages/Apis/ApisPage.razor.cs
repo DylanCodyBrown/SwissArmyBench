@@ -41,6 +41,10 @@ public sealed partial class ApisPage : IDisposable
     [SupplyParameterFromQuery(Name = "name")]
     public string? NameParameter { get; set; }
 
+    /// <summary>?endpoint=: New endpoint, the wizard, on that sandbox table (the sandbox panel's row).</summary>
+    [SupplyParameterFromQuery(Name = "endpoint")]
+    public string? EndpointParameter { get; set; }
+
     [SupplyParameterFromQuery(Name = "add")]
     public string? AddParameter { get; set; }
 

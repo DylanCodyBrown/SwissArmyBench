@@ -615,3 +615,97 @@
   width: 20px;
   height: 20px;
 }
+
+/* ===== New endpoint, the wizard (the classic endpointWizard.ts) ===== */
+.endpoint-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.endpoint-wizard > * {
+  flex-shrink: 0;
+}
+.wizard-patterns {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 14.5em;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+}
+.wizard-pattern {
+  display: grid;
+  grid-template-columns: auto 8.5em 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.wizard-pattern:hover,
+.wizard-pattern:has(input:checked) {
+  background: var(--row-hover);
+}
+.wizard-pattern-name {
+  font-weight: 600;
+}
+.wizard-pattern-why {
+  color: var(--muted);
+}
+.wizard-pattern.unfit {
+  cursor: default;
+  opacity: 0.6;
+}
+.wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px 16px;
+}
+.wizard-step:has(.wizard-rows) {
+  grid-column: span 2;
+}
+.wizard-steps .wizard-pairs {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.wizard-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.wizard-chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.wizard-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.wizard-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.wizard-code {
+  max-height: 22em;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre;
+}
+.wizard-said {
+  margin: 0;
+  color: var(--muted);
+}
+
+.wizard-said.bad {
+  color: var(--error);
+}

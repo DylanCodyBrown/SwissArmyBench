@@ -201,3 +201,41 @@ def test_open_a_structure_asks_for_a_file(browser: Browser, server: dict[str, An
     expect(page.locator(".structure-tree")).to_contain_text("regions")
     page.locator(".structures-tab", has_text="made_up_regions").locator(".structures-tab-close").click()
     page.close()
+
+
+def test_new_endpoint_the_wizard(browser: Browser, server: dict[str, Any]) -> None:
+    """New endpoint… on the local API's More menu: the sandbox's tables, the patterns ranked by the
+    table's shape (the server's), a pattern's own steps, the code it adds kept current, Add to API.py;
+    the sandbox panel's row opens it on its table."""
+    call(server, "POST", "/project/new", {"name": "Made up wizard"})
+    columns = [
+        {"name": "order_id", "type": "INTEGER", "key": True},
+        {"name": "region", "type": "VARCHAR"},
+        {"name": "total", "type": "DOUBLE"},
+        {"name": "ordered_on", "type": "DATE"},
+    ]
+    call(server, "POST", "/sandbox/tables", {"from": "columns", "name": "orders", "columns": columns})
+    page = open_page(browser, server, "apis")
+    local = page.locator(".local-apis")
+    expect(local.locator(".local-api-bar")).to_be_visible()
+    local.locator("button[aria-label=More]").click()
+    page.locator(".context-menu [role=menuitem]", has_text="New endpoint…").click()
+    wizard = page.locator(".dialog[aria-label='New endpoint']")
+    expect(wizard.locator("select[aria-label=Table]")).to_have_value("orders")
+    expect(wizard.locator(".wizard-pattern").first).to_be_visible()
+    expect(wizard.locator(".wizard-said")).to_contain_text("for API.py")
+    expect(wizard.locator(".wizard-code")).to_contain_text("@endpoint")
+    fits = wizard.locator(".wizard-pattern:not(.unfit)")
+    assert fits.count() >= 2
+    fits.nth(1).locator("input").check()
+    expect(wizard.locator(".wizard-step").first).to_be_visible()
+    wizard.locator("button:has-text('Add to API.py')").click()
+    expect(page.locator(".note-corner")).to_contain_text("new endpoint")
+    state = call(server, "GET", "/local-api")
+    assert state["endpoints"], state
+    page.goto(page.url.split("/blazor/")[0] + "/blazor/apis?endpoint=orders")
+    again = page.locator(".dialog[aria-label='New endpoint']")
+    expect(again.locator("select[aria-label=Table]")).to_have_value("orders")
+    again.locator("button:has-text('Cancel')").click()
+    call(server, "POST", "/project/close", {})
+    page.close()

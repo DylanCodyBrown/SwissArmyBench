@@ -108,6 +108,10 @@
         }
     </div>
 </section>
+@if (EndpointParameter is { } endpointOf)
+{
+    <EndpointWizard Table="@(endpointOf.Length > 0 ? endpointOf : null)" OnClose='() => Nav.NavigateTo("apis")' />
+}
 @if (_diff is { } diff)
 {
     <AppDialog Title="@($"{diff.Name}: what changed")" OnClose="() => _diff = null">

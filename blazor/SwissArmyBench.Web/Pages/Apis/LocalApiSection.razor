@@ -117,6 +117,10 @@
 {
     <ContextMenu Title="More" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@MoreEntries" />
 }
+@if (_wizard)
+{
+    <EndpointWizard OnClose="WizardClosedAsync" />
+}
 @if (_newing)
 {
     <NewLocalApiDialog OnDone="NewDoneAsync" />
