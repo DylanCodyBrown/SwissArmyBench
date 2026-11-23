@@ -13,6 +13,7 @@ import pytest
 
 from swissarmybench.domain import navigation
 from swissarmybench.server import lifecycle
+from swissarmybench.server.frontend_pages import blazor_address
 from tests.conftest import AGENT, AUTH, make_client
 
 
@@ -106,7 +107,7 @@ def test_each_classic_address_has_its_blazor_page() -> None:
     }
     for (path, words), blazor in cases.items():
         assert navigation.is_classic_page(path)
-        assert navigation.blazor_address(path, dict(words)) == blazor, path
+        assert blazor_address(path, dict(words)) == blazor, path
     for other in ("/blazor/", "/g/", "/datasets", "/static/build/main.js", "/session"):
         assert not navigation.is_classic_page(other)
 

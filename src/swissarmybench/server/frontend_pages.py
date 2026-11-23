@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, quote
 
 from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -29,7 +29,7 @@ class ClassicToBlazor:
         if self._moves(scope):
             query = dict(parse_qsl(scope.get("query_string", b"").decode("latin-1")))
             if "classic" not in query:
-                address = navigation.blazor_address(scope["path"], query)
+                address = blazor_address(scope["path"], query)
                 await RedirectResponse(address, status_code=302)(scope, receive, send)
                 return
         await self.app(scope, receive, send)
@@ -48,3 +48,10 @@ def chosen_by(frontend: Callable[[], dict[str, Any]]) -> Callable[[], str]:
     """The front end the navigation service says this computer opens, read on each request (a switch in
     Settings takes effect on the next page)."""
     return lambda: str(frontend().get("frontend", ""))
+
+
+def blazor_address(path: str, query: dict[str, str]) -> str:
+    """The Blazor page's address for a classic page's (navigation.blazor_page, its words encoded)."""
+    page, words = navigation.blazor_page(path, query)
+    text = "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in words.items())
+    return f"/blazor/{page}" + (f"?{text}" if text else "")

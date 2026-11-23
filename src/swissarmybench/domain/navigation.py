@@ -14,7 +14,6 @@ Pure rules, no I/O: a request read into the notice the window acts on.
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import quote
 
 # The windows that move: the home page (/workspace), the Notebooks and Scripts pages. "catalog", the old
 # blades page's (it went 2026-11-21: the Scripts page's Blades pane), is read as "scripts" for one release.
@@ -218,10 +217,10 @@ def is_classic_page(path: str) -> bool:
     return path in CLASSIC_PAGES or (path.startswith("/g/") and len(path) > 3)
 
 
-def blazor_address(path: str, query: dict[str, str]) -> str:
-    """The Blazor page for a classic page's address: /workspace?open=connections is /blazor/connections,
-    /g/<id> is /blazor/grids?grid=<id>, /notebooks?path=x is /blazor/notebooks?path=x. The rest of the
-    address's words kept; ?panel= (a grid's pop-out panel) is the Blazor panel page."""
+def blazor_page(path: str, query: dict[str, str]) -> tuple[str, dict[str, str]]:
+    """The Blazor page for a classic page's address and the words that go with it: /workspace?open=connections
+    is ("connections", {}), /g/<id> is ("grids", {"grid": <id>}), /notebooks?path=x is ("notebooks",
+    {"path": "x"}). The rest of the address's words kept; ?panel= (a grid's pop-out panel): the panel page."""
     words = {k: v for k, v in query.items() if k not in CLASSIC_ONLY}
     if path.startswith("/g/"):
         page, words = "grids", {"grid": path[3:]} | words
@@ -230,7 +229,4 @@ def blazor_address(path: str, query: dict[str, str]) -> str:
         page = OPEN_PAGES.get(opened, opened) if opened else VIEW_PAGES.get(view, "")
     else:
         page = CLASSIC_PAGES.get(path, "")
-    if "panel" in words:
-        page = "panel"
-    text = "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in words.items())
-    return f"/blazor/{page}" + (f"?{text}" if text else "")
+    return ("panel" if "panel" in words else page), words

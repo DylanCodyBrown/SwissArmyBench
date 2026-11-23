@@ -92,6 +92,9 @@ def no_folder_in_the_real_home(tmp_path_factory: pytest.TempPathFactory) -> Iter
         "SWISSARMYBENCH_UPDATE_FEED": "none",
         # Sharing's devtunnel: the stand-in, never Microsoft's download (nothing leaves this computer).
         "SWISSARMYBENCH_DEVTUNNEL_STANDIN": str(Path(__file__).parent / "devtunnel_standin.py"),
+        # The classic pages while they last (one release after the swap, the owner 2026-11-23): the tests
+        # about the Blazor front end or the swap unset it (e2e/blazor/conftest.py, test_frontend_switch.py).
+        "SWISSARMYBENCH_FRONTEND": "classic",
     }
     before = {key: os.environ.get(key) for key in wanted}
     os.environ.update(wanted)
