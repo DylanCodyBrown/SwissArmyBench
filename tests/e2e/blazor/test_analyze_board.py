@@ -1,6 +1,6 @@
-"""The Blazor Analyze board's own moves on made-up notes: Add note, Pin to the top, More card actions (Move later,
-Start a new page here, Edit note), the corner grip's keys, Page view on Letter, the board's theme, Dashboards (save
-a version, its History, Open, Delete) and Export markdown."""
+"""The Blazor Analyze board's own moves on made-up notes: Add note, Pin to the top, More card actions (Move
+later, Start a new page here, Edit note), the corner grip's keys, Page view on Letter, the board's theme,
+Dashboards (save a version, its History, Open, Delete) and Export markdown."""
 
 from __future__ import annotations
 

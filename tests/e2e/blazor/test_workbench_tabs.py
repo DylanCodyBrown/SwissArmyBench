@@ -1,6 +1,7 @@
-"""The Blazor Notebooks and Scripts pages' tabs and commands on made-up data: two documents as tabs, Split right
-into a second group, a tab closed (asked first when unsaved), the command palette (Ctrl+Shift+P) running a cell
-command, a cell's More actions menu, and an HTML cell drawn as its design in its walled-off frame."""
+"""The Blazor Notebooks and Scripts pages' tabs and commands on made-up data: two documents as tabs, Split
+right into a second group, a tab closed (asked first when unsaved), the command palette (Ctrl+Shift+P)
+running a cell command, a cell's More actions menu, and an HTML cell drawn as its design in its walled-off
+frame."""
 
 from __future__ import annotations
 

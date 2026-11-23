@@ -1,6 +1,7 @@
-"""The Blazor Notebooks and Scripts pages' ghost text from the provider the mode declares, here GitHub Copilot's
-routes over the made-up Copilot Language Server (tests/copilot_standin.py): the ghost text in a notebook cell and a
-script, Tab taking it, and the status bar's "Completions: GitHub Copilot · on" turning it off."""
+"""The Blazor Notebooks and Scripts pages' ghost text from the provider the mode declares, here GitHub
+Copilot's routes over the made-up Copilot Language Server (tests/copilot_standin.py): the ghost text in a
+notebook cell and a script, Tab taking it, and the status bar's "Completions: GitHub Copilot · on" turning
+it off."""
 
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ GHOST = ".ghost-text-decoration, .ghost-text, .ghost-text-decoration-preview"
 
 @pytest.fixture(scope="module")
 def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
-    """A server with the Copilot extension on and signed in to the made-up Copilot (no request leaves the computer)."""
+    """A server with the Copilot extension on, signed in to the made-up Copilot."""
     tmp = tmp_path_factory.mktemp("blazor-copilot")
     state = tmp / "state"
     state.mkdir()
