@@ -393,11 +393,10 @@ class _Finder:
                 target, value = statement.targets[0], statement.value
             elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
                 target, value = statement.target, statement.value
-            # Not one value's assignment, or a private constant (the code's own, never a setting).
-            if not isinstance(statement, ast.Assign | ast.AnnAssign) or getattr(target, "id", "").startswith(
-                "_"
-            ):
-                continue
+            else:
+                continue  # not one value's assignment (a chained a = b = "x", a call, an import)
+            if getattr(target, "id", "").startswith("_"):
+                continue  # a private constant: the code's own, never a setting
             mapped = certificate_files.env_default(value)
             if isinstance(target, ast.Name) and mapped is not None:
                 word = certificate_files.plain_name(target.id, KEYWORDS)
