@@ -12,6 +12,8 @@ namespace SwissArmyBench.Web.Pages.Grids;
 public partial class GridsPage : IDisposable
 {
     private const string OrderKey = "workspace.order";
+    // The column profiles in the headers on or off (gridHeader.js keeps the same key).
+    private const string ProfilesKey = "headerProfiles";
 
     private readonly Dictionary<string, GridInfo> _infos = [];
     private IReadOnlyList<GridListItem> _tabs = [];
@@ -96,6 +98,8 @@ public partial class GridsPage : IDisposable
 
     private Dictionary<string, GridPane> Panes { get; } = [];
 
+    private bool _profilesOn;
+
     private AgGrid? _grid => _active is not null && Panes.TryGetValue(_active, out var pane) ? pane.Grid : null;
 
     /// <summary>The panes on screen: the two side by side, or the grid in front.</summary>
@@ -109,6 +113,7 @@ public partial class GridsPage : IDisposable
         Live.NoticeArrived += OnNotice;
         OfferCommands();
         var kept = await Js.InvokeAsync<string?>("sab.recall", OrderKey);
+        _profilesOn = await Js.InvokeAsync<string?>("sab.recall", ProfilesKey) == "1";
         _order = kept is { Length: > 0 } ? kept.Split(',', StringSplitOptions.RemoveEmptyEntries) : [];
         await ListenForDropsAsync();
     }

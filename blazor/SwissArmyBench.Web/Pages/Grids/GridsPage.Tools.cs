@@ -6,6 +6,7 @@ using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Grids;
+using SwissArmyBench.Web.Components;
 
 namespace SwissArmyBench.Web.Pages.Grids;
 
@@ -129,6 +130,9 @@ public partial class GridsPage
             case "col-profile" when one is not null:
                 OpenProfile(one);
                 break;
+            case "col-profiles":
+                await SetProfilesAsync(!_profilesOn);
+                break;
             default:
                 break;
         }
@@ -214,6 +218,14 @@ public partial class GridsPage
         {
             UndoNote(gone.Count == 1 ? $"Removed the column {gone[0]}" : $"Removed {gone.Count} columns");
         }
+    }
+
+    /// <summary>The column profiles in the headers on or off, in every grid on the page (this browser's choice).</summary>
+    private async Task SetProfilesAsync(bool on)
+    {
+        _profilesOn = on;
+        await Js.InvokeVoidAsync("sab.remember", ProfilesKey, on ? "1" : "0");
+        await Task.WhenAll(Panes.Values.Select(pane => pane.Grid).OfType<AgGrid>().Select(grid => grid.SetProfilesAsync(on)));
     }
 
     private async Task AutoSizeAsync(IReadOnlyList<string> columns)

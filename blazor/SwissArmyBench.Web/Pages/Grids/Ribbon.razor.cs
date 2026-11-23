@@ -27,6 +27,10 @@ public partial class Ribbon
     [Parameter]
     public RenderFragment? Compare { get; set; }
 
+    /// <summary>Whether the headers show the column profiles (Profiles in headers pressed).</summary>
+    [Parameter]
+    public bool ProfilesOn { get; set; }
+
     /// <summary>A tool was pressed: its id (the page runs it on the selected columns).</summary>
     [Parameter]
     public EventCallback<string> OnTool { get; set; }
@@ -42,5 +46,5 @@ public partial class Ribbon
 
     private IEnumerable<RibbonTool> TableTools => RibbonTools.Table(Info, ConnectionLabel);
 
-    private IEnumerable<RibbonTool> ColumnTools => RibbonTools.Column(Info, Target);
+    private IEnumerable<RibbonTool> ColumnTools => RibbonTools.Column(Info, Target, ProfilesOn);
 }

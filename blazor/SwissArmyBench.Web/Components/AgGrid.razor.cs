@@ -156,6 +156,18 @@ public partial class AgGrid
     }
 
     /// <summary>Each column named (none: every column) as wide as its values.</summary>
+    /// <summary>The column profiles in the headers on or off (this browser's choice, every grid).</summary>
+    public async Task SetProfilesAsync(bool on)
+    {
+        if (_grid is not null)
+        {
+            await _grid.InvokeVoidAsync("setProfiles", on);
+        }
+    }
+
+    /// <summary>Whether the headers show the column profiles now.</summary>
+    public async Task<bool> ProfilesOnAsync() => _grid is not null && await _grid.InvokeAsync<bool>("profiles");
+
     public async Task AutoSizeAsync(IReadOnlyList<string> columns)
     {
         if (_grid is not null)

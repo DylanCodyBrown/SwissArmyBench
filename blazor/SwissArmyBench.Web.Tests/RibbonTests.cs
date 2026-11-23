@@ -74,4 +74,19 @@ public sealed class RibbonTests : AppTestContext
     {
         Assert.All(Ribbon().FindAll("button"), b => Assert.False(string.IsNullOrWhiteSpace(b.GetAttribute("aria-label"))));
     }
+
+    [Fact]
+    public void ProfilesInHeadersIsAColumnToolPressedWhileOn()
+    {
+        var off = Ribbon().Find("[data-tool=col-profiles]");
+        Assert.Null(off.GetAttribute("aria-pressed"));
+        Assert.Null(off.GetAttribute("disabled"));
+
+        var on = Render<Ribbon>(p => p
+            .Add(x => x.Info, _orders)
+            .Add(x => x.Selection, GridSelection.None)
+            .Add(x => x.ProfilesOn, true)).Find("[data-tool=col-profiles]");
+        Assert.Equal("true", on.GetAttribute("aria-pressed"));
+        Assert.Equal("Hide the column profiles in the headers", on.GetAttribute("title"));
+    }
 }

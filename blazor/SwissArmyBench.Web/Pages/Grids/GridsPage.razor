@@ -31,7 +31,7 @@
     {
         @* The page's heading, for screen readers: the tab row shows the table's name on screen. *@
         <h1 class="grid-title sr-only">@info.Title</h1>
-        <Ribbon Info="info" Selection="_selection" ConnectionLabel="@ConnectionLabel" OnTool="RunToolAsync">
+        <Ribbon Info="info" Selection="_selection" ConnectionLabel="@ConnectionLabel" ProfilesOn="_profilesOn" OnTool="RunToolAsync">
             <Steps>
                 <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditStep" OnUndo="UndoAsync" OnRedo="RedoAsync"
                             OnClear="ClearStepsAsync" OnViewSteps="OpenStepsWindowAsync" OnFailed="e => _error = e" />

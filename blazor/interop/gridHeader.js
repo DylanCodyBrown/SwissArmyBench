@@ -6,7 +6,8 @@
 //               key), and, with Column profiles in the headers on, its distinct count, blank share and a tiny
 //               histogram. Resting on it a moment shows its card: type, blanks, distinct, range, mean, a small
 //               picture of its values, the three most common.
-//   the corner  Select all (Ctrl+A), and the switch for the column profiles in the headers (remembered).
+//   the corner  Select all (Ctrl+A), alone (the owner, 2026-11-23: "those cant share a box"); the column profiles'
+//               switch is the Column row's Profiles in headers (setProfiles below, remembered).
 
 const HOVER_MS = 450;
 const PROFILES_KEY = "sab.blazor.headerProfiles";
@@ -20,7 +21,7 @@ export function profilesOn() {
   }
 }
 
-function setProfiles(on) {
+export function setProfiles(on) {
   try {
     localStorage.setItem(PROFILES_KEY, on ? "1" : "0");
   } catch {
@@ -220,22 +221,9 @@ export class Header {
 export class Corner {
   init(params) {
     const own = params.sab;
-    const on = profilesOn();
-    const profiles = el("button", {
-      type: "button",
-      class: "btn ghost icon sab-corner-profiles",
-      "aria-label": "Column profiles in the headers",
-      "aria-pressed": on ? "true" : "false",
-      title: on ? "Hide the column profiles in the headers" : "Show each column's profile in its header",
-    });
-    profiles.textContent = "▥";
-    profiles.addEventListener("click", () => {
-      setProfiles(!profilesOn());
-      own.profilesChanged();
-    });
     const all = el("button", { type: "button", class: "sab-corner", title: "Select all (Ctrl+A)", "aria-label": "Select all" });
     all.addEventListener("click", () => own.selectAll());
-    this.element = el("div", { class: "sab-corner-cell" }, profiles, all);
+    this.element = el("div", { class: "sab-corner-cell" }, all);
   }
 
   getGui() {

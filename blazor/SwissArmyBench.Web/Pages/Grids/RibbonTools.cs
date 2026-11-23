@@ -44,7 +44,7 @@ public static class RibbonTools
         yield return new("connection", connectionLabel, "plug", $"{connectionLabel}: read this table from another connection");
     }
 
-    public static IEnumerable<RibbonTool> Column(GridInfo info, IReadOnlyList<string> target)
+    public static IEnumerable<RibbonTool> Column(GridInfo info, IReadOnlyList<string> target, bool profilesOn = false)
     {
         string? noColumn = target.Count > 0 ? null : "Select a column first.";
         string? needOne = target.Count == 1 ? null : target.Count > 0 ? "Select one column." : "Select a column first.";
@@ -64,5 +64,9 @@ public static class RibbonTools
         yield return new("col-categorize", "Categorize…", "tag", Disabled: needOne);
         yield return new("col-group", "Group by…", "group", Disabled: noColumn);
         yield return new("col-profile", "Profile", "profile", Disabled: needOne);
+        // The column profiles in the headers (out of the grid's corner, which is Select all's alone: the owner,
+        // 2026-11-23); pressed while on, for every column.
+        yield return new("col-profiles", "Profiles in headers", "profile",
+            profilesOn ? "Hide the column profiles in the headers" : "Show each column's profile in its header", Pressed: profilesOn);
     }
 }

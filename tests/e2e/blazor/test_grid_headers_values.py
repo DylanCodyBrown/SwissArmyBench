@@ -30,12 +30,17 @@ def test_a_header_rests_renames_and_the_corner_selects_all(browser: Browser, ser
     page.mouse.move(5, 5)
     expect(card).to_have_count(0)
 
-    # The corner: Select all, and the column profiles in the headers.
+    # The corner is Select all's alone (the owner, 2026-11-23: "those cant share a box").
+    expect(page.locator(".sab-corner-cell button")).to_have_count(1)
     page.click(".sab-corner")
     expect(page.locator(".status-selection")).to_contain_text("Count")
-    page.click(".sab-corner-profiles")
+    # The column profiles in the headers: the Column row's Profiles in headers, pressed while on.
+    profiles = page.locator(".ribbon-btn[data-tool=col-profiles]")
+    profiles.click()
+    expect(profiles).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".ag-header-cell[col-id=status] .sab-header-stats")).to_contain_text("distinct")
-    page.click(".sab-corner-profiles")
+    profiles.click()
+    expect(page.locator(".ag-header-cell[col-id=status] .sab-header-stats")).to_have_count(0)
 
     # A double-click on a name renames it there: a rename step.
     header.dblclick()

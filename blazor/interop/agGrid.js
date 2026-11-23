@@ -9,7 +9,7 @@
 // everything. AG Grid Community has no range selection, so the selection is drawn with cell classes and told to C#
 // (SelectionChanged) as the server's descriptor ({rows, columns}); the server counts, sums and copies it, so rows
 // never loaded count too. Right-clicks are told to C# (CellMenu, HeaderMenu), which draws the menus.
-import { Corner, Header, hideCard, profilesOn } from "./gridHeader.js";
+import { Corner, Header, hideCard, profilesOn, setProfiles } from "./gridHeader.js";
 import {
   CellStyleModule,
   ColumnApiModule,
@@ -437,6 +437,15 @@ export function mount(host, listener, gridId, firstColumns, clientId) {
 
   const handle = {
     /** The grid's steps changed (a new view): its columns again, every row window asked for anew. */
+    /** The column profiles in the headers on or off (the Column row's Profiles in headers; remembered). */
+    setProfiles(on) {
+      setProfiles(on);
+      own.profilesChanged();
+    },
+    /** Whether the headers show the column profiles now. */
+    profiles() {
+      return profilesOn();
+    },
     refresh(nextColumns) {
       gen += 1;
       names = nextColumns.map((c) => c.name);
