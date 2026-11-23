@@ -75,6 +75,10 @@ public partial class AgGrid
     [Parameter]
     public EventCallback<long> OnRowPicked { get; set; }
 
+    /// <summary>A header renamed in place (a double-click on its name): the column and its new name.</summary>
+    [Parameter]
+    public EventCallback<(string Column, string To)> OnColumnRenamed { get; set; }
+
     /// <summary>The rows on screen changed (the first and the last, view positions).</summary>
     [Parameter]
     public EventCallback<(long First, long Last)> OnShown { get; set; }
@@ -207,6 +211,9 @@ public partial class AgGrid
 
     [JSInvokable]
     public Task CellOpened(long row, string column, double x, double y) => OnCellOpened.InvokeAsync(new GridPoint(row, column, x, y));
+
+    [JSInvokable]
+    public Task RenameColumn(string column, string to) => OnColumnRenamed.InvokeAsync((column, to));
 
     [JSInvokable]
     public Task Shown(long first, long last) => OnShown.InvokeAsync((first, last));

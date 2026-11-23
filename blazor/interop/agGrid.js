@@ -9,6 +9,7 @@
 // everything. AG Grid Community has no range selection, so the selection is drawn with cell classes and told to C#
 // (SelectionChanged) as the server's descriptor ({rows, columns}); the server counts, sums and copies it, so rows
 // never loaded count too. Right-clicks are told to C# (CellMenu, HeaderMenu), which draws the menus.
+import { Corner, Header, hideCard, profilesOn } from "./gridHeader.js";
 import {
   CellStyleModule,
   ColumnApiModule,
@@ -143,57 +144,6 @@ function merge(ranges) {
   return out;
 }
 
-/** A header of the app's own: the name (a click selects the column) and a small sort arrow (the server's sort). */
-class Header {
-  init(params) {
-    const name = params.column.getColId();
-    const own = params.sab;
-    this.element = document.createElement("div");
-    this.element.className = "sab-header";
-    const label = document.createElement("span");
-    label.className = "sab-header-name";
-    label.textContent = params.displayName;
-    label.addEventListener("mousedown", (event) => {
-      if (event.button !== 0) return;
-      own.headerDown(name, event);
-    });
-    label.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      own.headerMenu(name, event);
-    });
-    const sort = document.createElement("button");
-    sort.type = "button";
-    sort.className = "sab-header-sort";
-    sort.title = `Sort by ${name}`;
-    sort.setAttribute("aria-label", `Sort by ${name}`);
-    const draw = () => {
-      const now = params.column.getSort();
-      sort.textContent = now === "asc" ? "▲" : now === "desc" ? "▼" : "↕";
-    };
-    draw();
-    params.column.addEventListener("sortChanged", draw);
-    sort.addEventListener("click", (event) => {
-      event.stopPropagation();
-      params.progressSort(event.shiftKey);
-    });
-    this.element.append(label, sort);
-    // The whole header cell is marked (the element is put in it after init: marked again on the next frame).
-    this.mark = () => (this.element.closest(".ag-header-cell") ?? this.element).classList.toggle("col-selected", own.columnSelected(name));
-    own.marks.add(this.mark);
-    this.own = own;
-    requestAnimationFrame(this.mark);
-  }
-  getGui() {
-    return this.element;
-  }
-  refresh() {
-    return false;
-  }
-  destroy() {
-    this.own.marks.delete(this.mark);
-  }
-}
-
 function columnDefs(columns, own) {
   return [
     {
@@ -203,6 +153,8 @@ function columnDefs(columns, own) {
       pinned: "left",
       sortable: false,
       resizable: false,
+      headerComponent: Corner,
+      headerComponentParams: { sab: own },
       valueGetter: (p) => (p.node.rowIndex == null ? "" : p.node.rowIndex + 1),
       cellClass: "grid-rownum",
       cellClassRules: { "row-selected": (p) => p.node.rowIndex != null && own.selection.kind === "rows" && own.selection.hasCell(p.node.rowIndex, "") },
@@ -212,7 +164,7 @@ function columnDefs(columns, own) {
       headerName: c.name,
       headerTooltip: `${c.name} · ${c.type}`,
       headerComponent: Header,
-      headerComponentParams: { sab: own },
+      headerComponentParams: { sab: own, type: c.type },
       field: String(at), // a row is an array: its value by position
       valueGetter: (p) => (p.data ? p.data[at] : undefined),
       sortable: true,
@@ -227,7 +179,8 @@ function columnDefs(columns, own) {
 }
 
 /** The grid in `host` for the server's grid `gridId`; returns its handle. */
-export function mount(host, listener, gridId, columns, clientId) {
+export function mount(host, listener, gridId, firstColumns, clientId) {
+  let columns = firstColumns;
   let gen = 0;
   let sentSort = "[]";
   let total = 0;
@@ -251,10 +204,31 @@ export function mount(host, listener, gridId, columns, clientId) {
     if (!answer.ok) throw new Error(await answer.text());
     return answer.json();
   };
+  let gridApi = null; // the grid's api once made (a header drawn while it is made asks before it exists)
+  const profiles = new Map(); // a column's profile, kept for this view (a second hover draws at once)
   const own = {
     selection,
     diffs,
+    stats: {},
+    sparks: {},
     marks: new Set(),
+    sortedCount: () => gridApi?.getColumnState().filter((c) => c.sort).length ?? 0,
+    selectAll: () => {
+      selection.all();
+      changed();
+    },
+    renamed: (name, to) => listener.invokeMethodAsync("RenameColumn", name, to),
+    profile: (column) => {
+      if (!profiles.has(column)) {
+        const asked = json(`${base}/profile?column=${encodeURIComponent(column)}`);
+        asked.catch(() => profiles.delete(column));
+        profiles.set(column, asked);
+      }
+      return profiles.get(column);
+    },
+    profilesChanged: () => {
+      loadStats().finally(redrawHeaders);
+    },
     columnSelected: (name) => selection.kind === "all" || (selection.kind === "columns" && selection.columns.includes(name)),
     headerDown: (name, event) => {
       selection.selectColumns(name, event.shiftKey ? "extend" : event.ctrlKey || event.metaKey ? "add" : "replace");
@@ -391,6 +365,30 @@ export function mount(host, listener, gridId, columns, clientId) {
       listener.invokeMethodAsync("CellMenu", event.rowIndex, column, mouse.clientX, mouse.clientY);
     },
   });
+  gridApi = api;
+  /** The headers' profile lines (Column profiles in the headers): distinct and blank share, and a tiny histogram
+   *  for up to twelve number columns. Off by default: these queries run only while the headers show them. */
+  const loadStats = async () => {
+    if (!profilesOn()) return;
+    try {
+      own.stats = await json(`${base}/header-stats?gen=${gen}&client=${clientId}`);
+      const numbers = columns.filter((c) => NUMERIC.test(c.type)).slice(0, 12);
+      await Promise.all(numbers.map(async (c) => {
+        const p = await own.profile(c.name);
+        const counts = (p.histogram ?? []).map((b) => b.count);
+        const top = Math.max(1, ...counts);
+        own.sparks[c.name] = counts.map((n) => Math.round((100 * n) / top));
+      }));
+    } catch {
+      // A convenience: the grid works without them.
+    }
+  };
+  /** The headers drawn again (their profile lines on or off): new column definitions make AG Grid build them anew. */
+  function redrawHeaders() {
+    api.setGridOption("columnDefs", columnDefs(columns, own));
+    if (only) api.setColumnsVisible(names.filter((n) => !only.has(n)), false);
+  }
+  loadStats().then(() => profilesOn() && redrawHeaders());
   const up = () => {
     dragging = null;
   };
@@ -445,8 +443,12 @@ export function mount(host, listener, gridId, columns, clientId) {
       selection.order = names;
       selection.clear();
       focused = null;
+      profiles.clear();
+      columns = nextColumns;
+      hideCard();
       api.setGridOption("columnDefs", columnDefs(nextColumns, own));
       only = null;
+      loadStats().then(() => profilesOn() && redrawHeaders());
       api.purgeInfiniteCache(); // a step that adds or removes columns must purge, not only refresh
       changed();
     },

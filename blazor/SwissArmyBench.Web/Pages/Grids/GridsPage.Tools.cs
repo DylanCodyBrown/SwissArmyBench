@@ -203,6 +203,10 @@ public partial class GridsPage
         StateHasChanged();
     }
 
+    /// <summary>A header renamed in place: a rename step.</summary>
+    private Task RenameColumnAsync((string Column, string To) rename) =>
+        AddStepAsync(("rename", new { mapping = new Dictionary<string, string> { [rename.Column] = rename.To } }));
+
     private Task SortAsync(IReadOnlyList<string> columns, string direction) =>
         AddStepAsync(("sort", new { keys = columns.Select(c => new[] { c, direction }).ToList() }));
 
@@ -213,11 +217,11 @@ public partial class GridsPage
             _ = Notes.SayAsync("That would remove every column.");
             return;
         }
-        var gone = AllColumns().Count - keep.Count;
+        var gone = AllColumns().Where(c => !keep.Contains(c)).ToList();
         await AddStepAsync(("columns", new { keep }));
-        if (gone > 0)
+        if (gone.Count > 0 && _error is null)
         {
-            _ = Notes.SayAsync(gone == 1 ? "Removed a column: Undo brings it back." : $"Removed {gone} columns: Undo brings them back.");
+            UndoNote(gone.Count == 1 ? $"Removed the column {gone[0]}" : $"Removed {gone.Count} columns");
         }
     }
 

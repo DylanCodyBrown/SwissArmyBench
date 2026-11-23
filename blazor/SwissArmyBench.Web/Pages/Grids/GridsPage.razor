@@ -38,7 +38,7 @@
                 <GridPane @key="shown.Grid" @ref="Panes[shown.Grid]" Info="shown" Split="_split is not null" Active="shown.Grid == _active" Focus="FocusOn(shown.Grid)"
                           Compare="CompareOf(shown.Grid)" OnlyColumns="OnlyOf(shown.Grid)" KeyRows="_keyRows"
                           OnActivate="FocusPaneAsync" OnCloseSide="UnsplitAsync" OnClearFocus="ClearFocusAsync"
-                          OnCounted="n => Counted(shown.Grid, n)" OnShown="r => ShownRows(shown.Grid, r)" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed"
+                          OnCounted="n => Counted(shown.Grid, n)" OnShown="r => ShownRows(shown.Grid, r)" OnColumnRenamed="RenameColumnAsync" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed"
                           OnSelectionChanged="SelectionChangedAsync" OnCellMenu="CellMenu" OnHeaderMenu="HeaderMenu" OnSaid="Say"
                           OnRowPicked="row => RowPickedAsync(shown.Grid, row)" OnCellOpened="ViewCell" Upto="shown.Grid == _active ? _previewUpto : null">
                     <Banner>

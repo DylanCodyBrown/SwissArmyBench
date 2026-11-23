@@ -23,7 +23,7 @@
     }
     <div class="grid-body">
         <AgGrid @ref="_grid" GridId="@Info.Grid" Columns="Info.Columns" OnHeaderClicked="OnHeaderClicked" OnCounted="OnCounted" OnChanged="OnChanged" OnFailed="OnFailed"
-                OnSelectionChanged="OnSelectionChanged" OnCellMenu="OnCellMenu" OnHeaderMenu="OnHeaderMenu" OnSaid="OnSaid" OnRowPicked="OnRowPicked" OnCellOpened="OnCellOpened" OnShown="OnShown"
+                OnSelectionChanged="OnSelectionChanged" OnCellMenu="OnCellMenu" OnHeaderMenu="OnHeaderMenu" OnSaid="OnSaid" OnRowPicked="OnRowPicked" OnCellOpened="OnCellOpened" OnShown="OnShown" OnColumnRenamed="OnColumnRenamed"
                 Compare="Compare" OnlyColumns="OnlyColumns" KeyRows="KeyRows" Upto="Upto" />
         @ChildContent
     </div>
@@ -105,6 +105,9 @@
 
     [Parameter]
     public EventCallback<(long First, long Last)> OnShown { get; set; }
+
+    [Parameter]
+    public EventCallback<(string Column, string To)> OnColumnRenamed { get; set; }
 
     [Parameter]
     public EventCallback<GridPoint> OnCellOpened { get; set; }
