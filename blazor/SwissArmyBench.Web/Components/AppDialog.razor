@@ -1,7 +1,8 @@
 @* A dialog of the app's own: a shade over the page, the heading with Close, the body, the buttons at its foot.
-   Escape closes it (as Close). *@
+   The focus goes into it as it opens (shell.js dialogOpened); Escape closes it (as Close). *@
+@inject IJSRuntime Js
 <div class="dialog-shade" @onkeydown="OnKeyAsync">
-    <div class="dialog" role="dialog" aria-modal="true" aria-label="@Title">
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="@Title" tabindex="-1" @ref="_dialog">
         <div class="dialog-head">
             <h2>@Title</h2>
             <button type="button" class="btn ghost icon" aria-label="Close" @onclick="OnClose"><Icon Name="close" /></button>
@@ -15,6 +16,8 @@
 </div>
 
 @code {
+    private ElementReference _dialog;
+
     [Parameter, EditorRequired]
     public string Title { get; set; } = string.Empty;
 
@@ -26,6 +29,14 @@
 
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Js.InvokeVoidAsync("sab.dialogOpened", _dialog);
+        }
+    }
 
     private async Task OnKeyAsync(KeyboardEventArgs e)
     {

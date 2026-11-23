@@ -37,8 +37,12 @@ this app's code or files, and every request after rides on the cookie (HttpOnly,
 ```bash
 cd blazor && dotnet build SwissArmyBench.Web                             # warnings are errors
 dotnet format SwissArmyBench.Web/SwissArmyBench.Web.csproj --verify-no-changes
-.venv/bin/python -m pytest -q tests/test_blazor_style.py tests/test_frontend_switch.py
-.venv/bin/python -m pytest -q tests/e2e/blazor                           # Chromium; skipped with no build
+dotnet test --project SwissArmyBench.Web.Tests                          # bUnit: components and state services
+cd ..                                                                    # the rest from the repository's top
+PYTHONPATH=src .venv/bin/python -m pytest -q tests/test_blazor_style.py tests/test_blazor_structure.py \
+    tests/test_blazor_api_types.py tests/test_frontend_switch.py
+python blazor/tools/generate_api.py                                     # after a server answer changes
+PYTHONPATH=src .venv/bin/python -m pytest -q tests/e2e/blazor            # Chromium; skipped with no build
 ```
 
 The C# style is the `csharp-clean-code` skill's (`.claude/skills/csharp-clean-code/SKILL.md`), enforced by
@@ -77,6 +81,20 @@ Addresses: `/blazor/` Home, `connections` (`?name=`, `?add=1`, `?kind=`, `?edit=
 `environment?at=tables|variables|structures|settings|libraries`, `grids` (`?grid=`, `?table=`, `?new=1`), `erd`,
 `session`, `settings`; every other area of the rail is its one line and the classic link.
 
+## Built better than the classic
+
+The owner's "build back better" (2026-11-23): the same pages, words and behaviour as the classic front end, with
+these underneath, each enforced rather than remembered.
+
+| What | How it is enforced |
+| --- | --- |
+| **Answer records generated from the server.** The server has no OpenAPI document (its routes answer plain dicts), so `blazor/tools/generate_api.py` (standard library only) starts a server of its own on made-up data, calls each route it lists, and writes one C# record per JSON object under `Api/<Area>/Generated/`. Generated now: the Grids answers (GridInfo and its columns, steps and text matching; the selection's numbers; the table profile; a column's values; the Key Finder; a table's connection) and the Workbench's home, open (notebook and script) and Tables-group arrange. Hand-written, each with its reason in the script's `HAND_WRITTEN`: the started kernel, a document's session (null outside a project), a table's cell text, the Files pane's groups, a blade's summary, a step's failure, the connection swap's four answers, the made table, the connection forms and Environment rows (their fields are the kind's), and the areas written before the generator (Projects, Settings, Session, Catalog, Relationships, App), moved to it area by area. | `tests/test_blazor_api_types.py` runs the generator with `--check`: a renamed or dropped field makes the committed files differ, and the C# that read it no longer builds. |
+| **One state pattern.** Every state service (`State/`) holds its value and raises one `Changed`, refreshed from the live notices (`LiveUpdates` raises each notice as `NoticeArrived`; its own value is whether the socket is open); a service or component that subscribes lets go in its `Dispose`. | `tests/test_blazor_structure.py` (every `+=` on an event has its `-=` and the class is disposable; every state service has one `Changed`), and the bUnit tests count the subscribers before and after a component closes. |
+| **Size limits.** No C# method over 80 lines, no `.razor` or `.cs` file over 400, no page's code-behind over 300. | `tests/test_blazor_structure.py`, with `TOO_BIG`, a list that only shrinks (empty today). |
+| **LINQ for collection work.** Filtering, grouping, ordering, mapping lists of records and which tools apply are query chains (`Where`, `Select`, `GroupBy`, `OrderBy`, `Any`, `ToList`), never a loop that builds a list. The data itself (a grid's rows, a table's records, analysis results) stays in DuckDB on the server. | Review (the owner's rule, 2026-11-23). |
+| **Accessibility.** Every control has an accessible name; a dialog takes the focus as it opens, Enter saves and Escape closes it; a menu's first line takes the focus and the arrow keys, Home and End move through it; Tab follows the page's order; focus shows (`:focus-visible`). | `tests/e2e/blazor/test_accessibility.py`: our own check of every visible button, link, field and menu line on each page (axe-core is not among `web/`'s packages), and the keyboard paths of the grid page's dialog and menu. |
+| **Component tests.** `blazor/SwissArmyBench.Web.Tests` (xUnit v3 and bUnit, run by Microsoft.Testing.Platform: `global.json`): ErrorNote, Busy, AppDialog, the rail, the state services' subscribe and unsubscribe, the status bar's selection, the Grids ribbon's reasons, the refusal reader. | `dotnet test --project SwissArmyBench.Web.Tests`, run by `tests/test_blazor_style.py` beside the format check of both projects. |
+
 ## NuGet packages
 
 | Package | Version | Why |
@@ -84,9 +102,12 @@ Addresses: `/blazor/` Home, `connections` (`?name=`, `?add=1`, `?kind=`, `?edit=
 | Microsoft.AspNetCore.Components.WebAssembly | 10.0.15 | Blazor WebAssembly itself (the template's) |
 | Microsoft.AspNetCore.Components.WebAssembly.DevServer | 10.0.15 | `dotnet run`'s development server (not shipped) |
 | Microsoft.FluentUI.AspNetCore.Components | 4.14.5 | the component library the brief names (2026-09-30); its tokens set from the app's |
+| bunit | 2.13.3 | the component tests (test project only; the owner's approval, 2026-11-23; 2026-10-25) |
+| xunit.v3 | 4.0.2 | the test framework under bUnit (test project only; 2026-10-09) |
 
 No other package. The JavaScript widgets are the classic page's own npm packages at the same versions
-(`web/package.json`): `ag-grid-community` 36.2.0 and `mermaid` 11.4.1 so far.
+(`web/package.json`): `ag-grid-community` 36.2.0, `mermaid` 11.4.1, `monaco-editor` 0.57.0 and `plotly.js-dist-min`
+4.2.0.
 
 ## What works (2026-11-23)
 

@@ -97,4 +97,28 @@ window.sab = {
     open();
     return { stop: () => { stopped = true; socket?.close(); } };
   },
+
+  /** A menu's keys (the classic dom.ts showMenu): its first line takes focus, the arrows, Home and End move
+   *  between its lines (greyed-out ones skipped); Enter runs one and Escape closes it (the component's own). */
+  menuKeys(menu) {
+    const lines = () => [...menu.querySelectorAll("[role=menuitem]:not([disabled])")];
+    lines()[0]?.focus();
+    menu.addEventListener("keydown", (event) => {
+      const all = lines();
+      const at = all.indexOf(document.activeElement);
+      const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: all.length - 1 }[event.key];
+      if (to === undefined || all.length === 0) return;
+      event.preventDefault();
+      all[(to + all.length) % all.length].focus();
+    });
+  },
+
+  /** A dialog just opened: the focus goes into it (its first empty field, else its first field, else its first
+   *  button past Close), so Enter and Escape reach it and Tab starts there. */
+  dialogOpened(dialog) {
+    const fields = [...dialog.querySelectorAll("input:not([type=checkbox]):not([type=radio]), select, textarea")].filter((f) => !f.disabled && f.offsetParent !== null);
+    const first = fields.find((f) => f instanceof HTMLInputElement && !f.value) ?? fields[0];
+    const target = first ?? dialog.querySelector(".dialog-foot button, .dialog button:not([aria-label=Close])") ?? dialog;
+    target.focus();
+  },
 };

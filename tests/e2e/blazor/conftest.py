@@ -87,6 +87,40 @@ def open_page(browser: Browser, info: dict[str, Any], path: str = "", dark: bool
     return page
 
 
+# The accessibility check run in the page (axe-core is not among web/'s packages, so it is our own): every
+# visible button, link, field and menu line has an accessible name (aria-label, aria-labelledby, its words, a
+# <label>, a title, a field's placeholder). AG Grid's, Monaco's and Plotly's own insides are theirs.
+UNNAMED = """() => {
+  const theirs = '.ag-root-wrapper, .monaco-editor, .js-plotly-plot, .mermaid-host';
+  const named = (el) => {
+    if ((el.getAttribute('aria-label') || '').trim()) return true;
+    const by = el.getAttribute('aria-labelledby');
+    const text = (id) => (document.getElementById(id)?.textContent || '').trim();
+    if (by && by.split(' ').some(text)) return true;
+    if ((el.textContent || '').trim() && !['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return true;
+    if (el.id && document.querySelector(`label[for="${el.id}"]`)) return true;
+    if (el.closest('label') && (el.closest('label').textContent || '').trim()) return true;
+    if ((el.getAttribute('title') || '').trim()) return true;
+    if ((el.getAttribute('placeholder') || '').trim()) return true;
+    return false;
+  };
+  const shown = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
+  const controls = document.querySelectorAll(
+    'button, a[href], input:not([type=hidden]), select, textarea, '
+      + '[role=menuitem], [role=tab], [role=treeitem]'
+  );
+  return [...controls]
+    .filter((el) => shown(el) && !el.closest(theirs) && !named(el))
+    .map((el) => el.outerHTML.slice(0, 160));
+}"""
+
+
+def unnamed_controls(page: Page) -> list[str]:
+    """The visible controls on the page with no accessible name (empty when all are named)."""
+    found: list[str] = page.evaluate(UNNAMED)
+    return found
+
+
 @pytest.fixture
 def page_errors() -> list[str]:
     """The page's own errors (an exception in its C# shows #blazor-error-ui), collected by each test."""

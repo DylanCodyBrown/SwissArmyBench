@@ -1,7 +1,8 @@
 @* A menu at the pointer (the classic dom.ts showMenu: the right-click menus): its heading, its lines, a click anywhere
-   else or Escape closes it. *@
+   else or Escape closes it; its first line takes focus and the arrow keys move between its lines (shell.js). *@
+@inject IJSRuntime Js
 <div class="menu-shade" @onclick="OnClose" @oncontextmenu="OnClose" @oncontextmenu:preventDefault="true"></div>
-<div class="menu context-menu" role="menu" aria-label="@Title" style="@Place" @onkeydown="KeyAsync">
+<div class="menu context-menu" role="menu" aria-label="@Title" style="@Place" @onkeydown="KeyAsync" @ref="_menu">
     @if (Title.Length > 0)
     {
         <div class="menu-title">@Title</div>
@@ -25,6 +26,8 @@
     // The menu keeps clear of the window's right and bottom edges by this much (a menu is about this wide).
     private const double MenuWidth = 240;
 
+    private ElementReference _menu;
+
     [Parameter]
     public string Title { get; set; } = string.Empty;
 
@@ -41,6 +44,14 @@
     public EventCallback OnClose { get; set; }
 
     private string Place => FormattableString.Invariant($"left: min({X}px, calc(100vw - {MenuWidth}px)); top: min({Y}px, calc(100vh - {Entries.Count * 30 + 40}px));");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Js.InvokeVoidAsync("sab.menuKeys", _menu);
+        }
+    }
 
     private async Task RunAsync(MenuEntry entry)
     {
