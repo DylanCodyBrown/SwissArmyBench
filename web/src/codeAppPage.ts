@@ -496,7 +496,24 @@ function drawPage(): void {
   const showOperation = (c: Connector, op: Operation, right: HTMLElement): void => {
     const service = `${c.name.replace(/^shared_/, "").replace(/^./, (x) => x.toUpperCase())}Service`;
     const inputs = op.parameters.length
-      ? h("table", { class: "api-params" }, h("thead", {}, h("tr", {}, ...["Name", "Where", "Type", "Required", "Description"].map((t) => h("th", {}, t)))), h("tbody", {}, ...op.parameters.map((p) => h("tr", {}, h("td", { class: "mono" }, p.name), h("td", {}, p.in), h("td", {}, p.type), h("td", {}, p.required ? "yes" : ""), h("td", {}, p.description)))))
+      ? h(
+        "table",
+        { class: "api-params" },
+        h("thead", {}, h("tr", {}, ...["Name", "Where", "Type", "Required", "Description"].map((t) => h("th", {}, t)))),
+        h(
+          "tbody",
+          {},
+          ...op.parameters.map((p) => h(
+            "tr",
+            {},
+            h("td", { class: "mono" }, p.name),
+            h("td", {}, p.in),
+            h("td", {}, p.type),
+            h("td", {}, p.required ? "yes" : ""),
+            h("td", {}, p.description)
+          ))
+        )
+      )
       : h("p", { class: "muted" }, "No inputs.");
     right.replaceChildren(
       h("h2", { class: "api-op-title" }, badge(op.method), h("code", {}, op.path)),
@@ -504,7 +521,17 @@ function drawPage(): void {
       op.description ? h("p", {}, op.description) : "",
       op.operation_id ? h("p", { class: "ca-method" }, "In the app: ", h("code", {}, `${service}.${op.operation_id}(…)`)) : "",
       h("section", { class: "api-inputs" }, h("h3", {}, "Inputs"), inputs, op.body ? h("div", { class: "api-two" }, tree(`Body${op.body.required ? " (required)" : ""}`, op.body.schema, true), tree("Example", op.body.example, false)) : ""),
-      h("section", { class: "api-outputs" }, h("h3", {}, "Outputs"), ...op.responses.map((r) => h("div", { class: "api-answer" }, h("h4", {}, h("span", { class: `api-status s${r.status[0]}` }, r.status), " ", r.description), r.schema ? h("div", { class: "api-two" }, tree("Schema", r.schema, true), tree("Example", r.example, false)) : h("p", { class: "muted" }, "No body.")))),
+      h(
+        "section",
+        { class: "api-outputs" },
+        h("h3", {}, "Outputs"),
+        ...op.responses.map((r) => h(
+          "div",
+          { class: "api-answer" },
+          h("h4", {}, h("span", { class: `api-status s${r.status[0]}` }, r.status), " ", r.description),
+          r.schema ? h("div", { class: "api-two" }, tree("Schema", r.schema, true), tree("Example", r.example, false)) : h("p", { class: "muted" }, "No body.")
+        ))
+      ),
     );
   };
 
@@ -601,7 +628,18 @@ function drawPage(): void {
     if (!got) return;
     result.replaceChildren(
       h("h3", {}, "This session's pushes"),
-      got.pushes.length ? h("ul", {}, ...got.pushes.map((p) => h("li", {}, new Date(p.at * 1000).toLocaleString(), p.who === "agent" ? " (the agent)" : "", " ", p.link ? h("a", { href: p.link, target: "_blank", rel: "noopener noreferrer" }, "Open") : ""))) : h("p", { class: "muted" }, "None this session."),
+      got.pushes.length ? h(
+        "ul",
+        {},
+        ...got.pushes.map((p) => h(
+          "li",
+          {},
+          new Date(p.at * 1000).toLocaleString(),
+          p.who === "agent" ? " (the agent)" : "",
+          " ",
+          p.link ? h("a", { href: p.link, target: "_blank", rel: "noopener noreferrer" }, "Open") : ""
+        ))
+      ) : h("p", { class: "muted" }, "None this session."),
       h("h3", {}, "The environment's code apps"),
       h("ul", {}, ...got.apps.map((a) => h("li", { class: a.this ? "ca-this" : "" }, a.name, a.this ? h("span", { class: "muted" }, " (this one)") : "", h("span", { class: "muted mono" }, ` ${a.id}`)))),
     );
@@ -646,7 +684,18 @@ function drawPage(): void {
         ...all.map((r) => {
           const lines = runLines.get(r.id) ?? r.output.split("\n");
           return h("li", { class: `ca-run ${r.done ? (r.ok ? "ok" : "failed") : "running"}`, "data-run": r.id },
-            h("details", {}, h("summary", {}, icon(r.done ? (r.ok ? "check" : "warning") : "clock"), h("code", {}, r.command), h("span", { class: "muted" }, ` ${r.who === "agent" ? "the agent" : "you"}${r.done ? `, ${r.seconds.toFixed(1)} s` : ""}`)), h("pre", { class: "ca-output" }, lines.join("\n"))),
+            h(
+              "details",
+              {},
+              h(
+                "summary",
+                {},
+                icon(r.done ? (r.ok ? "check" : "warning") : "clock"),
+                h("code", {}, r.command),
+                h("span", { class: "muted" }, ` ${r.who === "agent" ? "the agent" : "you"}${r.done ? `, ${r.seconds.toFixed(1)} s` : ""}`)
+              ),
+              h("pre", { class: "ca-output" }, lines.join("\n"))
+            ),
           );
         }),
       );

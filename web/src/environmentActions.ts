@@ -212,7 +212,14 @@ export function removeDialog(env: Environment, item: Item): void {
   const python = item.kind === "table" && item.in_python ? (h("input", { type: "checkbox", class: "env-python-too" }) as HTMLInputElement) : null;
   if (python) python.checked = Boolean(env.pythonTick?.checked) || !item.open;
   const said = h("div", {});
-  append(body, h("p", {}, removeWords(item, plural(item.grids.length, "grid"))), item.used.length ? h("p", { class: "env-keys" }, `Used in ${plural(item.used.length, "place")}: ${item.used.slice(0, 4).map((u) => u.words).join("; ")}${item.used.length > 4 ? "…" : ""}`) : null, python ? h("label", { class: "env-python-label" }, python, " Also delete it in Python") : null, said);
+  const usedIn = `Used in ${plural(item.used.length, "place")}: ${item.used.slice(0, 4).map((u) => u.words).join("; ")}${item.used.length > 4 ? "…" : ""}`;
+  append(
+    body,
+    h("p", {}, removeWords(item, plural(item.grids.length, "grid"))),
+    item.used.length ? h("p", { class: "env-keys" }, usedIn) : null,
+    python ? h("label", { class: "env-python-label" }, python, " Also delete it in Python") : null,
+    said,
+  );
   const run = async (): Promise<void> => {
     try {
       await api("/environment/remove", "POST", { kind: item.kind, name: item.name, python: Boolean(python?.checked) });

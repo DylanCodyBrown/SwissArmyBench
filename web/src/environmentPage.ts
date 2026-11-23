@@ -55,7 +55,15 @@ export interface EnvironmentView {
 function newEnvironment(options: EnvironmentOptions): Environment {
   const compact = Boolean(options.compact);
   const tab: Kind = options.tab ?? "table";
-  const search = h("input", { type: "search", class: "env-search", placeholder: compact ? "Search every tab" : "Search every tab: names, columns, keys, variables, where used…", "aria-label": "Search the environment", autocomplete: "off", spellcheck: false, "data-no-variables": "" }) as HTMLInputElement;
+  const search = h("input", {
+    type: "search",
+    class: "env-search",
+    placeholder: compact ? "Search every tab" : "Search every tab: names, columns, keys, variables, where used…",
+    "aria-label": "Search the environment",
+    autocomplete: "off",
+    spellcheck: false,
+    "data-no-variables": "",
+  }) as HTMLInputElement;
   const hint = h("span", { class: "env-hint", role: "status" });
   const tools = h("span", { class: "env-tools" });
   const tabs = h("div", { class: "env-tabs", role: "tablist", "aria-label": "Kinds" });

@@ -153,7 +153,16 @@ function draw(): void {
   else content = s.hints.length ? h("ul", { class: "pf-hints" }, ...s.hints.map((x) => h("li", { class: "pf-hint", dataset: { rule: x.rule } }, x.words))) : h("p", { class: "hint app-empty" }, "No hints");
   clear(
     root,
-    h("header", { class: "pf-top" }, h("h1", {}, saved ? `Saved session · build ${s.build}` : `Performance Analyzer · build ${s.build}`), h("span", { class: `pf-state${s.recording ? " on" : ""}`, role: "status" }, saved ? savedFile : s.recording ? "Recording" : "Paused"), h("span", { class: "spacer" }), record, clearButton, save),
+    h(
+      "header",
+      { class: "pf-top" },
+      h("h1", {}, saved ? `Saved session · build ${s.build}` : `Performance Analyzer · build ${s.build}`),
+      h("span", { class: `pf-state${s.recording ? " on" : ""}`, role: "status" }, saved ? savedFile : s.recording ? "Recording" : "Paused"),
+      h("span", { class: "spacer" }),
+      record,
+      clearButton,
+      save
+    ),
     h("nav", { class: "pf-tabs", role: "tablist" }, ...tabs),
     h("div", { class: `pf-body pf-${tab}` }, content),
   );

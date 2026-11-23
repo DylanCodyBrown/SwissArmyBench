@@ -39,15 +39,24 @@ def test_the_zoom_keys(run: Any) -> None:
 
 def test_the_page_file_lost_the_parts_that_moved() -> None:
     """workbenchPage.ts is split along its own headings (the craft review of 2026-11-22): the command list,
-    the code zoom and full screen, the file-changed watcher and the restore each a module of their own."""
+    the code zoom and full screen, the file-changed watcher, the restore, the bars, the status bar, the tabs
+    beside the code, the side panes, the tables' owners, the modes' panels and the exports each a module of
+    their own."""
     source = Path(__file__).resolve().parents[1] / "web" / "src"
     page = (source / "workbenchPage.ts").read_text(encoding="utf-8")
-    assert len(page.splitlines()) < 3100
+    assert len(page.splitlines()) < 2000
     for name, mark in (
         ("workbenchCommandList.ts", 'id: "file.newNotebook"'),
         ("workbenchView.ts", "wb-fullscreen:"),
         ("workbenchFileChanged.ts", "Changed elsewhere."),
         ("workbenchRestore.ts", "workbench-documents:"),
+        ("workbenchBars.ts", '"Workbench menu"'),
+        ("workbenchStatusBar.ts", "wb-status-kernel"),
+        ("workbenchFileTabs.ts", "/scripts/library-file"),
+        ("workbenchSides.ts", "/scripts/fine-tune"),
+        ("workbenchTableOwners.ts", "wb-tables-tool"),
+        ("workbenchDocPanels.ts", "wb-mode-toggles"),
+        ("workbenchExport.ts", "/workbench/export-script"),
     ):
         assert mark in (source / name).read_text(encoding="utf-8"), name
         assert mark not in page, name

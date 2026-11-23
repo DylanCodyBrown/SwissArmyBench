@@ -215,7 +215,16 @@ export function debugSession(host: DebugHost): DebugSession {
     clear(
       stackHost,
       ...frames.map((f) => {
-        const go = h("button", { type: "button", class: `wb-debug-frame${f.id === frame ? " current" : ""}${f.yours ? "" : " library"}`, "aria-current": f.id === frame ? "true" : undefined }, h("strong", {}, f.name), h("span", { class: "hint" }, ` ${f.yours ? "" : `${(f.path ?? "").split(/[\\/]/).pop()} `}line ${f.line}`));
+        const go = h(
+          "button",
+          {
+            type: "button",
+            class: `wb-debug-frame${f.id === frame ? " current" : ""}${f.yours ? "" : " library"}`,
+            "aria-current": f.id === frame ? "true" : undefined
+          },
+          h("strong", {}, f.name),
+          h("span", { class: "hint" }, ` ${f.yours ? "" : `${(f.path ?? "").split(/[\\/]/).pop()} `}line ${f.line}`)
+        );
         go.addEventListener("click", () => {
           frame = f.id;
           drawStack();

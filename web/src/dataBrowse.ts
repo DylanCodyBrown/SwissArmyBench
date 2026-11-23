@@ -244,7 +244,11 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     return groups.map((g) => groupNode(c, g, tablesOf(g), open || groups.length === 1));
   };
 
-  const sectionNode = (kind: string, label: string, items: Node[]): Node => ({ key: `section/${kind}`, label, icon: { open: "grids", structures: "structures", apis: "apis", blades: "blade", variables: "variables", connections: "plug", shared: "folder" }[kind] ?? "rows", kind: "section", note: String(items.length), children: items, open: true });
+  const sectionNode = (
+    kind: string,
+    label: string,
+    items: Node[]
+  ): Node => ({ key: `section/${kind}`, label, icon: { open: "grids", structures: "structures", apis: "apis", blades: "blade", variables: "variables", connections: "plug", shared: "folder" }[kind] ?? "rows", kind: "section", note: String(items.length), children: items, open: true });
 
   // ----- drawing
   /** The Sandbox section's tables in the order this browser chose (the sandbox list's own sort: name, rows,
@@ -552,7 +556,19 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       const t = g.tables.get(r.place.table);
       if (t) return t;
       const sql = r.sql ?? r.place.table;
-      const table: BrowseResult = r.kind === "tables" ? r : { key: `tables/${r.connection}/${[...r.path.slice(0, -1)].join("/")}/${r.place.table}`, kind: "tables", name: r.place.table, path: r.path.slice(0, -1), connection: r.connection, detail: "", icon: "rows", insert: { sql: `SELECT * FROM ${sql}`, python: `sab.sql(${JSON.stringify(`SELECT * FROM ${sql}`)})` }, sql, source: "catalog", place: r.place };
+      const table: BrowseResult = r.kind === "tables" ? r : {
+        key: `tables/${r.connection}/${[...r.path.slice(0, -1)].join("/")}/${r.place.table}`,
+        kind: "tables",
+        name: r.place.table,
+        path: r.path.slice(0, -1),
+        connection: r.connection,
+        detail: "",
+        icon: "rows",
+        insert: { sql: `SELECT * FROM ${sql}`, python: `sab.sql(${JSON.stringify(`SELECT * FROM ${sql}`)})` },
+        sql,
+        source: "catalog",
+        place: r.place
+      };
       const made = { r: table, cols: [] as BrowseResult[] };
       g.tables.set(r.place.table, made);
       return made;

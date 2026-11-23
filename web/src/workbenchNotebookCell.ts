@@ -308,7 +308,14 @@ function wireCell(nb: Notebook, cell: Cell): void {
 
 /** An empty editor's faint words: the cell's language, or a new notebook's first Python cell's hint. */
 function placeholderOf(nb: Notebook, cell: Cell): string | undefined {
-  return cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : cell.kind === "typescript" ? "TypeScript" : cell.kind === "tsx" ? "TSX: export default function ..." : cell.kind === "code" && !nb.cells.some((c) => c !== cell && c.kind === "code" && c.role !== "transformations" && sourceOf(c).trim()) ? FIRST_HINT : undefined;
+  if (cell.kind === "sql") return "SQL";
+  if (cell.kind === "dax") return "DAX";
+  if (cell.kind === "html") return "HTML";
+  if (cell.kind === "typescript") return "TypeScript";
+  if (cell.kind === "tsx") return "TSX: export default function ...";
+  // The first Python cell of the user's own (no other with code in it) gets the starting hint.
+  const another = nb.cells.some((c) => c !== cell && c.kind === "code" && c.role !== "transformations" && sourceOf(c).trim());
+  return cell.kind === "code" && !another ? FIRST_HINT : undefined;
 }
 
 /** A cell's editor, once Monaco is there. The editors' intelligence: Jedi with the cells before this one

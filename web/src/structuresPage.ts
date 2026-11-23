@@ -230,7 +230,18 @@ function drawPage(): void {
     text = null;
     tree = null;
     if (!files.length) {
-      main.replaceChildren(h("div", { class: "structures-empty" }, h("p", { class: "empty-note" }, "Nothing open."), h("div", { class: "structures-empty-actions" }, button("New object", () => void newOne("object"), { icon: "plus" }), button("New list", () => void newOne("list"), { icon: "plus" }), button("Open…", () => void openFile(), { icon: "folder" }))));
+      main.replaceChildren(h(
+        "div",
+        { class: "structures-empty" },
+        h("p", { class: "empty-note" }, "Nothing open."),
+        h(
+          "div",
+          { class: "structures-empty-actions" },
+          button("New object", () => void newOne("object"), { icon: "plus" }),
+          button("New list", () => void newOne("list"), { icon: "plus" }),
+          button("Open…", () => void openFile(), { icon: "folder" })
+        )
+      ));
       return;
     }
     main.replaceChildren(
@@ -324,8 +335,31 @@ function drawPage(): void {
     if (selected.length) bar.append(button("Pick", () => void step({ op: "pick", path: where }), { icon: "zoom", title: "The tree becomes this branch" }));
     if (kind === "list") {
       bar.append(
-        button("Filter…", () => ask("Filter", [{ name: "field", label: "Field", value: fields[0] ?? "" }, { name: "test", label: "Test", value: "=", options: ["=", "!=", ">", ">=", "<", "<=", "contains", "starts with", "exists", "missing"] }, { name: "value", label: "Value" }], (v) => void step({ op: "filter", path: where, field: v.field, test: v.test, value: v.value })), { icon: "filter" }),
-        button("Sort…", () => ask("Sort", [{ name: "field", label: "Field", value: fields[0] ?? "" }, { name: "order", label: "Order", value: "Smallest first", options: ["Smallest first", "Largest first"] }], (v) => void step({ op: "sort", path: where, field: v.field, descending: v.order === "Largest first" })), { icon: "sortup" }),
+        button(
+          "Filter…",
+          () => ask(
+            "Filter",
+            [
+              { name: "field", label: "Field", value: fields[0] ?? "" },
+              { name: "test", label: "Test", value: "=", options: ["=", "!=", ">", ">=", "<", "<=", "contains", "starts with", "exists", "missing"] },
+              { name: "value", label: "Value" }
+            ],
+            (v) => void step({ op: "filter", path: where, field: v.field, test: v.test, value: v.value })
+          ),
+          { icon: "filter" }
+        ),
+        button(
+          "Sort…",
+          () => ask(
+            "Sort",
+            [
+              { name: "field", label: "Field", value: fields[0] ?? "" },
+              { name: "order", label: "Order", value: "Smallest first", options: ["Smallest first", "Largest first"] }
+            ],
+            (v) => void step({ op: "sort", path: where, field: v.field, descending: v.order === "Largest first" })
+          ),
+          { icon: "sortup" }
+        ),
       );
       if (isRecords(node)) bar.append(button("Flatten", () => void step({ op: "flatten", path: where }), { icon: "rows", title: "Nested objects as dotted keys" }));
       if (isRecords(node) || (Array.isArray(node) && node.length)) {
@@ -448,7 +482,22 @@ function drawPage(): void {
         "div",
         { class: "structures-steps", role: "list", "aria-label": "Steps" },
         ...(current.steps.length
-          ? current.steps.map((s, i) => h("span", { class: "structures-step", role: "listitem", "data-op": s.op }, h("span", {}, s.words), h("button", { type: "button", class: "structures-step-x", "aria-label": `Remove step ${i + 1}`, title: "Remove", onclick: () => void act("/steps/remove", "POST", { index: i }) }, icon("close"))))
+          ? current.steps.map((s, i) => h(
+            "span",
+            { class: "structures-step", role: "listitem", "data-op": s.op },
+            h("span", {}, s.words),
+            h(
+              "button",
+              {
+                type: "button",
+                class: "structures-step-x",
+                "aria-label": `Remove step ${i + 1}`,
+                title: "Remove",
+                onclick: () => void act("/steps/remove", "POST", { index: i })
+              },
+              icon("close")
+            )
+          ))
           : [h("span", { class: "muted structures-no-steps" }, "No steps")]),
       ),
     );

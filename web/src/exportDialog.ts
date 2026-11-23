@@ -71,7 +71,17 @@ export function openExport(): void {
     h("div", { class: "code-toolbar" }, button("Select all columns", () => setAll(true), { class: "small" }), button("Clear", () => setAll(false), { class: "small" }), count),
     h("div", { class: "checklist", role: "group", "aria-label": "Columns to export" }, ...boxes.map((b) => h("label", { class: "check" }, b.box, b.name))),
   );
-  const textOptions = h("div", { class: "form-grid" }, field("Delimiter", delimiter), field("Line endings", lineEnding), field("Blank cells as", blank), h("label", { class: "check" }, header, "Header row"), h("label", { class: "check" }, quoteAll, "Quote every cell"), h("label", { class: "check" }, bom, "UTF-8 BOM (for Excel)"), h("label", { class: "check" }, neutralize, "Neutralize formula-like text"));
+  const textOptions = h(
+    "div",
+    { class: "form-grid" },
+    field("Delimiter", delimiter),
+    field("Line endings", lineEnding),
+    field("Blank cells as", blank),
+    h("label", { class: "check" }, header, "Header row"),
+    h("label", { class: "check" }, quoteAll, "Quote every cell"),
+    h("label", { class: "check" }, bom, "UTF-8 BOM (for Excel)"),
+    h("label", { class: "check" }, neutralize, "Neutralize formula-like text")
+  );
   const excelOptions = h("div", { class: "form-grid" }, field("Sheet name", sheet), h("label", { class: "check" }, cutLong, "Cut text over 32,767 characters"));
   const parquetOptions = h("div", { class: "form-grid" }, field("Compression", compression));
   const sync = (): void => {

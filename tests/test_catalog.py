@@ -236,3 +236,20 @@ def test_select_is_quoted_for_each_dialect() -> None:
         'SELECT "OVEN_ID"\nFROM "BAKERY"."OVENS"\nFETCH FIRST 100 ROWS ONLY'
     )
     assert select_sql("sqlite", "", "", "loaves", []) == 'SELECT *\nFROM "loaves"\nLIMIT 100'
+
+
+def test_a_catalog_says_how_its_names_are_quoted() -> None:
+    """The pages quote a catalog's names by its listing's `quote` and `table_alone`, never by its dialect's
+    name: the marks are quote_identifier's own, a closing mark inside a name doubled."""
+    from swissarmybench.domain.catalogs import DIALECTS, naming, quote_identifier
+
+    for dialect in DIALECTS:
+        said = naming(dialect)
+        name = "Order \"Lines\" [x] `y` 'z'"
+        mark = said["quote"]
+        page = mark["open"] + name.replace(mark["close"], mark["close"] * 2) + mark["close"]
+        assert page == quote_identifier(name, dialect), dialect
+    assert naming("dax")["table_alone"] and naming("dataverse")["table_alone"]
+    assert not naming("postgres")["table_alone"]
+    assert naming("sqlserver")["quote"] == {"open": "[", "close": "]"}
+    assert naming("no such dialect") == naming("other")

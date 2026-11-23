@@ -72,7 +72,17 @@ export function openCompareDialog(left: Context, right: Context): void {
       h(
         "thead",
         {},
-        h("tr", {}, h("th", {}, "Key"), h("th", {}, `${left.dataset} column`), h("th", {}, `${right.dataset} column`), h("th", { class: "num" }, `% of ${left.dataset} found`), h("th", { class: "num" }, `% of ${right.dataset} found`), h("th", { class: "num" }, "Shared values"), h("th", {}, "Relationship")),
+        h(
+          "tr",
+          {},
+          h("th", {}, "Key"),
+          h("th", {}, `${left.dataset} column`),
+          h("th", {}, `${right.dataset} column`),
+          h("th", { class: "num" }, `% of ${left.dataset} found`),
+          h("th", { class: "num" }, `% of ${right.dataset} found`),
+          h("th", { class: "num" }, "Shared values"),
+          h("th", {}, "Relationship")
+        ),
       ),
       tbody,
     ),

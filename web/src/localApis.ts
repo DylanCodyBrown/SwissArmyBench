@@ -194,7 +194,30 @@ export function localApisSection(): HTMLElement {
             h("h3", {}, "Requests"),
             l.log.length
               ? h("table", { class: "sandbox-tables" }, h("thead", {}, h("tr", {}, ...["At", "Method", "Path", "Status", "ms", "Rows"].map((w) => h("th", {}, w)))),
-                  h("tbody", {}, ...l.log.slice(-50).reverse().map((r) => h("tr", {}, h("td", {}, r.at), h("td", {}, badge(r.method)), h("td", { class: "mono" }, r.path), h("td", { class: r.status >= 400 ? "bad" : "" }, String(r.status), r.error ? h("span", { class: "local-api-log-error" }, ` ${r.error}`) : "", r.line ? button("Go to line", () => void openOnPage(got.file!, { line: r.line! }), { icon: "code", iconOnly: true, class: "ghost", title: `API.py line ${r.line}` }) : ""), h("td", { class: "num" }, String(r.ms)), h("td", { class: "num" }, r.rows === null ? "" : String(r.rows))))))
+                  h(
+                    "tbody",
+                    {},
+                    ...l.log.slice(-50).reverse().map((r) =>
+                      h(
+                        "tr",
+                        {},
+                        h("td", {}, r.at),
+                        h("td", {}, badge(r.method)),
+                        h("td", { class: "mono" }, r.path),
+                        h(
+                          "td",
+                          { class: r.status >= 400 ? "bad" : "" },
+                          String(r.status),
+                          r.error ? h("span", { class: "local-api-log-error" }, ` ${r.error}`) : "",
+                          r.line
+                            ? button("Go to line", () => void openOnPage(got.file!, { line: r.line! }), { icon: "code", iconOnly: true, class: "ghost", title: `API.py line ${r.line}` })
+                            : "",
+                        ),
+                        h("td", { class: "num" }, String(r.ms)),
+                        h("td", { class: "num" }, r.rows === null ? "" : String(r.rows)),
+                      ),
+                    ),
+                  ))
               : h("p", { class: "muted" }, "No requests yet."),
             // What API.py printed (its last lines): folded until asked for, there only when it printed.
             said.length ? h("details", { class: "local-api-output", open: wasOpen }, h("summary", {}, `Output · ${said.length} ${said.length === 1 ? "line" : "lines"}`), h("pre", { class: "mono" }, said.join("\n"))) : "",

@@ -50,7 +50,21 @@ export function columns(env: Environment): Record<Kind, Column[]> {
         width: "86px",
         cell: (it) =>
           it.installed
-            ? h("button", { type: "button", class: `env-pin${it.pinned ? " on" : ""}`, "data-pin": it.name, "aria-pressed": String(Boolean(it.pinned)), title: it.pinned ? `Pinned to ${it.version} in requirements.txt: click to let it update` : `Not pinned: click to keep it at ${it.version}`, onclick: (e: MouseEvent) => (e.stopPropagation(), void pin(env, it, !it.pinned)) }, it.pinned ? icon("pin") : null, it.pinned ? "Pinned" : "Pin")
+            ? h(
+                "button",
+                {
+                  type: "button",
+                  class: `env-pin${it.pinned ? " on" : ""}`,
+                  "data-pin": it.name,
+                  "aria-pressed": String(Boolean(it.pinned)),
+                  title: it.pinned
+                    ? `Pinned to ${it.version} in requirements.txt: click to let it update`
+                    : `Not pinned: click to keep it at ${it.version}`,
+                  onclick: (e: MouseEvent) => (e.stopPropagation(), void pin(env, it, !it.pinned)),
+                },
+                it.pinned ? icon("pin") : null,
+                it.pinned ? "Pinned" : "Pin",
+              )
             : h("span", { class: "env-none" }, ""),
       },
       {

@@ -25,7 +25,7 @@
  */
 import { api, ApiError, download as fetchFile } from "./api";
 import { history, pageTabs, resizeGrip } from "./canvasKit";
-import { button, clear, h, icon, toast } from "./dom";
+import { button, clear, dragPointer, h, icon, toast } from "./dom";
 import { cellAt, drawSheet, letters, type Preview } from "./excelPreview";
 import { openStatements, openTemplates } from "./excelTemplates";
 import { busy as gate, markBusy } from "./loading";
@@ -441,23 +441,38 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
         dataset: { block: b.id, cell: b.cell, kind: b.kind },
         style: { left: `${HEAD_W + (col - 1) * COL_W}px`, top: `${HEAD_H + (row - 1) * ROW_H}px`, width: `${b.w * COL_W - 2}px`, height: `${b.h * ROW_H - 2}px` },
       },
-      h("div", { class: "xc-block-head" }, icon(KIND_ICONS[b.kind]), h("span", { class: `xc-block-kind ${b.kind === "title" ? "xc-title-words" : ""}` }, b.kind === "title" ? b.text || "Title" : KIND_WORDS[b.kind]), h("span", { class: "spacer" }), button(`Remove the ${KIND_WORDS[b.kind].toLowerCase()} at ${b.cell}`, () => void change(blockPath(b.id), "DELETE"), { icon: "close", iconOnly: true, class: "ghost xc-remove" })),
+      h(
+        "div",
+        { class: "xc-block-head" },
+        icon(KIND_ICONS[b.kind]),
+        h("span", { class: `xc-block-kind ${b.kind === "title" ? "xc-title-words" : ""}` }, b.kind === "title" ? b.text || "Title" : KIND_WORDS[b.kind]),
+        h("span", { class: "spacer" }),
+        button(
+          `Remove the ${KIND_WORDS[b.kind].toLowerCase()} at ${b.cell}`,
+          () => void change(blockPath(b.id), "DELETE"),
+          { icon: "close", iconOnly: true, class: "ghost xc-remove" }
+        )
+      ),
       b.kind === "title" ? null : h("div", { class: "xc-block-words" }, blockWords(b, every)),
       size,
       grip,
     );
     // A click selects it; a drag moves it, snapped to the cells.
-    el.addEventListener("pointerdown", (down) => {
-      if ((down.target as HTMLElement).closest("button") || down.button !== 0) return;
-      select(b.id);
-      const startLeft = el.offsetLeft;
-      const startTop = el.offsetTop;
-      let moved = false;
-      let at: [number, number] = [row, col];
-      el.setPointerCapture(down.pointerId);
-      const move = (e: PointerEvent): void => {
-        const dx = e.clientX - down.clientX;
-        const dy = e.clientY - down.clientY;
+    let startLeft = 0;
+    let startTop = 0;
+    let moved = false;
+    let at: [number, number] = [row, col];
+    dragPointer(el, {
+      onStart: (down) => {
+        if ((down.target as HTMLElement).closest("button")) return false;
+        select(b.id);
+        startLeft = el.offsetLeft;
+        startTop = el.offsetTop;
+        moved = false;
+        at = [row, col];
+        return undefined;
+      },
+      onMove: (dx, dy) => {
         if (!moved && Math.abs(dx) + Math.abs(dy) < 5) return;
         moved = true;
         el.classList.add("dragging");
@@ -467,17 +482,11 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
         el.style.left = `${HEAD_W + (c - 1) * COL_W}px`;
         el.style.top = `${HEAD_H + (r - 1) * ROW_H}px`;
         size.textContent = `${letters(c)}${r} · ${b.w}×${b.h}`;
-      };
-      const up = (): void => {
-        el.removeEventListener("pointermove", move);
-        el.removeEventListener("pointerup", up);
-        el.removeEventListener("pointercancel", up);
+      },
+      onEnd: () => {
         el.classList.remove("dragging");
         if (moved && (at[0] !== row || at[1] !== col)) void patch(b.id, { cell: `${letters(at[1])}${at[0]}` });
-      };
-      el.addEventListener("pointermove", move);
-      el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
+      },
     });
     el.addEventListener("keydown", (e) => {
       if (e.target !== el) return;

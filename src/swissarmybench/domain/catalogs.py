@@ -92,6 +92,9 @@ class CatalogInfo:
             "tables": self.tables,
             "views": self.views,
             "columns": self.columns,
+            # How a name is quoted in the source's dialect and whether a table is named by itself: the pages
+            # quote by these, never by the dialect's name.
+            **naming(self.dialect),
         }
 
 
@@ -200,10 +203,25 @@ def dax_table(name: str) -> str:
     return "'" + name.replace("'", "''") + "'"
 
 
+# The dialects whose table is named by itself: DAX (the schema is the dataset the query is sent to) and
+# Dataverse (every table is in its one schema).
+TABLE_ALONE = frozenset({"dax", "dataverse"})
+
+
+def naming(dialect: str | None) -> dict[str, Any]:
+    """How the pages write a name for `dialect`, as data (quote_identifier's own marks): `quote` its opening
+    and closing marks (a closing mark inside the name doubled), `table_alone` whether a table is named
+    without its schema. A dialect nobody knows quotes as the default does."""
+    try:
+        word = normalize_dialect(dialect)
+    except CatalogError:
+        word = "other"
+    empty = quote_identifier("", word)
+    return {"quote": {"open": empty[0], "close": empty[-1]}, "table_alone": word in TABLE_ALONE}
+
+
 def _source(dialect: str, database: str, schema: str, table: str) -> str:
-    if dialect == "dax":  # the schema is the dataset the query is sent to: a table is named by itself
-        return dax_table(table)
-    if dialect == "dataverse":  # every table is in its one schema: named by itself
+    if dialect in TABLE_ALONE:  # DAX's dataset, Dataverse's one schema: a table is named by itself
         return quote_identifier(table, dialect)
     if (
         dialect == "mysql"

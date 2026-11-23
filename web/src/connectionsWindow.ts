@@ -638,7 +638,11 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
   /** The heading row's actions: Add connection, on the cards only (Add API is the APIs page's, 2026-11-17). */
   const listActions = (on: boolean): void => {
     actions.replaceChildren(
-      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" }), button("Find connections on this computer…", () => void openFindConnections().then((made) => void (made.length && showList())), { icon: "desktop" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts); Find: the tools this computer has (findConnections.ts)
+      ...(on ? [
+        button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }),
+        button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" }),
+        button("Find connections on this computer…", () => void openFindConnections().then((made) => void (made.length && showList())), { icon: "desktop" })
+      ] : []), // Import: from another project or this computer's saved ones (projectImport.ts); Find: the tools this computer has (findConnections.ts)
     );
   };
   const detailUrl = (name: string): string => urlOf({ at: "detail", type: null, name });
@@ -1164,7 +1168,13 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         const list = field.suggestions.length ? h("datalist", { id: `conn-suggest-${i}` }, ...field.suggestions.map((s) => h("option", { value: s.value }, s.from))) : null;
         if (list) input.setAttribute("list", `conn-suggest-${i}`);
         // A certificate file on a Function App: ${WAREHOUSE_CERTIFICATE_FILE:-C:\certs\ca.pem} (its path here the default).
-        return h("label", { class: `field${field.picker ? " wide" : ""}`, "data-setting": field.name }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, variableBox(input, { label: words(field.name) }), browse), list);
+        return h(
+          "label",
+          { class: `field${field.picker ? " wide" : ""}`, "data-setting": field.name },
+          h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null),
+          h("span", { class: "field-row" }, variableBox(input, { label: words(field.name) }), browse),
+          list
+        );
       });
       // The same order on every form: where, who, security (a setting the rule does not name stays
       // with "where", after the ones it does, in the code's order).

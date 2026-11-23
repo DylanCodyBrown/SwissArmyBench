@@ -379,7 +379,9 @@ src/swissarmybench/
                          names, which source column is read as what; THE one table of a dialect's name in
                          sqlglot and its other names (sqlglot_name, dialect_word: connection_tables, query_text,
                          sandbox_dialects, api_pattern_code and intellisense ask it; tests/test_dialect_names.py);
-                         the dialects, their names and sqlglot names are the kind records' views
+                         the dialects, their names and sqlglot names are the kind records' views; naming: how a
+                         dialect quotes a name and whether a table is named alone (on every catalog's listing:
+                         catalogRail.ts quotes by it, naming no kind)
     dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
                          API's OData reads, paging, choice labels, the metadata as the catalog, FetchXML; SQL
                          on the read-only SQL endpoint, TDS port 5558, python-tds with the Entra token), its three
@@ -1519,7 +1521,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          list the palette, the keys and the agent's workbench_window run), workbenchView.ts
                          (the code's own zoom, full screen), workbenchFileChanged.ts (a document whose file
                          changed anywhere: followed in place, or its bar: Reload, Keep mine, Compare),
-                         workbenchRestore.ts (the documents kept over a reload)), notebookCells.ts (a cell's
+                         workbenchRestore.ts (the documents kept over a reload), 2026-11-23: workbenchKeys.ts
+                         (F5, Ctrl+S, the debugger's keys), workbenchTableOwners.ts (which document holds each
+                         table's cell, Run tables), workbenchDocPanels.ts (each mode's own panels and toggles),
+                         workbenchDocLineage.ts, workbenchMove.ts (a document handed to another window),
+                         workbenchExport.ts (Export data.py, as one script or notebook), workbenchBars.ts (the top
+                         bar, a group's row, the session's entries), workbenchStatusBar.ts, workbenchFileTabs.ts (a
+                         structure's file, a library's source, a code app's file), workbenchSides.ts (Files and
+                         Blades); the page under 2,000 lines: tests/test_workbench_view.py), notebookCells.ts (a cell's
                          rules that need no page: its kind, its role, a run's time, a cell as it is saved, command mode's
                          keys, a SQL cell's line; scriptCells.ts a script's: its pieces, markers, safe runs; both tested
                          in Node), workbenchLayout.ts (RStudio's panes: the groups, the console,
@@ -1669,7 +1678,8 @@ web/static/              index.html, grid.css (all theme tokens; the pages load 
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), web_unit.py (the front end's unit tests: a
                          pure module of web/src bundled by the page's esbuild, its functions called by Node:
-                         test_page_rules.py, test_workbench_view.py, test_notebook_cells.py),
+                         test_page_rules.py, test_workbench_view.py, test_notebook_cells.py), test_web_lines.py
+                         (no web/src line over 300 characters, wrapped by hand: no formatter),
                          e2e/ (Edge via Playwright; e2e/asks.py: the app's own questions answered,
                          accept_asks and answer_ask; e2e/conftest.py
                          holds the one browser of the run and the waits' 15 s), live_server.py (a real server in
@@ -1885,7 +1895,9 @@ web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): pa
                          Builds…; Stop while running) and Export (Ctrl+Shift+E), also every right-click menu's last group; the
                          bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the
                          panes' toggles, zoom); the frame's right-edge width
-                         handle (px shown); versions and notices
+                         handle (px shown); versions and notices. Its parts, each given a small host (2026-11-23):
+                         canvasGallery.ts (the Widgets pane and the widgets' previews), canvasProps.ts (the Properties
+                         pane), canvasMenus.ts (the menus, the run group), canvasRun.ts (Play, Launch, Export)
 web/src/canvasWiring.ts  the Canvas's Inputs, Outputs and Events sections (a source picker: Sandbox first, this page's,
                          another page's by its name, The app's viewer; readers; actions with a typed payload's fields),
                          the board's marks (sources, readers, broken) and the Wiring view: port dots on each widget's

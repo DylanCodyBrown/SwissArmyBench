@@ -107,7 +107,15 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
     chosen
       ? button("Export theme", () => saveBlob(new Blob([JSON.stringify({ name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }, null, 2)], { type: "application/json" }), `${chosen.id}.theme.json`), { icon: "export", iconOnly: true, class: "ghost" })
       : null,
-    chosen?.by_agent ? button("Keep this theme", () => void api("/analyze/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => errorHere(e)), { icon: "save", class: "ghost" }) : null,
+    chosen?.by_agent ? button(
+      "Keep this theme",
+      () => void api(
+        "/analyze/themes",
+        "POST",
+        { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }
+      ).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => errorHere(e)),
+      { icon: "save", class: "ghost" }
+    ) : null,
     chosen?.custom && !chosen.by_agent
       ? button("Remove this theme", async () => {
           if (!(await askYesNo(`Remove the theme ${chosen.label}? Analyze goes back to following the app.`))) return;

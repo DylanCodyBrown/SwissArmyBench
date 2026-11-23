@@ -51,8 +51,23 @@ export function transformItems(node: Value, at: string, act: TransformActions): 
   if (at !== "$") items.push(["zoom", "Pick: only this branch", () => act.addStep({ op: "pick", path: at })]);
   if (list) {
     items.push(
-      ["filter", "Filter…", () => askFields("Filter…", [{ name: "field", label: "Field", value: fields[0] ?? "" }, { name: "test", label: "Test", value: "=", options: ["=", "!=", ">", ">=", "<", "<=", "contains", "starts with", "exists", "missing"] }, { name: "value", label: "Value" }], (v) => act.addStep({ op: "filter", path: at, field: v.field, test: v.test, value: v.value }))],
-      ["sortup", "Sort…", () => askFields("Sort…", [{ name: "field", label: "Field", value: fields[0] ?? "" }, { name: "order", label: "Order", value: "Smallest first", options: ["Smallest first", "Largest first"] }], (v) => act.addStep({ op: "sort", path: at, field: v.field, descending: v.order === "Largest first" }))],
+      ["filter", "Filter…", () => askFields(
+        "Filter…",
+        [
+          { name: "field", label: "Field", value: fields[0] ?? "" },
+          { name: "test", label: "Test", value: "=", options: ["=", "!=", ">", ">=", "<", "<=", "contains", "starts with", "exists", "missing"] },
+          { name: "value", label: "Value" },
+        ],
+        (v) => act.addStep({ op: "filter", path: at, field: v.field, test: v.test, value: v.value }),
+      )],
+      ["sortup", "Sort…", () => askFields(
+        "Sort…",
+        [
+          { name: "field", label: "Field", value: fields[0] ?? "" },
+          { name: "order", label: "Order", value: "Smallest first", options: ["Smallest first", "Largest first"] },
+        ],
+        (v) => act.addStep({ op: "sort", path: at, field: v.field, descending: v.order === "Largest first" }),
+      )],
     );
     if (isRecords(node)) items.push(["rows", "Flatten", () => act.addStep({ op: "flatten", path: at })]);
   }

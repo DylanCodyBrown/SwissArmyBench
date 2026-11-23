@@ -135,7 +135,17 @@ function row(env: Environment, item: Item, columns: Column[]): HTMLElement[] {
   const more = h("button", { type: "button", class: "env-more", "aria-label": `Actions for ${item.name}`, title: "Actions", onclick: (e: MouseEvent) => (e.stopPropagation(), select(env, item.id), rowMenu(env, item, e.currentTarget as HTMLElement)) }, icon("more"));
   const main = h(
     "div",
-    { class: `env-row${selected === item.id ? " sel" : ""}`, role: "treeitem", tabindex: selected === item.id ? 0 : -1, "aria-selected": String(selected === item.id), "aria-level": "1", "data-id": item.id, "data-name": item.name, onclick: () => select(env, item.id), ondblclick: () => void openItem(env, item) },
+    {
+      class: `env-row${selected === item.id ? " sel" : ""}`,
+      role: "treeitem",
+      tabindex: selected === item.id ? 0 : -1,
+      "aria-selected": String(selected === item.id),
+      "aria-level": "1",
+      "data-id": item.id,
+      "data-name": item.name,
+      onclick: () => select(env, item.id),
+      ondblclick: () => void openItem(env, item),
+    },
     twist,
     name,
     ...columns.map((c) => c.cell(item)),
@@ -213,4 +223,14 @@ function drawViewer(env: Environment): void {
 }
 
 const keysHelp = (): HTMLElement =>
-  h("div", { class: "env-side-part env-keys" }, h("kbd", {}, "↑"), " ", h("kbd", {}, "↓"), " move · ", h("kbd", {}, "→"), " open a level · ", h("kbd", {}, "←"), " close · ", h("kbd", {}, "Enter"), " open it · ", h("kbd", {}, "F2"), " rename · ", h("kbd", {}, "Del"), " remove · ", h("kbd", {}, "/"), " search");
+  h(
+    "div",
+    { class: "env-side-part env-keys" },
+    h("kbd", {}, "↑"), " ", h("kbd", {}, "↓"), " move · ",
+    h("kbd", {}, "→"), " open a level · ",
+    h("kbd", {}, "←"), " close · ",
+    h("kbd", {}, "Enter"), " open it · ",
+    h("kbd", {}, "F2"), " rename · ",
+    h("kbd", {}, "Del"), " remove · ",
+    h("kbd", {}, "/"), " search",
+  );

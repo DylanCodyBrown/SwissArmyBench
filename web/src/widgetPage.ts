@@ -554,7 +554,16 @@ async function run(): Promise<void> {
   drawMode();
   ide.setStage(true);
   try {
-    const said = await busy(frameHost, `Running ${widget.name}…`, api<{ ok: boolean; url?: string; problem?: { kind: string; message?: string; feature?: string; command?: string } }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/run`, "POST", { code, window: WINDOW_ID }), { errorIn: false });
+    const said = await busy(
+      frameHost,
+      `Running ${widget.name}…`,
+      api<{ ok: boolean; url?: string; problem?: { kind: string; message?: string; feature?: string; command?: string } }>(
+        `/streamlit/widgets/${encodeURIComponent(widget.name)}/run`,
+        "POST",
+        { code, window: WINDOW_ID }
+      ),
+      { errorIn: false }
+    );
     if (!running || current !== widget) return;
     if (!said.ok || !said.url) {
       failed(new Error(said.problem?.message ?? (said.problem?.kind === "missing" ? `Streamlit widgets need ${said.problem.command ?? "Streamlit"} in this Python.` : "The widget did not run.")), null);

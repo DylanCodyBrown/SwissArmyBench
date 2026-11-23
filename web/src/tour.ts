@@ -99,14 +99,19 @@ export const STOPS: readonly Stop[] = [
   {
     icon: "environment",
     word: "Environment",
-    line: "Everything the project holds, on one page with a tab for each kind: its tables, the variables your code makes, structures (JSON, YAML, XML, TOML), settings and secrets such as WAREHOUSE_PASSWORD, and the libraries of its Python. One search runs over every tab, a row unfolds in place, and each row lists every place that uses it. Click Environment on the rail.",
+    line: "Everything the project holds, on one page with a tab for each kind: its tables, the variables your code makes, structures (JSON, YAML, XML, " +
+        "TOML), settings and secrets such as WAREHOUSE_PASSWORD, and the libraries of its Python. One search runs over " +
+        "every tab, a row unfolds in place, and each row lists every place that uses it. Click Environment on the rail.",
     place: { area: "environment" },
     target: [page("environment", ".env-tabs"), page("environment", ".area-page-head")],
   },
   {
     icon: "variables",
     word: "Using a variable",
-    line: "A dollar sign and a brace around a variable's name, typed into any box in the app (a connection's server or password, an API's address, a file path, a setting, a SQL query), always reads that setting from the Environment's Settings and secrets at the moment it is used. The value stays out of shared files, and each computer fills in its own. Type a dollar sign and a brace, or right-click a box, to insert one.",
+    line: "A dollar sign and a brace around a variable's name, typed into any box in the app (a connection's server or password, an API's address, a " +
+        "file path, a setting, a SQL query), always reads that setting from the Environment's Settings and secrets at " +
+        "the moment it is used. The value stays out of shared files, and each computer fills in its own. Type a dollar " +
+        "sign and a brace, or right-click a box, to insert one.",
     place: { form: "postgres", setting: "server", text: "${WAREHOUSE_HOST}" },
     target: [page("connections", '.field[data-setting="server"] .variable-box-row')],
     code: "${WAREHOUSE_HOST}",
@@ -190,7 +195,10 @@ export const STOPS: readonly Stop[] = [
   {
     icon: "code",
     word: "Scripts",
-    line: "The Python behind the project on a page of its own: an editor that completes, checks and runs your code, with every .py by module in the Files pane on the right and your Blades beside it (saved Python that loads data, one file each; run one from a notebook with sab.blade). The Files and Blades buttons at the bottom show or hide them. Click Scripts on the rail; notebooks never open here.",
+    line: "The Python behind the project on a page of its own: an editor that completes, checks and runs your code, with every .py by module in the " +
+        "Files pane on the right and your Blades beside it (saved Python that loads data, one file each; run one from a " +
+        "notebook with sab.blade). The Files and Blades buttons at the bottom show or hide them. Click Scripts on the " +
+        "rail; notebooks never open here.",
     target: [rail("scripts")],
     code: 'conn = sab.blade("Warehouse")',
   },
@@ -210,7 +218,9 @@ export const STOPS: readonly Stop[] = [
   {
     icon: "image",
     word: "Analyze",
-    line: "Every analysis across the top, in everyday words: odds, outliers, fit tests, regression, forecasts, tie-outs. The table is already picked, so you usually only press Run. Each result lands on the board below, with charts, notes and your own cards; save it as a dashboard or print it. Click Analyze on the rail.",
+    line: "Every analysis across the top, in everyday words: odds, outliers, fit tests, regression, forecasts, tie-outs. The table is already picked, " +
+        "so you usually only press Run. Each result lands on the board below, with charts, notes and your own cards; " +
+        "save it as a dashboard or print it. Click Analyze on the rail.",
     place: { area: "analyze" },
     target: ["#ai-panel .analyze-toolbar", "#ai-panel"],
   },

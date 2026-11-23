@@ -28,29 +28,29 @@
  *                canvas as it is now, never written over; a missing widget is a placeholder (Replace, Remove);
  *                a broken file opens read-only with its line
  *
+ * PARTS: the Widgets pane and the previews (canvasGallery.ts), the Properties pane (canvasProps.ts), the menus
+ * (canvasMenus.ts), Play, Launch and Export (canvasRun.ts): each given a small host by this page.
+ *
  * ROUTING: /streamlit/canvases (list, open), …/{canvas} (state), …/command, …/undo, …/redo, …/play, …/launch
  * (and …/builds, …/perf: routes_launch.py),
  * …/export; /streamlit/widgets (the gallery), …/{name}/preview, …/check-value.
  */
 import { api, ApiError, connect, onNotice, requireSession, saidOf } from "./api";
-import { analyzerAddress, openAnalyzer, openBuilds } from "./canvasBuilds";
 import { type Guide, type Rect } from "./canvasSnap";
 import { dotSpacing, gridLines, nudgeBy, snapRect, type Step } from "./canvasGrid";
 import { watchTheme } from "./catalogRail";
-import { askText, button, clear, h, icon, type MenuEntry, showEntries, toast } from "./dom";
-import { clearError, errorHere, showError } from "./errorNote";
-import { intoApp, type Missing, promptInstall } from "./missingPackages";
-import { chooseFile } from "./fileChooser";
-import { busy, loadingBlock } from "./loading";
-import { openShareDialog, shareMark, type ShareableApp } from "./shareApp";
+import { askText, button, clear, dragPointer, dragResize, h, icon, type MenuEntry } from "./dom";
+import { errorHere, showError } from "./errorNote";
+import { loadingBlock } from "./loading";
 import { mountNav, startNav } from "./nav";
 import { mountNavRail, openWidgets } from "./rail";
-import { effectiveTheme } from "./theme";
-import { type Prop, propertyField } from "./widgetFields";
-import { brokenWords, nodeMarks, type Wiring, type WiringContext, wiresOverlay, wiringSections } from "./canvasWiring";
-import { headingElement, headingOf } from "./widgetPacks";
+import { nodeMarks, type Wiring, type WiringContext, wiresOverlay } from "./canvasWiring";
 import type { Context, WidgetEntry } from "./widgetPage";
 import { sidePanes } from "./sidePanes";
+import { canvasProps } from "./canvasProps";
+import { canvasMenus } from "./canvasMenus";
+import { canvasRun } from "./canvasRun";
+import { canvasGallery, clearPreviews, DRAG, preview, previewNotice, watchPreviewTheme } from "./canvasGallery";
 import { loadPageRules } from "./workbenchPages";
 
 interface Node {
@@ -71,7 +71,7 @@ interface Node {
   wires?: Record<string, Record<string, unknown>>;
 }
 
-interface ContainerProps {
+export interface ContainerProps {
   title: string;
   border: boolean;
   padding: number;
@@ -116,6 +116,10 @@ interface State {
   /** Each instance's contract, sources, the Outs' readers, the wires, the broken ones. */
   wiring?: Wiring;
 }
+
+/** The page's model as the Canvas's modules see it (canvasProps.ts). */
+export type CanvasNode = Node;
+export type CanvasState = State;
 
 type Layout = "desktop" | "phone";
 /** The widths a layout can be previewed at (the built page fits any of them). */
@@ -620,21 +624,28 @@ function pagePoint(e: MouseEvent): { x: number; y: number } {
 }
 
 function hook(element: HTMLElement, node: Node): void {
-  element.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
-    e.stopPropagation();
-    board.focus({ preventScroll: true });
-    const additive = e.shiftKey || e.ctrlKey || e.metaKey;
-    if (additive) select(selected.includes(node.id) ? selected.filter((i) => i !== node.id) : [...selected, node.id]);
-    else if (!selected.includes(node.id)) select([node.id]);
-    if (!editable() || additive) return;
-    const sizing = (e.target as HTMLElement).dataset.handle === "se";
-    const start = pagePoint(e);
-    const at = find(node.id);
-    if (!at) return;
-    let moved: Rect | null = null;
-    const ghost = element;
-    const move = (m: PointerEvent): void => {
+  let sizing = false;
+  let start = { x: 0, y: 0 };
+  let at: ReturnType<typeof find> = null;
+  let moved: Rect | null = null;
+  const ghost = element;
+  dragPointer(element, {
+    onStart: (e) => {
+      if ((e.target as HTMLElement).closest("button")) return false;
+      e.stopPropagation();
+      board.focus({ preventScroll: true });
+      const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      if (additive) select(selected.includes(node.id) ? selected.filter((i) => i !== node.id) : [...selected, node.id]);
+      else if (!selected.includes(node.id)) select([node.id]);
+      if (!editable() || additive) return false;
+      sizing = (e.target as HTMLElement).dataset.handle === "se";
+      start = pagePoint(e);
+      at = find(node.id);
+      moved = null;
+      return at ? undefined : false;
+    },
+    onMove: (_dx, _dy, m) => {
+      if (!at) return;
       const now = pagePoint(m);
       const dx = now.x - start.x;
       const dy = now.y - start.y;
@@ -648,13 +659,12 @@ function hook(element: HTMLElement, node: Node): void {
       ghost.style.height = `${moved.height}px`;
       ghost.classList.add("dragging");
       drawGuides(done.guides, at.parent);
-    };
-    const up = (u: PointerEvent): void => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+    },
+    onEnd: (u) => {
       ghost.classList.remove("dragging");
       if (guidesLayer) clear(guidesLayer);
-      if (!moved) return;
+      if (!moved || !at) return;
+      if (!u) return drawBoard(); // the pointer was taken away: it stays where it was
       const r: Rect = moved;
       if (sizing) {
         void send("move", { id: node.id, w: Math.max(1, r.width), h: Math.max(1, r.height) }).then((s) => (s ? undefined : drawBoard()));
@@ -673,9 +683,7 @@ function hook(element: HTMLElement, node: Node): void {
         return;
       }
       void send("move", { id: node.id, x: Math.max(0, r.left), y: Math.max(0, r.top) }).then((s) => (s ? undefined : drawBoard()));
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    },
   });
   element.addEventListener("dblclick", (e) => {
     e.stopPropagation();
@@ -708,39 +716,47 @@ function hook(element: HTMLElement, node: Node): void {
 }
 
 // Drawing a container on empty grid (or empty room in a container).
-board.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0 || !state) return;
-  const target = e.target as HTMLElement;
-  if (target.closest(".cvs-node") && !target.classList.contains("cvs-container")) return;
-  select([]);
-  if (!editable()) return;
-  board.focus({ preventScroll: true });
-  const start = pagePoint(e);
-  const parent = containerAt(start.x, start.y, null);
-  const origin = parent ? absolute(parent.id) : { x: 0, y: 0 };
-  const band = h("div", { class: "cvs-band" });
-  board.append(band);
+{
+  let start = { x: 0, y: 0 };
+  let parent: Node | null = null;
+  let origin = { x: 0, y: 0 };
+  let band: HTMLElement | null = null;
   let made: Rect | null = null;
-  const move = (m: PointerEvent): void => {
-    const now = pagePoint(m);
-    const raw: Rect = { id: "new", left: Math.min(start.x, now.x) - origin.x, top: Math.min(start.y, now.y) - origin.y, width: Math.abs(now.x - start.x), height: Math.abs(now.y - start.y) };
-    const fake: Node = { id: "new", kind: "container", x: 0, y: 0, w: 0, h: 0 };
-    const placed = snapRect({ ...raw }, snapFor(fake, parent, false, m.altKey)).rect;
-    const sized = snapRect({ ...placed, width: raw.left + raw.width - placed.left, height: raw.top + raw.height - placed.top }, snapFor(fake, parent, true, m.altKey)).rect;
-    made = sized;
-    Object.assign(band.style, { left: `${X(origin.x + sized.left)}px`, top: `${origin.y + sized.top}px`, width: `${X(sized.width)}px`, height: `${sized.height}px` });
-  };
-  const up = (): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    band.remove();
-    const r: Rect | null = made;
-    if (!r || r.width < 16 || r.height < 16) return;
-    void send("add_container", { page, parent: parent?.id ?? null, x: Math.max(0, r.left), y: Math.max(0, r.top), w: r.width, h: r.height }).then((s) => (s?.made ? select([s.made]) : undefined));
-  };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
-});
+  dragPointer(board, {
+    onStart: (e) => {
+      if (!state) return false;
+      const target = e.target as HTMLElement;
+      if (target.closest(".cvs-node") && !target.classList.contains("cvs-container")) return false;
+      select([]);
+      if (!editable()) return false;
+      board.focus({ preventScroll: true });
+      start = pagePoint(e);
+      parent = containerAt(start.x, start.y, null);
+      origin = parent ? absolute(parent.id) : { x: 0, y: 0 };
+      band = h("div", { class: "cvs-band" });
+      board.append(band);
+      made = null;
+      return undefined;
+    },
+    onMove: (_dx, _dy, m) => {
+      if (!band) return;
+      const now = pagePoint(m);
+      const raw: Rect = { id: "new", left: Math.min(start.x, now.x) - origin.x, top: Math.min(start.y, now.y) - origin.y, width: Math.abs(now.x - start.x), height: Math.abs(now.y - start.y) };
+      const fake: Node = { id: "new", kind: "container", x: 0, y: 0, w: 0, h: 0 };
+      const placed = snapRect({ ...raw }, snapFor(fake, parent, false, m.altKey)).rect;
+      const sized = snapRect({ ...placed, width: raw.left + raw.width - placed.left, height: raw.top + raw.height - placed.top }, snapFor(fake, parent, true, m.altKey)).rect;
+      made = sized;
+      Object.assign(band.style, { left: `${X(origin.x + sized.left)}px`, top: `${origin.y + sized.top}px`, width: `${X(sized.width)}px`, height: `${sized.height}px` });
+    },
+    onEnd: (up) => {
+      band?.remove();
+      band = null;
+      const r: Rect | null = made;
+      if (!up || !r || r.width < 16 || r.height < 16) return;
+      void send("add_container", { page, parent: parent?.id ?? null, x: Math.max(0, r.left), y: Math.max(0, r.top), w: r.width, h: r.height }).then((s) => (s?.made ? select([s.made]) : undefined));
+    },
+  });
+}
 
 board.addEventListener("contextmenu", (e) => {
   if ((e.target as HTMLElement).closest(".cvs-node")) return;
@@ -831,7 +847,7 @@ document.addEventListener("keydown", (e) => {
     })();
     return;
   }
-  if (e.key === "Insert" && galleryFocus) return void insert(galleryFocus, selectedContainer());
+  if (e.key === "Insert" && gallery.focused()) return void insert(gallery.focused()!, selectedContainer());
   const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   const arrow = arrows[e.key];
   if (arrow && selected.length === 1) {
@@ -854,145 +870,46 @@ viewport.addEventListener(
   { passive: false },
 );
 
-// ===== menus =====
+// ===== menus (canvasMenus.ts) =====
 
-let floatingOpen: HTMLElement[] = [];
-function closeFloating(): void {
-  for (const f of floatingOpen) f.remove();
-  floatingOpen = [];
-}
-function floating(element: HTMLElement, x: number, y: number, above = false, keep = false): void {
-  if (!keep) closeFloating();
-  document.body.append(element);
-  floatingOpen.push(element);
-  const r = element.getBoundingClientRect();
-  element.style.left = `${Math.min(x, window.innerWidth - r.width - 8)}px`;
-  element.style.top = `${above ? Math.max(8, y - r.height) : Math.min(y, window.innerHeight - r.height - 8)}px`;
-}
-document.addEventListener("pointerdown", (e) => {
-  if (!(e.target as HTMLElement).closest(".cvs-menu")) closeFloating();
+const menus = canvasMenus({
+  editable: () => editable(),
+  send: (kind, body) => send(kind, body),
+  insert: (name, parent) => insert(name, parent),
+  grouped: () => grouped(),
+  playing: () => !live.hidden,
+  play: () => play(),
+  stopPlay: () => stopPlay(),
+  launch: (analyzer) => launch(analyzer),
+  stopLaunch: () => stopLaunch(),
+  exportApp: () => exportApp(),
+  get buildsHost() {
+    return run.buildsHost;
+  },
+  get state() {
+    return state;
+  },
+  get page() {
+    return page;
+  },
+  get launched() {
+    return run.isLaunched();
+  },
 });
+const { closeFloating, floating, menu, launchEntries, runGroup, shareable, nodeMenu, widgetMenu } = menus;
 
-/** A menu of the Canvas: the app's one menu (dom.ts showEntries: kept inside the window, arrow keys,
- *  Escape) in the Canvas's look, with its keys, ticks and submenus; it closes with the page's other floating
- *  panels (a press outside, a pick). */
-function menu(x: number, y: number, entries: MenuEntry[]): void {
-  closeFloating();
-  floatingOpen.push(showEntries(x, y, "Canvas", entries, { menu: "cvs-menu", item: "cvs-menu-item", rule: "cvs-menu-sep", heading: false, away: false, closing: closeFloating }));
-}
+// ===== the Widgets pane (canvasGallery.ts) =====
 
-/** Play's ▾ (and the run group's middle): Launch, Launch with the Performance Analyzer, the analyzer's window
- *  and Share… while launched, Builds…; Stop instead of Launch while the app is launched. */
-function launchEntries(group: boolean): MenuEntry[] {
-  const canvas = state?.canvas;
-  return [
-    launched ? { label: "Stop the launched app", group, run: () => void stopLaunch() } : { label: "Launch", key: "Ctrl+F5", group, run: () => void launch(false) },
-    launched
-      ? { label: "Performance Analyzer", disabled: !canvas, run: () => canvas && openAnalyzer(canvas) }
-      : { label: "Launch with the Performance Analyzer", key: "Ctrl+Shift+F5", run: () => void launch(true) },
-    // Share… (the share-app branch): the launched app's address for others, while it is launched.
-    ...(launched ? [shareEntry()] : []),
-    { label: "Builds…", disabled: !canvas, run: () => canvas && void openBuilds(canvas, buildsHost) },
-  ];
-}
-
-/** The run group at the bottom of every right-click menu (the owner, 2026-11-21): Play, Launch, Launch with
- *  the Performance Analyzer, Builds…, Export…, each with its key; Stop instead while the page plays or the app is
- *  launched. */
-function runGroup(after: boolean): MenuEntry[] {
-  const playing = !live.hidden;
-  return [
-    playing ? { label: "Stop playing", key: "Esc", group: after, run: () => stopPlay() } : { label: "Play", key: "F5", group: after, run: () => void play() },
-    ...launchEntries(false),
-    { label: "Export…", key: "Ctrl+Shift+E", run: () => void exportApp() },
-  ];
-}
-
-/** The launched app as Share… knows it (the Streamlit extension's share target: the canvas's id). */
-function shareable(): ShareableApp | null {
-  return state ? { kind: "streamlit", id: state.canvas, title: state.name } : null;
-}
-
-/** Share… with the organization (shareApp.ts): offered while the app is launched. */
-function shareEntry(): MenuEntry {
-  return { label: "Share…", run: () => { const app = shareable(); if (app) openShareDialog(app); } };
-}
-
-function nodeMenu(node: Node, e: MouseEvent): void {
-  if (!editable()) return void menu(e.clientX, e.clientY, runGroup(false));
-  if (node.kind === "container") {
-    const p = node.props!;
-    menu(e.clientX, e.clientY, [
-      { label: "Insert widget", sub: (x, y) => widgetMenu(x, y, (name) => void insert(name, node.id), true) },
-      { label: "Insert container", run: () => void send("add_container", { page, parent: node.id, w: Math.min(200, node.w), h: Math.min(120, node.h) }) },
-      { label: "Scrollable", checked: p.scrollable, run: () => void send("set_container", { id: node.id, props: { scrollable: !p.scrollable } }) },
-      { label: "Resizable by viewers", checked: p.resizable, run: () => void send("set_container", { id: node.id, props: { resizable: !p.resizable } }) },
-      { label: "Delete", run: () => void send("delete", { id: node.id }) },
-      ...runGroup(true),
-    ]);
-    return;
-  }
-  menu(e.clientX, e.clientY, [
-    { label: "Edit widget", run: () => openWidgets(node.widget) },
-    { label: "Replace widget", sub: (x, y) => widgetMenu(x, y, (name) => void send("replace_widget", { id: node.id, widget: name }), true) },
-    { label: "Delete", run: () => void send("delete", { id: node.id }) },
-    ...runGroup(true),
-  ]);
-}
-
-/** Every widget of the framework, grouped, with search: `pick` takes one. */
-function widgetMenu(x: number, y: number, pick: (name: string) => void, keep = false): void {
-  const search = h("input", { type: "search", class: "cvs-menu-search", placeholder: "Search widgets", "aria-label": "Search widgets", "data-no-variables": "" });
-  const list = h("div", { class: "cvs-menu-list", role: "menu" });
-  const draw = (): void => {
-    const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
-    clear(list);
-    let group = "";
-    for (const w of grouped().filter((x2) => words.every((word) => `${x2.name} ${x2.description} ${x2.group} ${x2.pack}`.toLowerCase().includes(word)))) {
-      const heading = headingOf(w);
-      if (heading !== group) {
-        group = heading;
-        list.append(headingElement("cvs-menu-group", w, false));
-      }
-      list.append(
-        h(
-          "button",
-          {
-            type: "button",
-            role: "menuitem",
-            class: "cvs-menu-item",
-            "data-widget": w.name,
-            title: w.description,
-            onclick: () => {
-              closeFloating();
-              pick(w.name);
-            },
-          },
-          h("span", { class: "cvs-check" }),
-          h("span", {}, w.name),
-        ),
-      );
-    }
-  };
-  search.addEventListener("input", draw);
-  draw();
-  const element = h("div", { class: "cvs-menu cvs-widget-menu", role: "dialog", "aria-label": "Insert widget" }, search, list);
-  if (keep) {
-    for (const f of floatingOpen.filter((f2) => f2.classList.contains("cvs-widget-menu"))) f.remove();
-    floatingOpen = floatingOpen.filter((f2) => !f2.classList.contains("cvs-widget-menu"));
-  }
-  floating(element, x, y, false, keep);
-  search.focus();
-}
-
-// ===== the Widgets pane =====
-
-const DRAG = "application/x-sab-widget";
-let galleryFocus: string | null = null;
-let galleryQuery = "";
-
-/** Yours first, then the prebuilt ones in the server's order: the starter packs, then by group (Buttons, Inputs...). */
-const grouped = (): WidgetEntry[] => [...widgets].sort((a, b) => Number(a.prebuilt) - Number(b.prebuilt));
+const gallery = canvasGallery({
+  pane: galleryPane,
+  editable: () => editable(),
+  insert: (name, parent) => insert(name, parent),
+  selectedContainer: () => selectedContainer(),
+  get widgets() {
+    return widgets;
+  },
+});
+const { drawGallery, grouped, hidePreview } = gallery;
 
 /** The instance's own words over its preview. The picture is the widget's, drawn once with its defaults (one
  *  per widget file and theme: server/previews.py); a picture per instance would mean a Streamlit run and a
@@ -1011,572 +928,58 @@ function instanceText(node: Node, properties: { name: string; default: unknown }
   return null;
 }
 
-/** A widget's rendered preview, and what the box shows until it is there (the owner, 2026-11-22: "The
- *  pre-built widgets are not rendering on my machine": a box is never empty). One per widget file and theme
- *  (server/previews.py), made one at a time: the board's widgets first (`board`), the gallery's cards as
- *  they scroll into view (`card`), the hover's at once (`hover`). Until it is made, a card with the widget's
- *  name and "Preview is being made…"; a failure's one line with Try again (its full words in the title),
- *  and a missing Streamlit the one missing-package prompt, once. Asked again while it is coming (its
- *  `widget_preview` notice, a slow look meanwhile; never given up while a box shows it), and a failure
- *  again when the server's back-off is over or its cause changed (`widget_previews`). */
-type PreviewHow = "board" | "card" | "hover";
-interface PreviewState {
-  state: string;
-  url?: string;
-  said?: string;
-  kind?: string;
-  retry_in?: number;
-  missing?: Missing;
-  install?: string;
-}
-const previews = new Map<string, PreviewState>(); // by theme and name
-const previewTheme = (): string => (effectiveTheme().includes("dark") ? "dark" : "light");
-const previewKey = (name: string): string => `${previewTheme()}\u0000${name}`;
-const holdersOf = (name: string): HTMLElement[] => [...document.querySelectorAll<HTMLElement>(`[data-preview="${CSS.escape(name)}"]`)];
-const onBoard = (name: string): boolean => holdersOf(name).some((x) => x.dataset.how === "board");
+// ===== the Properties pane (canvasProps.ts) =====
 
-function preview(name: string, className: string, how: PreviewHow = "board"): HTMLElement {
-  const holder = h("div", { class: `${className} cvs-preview`, "data-preview": name, "data-how": how });
-  paintPreview(holder, name);
-  if (how === "card") seenLater(holder);
-  else void askPreview(name, how === "board");
-  return holder;
-}
-
-/** One line of a failure's words, short enough for a box. */
-function firstLine(said: string): string {
-  const line = said.split("\n").map((l) => l.trim()).find(Boolean) ?? "The preview could not be made.";
-  return line.length > 110 ? `${line.slice(0, 108)}…` : line;
-}
-
-function paintPreview(holder: HTMLElement, name: string): void {
-  const p = previews.get(previewKey(name));
-  const how = (holder.dataset.how ?? "board") as PreviewHow;
-  holder.dataset.state = p?.state ?? "coming";
-  if (p?.state === "ready" && p.url) {
-    const image = h("img", { src: p.url, alt: `${name}, rendered`, draggable: "false" });
-    image.addEventListener("error", () => {
-      // The picture is gone (its cache cleared): asked for again.
-      previews.delete(previewKey(name));
-      paintPreview(holder, name);
-      void askPreview(name, how === "board");
-    });
-    clear(holder, image);
-    return;
-  }
-  const failed = p?.state === "failed";
-  const missing = failed ? p.missing : undefined;
-  const words = failed ? (missing ? `Needs ${missing.packages.join(", ")} to draw.` : firstLine(p.said ?? "")) : "Preview is being made…";
-  const again = !failed
-    ? null
-    : missing
-      ? button(`Install ${missing.packages.join(", ")}`, () => void installForPreviews(p, true), { icon: "import", class: "ghost small cvs-ph-again" })
-      : button("Try again", () => void askPreview(name, how === "board", true), { icon: "reset", class: "ghost small cvs-ph-again" });
-  clear(
-    holder,
-    h(
-      "div",
-      { class: `cvs-ph${failed ? " failed" : ""}`, title: failed ? (p.said ?? "") : `${name}: its preview is being made` },
-      h("span", { class: "cvs-ph-icon" }, icon(failed ? "warning" : "sliders")),
-      how === "card" ? null : h("span", { class: "cvs-ph-name" }, name),
-      h("span", { class: "cvs-ph-line", role: "status" }, words),
-      how === "card" ? null : again,
-    ),
-  );
-}
-
-function paintAll(name: string): void {
-  for (const holder of holdersOf(name)) paintPreview(holder, name);
-}
-
-/** A gallery card's preview is asked for once the card is in view (113 prebuilt widgets: never all at once,
- *  never ahead of the board's). */
-let cardWatch: IntersectionObserver | null = null;
-function seenLater(holder: HTMLElement): void {
-  if (typeof IntersectionObserver === "undefined") return void askPreview(holder.dataset.preview ?? "", false);
-  cardWatch ??= new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      cardWatch?.unobserve(entry.target);
-      void askPreview((entry.target as HTMLElement).dataset.preview ?? "", false);
-    }
-  });
-  cardWatch.observe(holder);
-}
-
-const asking = new Map<string, Promise<void>>();
-const againLater = new Map<string, number>();
-const prompted = new Set<string>();
-
-function askPreview(name: string, first: boolean, retry = false): Promise<void> {
-  if (!name) return Promise.resolve();
-  const key = previewKey(name);
-  const known = previews.get(key);
-  if (!retry && known && known.state !== "coming") return Promise.resolve();
-  const running = asking.get(key);
-  if (running && !retry) return running;
-  if (retry) {
-    previews.set(key, { state: "coming" });
-    paintAll(name);
-  }
-  const theme = previewTheme();
-  const made = (async () => {
-    let wait = 2000;
-    let again = retry;
-    for (;;) {
-      let said: PreviewState;
-      try {
-        said = await api<PreviewState>(`/streamlit/widgets/${encodeURIComponent(name)}/preview?theme=${theme}${first ? "&first=1" : ""}${again ? "&retry=1" : ""}`);
-      } catch {
-        said = { state: "failed", said: "The preview could not be asked for.", kind: "setup", retry_in: 15 };
-      }
-      again = false;
-      if (previewTheme() !== theme) return; // the theme changed meanwhile: the new theme's is asked for
-      previews.set(key, said);
-      paintAll(name);
-      if (said.state === "failed") return void failedPreview(name, said);
-      if (said.state !== "coming" || holdersOf(name).length === 0) return;
-      await new Promise((r) => window.setTimeout(r, wait));
-      wait = Math.min(6000, wait + 1000); // its notice usually comes first; this is the slow look meanwhile
-      if (previews.get(key)?.state !== "coming") return; // its notice answered meanwhile
-    }
-  })().finally(() => {
-    if (asking.get(key) === made) asking.delete(key);
-  });
-  asking.set(key, made);
-  return made;
-}
-
-/** A failure: asked again once the server's back-off is over (while a box still shows it); a missing
- *  Streamlit the one prompt, once a page. */
-function failedPreview(name: string, said: PreviewState): void {
-  const key = previewKey(name);
-  if (said.missing) {
-    const once = `${said.missing.python}\u0000${said.missing.packages.join(" ")}`;
-    if (!prompted.has(once)) {
-      prompted.add(once);
-      void installForPreviews(said, false);
-    }
-  }
-  if (againLater.has(key)) return;
-  const at = window.setTimeout(
-    () => {
-      againLater.delete(key);
-      if (holdersOf(name).length === 0 || previews.get(key)?.state !== "failed") return;
-      previews.delete(key);
-      void askPreview(name, onBoard(name));
-    },
-    Math.max(1, said.retry_in ?? 30) * 1000,
-  );
-  againLater.set(key, at);
-}
-
-/** Install what the previews need (the project's Python: the Environment's Install, into its `.venv` and
- *  requirements.txt; else the app's own), then every failed preview tried again. */
-async function installForPreviews(said: PreviewState, force: boolean): Promise<void> {
-  if (!said.missing) return;
-  const names = said.missing.packages;
-  await promptInstall(said.missing, {
-    force,
-    install: said.install === "project" ? async () => void (await api("/environment/libraries/install", "POST", { names })) : intoApp,
-    then: () => retryFailedPreviews(true),
-  });
-}
-
-/** Every failed preview a box shows, asked for again (`now`: past its back-off: an install just ended). */
-function retryFailedPreviews(now: boolean): void {
-  const theme = previewTheme();
-  for (const [key, p] of [...previews]) {
-    const [keyTheme, name = ""] = key.split("\u0000");
-    if (!name || keyTheme !== theme || p.state !== "failed" || holdersOf(name).length === 0) continue;
-    window.clearTimeout(againLater.get(key));
-    againLater.delete(key);
-    previews.delete(key);
-    void askPreview(name, onBoard(name), now);
-  }
-}
-
-/** The server's word: one made or failed (asked again: its address or its words), or the failures may be
- *  tried again (the project's Python ready). */
-function previewNotice(said: { type: string; name?: string; theme?: string }): void {
-  if (said.type === "widget_preview" && said.name && said.theme === previewTheme()) {
-    const key = previewKey(said.name);
-    if (holdersOf(said.name).length === 0) return void previews.delete(key);
-    previews.set(key, { state: "coming" });
-    void askPreview(said.name, onBoard(said.name));
-  }
-  if (said.type === "widget_previews") retryFailedPreviews(false);
-}
-
-/** The theme changed: every box shows the new theme's picture (asked for when it is not known). */
-function watchPreviewTheme(): void {
-  new MutationObserver(() => {
-    for (const holder of document.querySelectorAll<HTMLElement>("[data-preview]")) {
-      const name = holder.dataset.preview ?? "";
-      paintPreview(holder, name);
-      void askPreview(name, holder.dataset.how === "board");
-    }
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-}
-
-let hoverTimer: number | null = null;
-let bigPreview: HTMLElement | null = null;
-function hidePreview(): void {
-  if (hoverTimer !== null) window.clearTimeout(hoverTimer);
-  hoverTimer = null;
-  bigPreview?.remove();
-  bigPreview = null;
-}
-
-function drawGallery(): void {
-  const search = h("input", { type: "search", class: "cvs-gallery-search", placeholder: "Search widgets", value: galleryQuery, "aria-label": "Search widgets", "data-no-variables": "" });
-  const cards = h("div", { class: "cvs-cards" });
-  const draw = (): void => {
-    const words = galleryQuery.toLowerCase().split(/\s+/).filter(Boolean);
-    clear(cards);
-    let group = "";
-    for (const w of grouped().filter((x) => words.every((word) => `${x.name} ${x.description} ${x.group} ${x.pack} ${x.tags.join(" ")}`.toLowerCase().includes(word)))) {
-      const heading = headingOf(w);
-      if (heading !== group) {
-        group = heading;
-        cards.append(headingElement("cvs-gallery-group", w));
-      }
-      const card = h(
-        "div",
-        { class: `cvs-card${galleryFocus === w.name ? " focused" : ""}`, draggable: "true", tabindex: "0", role: "button", "data-widget": w.name, "aria-label": `${w.name}: ${w.description}` },
-        preview(w.name, "cvs-card-preview", "card"),
-        h("div", { class: "cvs-card-name" }, w.name),
-        h("div", { class: "cvs-card-desc" }, w.description),
-      );
-      card.addEventListener("dragstart", (e) => {
-        hidePreview();
-        e.dataTransfer?.setData(DRAG, w.name);
-        e.dataTransfer?.setData("text/plain", w.name);
-      });
-      card.addEventListener("focus", () => {
-        galleryFocus = w.name;
-        for (const c of cards.querySelectorAll(".cvs-card")) c.classList.toggle("focused", c === card);
-      });
-      card.addEventListener("click", () => card.focus());
-      card.addEventListener("dblclick", () => {
-        if (editable()) void insert(w.name, selectedContainer());
-      });
-      card.addEventListener("keydown", (e) => {
-        if ((e.key === "Insert" || e.key === "Enter") && editable()) {
-          e.preventDefault();
-          e.stopPropagation();
-          void insert(w.name, selectedContainer());
-        }
-      });
-      card.addEventListener("mouseenter", () => {
-        hidePreview();
-        hoverTimer = window.setTimeout(() => {
-          const r = card.getBoundingClientRect();
-          bigPreview = h("div", { class: "cvs-big-preview", role: "tooltip" }, preview(w.name, "cvs-big-image", "hover"), h("div", { class: "cvs-card-name" }, w.name), h("div", { class: "cvs-card-desc" }, w.description));
-          document.body.append(bigPreview);
-          const width = 496;
-          bigPreview.style.left = `${Math.max(8, r.left - width - 12)}px`;
-          bigPreview.style.top = `${Math.max(8, Math.min(r.top, window.innerHeight - bigPreview.getBoundingClientRect().height - 8))}px`;
-        }, 400);
-      });
-      card.addEventListener("mouseleave", hidePreview);
-      cards.append(card);
-    }
-  };
-  search.addEventListener("input", () => {
-    galleryQuery = search.value;
-    draw();
-  });
-  draw();
-  clear(galleryPane, h("div", { class: "cvs-pane-head" }, h("h2", {}, "Widgets"), button("Open the Widgets window", () => openWidgets(), { icon: "popout", iconOnly: true, class: "ghost" })), search, cards);
-}
-
-// ===== the Properties pane =====
-
-function section(title: string, ...children: (HTMLElement | null)[]): HTMLElement {
-  return h("section", { class: "cvs-props-section" }, h("h3", {}, title), ...children);
-}
-
-function sizeFields(node: Node): HTMLElement {
-  const boxes = (["x", "y", "w", "h"] as const).map((key) => {
-    const input = h("input", { type: "number", class: "cvs-num", value: String(node[key]), min: key === "w" || key === "h" ? 1 : 0, "aria-label": { x: "Left", y: "Top", w: "Width", h: "Height" }[key], disabled: !editable() });
-    input.addEventListener("change", () => {
-      const v = Math.round(Number(input.value));
-      if (Number.isFinite(v)) void send("move", { id: node.id, [key]: v });
-    });
-    return h("label", { class: "cvs-field" }, h("span", {}, { x: "X", y: "Y", w: "W", h: "H" }[key]), input);
-  });
-  return h("div", { class: "cvs-size" }, ...boxes, h("span", { class: "cvs-px" }, "px"));
-}
-
-function containerFields(node: Node): HTMLElement[] {
-  const p = node.props!;
-  const set = (props: Partial<ContainerProps>): void => void send("set_container", { id: node.id, props });
-  const flag = (label: string, key: "border" | "scrollable" | "resizable"): HTMLElement => {
-    const input = h("input", { type: "checkbox", role: "switch", class: "wg-switch", checked: p[key], disabled: !editable(), "aria-label": label, "data-prop": key });
-    input.addEventListener("change", () => set({ [key]: input.checked }));
-    return h("label", { class: "cvs-flag" }, input, h("span", {}, label));
-  };
-  const title = h("input", { class: "wg-input", value: p.title, "aria-label": "Title", disabled: !editable(), "data-no-variables": "" });
-  title.addEventListener("change", () => set({ title: title.value }));
-  const height = h("select", { class: "wg-input", "aria-label": "Height", disabled: !editable() }, h("option", { value: "fit", selected: p.height === "fit" }, "Fit"), h("option", { value: "fixed", selected: p.height === "fixed" }, "Fixed"));
-  height.addEventListener("change", () => set({ height: height.value as ContainerProps["height"] }));
-  const background = h("input", { type: "text", class: "wg-input", value: p.background, placeholder: "none", "aria-label": "Background", disabled: !editable(), "data-no-variables": "" });
-  background.addEventListener("change", () => set({ background: background.value.trim() }));
-  return [
-    h("label", { class: "wg-field" }, h("span", { class: "wg-label" }, "Title"), title),
-    flag("Border", "border"),
-    flag("Scrollable", "scrollable"),
-    flag("Resizable", "resizable"),
-    h("label", { class: "wg-field" }, h("span", { class: "wg-label" }, "Height"), height),
-    numberBox("Padding", p.padding, 0, 64, (v) => set({ padding: v })),
-    numberBox("Columns inside", p.columns, 1, 48, (v) => set({ columns: v })),
-    h("label", { class: "wg-field" }, h("span", { class: "wg-label" }, "Background"), background),
-    h("div", { class: "wg-label" }, "Size"),
-    sizeFields(node),
-  ];
-}
-
-function drawProps(): void {
-  if (!state) return;
-  clear(propsPane, h("div", { class: "cvs-pane-head" }, h("h2", {}, "Properties")));
-  const nodes = selected.map((id) => find(id)).filter((x): x is { node: Node; parent: Node | null } => x !== null);
-  if (!nodes.length) {
-    propsPane.append(h("p", { class: "cvs-props-none" }, "Select a container or a widget."));
-    return;
-  }
-  const first = nodes[0]!.node;
-  const same = nodes.every((n) => n.node.kind === first.kind && n.node.widget === first.widget);
-  if (!same) {
-    propsPane.append(h("p", { class: "cvs-props-none" }, `${nodes.length} selected: they share no properties.`));
-    return;
-  }
-  if (first.kind === "container") {
-    propsPane.append(section(nodes.length > 1 ? `CONTAINERS (${nodes.length})` : "CONTAINER", ...containerFields(first)));
-    if (nodes.length === 1) propsPane.append(section("LAYOUT", showOn(first), hiddenInApp(first)));
-    return;
-  }
-  const known = entry(first.widget ?? "");
-  propsPane.append(
-    section(
-      "WIDGET",
-      h("div", { class: "cvs-widget-line" }, h("span", { class: "cvs-widget-title" }, first.widget ?? ""), button("Edit widget", () => openWidgets(first.widget), { class: "ghost cvs-edit-widget" })),
-      known ? h("div", { class: "wg-prop-help" }, known.description) : h("div", { class: "wg-field-line" }, "This widget is not in the library any more."),
-    ),
-  );
-  if (known) {
-    const marks = state.marks[first.id] ?? {};
-    const values: Record<string, unknown> = { ...Object.fromEntries(known.properties.map((p) => [p.name, p.default])), ...(first.values ?? {}) };
-    // A column property of an In[Table]: the columns of the table it is wired to; wired from an Out (or by
-    // itself), that Out's columns once known (declared Table[Row], else as Play last ran it); else typed.
-    const fieldContext = { ...context, tables: { ...context.tables } };
-    for (const port of state.wiring?.ports[first.id]?.ins ?? []) {
-      if (port.type !== "Table") continue;
-      const source = state.wiring?.sources[first.id]?.[port.name] as { table?: string; out?: string } | undefined;
-      if (source?.out) {
-        values[port.name] = `out:${source.out}`;
-        fieldContext.tables[`out:${source.out}`] = state.wiring?.columns?.[source.out] ?? null;
-      } else values[port.name] = source?.table ?? (source ? "?" : "");
-    }
-    const fields = known.properties.map((prop: Prop) =>
-      propertyField(
-        prop,
-        values,
-        fieldContext,
-        !editable(),
-        async (value, said) => {
-          const checked = await api<{ ok: boolean; said?: string; fix?: string }>("/streamlit/widgets/check-value", "POST", { name: known.name, property: prop.name, value, values });
-          if (!checked.ok) return said(`${checked.said ?? ""} ${checked.fix ?? ""}`.trim());
-          said("");
-          for (const n of nodes) await send("set_values", { id: n.node.id, values: { [prop.name]: value } });
-        },
-        { marked: marks[prop.name] ?? null, overridden: nodes.length === 1 && Object.hasOwn(first.values ?? {}, prop.name), onReset: () => void send("set_values", { id: first.id, values: { [prop.name]: null } }) },
-      ),
-    );
-    if (fields.length) propsPane.append(section("PROPERTIES", ...fields));
-    if (nodes.length === 1) {
-      const sendWire = async (port: string, wire: Record<string, unknown> | null): Promise<void> => {
-        if (!state) return;
-        try {
-          take(await api<State>(`/streamlit/canvases/${state.canvas}/command`, "POST", { kind: "wire", id: first.id, port, wire, version: state.version, window: WINDOW }));
-        } catch (e) {
-          if (e instanceof ApiError && e.status === 409) await reload();
-          throw new Error(String((e instanceof ApiError ? saidOf(e)?.error : null) ?? (e instanceof Error ? e.message : e)));
-        }
-      };
-      propsPane.append(...wiringSections(first.id, first.wires, state.wiring, { ...context, page_names: pageNames() }, editable(), sendWire, (title, ...children) => section(title, ...children)));
-    }
-  }
-  if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)), section("LAYOUT", showOn(first), hiddenInApp(first)));
-}
-
-/** Hidden in the app: a widget (or a container's widgets) runs and its Outs flow, but the played, launched or
- *  exported page gives it no space (a widget that only moves data; a titled box of them). */
-function hiddenInApp(node: Node): HTMLElement {
-  const input = h("input", { type: "checkbox", class: "cvs-hidden", checked: Boolean(node.hidden), disabled: !editable(), "aria-label": "Hidden in the app" }) as HTMLInputElement;
-  input.addEventListener("change", () => void send("hide", { id: node.id, hidden: input.checked }));
-  return h("label", { class: "cvs-flag" }, input, h("span", {}, "Hidden in the app"));
-}
-
-/** Show on: both layouts, or one only (the owner: "Hiding a container or widget in one layout only"). */
-function showOn(node: Node): HTMLElement {
-  const box = h("select", { class: "wg-input cvs-show", "aria-label": "Show on", disabled: !editable() });
-  for (const [value, label] of [["both", "Phone and Desktop"], ["desktop", "Desktop only"], ["phone", "Phone only"]] as const) box.append(h("option", { value, selected: (node.show ?? "both") === value }, label));
-  box.addEventListener("change", () => void send("show", { id: node.id, show: box.value }));
-  return h("label", { class: "wg-field" }, h("span", { class: "wg-label" }, "Show on"), box);
-}
+const { drawProps } = canvasProps({
+  pane: propsPane, window: WINDOW, send, take, reload, find, entry, pageNames, numberBox,
+  editable: () => editable(),
+  get state() {
+    return state;
+  },
+  get selected() {
+    return selected;
+  },
+  get context() {
+    return context;
+  },
+});
 
 /** The page frame's right edge: dragged, the page is previewed at another width within its layout's range
  *  (the built page fits any of them); its width in px beside it. */
 function widthHandle(): HTMLElement {
   const label = h("span", { class: "cvs-width-label" }, `${previewWidth[layout]} px`);
   const grip = h("div", { class: "cvs-width-handle", role: "separator", "aria-orientation": "vertical", "aria-label": "Page width", title: "Drag to preview another width" }, label);
-  grip.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const start = e.clientX;
-    const from = previewWidth[layout];
-    const [low, high] = RANGE[layout];
-    const move = (m: PointerEvent): void => {
-      previewWidth[layout] = Math.round(Math.max(low, Math.min(high, from + (m.clientX - start) / zoom)));
+  let from = 0;
+  // The board (this grip with it) is drawn again at each step: dragPointer hears the moves at the window.
+  dragResize(grip, {
+    start: () => void (from = previewWidth[layout]),
+    move: (dx) => {
+      const [low, high] = RANGE[layout];
+      previewWidth[layout] = Math.round(Math.max(low, Math.min(high, from + dx / zoom)));
       drawBoard();
-    };
-    const up = (): void => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      rememberView();
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    },
+    end: rememberView,
+    stop: true,
   });
   return grip;
 }
 
-// ===== Play, Launch, Export =====
+// ===== Play, Launch, Export (canvasRun.ts) =====
 
-let launched = false;
-let runningWork = false;
-
-function running(): boolean {
-  return !live.hidden || launched;
-}
-function stopRunning(): void {
-  if (!live.hidden) stopPlay();
-  else if (launched) void stopLaunch();
-}
-/** Play is Stop while the app runs (the page playing, or launched). */
-function drawRun(): void {
-  const on = running();
-  playButton.replaceChildren(icon(on ? "stop" : "play"), h("span", { class: "btn-label" }, on ? "Stop" : "Play"));
-  playButton.setAttribute("aria-label", on ? "Stop" : "Play");
-  playButton.title = on ? (!live.hidden ? "Stop playing (Esc)" : "Stop the launched app") : "Play (F5)";
-  playButton.classList.toggle("running", on);
-  const app = shareable();
-  if (app && shareHolder.dataset.app !== app.id) {
-    shareHolder.dataset.app = app.id;
-    shareHolder.replaceChildren(shareMark(app));
-  }
-}
-
-/** One run at a time (Play, Launch, Export), its words over the canvas meanwhile. */
-async function gated(words: string, work: () => Promise<void>): Promise<void> {
-  if (runningWork) return;
-  runningWork = true;
-  try {
-    await busy(stage, words, work(), { errorIn: false });
-  } finally {
-    runningWork = false;
-  }
-}
-
-async function play(): Promise<void> {
-  if (!state) return;
-  const broken = brokenWords(state.wiring);
-  if (broken) say(broken); // listed before Play: the page runs, each broken In on its starting value
-  await gated("Starting the page…", async () => {
-    try {
-      const said = await api<{ ok: boolean; url?: string; problem?: { message?: string; command?: string } }>(`/streamlit/canvases/${state!.canvas}/play`, "POST", { page });
-      if (!said.ok || !said.url) return void showError(notice, new Error(said.problem?.message ?? `Streamlit is not in this Python${said.problem?.command ? `: ${said.problem.command}` : ""}.`));
-      clearError(notice);
-      clear(live, h("div", { class: "cvs-live-bar" }, h("span", {}, "Playing"), button("Edit", () => stopPlay(), { icon: "edit", class: "ghost cvs-edit" })), h("iframe", { class: "cvs-live-frame", src: said.url, title: "The page, playing", "data-layout": layout, style: { width: `${previewWidth[layout]}px`, maxWidth: "100%", alignSelf: "center" } }));
-      live.hidden = false;
-      viewport.hidden = true;
-      drawRun();
-    } catch (e) {
-      showError(notice, e);
-    }
-  });
-}
-
-function stopPlay(): void {
-  live.hidden = true;
-  viewport.hidden = false;
-  clear(live);
-  drawRun();
-  if (state) void api(`/streamlit/canvases/${state.canvas}/stop`, "POST", {}).catch(() => undefined);
-}
-
-async function stopLaunch(): Promise<void> {
-  if (!state) return;
-  launched = false;
-  drawRun();
-  await api(`/streamlit/canvases/${state.canvas}/stop`, "POST", { run: "launch" }).catch((e) => showError(notice, e));
-}
-
-/** Launch (Ctrl+F5): a new build run in a window of its own; `analyzer` (Ctrl+Shift+F5): the Performance
- *  Analyzer recording from the first load, its window opened beside. */
-async function launch(analyzer = false): Promise<void> {
-  if (!state) return;
-  const opened = window.open("about:blank", `sab-launch-${state.canvas}`, "popup,width=1300,height=860");
-  // Both windows open now, on the key or click (a window opened after the wait would be blocked).
-  const perfWindow = analyzer ? openAnalyzer(state.canvas, undefined, "about:blank") : null;
-  await gated(analyzer ? "Launching with the Performance Analyzer…" : "Launching…", async () => {
-    try {
-      const said = await api<{ ok: boolean; url?: string; title?: string; problem?: { message?: string } }>(`/streamlit/canvases/${state!.canvas}/launch`, "POST", analyzer ? { analyzer: true } : {});
-      if (!said.ok || !said.url) {
-        opened?.close();
-        perfWindow?.close();
-        return void showError(notice, new Error(said.problem?.message ?? "The app did not start."));
-      }
-      launched = true;
-      drawRun();
-      if (opened) opened.location.href = said.url;
-      else showError(notice, new Error("The browser blocked the new window: allow pop-ups for this address."));
-      if (perfWindow) perfWindow.location.href = analyzerAddress(state!.canvas);
-      toast(`${said.title ?? "The app"} launched.`);
-    } catch (e) {
-      opened?.close();
-      perfWindow?.close();
-      showError(notice, e);
-    }
-  });
-}
-
-/** What the Builds dialog asks of the page: a relaunch's window is open, a restore's canvas is drawn. */
-const buildsHost = {
-  launched: (said: { title?: string }) => {
-    launched = true;
-    drawRun();
-    toast(`${said.title ?? "The build"} launched.`);
+const run = canvasRun({
+  live, viewport, stage, notice, playButton, shareHolder, previewWidth, say, take,
+  shareable: () => shareable(),
+  get state() {
+    return state;
   },
-  restored: (next: unknown) => take(next as State),
-};
-
-async function exportApp(): Promise<void> {
-  if (!state) return;
-  const folder = await chooseFile({ title: "Export the app into", mode: "folder", start: state.path.replace(/[\\/][^\\/]*$/, "") });
-  if (!folder) return;
-  await gated("Exporting…", async () => {
-    try {
-      const done = await api<{ folder: string; files: string[]; warnings?: string[] }>(`/streamlit/canvases/${state!.canvas}/export`, "POST", { folder });
-      toast(`Exported: ${done.files.length} files in ${done.folder}`);
-      // It calls the local sandbox API: the variables to set where it runs (its README lists them too).
-      if (done.warnings?.length) showError(notice, done.warnings.join(" "), { level: "warning", agent: false });
-    } catch (e) {
-      showError(notice, e);
-    }
-  });
-}
+  get page() {
+    return page;
+  },
+  get layout() {
+    return layout;
+  },
+});
+const { running, stopRunning, drawRun, play, stopPlay, stopLaunch, launch, exportApp } = run;
 
 // ===== the landing: the project's canvases =====
 
@@ -1636,7 +1039,7 @@ async function start(): Promise<void> {
     if (said.type === "widgets_changed") {
       void api<{ widgets: WidgetEntry[] }>("/streamlit/widgets").then((l) => {
         widgets = l.widgets;
-        previews.clear();
+        clearPreviews();
         drawGallery();
         void reload();
       });

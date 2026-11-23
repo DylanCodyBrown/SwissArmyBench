@@ -197,7 +197,11 @@ function listen(): void {
 }
 
 // Tells the pane the design's height, so a design with no saved height is shown whole.
-const REPORTER = `<script>(function(){var last=0;function say(){var h=Math.ceil(Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0));if(h!==last){last=h;parent.postMessage({sabDesignHeight:h},"*")}}addEventListener("load",say);if(window.ResizeObserver)new ResizeObserver(say).observe(document.documentElement);setTimeout(say,0)})()</script>`;
+const REPORTER =
+  `<script>(function(){var last=0;function say(){var h=Math.ceil(Math.max(document.documentElement.scrollHeight,` +
+  `document.body?document.body.scrollHeight:0));if(h!==last){last=h;parent.postMessage({sabDesignHeight:h},"*")}}` +
+  `addEventListener("load",say);if(window.ResizeObserver)new ResizeObserver(say).observe(document.documentElement);` +
+  `setTimeout(say,0)})()</script>`;
 
 /** The page a design is drawn as: plain defaults in the app's colours (the design's own styles come
  *  after them and win), then the cell's HTML. */

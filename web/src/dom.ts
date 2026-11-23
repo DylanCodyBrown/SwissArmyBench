@@ -65,10 +65,18 @@ const SHEET = '<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>';
 const LOCK = '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 018 0V11"/>';
 const CLOUD = '<path d="M7 19h10a4 4 0 00.6-8 5.6 5.6 0 00-10.8 1.4A3.4 3.4 0 007 19z"/>';
 
+// The Settings button's cog, a long path: written in parts.
+const COG =
+  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 ' +
+  "1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 " +
+  "1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 " +
+  "1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 " +
+  '1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>';
+
 // Line icons (24x24, stroke). Fixed markup, so innerHTML is safe here.
 const ICONS: Record<string, string> = {
   // The Settings button: a cog (a toothed wheel around a hub).
-  cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>',
+  cog: COG,
   // A known relationship (from the model), and a primary-key column.
   crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/><path d="M5 19h14"/>',
   key: '<circle cx="8" cy="14" r="4"/><path d="M11 11l9-9M16 6l3 3M14 8l2 2"/>',
@@ -569,6 +577,52 @@ export function setMenuExtras(extras: (() => MenuExtra[]) | null): void {
 
 export const extraMenuItems = (): MenuExtra[] => menuExtras?.() ?? [];
 
+/** One press-and-drag of the pointer, whatever it does (a move, a size, a tab carried to another group). */
+export interface PointerDragOptions {
+  /** As the pointer goes down: measure here. Answering false: no drag. `drag.cancel()` ends it early (a key). */
+  onStart?: (down: PointerEvent, drag: { cancel: () => void }) => void | false;
+  /** The pointer's distance from where it went down, with the event itself. */
+  onMove: (dx: number, dy: number, event: PointerEvent) => void;
+  /** Once it lets go (its event), or the drag is cancelled (null). */
+  onEnd?: (up: PointerEvent | null) => void;
+  /** Keep the browser's own answer to the press away (a text selection, a picture's drag). */
+  prevent?: boolean;
+  /** Keep the pointer's press from handlers further out (a grip inside something that itself drags). */
+  stop?: boolean;
+}
+
+/** The app's one pointer drag (dragResize is this one too): the element captures the pointer, so the drag
+ *  follows it over frames and out of the window; the moves are heard at the window, so an element drawn again
+ *  under the pointer (its capture gone with it) still ends its drag; letting go or a cancelled pointer ends
+ *  it, always, and the listeners go with it. */
+export function dragPointer(el: HTMLElement, options: PointerDragOptions): void {
+  el.addEventListener("pointerdown", (down) => {
+    if (down.button !== 0 && down.pointerType === "mouse") return;
+    let over = false;
+    const finish = (up: PointerEvent | null): void => {
+      if (over) return;
+      over = true;
+      window.removeEventListener("pointermove", moved, true);
+      window.removeEventListener("pointerup", finish, true);
+      window.removeEventListener("pointercancel", cancelled, true);
+      options.onEnd?.(up);
+    };
+    const moved = (event: PointerEvent): void => options.onMove(event.clientX - down.clientX, event.clientY - down.clientY, event);
+    const cancelled = (): void => finish(null);
+    if (options.onStart?.(down, { cancel: cancelled }) === false) return;
+    if (options.prevent) down.preventDefault();
+    if (options.stop) down.stopPropagation();
+    try {
+      el.setPointerCapture(down.pointerId);
+    } catch {
+      // a pointer that is already gone: the drag ends on the next event
+    }
+    window.addEventListener("pointermove", moved, true);
+    window.addEventListener("pointerup", finish, true);
+    window.addEventListener("pointercancel", cancelled, true);
+  });
+}
+
 /** One drag of a handle (a splitter, a grip): what every drag-to-resize shares. */
 export interface DragOptions {
   /** As the pointer goes down: measure here. Answering false: no drag (the handle is off). */
@@ -584,34 +638,24 @@ export interface DragOptions {
   stop?: boolean;
 }
 
-/** Drag-to-resize, once (the craft review of 2026-11-22: nine hand-written copies): the handle captures the
- *  pointer, so the drag follows it over frames and out of the window; `move` hears the distance from where
- *  it went down; letting go or a cancelled pointer ends it, always, and the listeners go with it. The keys
- *  stay each handle's own (they differ: a width, a fraction, a grid's cells). */
+/** Drag-to-resize, once (the craft review of 2026-11-22: nine hand-written copies), on dragPointer: `move`
+ *  hears the distance from where the pointer went down; a class is worn while it drags. The keys stay each
+ *  handle's own (they differ: a width, a fraction, a grid's cells). */
 export function dragResize(handle: HTMLElement, options: DragOptions): void {
-  handle.addEventListener("pointerdown", (down) => {
-    if (down.button !== 0 && down.pointerType === "mouse") return;
-    if (options.start?.(down) === false) return;
-    down.preventDefault();
-    if (options.stop) down.stopPropagation();
-    try {
-      handle.setPointerCapture(down.pointerId);
-    } catch {
-      // a pointer that is already gone: the drag ends on the next event
-    }
-    const worn = options.on ?? handle;
-    if (options.dragging) worn.classList.add(options.dragging);
-    const moved = (event: PointerEvent): void => options.move(event.clientX - down.clientX, event.clientY - down.clientY, event);
-    const up = (): void => {
+  const worn = options.on ?? handle;
+  dragPointer(handle, {
+    onStart: (down) => {
+      if (options.start?.(down) === false) return false;
+      if (options.dragging) worn.classList.add(options.dragging);
+      return undefined;
+    },
+    onMove: options.move,
+    onEnd: () => {
       if (options.dragging) worn.classList.remove(options.dragging);
-      handle.removeEventListener("pointermove", moved);
-      handle.removeEventListener("pointerup", up);
-      handle.removeEventListener("pointercancel", up);
       options.end?.();
-    };
-    handle.addEventListener("pointermove", moved);
-    handle.addEventListener("pointerup", up);
-    handle.addEventListener("pointercancel", up);
+    },
+    prevent: true,
+    stop: options.stop,
   });
 }
 
@@ -632,6 +676,8 @@ export interface MenuEntry {
   group?: boolean;
   /** A menu of its own, opened beside it (on a click or resting on it): given where. */
   sub?: (x: number, y: number) => void;
+  /** Not an entry: a small muted label over the entries after it. */
+  heading?: boolean;
 }
 
 export interface MenuLook {
@@ -643,8 +689,16 @@ export interface MenuLook {
   heading?: boolean;
   /** Close on a press outside it (default: yes; no: the caller closes it with its own floating panels). */
   away?: boolean;
-  /** Before an entry's `run`: the caller's own closing (its submenus). */
+  /** Before an entry's `run`, and when Escape or a press outside closes it: the caller's own closing (its
+   *  submenus, its button's state). */
   closing?: () => void;
+  /** The button it opened from: a press on it is not a press outside, Escape gives it the focus back and Tab
+   *  closes the menu on its way on. */
+  anchor?: HTMLElement;
+  /** Where it goes, once it can be measured (default: at x and y, kept inside the window). */
+  place?: (menu: HTMLElement) => { left: number; top: number };
+  /** Each entry's button as it is made: the caller's own contents and attributes (the Workbench's menus). */
+  dress?: (row: HTMLButtonElement, entry: MenuEntry) => void;
 }
 
 /** The app's one menu (the craft review of 2026-11-22: five menus had each their own): at the pointer, kept
@@ -652,12 +706,17 @@ export interface MenuLook {
  *  menu is this one: showMenu's plain entries, and a menu with keys, ticks and submenus (the Canvas's). */
 export function showEntries(x: number, y: number, label: string, entries: MenuEntry[], look: MenuLook = {}): HTMLElement {
   const plain = !look.menu;
-  if (plain) document.querySelector(".menu")?.remove();
+  // A menu that wears the class "menu" is the one such menu open.
+  if ((look.menu ?? "menu").split(" ").includes("menu")) document.querySelector(".menu")?.remove();
   const menu = h("div", { class: look.menu ?? "menu context-menu", role: "menu", "aria-label": label });
   if (look.heading !== false) menu.append(h("div", { class: "menu-label" }, label));
   const close = (): void => menu.remove();
   for (const item of entries) {
     if (item.group) menu.append(h("div", { class: look.rule ?? "menu-rule", role: "separator" }));
+    if (item.heading) {
+      menu.append(h("div", { class: "menu-label" }, item.label));
+      continue;
+    }
     const row = h(
       "button",
       {
@@ -687,24 +746,31 @@ export function showEntries(x: number, y: number, label: string, entries: MenuEn
       item.run?.();
     });
     if (item.sub) row.addEventListener("mouseenter", () => row.click());
+    look.dress?.(row as HTMLButtonElement, item);
     menu.append(row);
   }
   // A modal dialog makes the rest of the page inert: a menu opened from one lives inside it (as toasts do).
   ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body).append(menu);
-  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
+  const placed = look.place?.(menu);
+  menu.style.left = `${placed?.left ?? Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${placed?.top ?? Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
   (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
   if (look.away !== false) {
     setTimeout(() => {
-      const away = (event: Event): void => {
-        if (!menu.contains(event.target as Node)) {
-          close();
-          document.removeEventListener("mousedown", away);
-          document.removeEventListener("contextmenu", away);
-        }
+      // Heard on its way down, so a press that something else keeps to itself still closes the menu.
+      const forget = (): void => {
+        document.removeEventListener("mousedown", away, true);
+        document.removeEventListener("contextmenu", away, true);
       };
-      document.addEventListener("mousedown", away);
-      document.addEventListener("contextmenu", away);
+      const away = (event: Event): void => {
+        if (!menu.isConnected) return forget(); // closed already (an entry, a key, another menu)
+        if (menu.contains(event.target as Node) || look.anchor?.contains(event.target as Node)) return;
+        close();
+        look.closing?.();
+        forget();
+      };
+      document.addEventListener("mousedown", away, true);
+      document.addEventListener("contextmenu", away, true);
     });
   }
   menu.addEventListener("keydown", (event) => {
@@ -713,8 +779,15 @@ export function showEntries(x: number, y: number, label: string, entries: MenuEn
     if (event.key === "Escape") {
       close();
       look.closing?.();
+      look.anchor?.focus();
+    } else if (event.key === "Tab" && look.anchor) {
+      close();
+      look.closing?.();
+      return; // the focus goes on to what is next
     } else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();
     else if (event.key === "ArrowUp") buttons[(at - 1 + buttons.length) % buttons.length]?.focus();
+    else if (event.key === "Home") buttons[0]?.focus();
+    else if (event.key === "End") buttons[buttons.length - 1]?.focus();
     else return;
     event.preventDefault();
     event.stopPropagation(); // the key was the menu's: a page's own arrows and Escape do not also act

@@ -9210,6 +9210,43 @@ Open:
   the path; both pass without it.
 
 
+## Review fixes E, 2026-11-23: the Workbench and Canvas pages split, long lines, the catalog's quoting
+
+Done:
+
+- **workbenchPage.ts split along its own headings** (2,975 lines to 1,914): workbenchKeys, workbenchTableOwners,
+  workbenchDocPanels, workbenchDocLineage, workbenchMove, workbenchExport, workbenchBars, workbenchStatusBar,
+  workbenchFileTabs and workbenchSides, each a factory given a small host by the page (getters for what changes:
+  the document in front, the cursor, the Pythons), as workbenchCommandList.ts is. The page keeps one-line
+  function declarations (drawStatus, drawControls, drawTop...) where an earlier line calls them by name, so the
+  order things are made in stayed the same. tests/test_workbench_view.py holds the page under 2,000 lines.
+- **canvasPage.ts split** (1,653 lines to about 1,050): canvasGallery.ts (the Widgets pane; the previews, which
+  need no page at all, at its module level), canvasProps.ts, canvasMenus.ts, canvasRun.ts. The page's model types
+  are exported as CanvasNode and CanvasState for them.
+- **The agent's context menu** was already on dom.ts showMenu (31efd0d); the Workbench's drop-down menus on
+  showEntries (9cb6e8d); one pointer drag (e47ba17).
+- **Long lines wrapped by hand**: every web/src line over 300 characters (95; 74 outside the files below). Most
+  are whitespace only (esbuild's whitespace-minified output compared before and after, file by file); a long
+  string became a `+` of shorter ones (the same after esbuild's minify). tests/test_web_lines.py fails on a new
+  one. No formatter was added: Prettier or Biome would be a new dependency, the owner's call (left open here).
+- **catalogRail.ts names no dialect to quote**: every catalog's listing carries `quote` (its opening and closing
+  marks, from domain/catalogs.py quote_identifier itself) and `table_alone` (DAX's and Dataverse's tables are
+  named without a schema); the page quotes by those.
+
+Left, with the reason:
+
+- tests/test_web_lines.py excludes scmPage.ts and scmGraph.ts (VS Code's copy, kept by decision) and the four
+  files another change is splitting (workbenchNotebook.ts, workbenchScript.ts, environmentPage.ts,
+  structureDoc.ts: 10 long lines); that change takes them out of the list once wrapped.
+- catalogRail.ts still asks `dialect === "dax"` for what is DAX's own beyond quoting: a column written
+  'Table'[Column], a measure [Total], the Power BI dataset's page and Open as grid's DAX read. Serving those as
+  data too (a `column_form` on the listing) is the next step; not needed for the quoting.
+- The browser tests flake under two workers when the machine is short of memory (the kernel killed processes
+  during the runs); each failure seen passed alone. The suite in one process is the measure.
+- Run from a worktree, the tests need PYTHONPATH=src (and SWISSARMYBENCH_WEB_ROOT for a copy of the build while
+  building again): the shared environment's editable install points at the main checkout, and so does the page
+  the server serves.
+
 ## White screen after an update, 2026-11-22 (decisions and open notes)
 
 - The owner: "after an update restart it opens to a white screen and I have to restart again". The cause was

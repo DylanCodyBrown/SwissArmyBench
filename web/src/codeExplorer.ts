@@ -151,7 +151,11 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
         icon(file.item ? "table" : isStructurePath(file.path) ? "json" : host.page === "scripts" ? "code" : kindIcon("notebook", file.full)),
         h("span", { class: "wb-codex-name" }, host.page === "scripts" && file.module && !file.item ? file.module : file.folder && isStructurePath(file.path) ? file.path : file.name),
         now.dirty.includes(file.full) ? h("span", { class: "wb-codex-dirty", title: "Not saved", "aria-label": "Not saved" }, "●") : null,
-        file.edited ? h("span", { class: "wb-codex-mark edited", title: "Edited by hand", "aria-label": "Edited by hand" }, icon("edit")) : file.read_only ? h("span", { class: "wb-codex-mark locked", title: file.made_from ? `Made from ${file.made_from}: read-only` : "Read-only", "aria-label": "Read-only" }, icon("key")) : null,
+        file.edited ? h("span", { class: "wb-codex-mark edited", title: "Edited by hand", "aria-label": "Edited by hand" }, icon("edit")) : file.read_only ? h(
+          "span",
+          { class: "wb-codex-mark locked", title: file.made_from ? `Made from ${file.made_from}: read-only` : "Read-only", "aria-label": "Read-only" },
+          icon("key")
+        ) : null,
       ),
       ...(file.actions ?? []).map((a) => button(a.label, () => host.action?.(file, a.id), { class: "ghost wb-codex-action", title: a.label })),
     );
@@ -197,7 +201,18 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
         return h(
           "section",
           { class: "wb-codex-group", "data-group": g.id },
-          h("button", { type: "button", class: "wb-codex-group-head", "aria-expanded": String(!closed), onclick: () => (folded.has(g.id) ? folded.delete(g.id) : folded.add(g.id), draw()) }, icon(closed ? "forward" : "down"), h("span", {}, g.name), h("span", { class: "wb-codex-count" }, String(files.length))),
+          h(
+            "button",
+            {
+              type: "button",
+              class: "wb-codex-group-head",
+              "aria-expanded": String(!closed),
+              onclick: () => (folded.has(g.id) ? folded.delete(g.id) : folded.add(g.id), draw())
+            },
+            icon(closed ? "forward" : "down"),
+            h("span", {}, g.name),
+            h("span", { class: "wb-codex-count" }, String(files.length))
+          ),
           closed ? null : files.length ? h("div", { class: "wb-codex-files" }, ...files.map(fileRow)) : h("p", { class: "hint wb-codex-empty" }, "None"),
         );
       }),

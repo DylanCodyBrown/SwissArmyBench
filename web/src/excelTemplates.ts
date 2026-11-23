@@ -121,7 +121,21 @@ export async function openTemplates(name?: string): Promise<void> {
       marks.set(place.toUpperCase(), said(b));
       marks.set(b.place, said(b));
     }
-    const tabs = h("div", { class: "cv-tabs", role: "tablist", "aria-label": "Sheets" }, ...t.preview.sheets.map((s, i) => h("button", { type: "button", role: "tab", class: `tab-item cv-tab ${i === sheetIndex ? "active" : ""}`, "aria-selected": String(i === sheetIndex), onclick: () => { sheetIndex = i; drawTemplate(); } }, s.name)));
+    const tabs = h(
+      "div",
+      { class: "cv-tabs", role: "tablist", "aria-label": "Sheets" },
+      ...t.preview.sheets.map((s, i) => h(
+        "button",
+        {
+          type: "button",
+          role: "tab",
+          class: `tab-item cv-tab ${i === sheetIndex ? "active" : ""}`,
+          "aria-selected": String(i === sheetIndex),
+          onclick: () => { sheetIndex = i; drawTemplate(); }
+        },
+        s.name
+      ))
+    );
     const sheet = t.preview.sheets[sheetIndex];
     const named = Object.keys(t.preview.names);
     clear(
@@ -129,7 +143,17 @@ export async function openTemplates(name?: string): Promise<void> {
       h("div", { class: "xc-template-head" }, h("h3", {}, t.name), named.length ? h("span", { class: "hint" }, `Named ranges: ${named.join(", ")}`) : null),
       tabs,
       sheet ? drawSheet(sheet, { names: t.preview.names, marks, pick: (cell, name) => drawForm(name ?? `${sheet.name}!${cell}`, cell) }) : null,
-      h("ul", { class: "xc-bindings", "aria-label": "Bindings" }, ...t.bindings.map((b) => h("li", { dataset: { place: b.place } }, h("span", { class: "mono" }, b.place), h("span", {}, ` ← ${said(b)}`), button(`Unbind ${b.place}`, () => void bind({ unbind: b.place }), { icon: "close", iconOnly: true, class: "ghost" })))),
+      h(
+        "ul",
+        { class: "xc-bindings", "aria-label": "Bindings" },
+        ...t.bindings.map((b) => h(
+          "li",
+          { dataset: { place: b.place } },
+          h("span", { class: "mono" }, b.place),
+          h("span", {}, ` ← ${said(b)}`),
+          button(`Unbind ${b.place}`, () => void bind({ unbind: b.place }), { icon: "close", iconOnly: true, class: "ghost" })
+        ))
+      ),
     );
   }
 

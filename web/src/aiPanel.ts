@@ -556,7 +556,18 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     ]), { icon: "more", iconOnly: true, class: "ghost" }),
     h("span", { class: "danger-gap" }, button("Remove", () => void api(`/cards/${card.id}`, "DELETE").then(() => render()), { icon: "trash", iconOnly: true, class: "ghost" })),
   );
-  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind] ?? "file")), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Analyze"}` }, card.dataset ?? card.origin ?? "Analyze"), actions);
+  const header = h(
+    "div",
+    { class: "card-header" },
+    h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind] ?? "file")),
+    h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])),
+    h(
+      "span",
+      { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Analyze"}` },
+      card.dataset ?? card.origin ?? "Analyze"
+    ),
+    actions
+  );
   const element = h(
     "article",
     { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "data-card": card.id, "aria-label": card.title || KIND_NAMES[card.kind] },
@@ -719,7 +730,10 @@ async function exportHtml(card: Card, drawn: Drawn | null): Promise<void> {
   if (!drawn) return;
   const svg = await drawn.toSvg();
   const title = card.title || chartTitle(card);
-  const page = `<!doctype html><meta charset="utf-8"><title>${title.replace(/</g, "&lt;")}</title><body style="font-family:Segoe UI,sans-serif;background:#fff;margin:24px">${svg}<p style="color:#57606a">${card.dataset ? `Dataset ${card.dataset.replace(/</g, "&lt;")}, ` : ""}${new Date().toISOString()}</p></body>`;
+  const said = `${card.dataset ? `Dataset ${card.dataset.replace(/</g, "&lt;")}, ` : ""}${new Date().toISOString()}`;
+  const page =
+    `<!doctype html><meta charset="utf-8"><title>${title.replace(/</g, "&lt;")}</title>` +
+    `<body style="font-family:Segoe UI,sans-serif;background:#fff;margin:24px">${svg}<p style="color:#57606a">${said}</p></body>`;
   saveBlob(new Blob([page], { type: "text/html" }), `${title.replace(/[^A-Za-z0-9_-]+/g, "_") || "chart"}.html`);
 }
 
