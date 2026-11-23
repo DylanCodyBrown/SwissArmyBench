@@ -1,5 +1,6 @@
-"""The New query page and a query's tray on the Blazor Grids page (the classic startView.ts and queryTab.ts): Open
-tables (DuckDB) opens the draft (its own tab), Run builds the table, whose tab keeps the tray to run again."""
+"""The New query page and a query's tray on the Blazor Grids page (the classic startView.ts and queryTab.ts):
+Open tables (DuckDB) opens the draft (its own tab), Run builds the table, whose tab keeps the tray to run
+again."""
 
 from __future__ import annotations
 

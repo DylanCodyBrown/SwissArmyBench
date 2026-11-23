@@ -289,3 +289,6 @@ kbd { padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px
 .credit { color: var(--muted); }
 .claude-command { display: flex; align-items: center; gap: 6px; }
 .project-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.meter { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); }
+.meter-bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.meter-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }

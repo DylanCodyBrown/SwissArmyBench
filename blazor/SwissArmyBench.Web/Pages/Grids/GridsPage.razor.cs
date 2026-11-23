@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
@@ -62,6 +61,10 @@ public partial class GridsPage : IDisposable
     [SupplyParameterFromQuery(Name = "from")]
     public string? FromParameter { get; set; }
 
+    /// <summary>The Tables list open (the status bar's memory meter links here).</summary>
+    [SupplyParameterFromQuery(Name = "tables")]
+    public string? TablesParameter { get; set; }
+
     /// <summary>Two grids side by side: "left,right".</summary>
     [SupplyParameterFromQuery(Name = "split")]
     public string? SplitParameter { get; set; }
@@ -111,6 +114,10 @@ public partial class GridsPage : IDisposable
     protected override async Task OnParametersSetAsync()
     {
         await LoadAsync();
+        if (TablesParameter is not null)
+        {
+            _dialog = TablesList;
+        }
         await Js.InvokeVoidAsync("sab.setTitle", _info?.Title ?? "Grids");
     }
 
@@ -237,47 +244,6 @@ public partial class GridsPage : IDisposable
     }
 
     private Task UndoAsync() => ChangedAsync(() => Grids.UndoAsync(_active!));
-
-    private async Task ClearStepsAsync()
-    {
-        if (_info is not { } info)
-        {
-            return;
-        }
-        var count = info.Steps.Count;
-        await ChangedAsync(() => Grids.SaveStepsAsync(info.Grid, []));
-        UndoNote(count == 1 ? "Cleared the step" : $"Cleared {count} steps");
-    }
-
-    /// <summary>Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z: undo and redo the grid's steps, unless a box or a dialog has the
-    /// keys.</summary>
-    private async Task PageKeyAsync(KeyboardEventArgs e)
-    {
-        if (!(e.CtrlKey || e.MetaKey) || e.AltKey || _info is null || _dialog is not null || _editor is not null)
-        {
-            return;
-        }
-        var key = e.Key.ToLowerInvariant();
-        if (key == "s" && !e.ShiftKey)
-        {
-            await Api.PostAsync("/project/save");
-            return;
-        }
-        if (await Js.InvokeAsync<bool>("sab.typing"))
-        {
-            return;
-        }
-        if (key == "y" || (key == "z" && e.ShiftKey))
-        {
-            await RedoAsync();
-        }
-        else if (key == "z")
-        {
-            await UndoAsync();
-        }
-    }
-
-    private Task RedoAsync() => ChangedAsync(() => Grids.RedoAsync(_active!));
 
     /// <summary>After a move that takes something away: it says so, with Undo (that grid's last step change).</summary>
     private void UndoNote(string words)

@@ -18,6 +18,11 @@
         <button type="button" class="btn small ribbon-btn" title="ARCHITECTURE.md: the project for someone joining it" @onclick="OutlineAsync"><Icon Name="outline" /> Export outline</button>
         <button type="button" class="btn small ribbon-btn" title="Close the project" @onclick="CloseAsync"><Icon Name="close" /> Close</button>
         <label class="check" title="@project.AutosaveError"><input type="checkbox" role="switch" aria-label="Autosave" checked="@project.Autosave" @onchange="e => AutosaveAsync(e.Value is true)" /> Autosave</label>
+        <label class="check" title="Nothing of a private project is sent to an AI completion service"><input type="checkbox" role="switch" aria-label="Private" checked="@project.Private" @onchange="e => PrivateAsync(e.Value is true)" /> Private</label>
+        @if (project.AutosaveError is { } failed)
+        {
+            <span class="warning-text" role="status">@failed <button type="button" class="btn small" @onclick="SaveAsync">Save now</button></span>
+        }
     </div>
 }
 
@@ -29,6 +34,13 @@
     private Task SaveAsync() => GuardAsync(async () =>
     {
         await Projects.SaveAsync();
+        await Project.RefreshAsync();
+        _ = Notes.SayAsync("Saved");
+    });
+
+    private Task PrivateAsync(bool on) => GuardAsync(async () =>
+    {
+        await Api.PostAsync("/project/private", new { on });
         await Project.RefreshAsync();
     });
 

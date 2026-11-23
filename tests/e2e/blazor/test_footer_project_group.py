@@ -1,5 +1,6 @@
-"""The footer's common marks (the classic appFooter.ts: the version, the zoom, Launch Claude, the credit) and the
-open project's group on the Grids page (the classic startView.ts: Save, Copy to…, Export outline, Close, Autosave)."""
+"""The footer's common marks (the classic appFooter.ts: the version, the zoom, Launch Claude, the credit) and
+the open project's group on the Grids page (the classic startView.ts: Save, Copy to…, Export outline,
+Close, Autosave)."""
 
 from __future__ import annotations
 
@@ -31,6 +32,10 @@ def test_the_footer_zooms_and_the_project_group_saves(browser: Browser, server: 
     expect(page.locator(".note-corner")).to_contain_text("ARCHITECTURE.md")
     group.get_by_role("button", name="Save").click()
     expect(group).not_to_contain_text("●")
+    expect(page.locator(".note-corner")).to_contain_text("Saved")
+    group.get_by_label("Private").check()
+    expect(group.get_by_label("Private")).to_be_checked()
+    assert call(server, "GET", "/project")["project"]["private"] is True
     group.get_by_label("Autosave").uncheck()
     assert call(server, "GET", "/project")["project"]["autosave"] is False
     group.get_by_role("button", name="Close").click()

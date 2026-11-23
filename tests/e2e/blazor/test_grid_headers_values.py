@@ -80,13 +80,23 @@ def test_a_cells_value_and_the_analyze_sends(browser: Browser, server: dict[str,
     profile.get_by_role("button", name="Send to Analyze").click()
     expect(page.locator(".note-corner")).to_contain_text("On the Analyze board")
     cards = call(server, "GET", f"/grids/{grid}/cards")
-    assert any("Profile of status" in str(c) for c in (cards.get("cards", cards) if isinstance(cards, dict) else cards))
+    assert any(
+        "Profile of status" in str(c)
+        for c in (cards.get("cards", cards) if isinstance(cards, dict) else cards)
+    )
     page.close()
 
 
-def test_the_steps_panel_previews_and_undo_brings_a_step_back(browser: Browser, server: dict[str, Any]) -> None:
+def test_the_steps_panel_previews_and_undo_brings_a_step_back(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     grid = orders(server)
-    call(server, "POST", f"/grids/{grid}/step-ops", {"op": "add", "step": {"kind": "limit", "params": {"n": 10}}})
+    call(
+        server,
+        "POST",
+        f"/grids/{grid}/step-ops",
+        {"op": "add", "step": {"kind": "limit", "params": {"n": 10}}},
+    )
     page = open_page(browser, server, f"grids?grid={grid}")
     strip = page.locator(".steps-strip")
     expect(strip).to_contain_text("Keep the first 10 rows")
@@ -126,7 +136,9 @@ def test_the_key_finder_finds_as_it_opens(browser: Browser, server: dict[str, An
     expect(dialog.locator(".kf-sample")).to_contain_text("shared")
     row.get_by_role("button", name="Add as relationship").click()
     expect(row.get_by_role("button", name="Add as relationship")).to_be_disabled()
-    assert any(r["from_columns"] == ["customer_id"] for r in call(server, "GET", "/relationships")["relationships"])
+    assert any(
+        r["from_columns"] == ["customer_id"] for r in call(server, "GET", "/relationships")["relationships"]
+    )
     dialog.get_by_role("button", name="Send to Analyze").click()
     expect(page.locator(".note-corner")).to_contain_text("On the Analyze board")
     page.close()

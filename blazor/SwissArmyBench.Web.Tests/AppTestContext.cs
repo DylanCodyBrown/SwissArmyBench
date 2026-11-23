@@ -6,6 +6,7 @@ using Microsoft.JSInterop;
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
 using SwissArmyBench.Web.Api.Projects;
+using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Tests;
@@ -24,6 +25,7 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<ApiClient>();
         Services.AddScoped<AppClient>();
         Services.AddScoped<ProjectsClient>();
+        Services.AddScoped<SettingsClient>();
         Services.AddScoped<LiveUpdates>();
         Services.AddScoped<ProjectState>();
         Services.AddScoped<RailState>();

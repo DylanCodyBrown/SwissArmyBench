@@ -1,5 +1,6 @@
 """The Blazor front end's ERD (Find relationships among the made-up sample store in the Relationships window,
-the Mermaid diagram, a join deleted with Undo), the Catalog's search and the Environment's tables with Open."""
+the Mermaid diagram, a join deleted with Undo), the Catalog's search and the Environment's tables with
+Open."""
 
 from __future__ import annotations
 

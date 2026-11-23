@@ -1,6 +1,6 @@
-"""Tables coming into the Blazor Grids page (the classic openFile.ts, openMenu.ts, renameTable.ts): Open file… by
-a typed path, a pasted table named for the time with its Pasted as box, and the Tables list (open and closed
-tables, Open, Remove asked first, the Python sessions)."""
+"""Tables coming into the Blazor Grids page (the classic openFile.ts, openMenu.ts, renameTable.ts): Open file…
+by a typed path, a pasted table named for the time with its Pasted as box, and the Tables list (open and
+closed tables, Open, Remove asked first, the Python sessions)."""
 
 from __future__ import annotations
 

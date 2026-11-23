@@ -1,6 +1,6 @@
-"""A table read from another connection on the Blazor Grids page (the classic swapConnection.ts): the Table row's
-Connection: name opens the chooser, another connection reads the table with its steps kept, the note's Undo puts it
-back. Two made-up DuckDB files, each with the same table."""
+"""A table read from another connection on the Blazor Grids page (the classic swapConnection.ts): the Table
+row's Connection: name opens the chooser, another connection reads the table with its steps kept, the
+note's Undo puts it back. Two made-up DuckDB files, each with the same table."""
 
 from __future__ import annotations
 
@@ -15,7 +15,11 @@ from tests.e2e.blazor.conftest import open_page
 
 def made_up_shop(path: Path, rows: int) -> Path:
     with duckdb.connect(str(path)) as db:
-        db.execute(f"CREATE TABLE ledger AS SELECT i AS entry_id, round(i * 1.5, 2) AS amount FROM range(1, {rows + 1}) t(i)")
+        db.execute(
+            "CREATE TABLE ledger AS SELECT i AS entry_id, round(i * 1.5, 2) AS amount "
+            "FROM range(1, ? + 1) t(i)",
+            [rows],
+        )
     return path
 
 

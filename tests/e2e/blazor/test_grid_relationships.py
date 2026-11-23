@@ -1,6 +1,6 @@
-"""The Relationships window from the Blazor Grids ribbon (the classic relationshipsDialog.ts) on the made-up sample
-store: Find relationships, the joins in use managed (filter, select, Run off, Kind, Delete selected, Undo), Save as
-a set…, the saved set's Check and Apply, Export."""
+"""The Relationships window from the Blazor Grids ribbon (the classic relationshipsDialog.ts) on the made-up
+sample store: Find relationships, the joins in use managed (filter, select, Run off, Kind, Delete selected,
+Undo), Save as a set…, the saved set's Check and Apply, Export."""
 
 from __future__ import annotations
 

@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
+
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Grids;
 
@@ -322,4 +325,45 @@ public partial class GridsPage
     }
 
     private void Say(string words) => _ = Notes.SayAsync(words);
+
+    private async Task ClearStepsAsync()
+    {
+        if (_info is not { } info)
+        {
+            return;
+        }
+        var count = info.Steps.Count;
+        await ChangedAsync(() => Grids.SaveStepsAsync(info.Grid, []));
+        UndoNote(count == 1 ? "Cleared the step" : $"Cleared {count} steps");
+    }
+
+    /// <summary>Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z: undo and redo the grid's steps, unless a box or a dialog has the
+    /// keys.</summary>
+    private async Task PageKeyAsync(KeyboardEventArgs e)
+    {
+        if (!(e.CtrlKey || e.MetaKey) || e.AltKey || _info is null || _dialog is not null || _editor is not null)
+        {
+            return;
+        }
+        var key = e.Key.ToLowerInvariant();
+        if (key == "s" && !e.ShiftKey)
+        {
+            await Api.PostAsync("/project/save");
+            return;
+        }
+        if (await Js.InvokeAsync<bool>("sab.typing"))
+        {
+            return;
+        }
+        if (key == "y" || (key == "z" && e.ShiftKey))
+        {
+            await RedoAsync();
+        }
+        else if (key == "z")
+        {
+            await UndoAsync();
+        }
+    }
+
+    private Task RedoAsync() => ChangedAsync(() => Grids.RedoAsync(_active!));
 }

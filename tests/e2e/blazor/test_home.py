@@ -43,8 +43,8 @@ def test_new_project_from_the_dialog_then_its_card(browser: Browser, server: dic
 
 
 def test_open_a_file_opens_it_as_a_grid(browser: Browser, server: dict[str, Any]) -> None:
-    """Open a file… asks the server's chooser in its file mode (no system dialog in a test: the app's own box takes
-    the path), then the file opens on the Grids page."""
+    """Open a file… asks the server's chooser in its file mode (no system dialog in a test: the app's own box
+    takes the path), then the file opens on the Grids page."""
     made_up = server["tmp"] / "made_up_targets_home.csv"
     made_up.write_text("region,target\nNorth,10\nSouth,20\n", encoding="utf-8")
     page = open_page(browser, server, "")

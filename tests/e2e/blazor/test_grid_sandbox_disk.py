@@ -1,6 +1,6 @@
 """A sandbox table's grid and a file changed on disk on the Blazor Grids page (the classic sandboxGrid.ts and
-fileChanged.ts): the sandbox bar with its designation, a cell edited in place, Add row, Delete rows and Reset; a
-table read from a file that changed on disk, its tab's dot and its pane's Reload and Not now."""
+fileChanged.ts): the sandbox bar with its designation, a cell edited in place, Add row, Delete rows and
+Reset; a table read from a file that changed on disk, its tab's dot and its pane's Reload and Not now."""
 
 from __future__ import annotations
 
@@ -16,7 +16,11 @@ def test_a_sandbox_grid_edits_adds_deletes_and_resets(browser: Browser, server: 
     call(server, "POST", "/project/new", {"name": "made_up_sandbox_shop"})
     made = call(server, "POST", "/sandbox/tables/variant", {"from": "grid", "table": "products"})
     call(server, "POST", "/sandbox/tables/open", {"table": made["added"]})
-    grid = next(g["grid"] for g in call(server, "GET", "/grids")["grids"] if g["dataset"] == f"sandbox_{made['added']}")
+    grid = next(
+        g["grid"]
+        for g in call(server, "GET", "/grids")["grids"]
+        if g["dataset"] == f"sandbox_{made['added']}"
+    )
     page = open_page(browser, server, f"grids?grid={grid}")
     bar = page.locator(".sandbox-bar")
     expect(bar).to_contain_text("products · sandbox")
@@ -53,7 +57,9 @@ def test_a_file_changed_on_disk_offers_reload(browser: Browser, server: dict[str
     made_up = server["tmp"] / "made_up_targets.csv"
     made_up.write_text("region,target\nNorth,10\n", encoding="utf-8")
     call(server, "POST", "/datasets/made_up_targets/load", {"path": str(made_up)})
-    grid = next(g["grid"] for g in call(server, "GET", "/grids")["grids"] if g["dataset"] == "made_up_targets")
+    grid = next(
+        g["grid"] for g in call(server, "GET", "/grids")["grids"] if g["dataset"] == "made_up_targets"
+    )
     page = open_page(browser, server, f"grids?grid={grid}")
     expect(page.locator(".status-rows")).to_contain_text("of 1")
     # The server looks at a watched file every few seconds: its first look keeps the file as it was read.

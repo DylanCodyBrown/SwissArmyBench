@@ -25,6 +25,22 @@ public sealed class GridStatus
         Changed?.Invoke();
     }
 
+    /// <summary>The data budget's words while it is past the warning line ("2.6 GiB of 3.0 GiB of data"), else null;
+    /// and the share used (the meter's width).</summary>
+    public string? Budget { get; private set; }
+
+    public int BudgetShare { get; private set; }
+
+    public void SetBudget(string? words, int share)
+    {
+        if (words == Budget && share == BudgetShare)
+        {
+            return;
+        }
+        (Budget, BudgetShare) = (words, share);
+        Changed?.Invoke();
+    }
+
     public void SetRows(string? rows)
     {
         if (rows == Rows)

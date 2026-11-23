@@ -1,7 +1,8 @@
 """The Blazor Grids page's tabs, split and compare (the classic panes.ts, compare.ts, compareDialog.ts and the
-ribbon's Compare row) on the made-up sample store: a tab's menu, Compare with… putting two grids side by side, the
-key picker (the Key Finder's pairs, the suggested key ticked), the grids lined up and scrolling together, the modes,
-Stop compare and Close this side; a tab closed and reopened with Undo; a tab renamed in place."""
+ribbon's Compare row) on the made-up sample store: a tab's menu, Compare with… putting two grids side by
+side, the key picker (the Key Finder's pairs, the suggested key ticked), the grids lined up and scrolling
+together, the modes, Stop compare and Close this side; a tab closed and reopened with Undo; a tab renamed
+in place."""
 
 from __future__ import annotations
 

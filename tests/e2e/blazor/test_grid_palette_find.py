@@ -1,5 +1,5 @@
-"""The command palette (Ctrl+Shift+P), the keyboard shortcuts (?) and Find data (Ctrl+K) on the Blazor Grids page
-(the classic workbenchCommands.ts, gridCommands.ts and dataExplorer.ts), on the made-up sample store."""
+"""The command palette (Ctrl+Shift+P), the keyboard shortcuts (?) and Find data (Ctrl+K) on the Blazor Grids
+page (the classic workbenchCommands.ts, gridCommands.ts and dataExplorer.ts), on the made-up sample store."""
 
 from __future__ import annotations
 

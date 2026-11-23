@@ -35,9 +35,12 @@ public partial class GridsPage
     {
         try
         {
+            var listing = await Api.GetAsync<DatasetsAnswer>("/datasets");
+            Status.SetBudget(listing.Budget.Warn ? $"{listing.Budget.Used} of {listing.Budget.Total} of data" : null,
+                listing.Budget.TotalBytes > 0 ? (int)Math.Round(100.0 * listing.Budget.UsedBytes / listing.Budget.TotalBytes) : 0);
             if (!_diskMarksRead)
             {
-                _changedOnDisk = (await Api.GetAsync<DatasetsAnswer>("/datasets")).Datasets.Where(d => d.ChangedOnDisk).Select(d => d.Name).ToHashSet();
+                _changedOnDisk = listing.Datasets.Where(d => d.ChangedOnDisk).Select(d => d.Name).ToHashSet();
                 _diskMarksRead = true;
             }
             _sandbox = _tabs.Any(t => t.Dataset.StartsWith(SandboxPrefix, StringComparison.Ordinal))
