@@ -6,4 +6,9 @@ namespace SwissArmyBench.Web.Api;
 /// <param name="Command">install: the command that installs the missing packages.</param>
 /// <param name="Name">set_variable: the variable's name.</param>
 /// <param name="Connection">sign_in and open_settings: the connection's name.</param>
-public sealed record Fix(string Label, string Action, string? Command = null, string? Name = null, string? Connection = null);
+public sealed record Fix(
+    string Label,
+    string Action,
+    string? Command = null,
+    string? Name = null,
+    string? Connection = null);

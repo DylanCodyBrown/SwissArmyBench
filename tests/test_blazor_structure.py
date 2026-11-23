@@ -118,3 +118,18 @@ def test_sizes_stay_within_the_limits() -> None:
     )
     fitted = sorted(set(TOO_BIG) - set(over))
     assert not fitted, f"These fit now: take them out of TOO_BIG: {fitted}"
+
+
+def test_wide_records_list_one_parameter_a_line() -> None:
+    """A record of the server's answers reads as a list (the owner reads this code): a positional record whose
+    one line would pass 118 characters puts each parameter on a line of its own."""
+    wide = [
+        f"{path.relative_to(WEB)}:{number}"
+        for path in sources()
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if line.startswith("public sealed record ")
+        and "(" in line
+        and line.rstrip().endswith((");", ")"))
+        and len(line) > 118
+    ]
+    assert not wide, wide

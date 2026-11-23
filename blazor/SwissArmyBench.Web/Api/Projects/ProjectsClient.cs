@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace SwissArmyBench.Web.Api.Projects;
 
 /// <summary>Projects: the Project Explorer (routes_project_explorer.py) and the open project (routes_sab_projects.py).</summary>
@@ -18,31 +16,31 @@ public sealed class ProjectsClient
         return _api.GetAsync<ExplorerAnswer>(address);
     }
 
-    public Task<JsonElement> SortAsync(string by, bool descending) => _api.PostAsync<JsonElement>("/projects/sort", new { by, descending });
+    public Task SortAsync(string by, bool descending) => _api.PostAsync("/projects/sort", new { by, descending });
 
     /// <summary>A card moved one place left (-1) or right (1) in the custom order.</summary>
-    public Task<JsonElement> MoveAsync(string path, int by) => _api.PostAsync<JsonElement>("/projects/sort", new { move = path, by });
+    public Task MoveAsync(string path, int by) => _api.PostAsync("/projects/sort", new { move = path, by });
 
-    public Task<JsonElement> ExplainedAsync(bool explained) => _api.PostAsync<JsonElement>("/projects/explained", new { explained });
+    public Task ExplainedAsync(bool explained) => _api.PostAsync("/projects/explained", new { explained });
 
-    public Task<JsonElement> RenameAsync(string path, string name) => _api.PostAsync<JsonElement>("/projects/rename", new { path, name });
+    public Task RenameAsync(string path, string name) => _api.PostAsync("/projects/rename", new { path, name });
 
-    public Task<JsonElement> RemoveAsync(string path) => _api.PostAsync<JsonElement>("/projects/remove", new { path });
+    public Task RemoveAsync(string path) => _api.PostAsync("/projects/remove", new { path });
 
-    public Task<JsonElement> LocateAsync(string path, string to) => _api.PostAsync<JsonElement>("/projects/locate", new { path, to });
+    public Task LocateAsync(string path, string to) => _api.PostAsync("/projects/locate", new { path, to });
 
-    public Task<JsonElement> ShowAsync(string path) => _api.PostAsync<JsonElement>("/projects/show", new { path });
+    public Task ShowAsync(string path) => _api.PostAsync("/projects/show", new { path });
 
-    public Task<JsonElement> DeleteAsync(string path, string confirm) => _api.PostAsync<JsonElement>("/projects/delete", new { path, confirm });
+    public Task DeleteAsync(string path, string confirm) => _api.PostAsync("/projects/delete", new { path, confirm });
 
-    public Task<JsonElement> ShareAsync(string path) => _api.PostAsync<JsonElement>("/projects/share", new { path });
+    public Task ShareAsync(string path) => _api.PostAsync("/projects/share", new { path });
 
-    public Task<JsonElement> CopyLocalAsync(string path) => _api.PostAsync<JsonElement>("/projects/copy-local", new { path });
+    public Task CopyLocalAsync(string path) => _api.PostAsync("/projects/copy-local", new { path });
 
     /// <summary>The Local projects folder ("local") or the Shared one ("shared").</summary>
-    public Task<JsonElement> SetFolderAsync(string which, string folder) => _api.PostAsync<JsonElement>("/projects/folder", new { which, folder });
+    public Task SetFolderAsync(string which, string folder) => _api.PostAsync("/projects/folder", new { which, folder });
 
-    public Task<JsonElement> DefaultFolderAsync() => _api.PostAsync<JsonElement>("/projects/folder", new Dictionary<string, object> { ["default"] = true });
+    public Task DefaultFolderAsync() => _api.PostAsync("/projects/folder", new Dictionary<string, object> { ["default"] = true });
 
     public Task<ProjectAnswer> CurrentAsync() => _api.GetAsync<ProjectAnswer>("/project");
 

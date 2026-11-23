@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace SwissArmyBench.Web.Api.Connections;
 
 /// <summary>Connections (routes_connections.py, routes_connection_tables.py, routes_found_connections.py) and the
@@ -30,26 +28,26 @@ public sealed class ConnectionsClient
     /// <summary>Run the form's code, not saved, with the passwords typed into it.</summary>
     public Task<TestAnswer> TestAsync(IReadOnlyDictionary<string, object?> form) => _api.PostAsync<TestAnswer>("/connections/test", form);
 
-    public Task<JsonElement> SaveAsync(IReadOnlyDictionary<string, object?> form) => _api.PostAsync<JsonElement>("/connections", form);
+    public Task SaveAsync(IReadOnlyDictionary<string, object?> form) => _api.PostAsync("/connections", form);
 
-    public Task<JsonElement> ChangeAsync(string name, IReadOnlyDictionary<string, object?> form) =>
-        _api.PutAsync<JsonElement>($"/connections/{ApiClient.Part(name)}", form);
+    public Task ChangeAsync(string name, IReadOnlyDictionary<string, object?> form) =>
+        _api.PutAsync($"/connections/{ApiClient.Part(name)}", form);
 
-    public Task<JsonElement> RemoveAsync(string name) => _api.DeleteAsync<JsonElement>($"/blades/{ApiClient.Part(name)}");
+    public Task RemoveAsync(string name) => _api.DeleteAsync($"/blades/{ApiClient.Part(name)}");
 
     /// <summary>Does it work? Its code run in a child process (a saved connection's Test).</summary>
-    public Task<JsonElement> CheckAsync(string name) => _api.PostAsync<JsonElement>($"/blades/{ApiClient.Part(name)}/test");
+    public Task CheckAsync(string name) => _api.PostAsync($"/blades/{ApiClient.Part(name)}/test");
 
     /// <summary>Its tables listed again (the catalog loaded now).</summary>
-    public Task<JsonElement> RefreshAsync(string name) => _api.PostAsync<JsonElement>($"/blades/{ApiClient.Part(name)}/refresh");
+    public Task RefreshAsync(string name) => _api.PostAsync($"/blades/{ApiClient.Part(name)}/refresh");
 
     /// <summary>A table opened as a grid (Open), its first rows or all of them.</summary>
-    public Task<JsonElement> OpenAsync(string name, TreeTable table) =>
-        _api.PostAsync<JsonElement>($"/connections/{ApiClient.Part(name)}/open", new { database = table.Database, schema = table.Schema, table = table.Table });
+    public Task OpenAsync(string name, TreeTable table) =>
+        _api.PostAsync($"/connections/{ApiClient.Part(name)}/open", new { database = table.Database, schema = table.Schema, table = table.Table });
 
     public Task<FoundList> FindAsync() => _api.PostAsync<FoundList>("/connections/found", new { hints = true });
 
-    public Task<JsonElement> CancelFindAsync() => _api.PostAsync<JsonElement>("/connections/found/cancel");
+    public Task CancelFindAsync() => _api.PostAsync("/connections/found/cancel");
 
     public Task<ImportAnswer> ImportAsync(IReadOnlyList<string> ids) => _api.PostAsync<ImportAnswer>("/connections/found/import", new { ids });
 }

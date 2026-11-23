@@ -128,7 +128,7 @@ public partial class ProjectCardView
         }
     }
 
-    private async Task RunAsync<T>(Func<Task<T>> work)
+    private async Task RunAsync(Func<Task> work)
     {
         _menu = false;
         try

@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace SwissArmyBench.Web.Api.Relationships;
 
 /// <summary>The relationship model and the ERD (routes_relationships.py).</summary>
@@ -20,9 +18,9 @@ public sealed class RelationshipsClient
     public Task<FindAnswer> FindAsync(IReadOnlyList<string> tables) => _api.PostAsync<FindAnswer>("/relationships/find", new { tables });
 
     /// <summary>Joins merged into the current model.</summary>
-    public Task<JsonElement> AddAsync(IReadOnlyList<Join> joins) => _api.PostAsync<JsonElement>("/relationships", new { model = new { relationships = joins } });
+    public Task AddAsync(IReadOnlyList<Join> joins) => _api.PostAsync("/relationships", new { model = new { relationships = joins } });
 
-    public Task<JsonElement> DeleteAsync(IReadOnlyList<Join> joins) => _api.PostAsync<JsonElement>("/relationships/delete", new { joins });
+    public Task DeleteAsync(IReadOnlyList<Join> joins) => _api.PostAsync("/relationships/delete", new { joins });
 
-    public Task<JsonElement> UndoAsync() => _api.PostAsync<JsonElement>("/relationships/undo");
+    public Task UndoAsync() => _api.PostAsync("/relationships/undo");
 }

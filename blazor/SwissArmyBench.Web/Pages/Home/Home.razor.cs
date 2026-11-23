@@ -220,7 +220,7 @@ public partial class Home : IDisposable
         }
     }
 
-    private async Task GuardAsync<T>(Func<Task<T>> work)
+    private async Task GuardAsync(Func<Task> work)
     {
         try
         {

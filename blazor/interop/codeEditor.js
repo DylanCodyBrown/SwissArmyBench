@@ -253,15 +253,22 @@ export function create(host, dotnet, options) {
     editor.trigger("sab", "hideSuggestWidget", {});
     dotnet.invokeMethodAsync("Key", name, editor.getValue()).catch(() => {});
   };
+  // Each key as an action of this editor (addAction is bound to its own editor; addCommand would run the last
+  // editor's handler whichever editor has the focus, a known Monaco behaviour with several editors on a page).
   const K = monaco.KeyMod;
   const C = monaco.KeyCode;
-  editor.addCommand(K.Shift | C.Enter, key("run"));
-  editor.addCommand(K.CtrlCmd | C.Enter, key("runHere"));
-  editor.addCommand(K.Alt | C.Enter, key("runInsert"));
-  editor.addCommand(K.CtrlCmd | C.KeyS, key("save"));
-  editor.addCommand(K.CtrlCmd | K.Shift | C.KeyS, key("saveAs"));
-  editor.addCommand(C.F5, key("runFile"));
-  editor.addCommand(K.Shift | C.Escape, key("escape"));
+  const keys = [
+    ["run", K.Shift | C.Enter],
+    ["runHere", K.CtrlCmd | C.Enter],
+    ["runInsert", K.Alt | C.Enter],
+    ["save", K.CtrlCmd | C.KeyS],
+    ["saveAs", K.CtrlCmd | K.Shift | C.KeyS],
+    ["runFile", C.F5],
+    ["escape", K.Shift | C.Escape],
+  ];
+  for (const [name, binding] of keys) {
+    editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
+  }
 
   return {
     getValue: () => editor.getValue(),

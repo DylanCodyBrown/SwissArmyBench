@@ -41,6 +41,12 @@ public sealed class ApiClient
     /// <summary>An answer that is plain text (a file's contents, a page), not JSON.</summary>
     public Task<string> GetTextAsync(string path, CancellationToken cancel = default) => SendTextAsync(HttpMethod.Get, path, null, cancel);
 
+    /// <summary>A PUT whose answer the page does not read.</summary>
+    public Task PutAsync(string path, object body, CancellationToken cancel = default) => SendTextAsync(HttpMethod.Put, path, body, cancel);
+
+    /// <summary>A DELETE whose answer the page does not read.</summary>
+    public Task DeleteAsync(string path, CancellationToken cancel = default) => SendTextAsync(HttpMethod.Delete, path, null, cancel);
+
     /// <summary>A POST whose answer the page does not read (it waits for the notice, or reads again).</summary>
     public Task PostAsync(string path, object? body = null, CancellationToken cancel = default) =>
         SendTextAsync(HttpMethod.Post, path, body ?? new Dictionary<string, object>(), cancel);

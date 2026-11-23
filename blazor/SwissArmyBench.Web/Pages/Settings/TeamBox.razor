@@ -117,7 +117,7 @@
         }
     }
 
-    private async Task RunAsync<T>(Func<Task<T>> work, string? said)
+    private async Task RunAsync(Func<Task> work, string? said)
     {
         try
         {

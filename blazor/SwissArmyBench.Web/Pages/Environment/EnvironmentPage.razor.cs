@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
@@ -102,9 +100,7 @@ public partial class EnvironmentPage : IDisposable
         await RunAsync(async () =>
         {
             var opened = await Environment.OpenAsync(item.Kind, item.Name);
-            // {"link": {"to": "grid", "grid": id}}: the grid that shows it.
-            var link = opened.TryGetProperty("link", out var found) ? found : default;
-            var grid = link.ValueKind == JsonValueKind.Object && link.TryGetProperty("grid", out var id) ? id.GetString() : null;
+            var grid = opened.Link?.Grid;
             Nav.NavigateTo(grid is null ? "grids" : $"grids?grid={Uri.EscapeDataString(grid)}");
         });
     }

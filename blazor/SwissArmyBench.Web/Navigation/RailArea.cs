@@ -8,4 +8,11 @@ namespace SwissArmyBench.Web.Navigation;
 /// <param name="Classic">The classic front end's address for the same place.</param>
 /// <param name="Kind">notebook or script: the area wears that kind's colour.</param>
 /// <param name="Keys">A shortcut shown in its tip.</param>
-public sealed record RailArea(string Area, string Name, string Icon, string Route, string Classic, string? Kind = null, string? Keys = null);
+public sealed record RailArea(
+    string Area,
+    string Name,
+    string Icon,
+    string Route,
+    string Classic,
+    string? Kind = null,
+    string? Keys = null);

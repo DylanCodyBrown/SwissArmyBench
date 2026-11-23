@@ -5,4 +5,8 @@ namespace SwissArmyBench.Web.Api;
 /// <param name="Where">The connection, table, file or cell, by name.</param>
 /// <param name="Fixes">The fixes the server knows, as buttons.</param>
 /// <param name="Details">The source's own words, folded behind Details.</param>
-public sealed record Refusal(string Error, string? Where = null, IReadOnlyList<Fix>? Fixes = null, string? Details = null);
+public sealed record Refusal(
+    string Error,
+    string? Where = null,
+    IReadOnlyList<Fix>? Fixes = null,
+    string? Details = null);
