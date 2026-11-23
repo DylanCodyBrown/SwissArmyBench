@@ -11,11 +11,11 @@
             {
                 var doc = Documents[key];
                 var on = key == Group.Active;
-                <div class="tab-item wb-tab @(doc.IsNotebook ? "mark-notebook" : "mark-script") @(on ? "active" : string.Empty)" role="tab"
+                <div class="tab-item wb-tab @(doc.IsBlade ? "mark-plain" : doc.IsNotebook ? "mark-notebook" : "mark-script") @(on ? "active" : string.Empty)" role="tab"
                      aria-selected="@(on ? "true" : "false")" tabindex="@(on ? 0 : -1)" data-key="@key" title="@($"{doc.KindLabel}: {doc.Path ?? doc.Title}")"
                      @onclick="() => OnShow.InvokeAsync(key)" @onmouseup="e => AuxAsync(e, key)"
                      @oncontextmenu="e => OnTabMenu.InvokeAsync((key, e))" @oncontextmenu:preventDefault="true">
-                    <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsNotebook ? "notebook" : "code")" /></span>
+                    <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsBlade ? "bolt" : doc.IsNotebook ? "notebook" : "code")" /></span>
                     <span class="wb-tab-dirty" title="Unsaved changes">@(doc.Dirty ? "●" : string.Empty)</span>
                     <span class="tab-label">@doc.Title</span>
                     <button type="button" class="tab-close" aria-label="@($"Close {doc.Title}")" title="@($"Close {doc.Title}")"

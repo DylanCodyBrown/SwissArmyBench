@@ -57,7 +57,7 @@
         }
         @if (_showBlades)
         {
-            <BladesPane OnInsert="InsertAsync" />
+            <BladesPane OnInsert="InsertAsync" OnOpen="n => OpenBladeAsync(n)" OnMade="n => OpenBladeAsync(n, fresh: true)" />
         }
     </div>
     <footer class="wb-status" aria-label="Python session">
@@ -157,7 +157,12 @@
                     }
                 </div>
             }
-            @if (doc.IsNotebook)
+            @if (doc.Blade is { } blade)
+            {
+                <SwissArmyBench.Web.Pages.Workbench.Blades.BladeIde @key="blade" @ref="doc.BladeIde" Name="@blade" Fresh="doc.Fresh"
+                    OnDirty="d => doc.Dirty = d" OnRenamed="n => BladeRenamedAsync(doc, n)" OnRemoved="() => CloseAsync(doc.Key, force: true)" />
+            }
+            else if (doc.IsNotebook)
             {
                 <NotebookView @key="doc.Version" @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" />
@@ -172,7 +177,11 @@
 
     private RenderFragment<OpenDocument> ControlsFragment => doc =>
         @<text>
-            @if (doc.IsNotebook)
+            @if (doc.IsBlade)
+            {
+                <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, TabMenu(doc.Key))"><Icon Name="more" /></button>
+            }
+            else if (doc.IsNotebook)
             {
                 <button type="button" class="btn small line wb-add-cell" aria-label="Add cell" title="Add cell" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, CellMenu(doc))">
                     <Icon Name="plus" /> <span class="btn-label">Cell</span> <Icon Name="down" />
@@ -184,9 +193,12 @@
                 <button type="button" class="btn small primary wb-run-file" title="Run file (F5)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
                 <button type="button" class="btn small ghost icon wb-debug-start" aria-label="Start debugging" title="Start debugging (Ctrl+Shift+D)" @onclick="() => DebugAsync(doc)"><Icon Name="bug" /></button>
             }
+            @if (!doc.IsBlade)
+            {
             <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, DocumentMenu(doc))"><Icon Name="more" /></button>
             <button type="button" class="btn small ghost icon wb-full-toggle" aria-label="@(_full ? "Leave full screen" : "Full screen")" title="@(_full ? "Leave full screen (Escape)" : "Full screen (F11)")"
                     aria-pressed="@(_full ? "true" : "false")" @onclick="FullScreenAsync"><Icon Name="@(_full ? "restore" : "max")" /></button>
+            }
         </text>;
 }

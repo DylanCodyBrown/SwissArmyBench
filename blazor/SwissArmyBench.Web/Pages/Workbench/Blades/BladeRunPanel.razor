@@ -1,0 +1,114 @@
+@* The run panel under the code (the classic codeIde.ts runPanel, design principle 8.14): Output (what it printed),
+   Result (a table's first rows with Open as grid, a value, or the error panel), Problems (the lint's, each a click to
+   its line; No problems.), and Fold the panel. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Blades
+@inject BladesClient Blades
+@inject NavigationManager Nav
+
+<section class="ide-run" aria-label="Run">
+    <div class="ide-run-tabs" role="tablist" aria-label="Run">
+        @foreach (var (id, words) in new[] { ("output", "Output"), ("result", "Result"), ("problems", "Problems") })
+        {
+            <button type="button" role="tab" class="ide-run-tab @(Tab == id ? "active" : string.Empty)" aria-selected="@(Tab == id ? "true" : "false")" @onclick="() => OnTab.InvokeAsync(id)">
+                @words@(id == "problems" && Problems.Count > 0 ? $" {Problems.Count}" : string.Empty)
+            </button>
+        }
+        <span class="status-spacer"></span>
+        @if (Run is { } run)
+        {
+            <span class="hint">@(run.Ok ? "Ran" : "Failed") in @run.Seconds.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture) s</span>
+        }
+        <button type="button" class="btn small ghost icon" aria-label="Fold the panel" title="Fold the panel" @onclick="OnFold"><Icon Name="down" /></button>
+    </div>
+    <div class="ide-run-body">
+        @switch (Tab)
+        {
+            case "output":
+                <pre class="wb-text" role="log">@Printed</pre>
+                break;
+            case "problems" when Problems.Count == 0:
+                <p class="hint">No problems.</p>
+                break;
+            case "problems":
+                <ul class="ide-problems">
+                    @foreach (var p in Problems)
+                    {
+                        <li><button type="button" class="link" @onclick="() => OnGoTo.InvokeAsync(p.Line)">@($"{p.Source}{(p.Code is { } c ? $" {c}" : string.Empty)}, line {p.Line}, column {p.Col ?? 1}: {p.Message}")</button></li>
+                    }
+                </ul>
+                break;
+            default:
+                @if (Run is { Ok: false, ErrorDetail: { } detail })
+                {
+                    <SwissArmyBench.Web.Pages.Workbench.ErrorPanel Detail="detail" Document="@Name" />
+                }
+                else if (Table is { } table)
+                {
+                    <p class="hint">It made a table: @table.Total row@(table.Total == 1 ? string.Empty : "s")@(table.Rows.Count < table.Total ? $" (the first {table.Rows.Count} shown)" : string.Empty).
+                        <button type="button" class="btn small" @onclick="OpenAsGridAsync">Open as grid</button></p>
+                    <div class="ide-result-table">
+                        <table class="grid-preview">
+                            <thead><tr>@foreach (var c in table.Columns) { <th>@c</th> }</tr></thead>
+                            <tbody>
+                                @foreach (var row in table.Rows)
+                                {
+                                    <tr>@foreach (var cell in row) { <td>@cell</td> }</tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else if (Run?.Result is { } value)
+                {
+                    <p class="hint">It returned @(value.TryGetProperty("type", out var type) ? type.GetString() : "a value")</p>
+                    <pre class="wb-text">@(value.TryGetProperty("repr", out var repr) ? repr.GetString() : value.GetRawText())</pre>
+                }
+                else
+                {
+                    <p class="hint">Nothing ran yet.</p>
+                }
+                break;
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public BladeRun? Run { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<BladeProblem> Problems { get; set; } = [];
+
+    [Parameter]
+    public string Tab { get; set; } = "output";
+
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnTab { get; set; }
+
+    [Parameter]
+    public EventCallback OnFold { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnGoTo { get; set; }
+
+    private string Printed => Run?.Output is { ValueKind: JsonValueKind.Array } output
+        ? string.Concat(output.EnumerateArray().Select(o => o.TryGetProperty("text", out var t) ? t.GetString() : string.Empty))
+        : string.Empty;
+
+    private (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string>> Rows, long Total)? Table =>
+        Run?.Result is { ValueKind: JsonValueKind.Object } r && r.TryGetProperty("kind", out var k) && k.GetString() == "table"
+            ? (r.GetProperty("columns").EnumerateArray().Select(c => c.ToString()).ToList(),
+               r.GetProperty("rows").EnumerateArray().Select(row => (IReadOnlyList<string>)row.EnumerateArray().Select(v => v.ToString()).ToList()).ToList(),
+               r.TryGetProperty("total", out var t) && t.TryGetInt64(out var n) ? n : 0)
+            : null;
+
+    private async Task OpenAsGridAsync()
+    {
+        await Blades.OpenResultAsync(Name);
+        Nav.NavigateTo("grids");
+    }
+}

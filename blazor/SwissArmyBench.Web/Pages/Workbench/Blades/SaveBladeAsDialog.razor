@@ -1,0 +1,69 @@
+@* Save as… (the classic bladeEditor.ts saveBladeAs): a new name, checked live, then the blade copied under it with
+   the code as it is on screen (Enter saves). *@
+@using SwissArmyBench.Web.Api.Blades
+@inject BladesClient Blades
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<AppDialog Title="Save as" OnClose="OnClose">
+    <ChildContent>
+        <label class="field"><span>New name</span>
+            <input type="text" aria-label="New name" maxlength="64" spellcheck="false" @bind="_name" @bind:event="oninput" @bind:after="CheckAsync" @onkeydown="KeyAsync" />
+        </label>
+        <div class="ide-prop-check @(_said.Length > 0 ? "error" : string.Empty)" role="status">@_said</div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="SaveAsync">Save</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _name = string.Empty;
+    private string _said = string.Empty;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The code as it is on screen now.</summary>
+    [Parameter, EditorRequired]
+    public Func<Task<string>> Code { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnSaved { get; set; }
+
+    protected override void OnInitialized() => _name = $"{Name} copy";
+
+    private async Task CheckAsync()
+    {
+        try
+        {
+            var check = await Blades.NameCheckAsync(_name.Trim());
+            _said = check.Available ? string.Empty : check.Said;
+        }
+        catch (ApiException)
+        {
+            _said = string.Empty; // the Save says why, if it cannot
+        }
+    }
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? SaveAsync() : Task.CompletedTask;
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var copied = await Blades.CopyAsync(Name, _name.Trim(), await Code());
+            await Notes.SayAsync($"Saved as {copied.Name}.");
+            await OnSaved.InvokeAsync(copied.Name);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

@@ -63,6 +63,7 @@ public static class Program
         services.AddScoped<ScriptIdeClient>();
         services.AddScoped<BoardClient>();
         services.AddScoped<DebugClient>();
+        services.AddScoped<SwissArmyBench.Web.Api.Blades.BladesClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();

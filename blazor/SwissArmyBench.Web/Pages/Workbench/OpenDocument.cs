@@ -20,6 +20,16 @@ public sealed class OpenDocument
 
     public bool IsNotebook { get; }
 
+    /// <summary>A blade's tab (its IDE): the blade's name; null for a notebook or a script.</summary>
+    public string? Blade { get; set; }
+
+    public bool IsBlade => Blade is not null;
+
+    /// <summary>Opened just made (New blade): its Properties open.</summary>
+    public bool Fresh { get; init; }
+
+    public SwissArmyBench.Web.Pages.Workbench.Blades.BladeIde? BladeIde { get; set; }
+
     /// <summary>Where it is saved (null until Save as).</summary>
     public string? Path { get; set; }
 
@@ -57,10 +67,10 @@ public sealed class OpenDocument
 
     public string KindWord => IsNotebook ? "notebook" : "script";
 
-    public string Title => Path is { } path
+    public string Title => Blade ?? (Path is { } path
         ? System.IO.Path.GetFileName(path)
-        : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}";
+        : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsNotebook ? "Notebook" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : IsNotebook ? "Notebook" : "Script";
 }

@@ -1,13 +1,27 @@
-@* The Blades pane (the classic catalogRail.ts on the Scripts page): your blades and the built-in starters by family,
-   searched by name; Insert puts a blade's line (`orders = sab.blade("Orders")`) into the code at the cursor. A
-   blade's own IDE is the classic page's for now. Logic in BladesPane.razor.cs. *@
+@* The Blades pane (the classic catalogRail.ts on the Scripts page): your blades (pinned first) and the built-in
+   starters by family, searched by name, words or a tag; a blade's name opens its IDE as a tab; Pin, Copy the
+   sab.blade line, Insert (its line at the cursor), Copy as your own for a starter; New blade, and the Blades menu
+   (Import blades…, Import from a project…, Export every blade, Blade folders…). Logic in BladesPane.razor.cs. *@
+
+@implements IDisposable
 
 <aside class="side-pane blades-pane" aria-label="Blades">
     <div class="side-pane-head">
-        <strong>Blades</strong>
-        <input type="search" class="side-pane-search" placeholder="Search blades" aria-label="Search blades" @bind="_search" @bind:event="oninput" />
+        <strong>Connections and blades</strong>
+        <span class="wb-grow"></span>
+        <button type="button" class="btn ghost icon small" aria-label="New blade" title="New blade" @onclick="() => _new = true"><Icon Name="plus" /></button>
+        <button type="button" class="btn ghost icon small" aria-label="Blades menu" title="Blades menu" aria-haspopup="menu" @onclick="ShowMenu"><Icon Name="more" /></button>
     </div>
-    <ErrorNote Error="_error" OnRetry="LoadAsync" />
+    <input type="search" class="side-pane-search" placeholder="Search blades" aria-label="Search blades" @bind="_search" @bind:event="oninput" />
+    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+    @if (_mine.Count == 0 && _starters.Count == 0 && _loaded)
+    {
+        <p class="hint">No blades</p>
+    }
+    else if (!Groups.Any() && _search.Length > 0)
+    {
+        <p class="hint">Nothing matches.</p>
+    }
     @foreach (var group in Groups)
     {
         <details class="files-group" open="@(group.Open)">
@@ -15,13 +29,44 @@
             <ul class="files-list" role="list">
                 @foreach (var blade in group.Blades)
                 {
+                    var starter = blade.Source == "starter" || blade.Pack is not null;
                     <li class="blade-item" title="@blade.Description">
-                        <span class="blade-name">@blade.Name</span>
-                        <button type="button" class="btn small ghost" aria-label="@($"Insert {blade.Name}")" @onclick="() => OnInsert.InvokeAsync(LineOf(blade))"><Icon Name="plus" /> Insert</button>
-                        <a class="btn small ghost" href="@($"/scripts?blade={Uri.EscapeDataString(blade.Name)}")" aria-label="@($"Open {blade.Name} in the classic front end")"><Icon Name="popout" /></a>
+                        <button type="button" class="link blade-name" aria-label="@($"Open {blade.Name}")" @onclick="() => OnOpen.InvokeAsync(blade.Name)">@blade.Name</button>
+                        @foreach (var tag in blade.Tags ?? [])
+                        {
+                            <button type="button" class="chip blade-tag" title="@($"Blades tagged {tag}")" @onclick="() => _search = tag">@tag</button>
+                        }
+                        <span class="blade-actions">
+                            @if (starter)
+                            {
+                                <button type="button" class="btn small ghost icon" aria-label="Copy as your own" title="Copy as your own" @onclick="() => CopyAsOwnAsync(blade)"><Icon Name="copy" /></button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn small ghost icon" aria-label="@(blade.Pinned ? "Unpin" : "Pin")" title="@(blade.Pinned ? "Unpin" : "Pin")" aria-pressed="@(blade.Pinned ? "true" : "false")" @onclick="() => PinAsync(blade)"><Icon Name="pin" /></button>
+                            }
+                            <button type="button" class="btn small ghost icon" aria-label="@(blade.Connection is null ? "Copy the sab.blade line" : "Copy the sab.connection line")" title="@(blade.Connection is null ? "Copy the sab.blade line" : "Copy the sab.connection line")" @onclick="() => CopyLineAsync(blade)"><Icon Name="code" /></button>
+                            <button type="button" class="btn small ghost" aria-label="@($"Insert {blade.Name}")" @onclick="() => OnInsert.InvokeAsync(LineOf(blade))"><Icon Name="plus" /> Insert</button>
+                        </span>
                     </li>
                 }
             </ul>
         </details>
     }
 </aside>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="Blades menu" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_new)
+{
+    <SwissArmyBench.Web.Pages.Workbench.Blades.NewBladeDialog OnClose="() => _new = false" OnMade="MadeAsync" />
+}
+@if (_importing)
+{
+    <SwissArmyBench.Web.Pages.Workbench.Blades.ImportBladesDialog OnClose="() => _importing = false" OnImported="ImportedAsync" />
+}
+@if (_folders)
+{
+    <SwissArmyBench.Web.Pages.Workbench.Blades.BladeFoldersDialog OnClose="() => _folders = false" OnSaved="LoadAsync" />
+}

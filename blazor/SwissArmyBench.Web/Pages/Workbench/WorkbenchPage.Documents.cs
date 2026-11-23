@@ -72,19 +72,21 @@ public partial class WorkbenchPage
     private async Task FollowAddressAsync()
     {
         var path = Front?.Path;
-        _shownFor = $"{path}|{path is null && Front is not null}";
-        Nav.NavigateTo(path is null ? (Front is null ? Page : $"{Page}?new=1") : $"{Page}?path={Uri.EscapeDataString(path)}", replace: true);
+        _shownFor = $"{path}|{path is null && Front is { IsBlade: false }}|{Front?.Blade}";
+        Nav.NavigateTo(BladeAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new=1") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
         await Js.InvokeVoidAsync("sab.setTitle", Title);
     }
 
     /// <summary>A tab closed; one with unsaved changes is asked about first.</summary>
-    private async Task CloseAsync(int key)
+    private async Task CloseAsync(int key) => await CloseAsync(key, force: false);
+
+    private async Task CloseAsync(int key, bool force)
     {
         if (!_byKey.TryGetValue(key, out var doc))
         {
             return;
         }
-        if (doc.Dirty && !await Dialogs.AskYesNoAsync("Close", $"{doc.Title} has changes that are not saved. Close it anyway?", "Close", danger: true))
+        if (!force && doc.Dirty && !await Dialogs.AskYesNoAsync("Close", $"{doc.Title} has changes that are not saved. Close it anyway?", "Close", danger: true))
         {
             return;
         }
@@ -144,7 +146,11 @@ public partial class WorkbenchPage
     /// <summary>The top bar's Save: the document in front, else the open project's .sab/ state.</summary>
     private async Task SaveFrontAsync()
     {
-        if (Front is { } doc)
+        if (Front is { BladeIde: { } blade })
+        {
+            await blade.SaveAsync();
+        }
+        else if (Front is { } doc)
         {
             await SaveAsync(doc);
         }

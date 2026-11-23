@@ -135,14 +135,18 @@ public partial class WorkbenchPage
 
     protected override async Task OnParametersSetAsync()
     {
-        var wanted = $"{Path}|{New}";
+        var wanted = $"{Path}|{New}|{Blade}";
         if (wanted == _shownFor)
         {
             return;
         }
         _shownFor = wanted;
         _wrongPage = null;
-        if (Path is { Length: > 0 } path)
+        if (Blade is { Length: > 0 } blade && !IsNotebooks)
+        {
+            await OpenBladeAsync(blade);
+        }
+        else if (Path is { Length: > 0 } path)
         {
             await OpenPathAsync(path);
         }

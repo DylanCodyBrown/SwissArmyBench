@@ -1,0 +1,167 @@
+@* A blade's Properties (the classic bladeEditor.ts bladeProperties): each header field for its kind (text, words,
+   tags, a choice, a switch; a read-only one as its value or "none"), with its hint; the table's name checked live;
+   its secrets, each saved or not with Forget. Changed fields go with Save (Changes). *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Blades
+@inject BladesClient Blades
+
+<aside class="ide-props" aria-label="Properties">
+    <h3>Properties</h3>
+    @foreach (var field in Header.Fields)
+    {
+        var key = field.Key;
+        @if (field.Type == "readonly" || field.ReadOnly && field.Type != "bool")
+        {
+            <div class="ide-prop-read" data-key="@key">
+                <span class="ide-prop-label">@field.Label</span>
+                @if (Text(field).Length > 0)
+                {
+                    <code>@Text(field)</code>
+                }
+                else
+                {
+                    <span class="hint">none</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="@(key == "table" ? "table-name-field" : "ide-prop-field")" data-key="@key">
+                <label class="@(field.Type == "bool" ? "ide-prop-bool" : null)">
+                    <span>@field.Label@if (field.Hint is { } hint) { <span class="hint"> (@hint)</span> }</span>
+                    @switch (field.Type)
+                    {
+                        case "choice":
+                            <select aria-label="@field.Label" disabled="@ReadOnly" value="@_values[key]" @onchange="e => SetAsync(key, e.Value?.ToString())">
+                                @foreach (var choice in field.Choices ?? [])
+                                {
+                                    <option value="@choice">@choice</option>
+                                }
+                            </select>
+                            break;
+                        case "bool":
+                            <input type="checkbox" aria-label="@field.Label" disabled="@(ReadOnly || field.ReadOnly)" checked="@(_values[key] == "true")" @onchange="e => SetAsync(key, (e.Value is true).ToString().ToLowerInvariant())" />
+                            break;
+                        case "textarea" or "names" or "mapping" or "code":
+                            <textarea rows="@(field.Type == "code" ? 4 : 3)" aria-label="@field.Label" readonly="@ReadOnly" spellcheck="false" value="@_values[key]" @oninput="e => SetAsync(key, e.Value?.ToString())"></textarea>
+                            break;
+                        default:
+                            <input type="text" aria-label="@field.Label" readonly="@ReadOnly" spellcheck="false" maxlength="@(key is "name" or "table" ? 64 : 400)" value="@_values[key]" @oninput="e => SetAsync(key, e.Value?.ToString())" />
+                            break;
+                    }
+                </label>
+                <div class="@(key == "table" ? "table-name-check" : "ide-prop-check") @(_said.TryGetValue(key, out var s) && s.Bad ? "error" : "ok")" role="status" aria-live="polite">@(_said.TryGetValue(key, out var w) ? w.Words : string.Empty)</div>
+            </div>
+        }
+    }
+    @foreach (var secret in Secrets)
+    {
+        var isSaved = Detail?.Secrets?.GetValueOrDefault(secret) == true && !_forgotten.Contains(secret);
+        <div class="ide-secret">
+            <label><span>@($"secret {secret}")</span>
+                <input type="password" autocomplete="new-password" aria-label="@($"secret {secret}")" placeholder="@(isSaved ? "Saved" : "Not saved")" @oninput="e => _typed[secret] = e.Value?.ToString() ?? string.Empty" />
+            </label>
+            @if (isSaved)
+            {
+                <button type="button" class="btn small ghost" @onclick="() => ForgetAsync(secret)">Forget</button>
+            }
+        </div>
+    }
+</aside>
+
+@code {
+    private readonly Dictionary<string, string> _values = [];
+    private readonly Dictionary<string, string> _original = [];
+    private readonly Dictionary<string, (string Words, bool Bad)> _said = [];
+    private readonly Dictionary<string, string> _typed = [];
+    private readonly HashSet<string> _forgotten = [];
+
+    [Parameter, EditorRequired]
+    public BladeHeader Header { get; set; } = default!;
+
+    [Parameter]
+    public BladeDetail? Detail { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private IEnumerable<string> Secrets => Detail?.Inspect is { ValueKind: JsonValueKind.Object } i && i.TryGetProperty("secrets", out var s) && s.ValueKind == JsonValueKind.Array
+        ? s.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => x.Length > 0)
+        : [];
+
+    protected override void OnParametersSet()
+    {
+        foreach (var field in Header.Fields.Where(f => !_values.ContainsKey(f.Key)))
+        {
+            _values[field.Key] = _original[field.Key] = Text(field);
+        }
+    }
+
+    /// <summary>A field's value as its box shows it (tags and names one a line or comma separated).</summary>
+    public static string Text(BladeField field) => field.Value.ValueKind switch
+    {
+        JsonValueKind.Array => string.Join(field.Type == "names" ? "\n" : ", ", field.Value.EnumerateArray().Select(v => v.ToString())),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Null or JsonValueKind.Undefined => string.Empty,
+        JsonValueKind.String => field.Value.GetString() ?? string.Empty,
+        _ => field.Value.GetRawText(),
+    };
+
+    /// <summary>What Save sends: name, description, tags and table always; the rest when changed; typed secrets.</summary>
+    public Dictionary<string, object?> Changes()
+    {
+        var out_ = Header.Fields
+            .Where(f => !f.ReadOnly && f.Type != "readonly" && (f.Key is "name" or "description" or "tags" or "table" || _values[f.Key] != _original[f.Key]))
+            .ToDictionary(f => f.Key, f => (object?)(f.Type switch
+            {
+                "tags" => _values[f.Key].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                "bool" => _values[f.Key] == "true",
+                "names" => _values[f.Key].Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                _ => _values[f.Key],
+            }));
+        if (_typed.Count > 0)
+        {
+            out_["secrets"] = _typed.Where(t => t.Value.Length > 0).ToDictionary(t => t.Key, t => t.Value);
+        }
+        return out_;
+    }
+
+    private async Task SetAsync(string key, string? value)
+    {
+        _values[key] = value ?? string.Empty;
+        await OnChanged.InvokeAsync();
+        if (key is "name" or "table" && Detail is { } detail)
+        {
+            await CheckAsync(key, detail.Name);
+        }
+    }
+
+    private async Task CheckAsync(string key, string blade)
+    {
+        var text = _values[key].Trim();
+        try
+        {
+            var check = key == "name"
+                ? (text.Equals(blade, StringComparison.OrdinalIgnoreCase) ? new NameCheck(true) : await Blades.NameCheckAsync(text))
+                : await Blades.TableCheckAsync(text, blade);
+            _said[key] = (check.Said, !check.Available);
+        }
+        catch (ApiException)
+        {
+            _said.Remove(key);
+        }
+    }
+
+    private async Task ForgetAsync(string secret)
+    {
+        if (Detail is { } detail)
+        {
+            await Blades.ForgetSecretAsync(detail.Name, secret);
+            _forgotten.Add(secret);
+        }
+    }
+}

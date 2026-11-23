@@ -7,4 +7,8 @@ public sealed record BladeSummary(
     string? Variable,
     string? Connection,
     string? Description,
-    string? Family);
+    string? Family,
+    IReadOnlyList<string>? Tags = null,
+    bool Pinned = false,
+    string? Source = null,
+    string? Pack = null);
