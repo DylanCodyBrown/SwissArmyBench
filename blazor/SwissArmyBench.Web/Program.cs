@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 using SwissArmyBench.Web.Api;
+using SwissArmyBench.Web.Api.Analyze;
 using SwissArmyBench.Web.Api.App;
 using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
@@ -54,6 +55,7 @@ public static class Program
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
+        services.AddScoped<AnalyzeClient>();
     }
 
     private static void AddState(IServiceCollection services)

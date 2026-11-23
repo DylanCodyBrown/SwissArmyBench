@@ -1,0 +1,86 @@
+@* The one guided form beside the board (the classic analyzePage.ts drawForm): the table with Change, each slot's
+   columns as the server offers them (the ones that do not fit folded, with why), what is missing in one sentence,
+   Make it fit with Apply, the sentence of what will run, Run gated with Cancel, More options, and What your data
+   should look like with Try it on this sample. The server plans it all (POST /analyze/plan): the page has no rule of
+   its own. Logic in AnalyzeForm.razor.cs. *@
+
+<section class="analyze-form" aria-label="@(Plan?.Label ?? "Analysis")" data-analysis="@Analysis">
+    @if (Plan is { } plan)
+    {
+        <h2 class="analyze-title">@plan.Label <span class="muted">@plan.Name</span></h2>
+        <p class="muted">@plan.Get</p>
+        <label class="field"><span>Table</span>
+            <select aria-label="Table" value="@plan.Grid" @onchange="TableChangedAsync">
+                @foreach (var table in Tables)
+                {
+                    <option value="@table.Grid">@table.Label</option>
+                }
+            </select>
+        </label>
+        <p class="muted">@plan.Rows.ToString("N0") rows · @plan.OneRowPer</p>
+        @foreach (var slot in plan.Slots)
+        {
+            <AnalyzeSlot Slot="slot" OnPick="PickAsync" />
+        }
+        @if (plan.Missing is { } missing)
+        {
+            <ErrorNote Words="@missing" Warning="true" />
+        }
+        @foreach (var caution in plan.Cautions)
+        {
+            <p class="chip-caution"><Icon Name="warning" /> @caution</p>
+        }
+        @if (Needed.Count > 0)
+        {
+            <div class="analyze-fixes"><strong>Make it fit:</strong>
+                <ul class="plain-list">
+                    @foreach (var fix in Needed)
+                    {
+                        <li>@fix.Sentence <button type="button" class="btn small" @onclick="() => ApplyAsync(fix)">Apply</button></li>
+                    }
+                </ul>
+            </div>
+        }
+        <p class="analyze-sentence">@plan.Sentence</p>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <Busy IsBusy="_running" Words="Running…" OnCancel="CancelAsync">
+            <div class="analyze-run-row">
+                <button type="button" class="btn primary analyze-run" disabled="@(!plan.Ready || _running)" @onclick="() => RunAsync(false)"><Icon Name="play" /> Run</button>
+            </div>
+        </Busy>
+        @if (Better.Count > 0)
+        {
+            <div class="analyze-fixes better"><strong>Suggestions:</strong>
+                <ul class="plain-list">
+                    @foreach (var fix in Better)
+                    {
+                        <li>@fix.Sentence <button type="button" class="btn small" @onclick="() => ApplyAsync(fix)">Apply</button></li>
+                    }
+                </ul>
+            </div>
+        }
+        @if (plan.Options.Count > 0)
+        {
+            <details class="analyze-more">
+                <summary>More options</summary>
+                @foreach (var option in plan.Options)
+                {
+                    <AnalyzeOptionField Option="option" OnSet="OptionAsync" />
+                }
+            </details>
+        }
+        <details class="analyze-needs">
+            <summary>What your data should look like</summary>
+            <p>@plan.OneRowPer</p>
+            <button type="button" class="btn small" @onclick="() => RunAsync(true)"><Icon Name="play" /> Try it on this sample</button>
+        </details>
+    }
+    else if (_error is not null)
+    {
+        <ErrorNote Error="_error" OnRetry="ReplanAsync" />
+    }
+    else
+    {
+        <div class="loading-block">Reading the table…</div>
+    }
+</section>

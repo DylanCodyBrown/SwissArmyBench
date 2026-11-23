@@ -1,0 +1,54 @@
+@* The Analyze page (?view=analyze in the classic; the owner 2026-11-19: every analysis lives here and every result
+   lands on the board by itself): the toolbar of every analysis by group, the one guided form beside the board, and
+   the board's cards (a note, a Plotly figure, a picture, a diagram), each result's actions under its card. Logic in
+   AnalyzePage.razor.cs. *@
+@page "/analyze"
+@implements IDisposable
+
+<section class="area-page analyze-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="sandbox" /> Analyze</h1>
+    </header>
+    <nav class="analyze-toolbar" aria-label="Analyses">
+        @foreach (var group in Groups)
+        {
+            <div class="analyze-group" role="group" aria-label="@group.Key">
+                <strong>@group.Key</strong>
+                @foreach (var entry in group)
+                {
+                    <button type="button" class="btn small analyze-pick" title="@entry.Get" aria-pressed="@(entry.Id == _analysis ? "true" : "false")" data-analysis="@entry.Id" @onclick="() => Choose(entry.Id)">@entry.Label</button>
+                }
+            </div>
+        }
+    </nav>
+    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+    <div class="analyze-main">
+        <aside class="analyze-side">
+            @if (_analysis is { } analysis && _toolbar is { } toolbar)
+            {
+                <AnalyzeForm Analysis="@analysis" Table="@(toolbar.Current ?? toolbar.Tables.FirstOrDefault()?.Grid)" Again="_again" Tables="toolbar.Tables" OnRan="RanAsync" />
+            }
+            else if (_toolbar is { Tables.Count: 0 })
+            {
+                <div class="empty-state">
+                    <p>No table is open: open one in Grids, or try an analysis on its made-up sample.</p>
+                    <a class="btn" href="grids?new=1">Open Grids</a>
+                </div>
+            }
+            else
+            {
+                <p class="muted">Pick an analysis above: its form shows here, and its result lands on the board.</p>
+            }
+        </aside>
+        <div class="analyze-board" aria-label="The board">
+            @if (_cards.Count == 0)
+            {
+                <p class="muted">The board is empty: every analysis's result lands here.</p>
+            }
+            @foreach (var card in _cards)
+            {
+                <BoardCardView @key="card.Id" Card="card" Fresh="_fresh.Contains(card.Id)" OnRemove="RemoveAsync" OnAgain="AgainAsync" />
+            }
+        </div>
+    </div>
+</section>

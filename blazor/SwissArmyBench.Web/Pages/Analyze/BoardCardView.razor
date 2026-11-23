@@ -1,0 +1,56 @@
+@* One card of the board (the classic aiPanel.ts): its title and table, its content by its kind (a note as Markdown, a
+   Plotly figure, a picture, a Mermaid diagram), and an analysis's actions under it: Show the math, Open as grid,
+   Copy code, Run again, and the result's hand-offs (Show these rows...). Logic in BoardCardView.razor.cs. *@
+
+<article class="board-card @(Fresh ? "fresh" : string.Empty)" style="@Span" aria-label="@Card.Title" data-kind="@Card.Kind">
+    <header class="board-card-head">
+        <h3>@Card.Title</h3>
+        <span class="chip">@(Card.Dataset ?? Card.Origin)</span>
+        <button type="button" class="btn ghost icon small" aria-label="@($"Remove {Card.Title}")" @onclick="() => OnRemove.InvokeAsync(Card)"><Icon Name="close" /></button>
+    </header>
+    <div class="board-card-body">
+        @switch (Card.Kind)
+        {
+            case "note":
+                <div class="note-body">@((MarkupString)MarkdownText.ToHtml(Card.Body ?? string.Empty))</div>
+                break;
+            case "plotly":
+                <PlotlyChart Figure="@(Card.Body ?? string.Empty)" Label="@Card.Title" />
+                break;
+            case "image" when (Card.Body ?? string.Empty).StartsWith("data:image/", StringComparison.Ordinal):
+                <img class="card-image" src="@Card.Body" alt="@Card.Title" />
+                break;
+            case "diagram":
+                <MermaidDiagram Text="@(Card.Body ?? string.Empty)" />
+                break;
+            default:
+                <p class="muted">A @Card.Kind card is drawn in the classic front end. <a href="/workspace?view=analyze">Open in the classic front end</a></p>
+                break;
+        }
+    </div>
+    @if (Run is { } run)
+    {
+        <footer class="board-card-actions">
+            <button type="button" class="btn small ghost" @onclick="() => MathAsync(run)">Show the math</button>
+            <button type="button" class="btn small ghost" @onclick="() => GridAsync(run)">Open as grid</button>
+            <button type="button" class="btn small ghost" @onclick="() => CodeAsync(run)">Copy code</button>
+            <button type="button" class="btn small ghost" @onclick="() => OnAgain.InvokeAsync(run)">Run again</button>
+            @foreach (var (label, step) in HandOffs)
+            {
+                <button type="button" class="btn small ghost" @onclick="() => HandOffAsync(step)">@label</button>
+            }
+        </footer>
+    }
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+</article>
+@if (_math is { } math)
+{
+    <AppDialog Title="@math.Title" OnClose="() => _math = null">
+        <ChildContent>
+            <div class="note-body math-body">@((MarkupString)MarkdownText.ToHtml(math.Markdown))</div>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn primary" @onclick="() => _math = null">Close</button>
+        </Foot>
+    </AppDialog>
+}

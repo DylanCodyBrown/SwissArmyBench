@@ -1,0 +1,74 @@
+@* One slot of the form (Values, Group, Predictors...): the columns the server offers for it, one or several, with a
+   column's first values beside it; the columns that do not fit folded, each with why. *@
+
+<fieldset class="fieldset analyze-slot" data-slot="@Slot.Key">
+    <legend>@Slot.Label</legend>
+    <p class="muted">@Slot.Words</p>
+    @if (Slot.Many)
+    {
+        <div class="form-grid" role="group" aria-label="@Slot.Label">
+            @foreach (var column in Slot.Offered)
+            {
+                var name = column.Name;
+                <label class="check" title="@string.Join(", ", column.Preview)"><input type="checkbox" checked="@Picked.Contains(name)" @onchange="e => ToggleAsync(name, e.Value is true)" /> @Shown(column)</label>
+            }
+        </div>
+    }
+    else
+    {
+        <select aria-label="@Slot.Label" value="@(Picked.FirstOrDefault() ?? string.Empty)" @onchange="e => OnPick.InvokeAsync((Slot.Key, Json(e.Value?.ToString())))">
+            @if (Slot.Optional || Picked.Count == 0)
+            {
+                <option value="">(none)</option>
+            }
+            @foreach (var column in Slot.Offered)
+            {
+                <option value="@column.Name">@Shown(column)@(Slot.Table || column.Preview.Count == 0 ? string.Empty : $" · {string.Join(", ", column.Preview)}")</option>
+            }
+        </select>
+    }
+    @if (Slot.Said is { Length: > 0 } said)
+    {
+        <p class="muted analyze-said">Picked: @said</p>
+    }
+    @if (Slot.Rejected.Count > 0)
+    {
+        <details class="analyze-rejected">
+            <summary>@Slot.Rejected.Count not offered</summary>
+            <ul class="plain-list">
+                @foreach (var column in Slot.Rejected)
+                {
+                    <li><strong>@column.Name</strong>: @column.Why</li>
+                }
+            </ul>
+        </details>
+    }
+</fieldset>
+
+@code {
+    [Parameter, EditorRequired]
+    public PlanSlot Slot { get; set; } = default!;
+
+    /// <summary>A slot's new pick: its key and its value (a column's name, a list of them, or null).</summary>
+    [Parameter]
+    public EventCallback<(string Key, System.Text.Json.JsonElement Value)> OnPick { get; set; }
+
+    private IReadOnlyList<string> Picked => Slot.Value switch
+    {
+        { ValueKind: System.Text.Json.JsonValueKind.String } one => [one.GetString()!],
+        { ValueKind: System.Text.Json.JsonValueKind.Array } many => many.EnumerateArray().Select(v => v.GetString() ?? string.Empty).ToList(),
+        _ => [],
+    };
+
+    // A table slot's choices are grids: shown by the table's name (the server's preview).
+    private string Shown(OfferedColumn column) => Slot.Table && column.Preview.Count > 0 ? column.Preview[0] : column.Name;
+
+    private Task ToggleAsync(string name, bool on)
+    {
+        var picked = on ? Picked.Append(name).Distinct().ToList() : Picked.Where(p => p != name).ToList();
+        return OnPick.InvokeAsync((Slot.Key, System.Text.Json.JsonSerializer.SerializeToElement(picked)));
+    }
+
+    private static System.Text.Json.JsonElement Json(string? value) =>
+        System.Text.Json.JsonSerializer.SerializeToElement(string.IsNullOrEmpty(value) ? null : value);
+}

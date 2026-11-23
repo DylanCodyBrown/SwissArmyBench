@@ -1,0 +1,42 @@
+@* One of More options: a choice, a number or words, with what it means under it. *@
+
+<label class="field analyze-option">
+    <span>@Option.Label</span>
+    @if (Option.Choices.Count > 0)
+    {
+        <select aria-label="@Option.Label" value="@Text" @onchange="e => OnSet.InvokeAsync((Option.Key, Json(e.Value?.ToString() ?? string.Empty, false)))">
+            @foreach (var choice in Option.Choices.Where(c => c.Count == 2))
+            {
+                <option value="@choice[0]">@choice[1]</option>
+            }
+        </select>
+    }
+    else
+    {
+        <input type="@(IsNumber ? "number" : "text")" aria-label="@Option.Label" value="@Text" @onchange="e => OnSet.InvokeAsync((Option.Key, Json(e.Value?.ToString() ?? string.Empty, IsNumber)))" />
+    }
+    <small class="muted">@Option.Meaning</small>
+</label>
+
+@code {
+    [Parameter, EditorRequired]
+    public PlanOption Option { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<(string Key, System.Text.Json.JsonElement Value)> OnSet { get; set; }
+
+    private bool IsNumber => Option.Type == "number";
+
+    private string Text => Option.Value switch
+    {
+        { ValueKind: System.Text.Json.JsonValueKind.String } text => text.GetString() ?? string.Empty,
+        { } other => other.GetRawText(),
+        _ => string.Empty,
+    };
+
+    // A number option goes to the server as a number when it reads as one; the server checks it either way.
+    private static System.Text.Json.JsonElement Json(string typed, bool number) =>
+        number && double.TryParse(typed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value)
+            ? System.Text.Json.JsonSerializer.SerializeToElement(value)
+            : System.Text.Json.JsonSerializer.SerializeToElement(typed);
+}

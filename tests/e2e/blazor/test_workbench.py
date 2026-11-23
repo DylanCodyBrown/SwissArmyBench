@@ -1,7 +1,7 @@
-"""The Blazor Notebooks and Scripts pages on made-up data: a notebook opened from its address, a Python cell typed
-in Monaco and run in the Python session (its output as it arrives, its run number), a SQL cell over an open table,
-Save; the Tables group's read-only cells; a script's Run file and the console's line; Save as through the app's
-own typed path; the Files pane; a blade's line inserted from the Blades pane."""
+"""The Blazor Notebooks and Scripts pages on made-up data: a notebook opened from its address, a Python cell
+typed in Monaco and run in the Python session (its output as it arrives, its run number), a SQL cell over an
+open table, Save; the Tables group's read-only cells; a script's Run file and the console's line; Save as
+through the app's own typed path; the Files pane; a blade's line inserted from the Blades pane."""
 
 from __future__ import annotations
 

@@ -53,7 +53,7 @@ class Answer:
     summary: str
     body: dict[str, Any] | None = None
     nested: dict[str, str] = field(default_factory=dict)
-    types: dict[str, str] = field(default_factory=dict)
+    types: dict[str, str] = field(default_factory=dict)  # "field" or "Record.field" -> its C# type
 
 
 ANSWERS: list[Answer] = [
@@ -63,8 +63,7 @@ ANSWERS: list[Answer] = [
         "GET",
         "/grids/{grid}",
         "GET /grids/{id}: a grid's dataset, columns, steps and whether a change can be undone or redone; "
-        "the columns "
-        "entering each step (StageColumns) and how its filters compare text (Settings).",
+        "the columns entering each step (StageColumns) and how its filters compare text (Settings).",
         nested={
             "columns": "GridColumn",
             "source_columns": "GridColumn",
@@ -90,8 +89,7 @@ ANSWERS: list[Answer] = [
         "POST",
         "/grids/{grid}/selection-stats",
         "POST /grids/{id}/selection-stats: Excel's status bar over the whole selection, counted by the "
-        "server; "
-        "IdLike names the number columns that look like identifiers, whose sum would mean nothing.",
+        "server; IdLike names the number columns that look like identifiers, whose sum would mean nothing.",
         body={"selection": {"rows": [[0, 4]], "columns": ["amount", "order_id"]}},
         types={"sum": "double?", "mean": "double?", "min": "double?", "max": "double?", "digits": f"{JSON}?"},
     ),
@@ -111,8 +109,7 @@ ANSWERS: list[Answer] = [
         "GET",
         "/grids/{grid}/values?column=status",
         "GET /grids/{id}/values: a column's values with their row counts (the filter's checklist), whether "
-        "there "
-        "are more than listed, and how many are blank.",
+        "there are more than listed, and how many are blank.",
         nested={"values": "ValueCount"},
         types={"value": JSON},
     ),
@@ -148,8 +145,7 @@ ANSWERS: list[Answer] = [
         "GET",
         "/tables/orders/connection",
         "GET /tables/{name}/connection: the connection a table is read from (none: a file, a paste, a "
-        "push), and "
-        "whether its last change can be undone.",
+        "push), and whether its last change can be undone.",
         types={
             "connection": "string?",
             "place": f"{JSON}?",
@@ -219,8 +215,7 @@ ANSWERS.append(
         "POST",
         "/workbench/tables/arrange",
         "POST /workbench/tables/arrange: a notebook's cells as they should be, its Tables group in place, "
-        "and the "
-        "number the next new cell gets.",
+        "and the number the next new cell gets.",
         body={
             "kind": "notebook",
             "cells": [
@@ -244,6 +239,112 @@ ANSWERS.append(
     )
 )
 
+ANSWERS += [
+    Answer(
+        "Analyze",
+        "AnalyzeToolbar",
+        "GET",
+        "/analyze?front={grid}",
+        "GET /analyze: the toolbar's groups and every analysis (its question, its name, what you get); the "
+        "open tables and the one a form starts on.",
+        nested={"analyses": "AnalysisEntry", "tables": "AnalyzeTable"},
+        types={"current": "string?"},
+    ),
+    Answer(
+        "Analyze",
+        "AnalyzePlan",
+        "POST",
+        "/analyze/plan",
+        "POST /analyze/plan: the one form, planned by the server: each slot's columns that fit and the "
+        "ones that do not (with why), the picks, the options, what is missing in one sentence, the fixes, "
+        "the sentence of what will run. The page has no rule of its own.",
+        body={"analysis": "outliers", "table": "{grid}"},
+        nested={
+            "slots": "PlanSlot",
+            "offered": "OfferedColumn",
+            "rejected": "RejectedColumn",
+            "options": "PlanOption",
+            "fixes": "PlanFix",
+        },
+        types={
+            "value": f"{JSON}?",
+            "default": f"{JSON}?",
+            "columns": JSON,
+            "settings": JSON,
+            "missing": "string?",
+            "said": "string?",
+            "cautions": "IReadOnlyList<string>",
+            "gone": f"IReadOnlyList<{JSON}>",
+            "refused": f"IReadOnlyList<{JSON}>",
+            "choices": "IReadOnlyList<IReadOnlyList<string>>",
+            "preview": "IReadOnlyList<string>",
+            "PlanFix.steps": f"IReadOnlyList<{JSON}>",
+            "fills": f"{JSON}?",
+            "slot": "string?",
+            "column": "string?",
+            "rows": "long",
+            "count": "long?",
+        },
+    ),
+    Answer(
+        "Analyze",
+        "AnalyzeRun",
+        "POST",
+        "/analyze/run",
+        "POST /analyze/run: what ran (its run, its table, its columns and options, its sentence), the "
+        "cards it put at the top of the board, the actions a result offers, and the result's numbers.",
+        body={"analysis": "outliers", "table": "{grid}", "columns": {"column": "amount"}},
+        types={
+            "columns": JSON,
+            "options": JSON,
+            "applied": f"IReadOnlyList<{JSON}>",
+            "cautions": "IReadOnlyList<string>",
+            "result": f"{JSON}?",
+        },
+    ),
+    Answer(
+        "Analyze",
+        "BoardCards",
+        "GET",
+        "/cards",
+        "GET /cards: the Analyze board's cards, newest first by their order: a note (Markdown), a Plotly "
+        "figure, a picture, a diagram, each with the analysis it came from.",
+        nested={"cards": "BoardCard"},
+        types={
+            "body": "string?",
+            "size": f"{JSON}?",
+            "key": "string?",
+            "grid": "string?",
+            "dataset": "string?",
+            "created": "double",
+            "order": "double",
+            "analysis": f"{JSON}?",
+        },
+    ),
+    Answer(
+        "Analyze",
+        "RunMath",
+        "GET",
+        "/analyze/runs/{run}/math",
+        "GET /analyze/runs/{run}/math: Show the math, a result as a step-by-step proof in Markdown.",
+    ),
+    Answer(
+        "Analyze",
+        "RunCode",
+        "GET",
+        "/analyze/runs/{run}/code",
+        "GET /analyze/runs/{run}/code: Copy code, the analysis as Python with its imports.",
+    ),
+    Answer(
+        "Analyze",
+        "RunInputs",
+        "GET",
+        "/analyze/runs/{run}",
+        "GET /analyze/runs/{run}: what a run ran with (Run again fills the form from it).",
+        types={"columns": JSON, "options": JSON},
+    ),
+]
+
 # Answers kept by hand, and why no sample pins their shape.
 HAND_WRITTEN: dict[str, str] = {
     "Workbench/StartedKernel": "needs a running IPython kernel (seconds to start; the answer is three "
@@ -252,14 +353,15 @@ HAND_WRITTEN: dict[str, str] = {
     "Workbench/TableInfo": "an open table's cell text: its fields depend on where the table came from",
     "Workbench/CodeTree": "the Files pane's groups differ by page and project (made files, library groups)",
     "Workbench/BladeSummary": "a blade's fields depend on its kind (connection, vault, web call)",
+    "Analyze/a table card's columns and rows": "only a card Python sends carries them (read from the card's "
+    "body on the page)",
     "Grids/StepError": "null unless a step fails (the made-up data has no failing step)",
     "Grids/ConnectionSwap": "one of four answers (swapped, pick, review, failed), each free-form",
     "Grids/MadeTable": "shared by the query and the sandbox variant, each answering different fields",
     "Connections/*": "each connection kind's form is data drawn by the page (its fields are the kind's)",
     "Environment/*": "each tab's rows carry the kind's own fields",
     "Projects/*, Settings/*, SessionLog/*, Catalog/*, Relationships/*, App/*": "written before the "
-    "generator; "
-    "moved to it area by area",
+    "generator; moved to it area by area",
 }
 
 
@@ -275,9 +377,11 @@ class Record:
 
 
 def type_of(key: str, value: Any, answer: Answer, records: dict[str, Record], parent: str) -> tuple[str, str]:
-    """A field's C# type and its default, from the answer's say first, else from its value."""
-    if key in answer.types:
-        typed = answer.types[key]
+    """A field's C# type and its default, from the answer's say first ("Record.field" before "field"), else
+    from its value."""
+    said = answer.types.get(f"{parent}.{key}", answer.types.get(key))
+    if said is not None:
+        typed = said
         if key in answer.nested and value is not None:
             items = value if isinstance(value, list) else [value]
             for item in (v for v in items if isinstance(v, dict)):
@@ -424,11 +528,17 @@ def made_up(info: dict[str, Any], tmp: Path) -> dict[str, str]:
     ]
     call(info, "POST", "/workbench/save", {"path": notebook, "cells": cells, "next_cell": 3})
     call(info, "POST", "/workbench/save", {"path": script, "text": "print('made up')\n"})
+    # A run on the Analyze board, so its cards and its run's math and code have a sample.
+    columns = {"column": "amount"}
+    run = call(
+        info, "POST", "/analyze/run", {"analysis": "outliers", "table": tables["orders"], "columns": columns}
+    )
     return {
         "grid": tables["orders"],
         "customers": tables["customers"],
         "notebook": notebook,
         "script": script,
+        "run": run["run"],
     }
 
 

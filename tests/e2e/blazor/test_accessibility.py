@@ -11,7 +11,20 @@ from playwright.sync_api import Browser, expect
 
 from tests.e2e.blazor.conftest import call, open_page, unnamed_controls
 
-PAGES = ["", "connections", "catalog", "environment", "grids", "grids?new=1", "erd", "session", "settings"]
+PAGES = [
+    "",
+    "connections",
+    "catalog",
+    "environment",
+    "grids",
+    "grids?new=1",
+    "erd",
+    "session",
+    "settings",
+    "notebooks?new=1",
+    "scripts?new=1",
+    "analyze",
+]
 
 
 @pytest.mark.parametrize("path", PAGES, ids=[p or "home" for p in PAGES])
