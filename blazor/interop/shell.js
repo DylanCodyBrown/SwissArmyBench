@@ -319,3 +319,14 @@ window.sab = {
     if (body) frame.style.height = `${Math.min(Math.ceil(body.getBoundingClientRect().height) + 6, 640)}px`;
   },
 };
+
+// Alt+Home goes Home (the Projects page) from anywhere (the classic nav.ts mountNav): the rail's Home link is
+// clicked, so the move is the router's own (Back returns).
+document.addEventListener("keydown", (e) => {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.key !== "Home") return;
+  const home = document.querySelector(".nav-rail-item[data-area=projects]");
+  if (!home) return;
+  e.preventDefault();
+  e.stopPropagation();
+  home.click();
+}, { capture: true });

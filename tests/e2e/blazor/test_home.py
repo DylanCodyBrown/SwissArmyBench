@@ -4,6 +4,7 @@ error note), the search."""
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from playwright.sync_api import Browser, expect
@@ -100,4 +101,14 @@ def test_open_project_asks_in_the_classic_words(browser: Browser, server: dict[s
     expect(asked).to_contain_text("Let them go and close the project?")
     page.locator(".dialog-foot").get_by_role("button", name="OK").click()
     expect(page.locator(".project-group")).to_have_count(0)
+    page.close()
+
+
+def test_alt_home_goes_home(browser: Browser, server: dict[str, Any]) -> None:
+    """Alt+Home from any page goes Home (the classic nav.ts), and Back returns."""
+    page = open_page(browser, server, "session")
+    page.keyboard.press("Alt+Home")
+    expect(page.get_by_role("button", name="Open project…")).to_be_visible()
+    page.go_back()
+    expect(page).to_have_url(re.compile(r"/session$"))
     page.close()
