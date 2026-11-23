@@ -44,12 +44,9 @@
  *
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
-import { inlineStatus } from "./inlineCompletion";
 import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
 import { bringPage, type CodePage, isCanvasFile, loadPageRules, openCanvasFile, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, thisPage, wrongPage } from "./workbenchPages";
-import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
-import { sidePanes } from "./sidePanes";
-import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile } from "./workbenchIde";
+import { ideMoves } from "./workbenchIde";
 import { debugSession, type DebugSession, type DebugState } from "./workbenchDebug";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
@@ -57,49 +54,48 @@ import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession,
 import { type BladeKind, type BladeSummary, editBlade, newBladeDialog } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
-import { askText, askYesNo, button, clear, h, icon, openDialog, toast } from "./dom";
+import { askYesNo, button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { openFile } from "./openFile";
 import { effectiveTheme } from "./theme";
-import { answerAgent, mountShortcutKeys, openPalette, registerCommands, runCommand, setAgentHooks } from "./workbenchCommands";
+import { answerAgent, mountShortcutKeys, registerCommands, setAgentHooks } from "./workbenchCommands";
 import { following, pulse, userBusy } from "./sessionPage";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
 import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./workbenchCompletion";
-import { onProblems, problemsOf, pythonIntel, ruffOffer } from "./workbenchIntel";
-import { newEnvironment } from "./workbenchEnvironment";
+import { pythonIntel } from "./workbenchIntel";
 import type { Fix } from "./workbenchErrors";
 import { mountExplorerPane } from "./workbenchExplorer";
 import { type ExplorerResult, type ExplorerState, openDataWindow } from "./dataExplorer";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
-import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
-import { openStructureDoc, type StructureDoc } from "./structureDoc";
+import { type CodeFileView } from "./workbenchCodeFile";
+import { type StructureDoc } from "./structureDoc";
 import { isStructurePath, structureSuffixes } from "./structurePaths";
 import { workbenchCommands } from "./workbenchCommandList";
 import { sessionMemory } from "./workbenchRestore";
 import { fileChangedWatcher } from "./workbenchFileChanged";
 import { BASE_FONT, codeZoom, fullScreen as makeFullScreen } from "./workbenchView";
 import { windowKeys } from "./workbenchKeys";
+import { workbenchBars } from "./workbenchBars";
+import { statusBar } from "./workbenchStatusBar";
+import { fileTabs } from "./workbenchFileTabs";
+import { workbenchSides } from "./workbenchSides";
 import { tableOwners } from "./workbenchTableOwners";
 import { documentPanels } from "./workbenchDocPanels";
 import { docName, documentLineage } from "./workbenchDocLineage";
 import { documentMoves } from "./workbenchMove";
 import { documentExports } from "./workbenchExport";
 import type { Part } from "./structureTree";
-import { openStructures } from "./lazyPages";
 import { mountLayout } from "./workbenchLayout";
-import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
+import { type MenuEntry, openMenu } from "./workbenchMenu";
 import { go, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, onProjectFolder, setProjectFolder } from "./kindColours";
 import { areaOfKind, gatedRun } from "./gates";
-import { busyClick } from "./loading";
 import { type Missing, promptInstall } from "./missingPackages";
-import { openSettings } from "./settingsWindow";
-import { betaCommands, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
+import { betaCommands, mountBeta } from "./betaNotes";
 import { installZoomInput } from "./zoom";
-import { mountAppFooter } from "./appFooter";
 import { updateCommands } from "./updates";
 import { claudeCommands } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
@@ -107,13 +103,13 @@ import { fetchTables } from "./workbenchTables";
 import { openEnvironment, environmentPane } from "./environmentPage";
 import { Kernel, sessionHeard, WINDOW_ID } from "./workbenchKernel";
 import { heardProjectPython, inProject, loadProjectPython, offerMoved, projectPython, type Offer } from "./projectSession";
-import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
+import { type CellData, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { lineageNoticed } from "./workbenchLineage";
 import { type Descriptions } from "./workbenchDocModes";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
-import { activeMode, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
-import { closeProject, copyProject, exportOutline, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
+import { activeMode, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
+import { closeProject, copyProject, exportOutline, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { importFile, openImport } from "./projectImport";
 import { type ModeFrame } from "./workbenchModes";
 import { installVariableAnywhere } from "./variableAnywhere";
@@ -982,135 +978,16 @@ registerTabKind({ id: "codefile", label: "Code file", icon: "codeapp", mark: "sc
 registerTabKind({ id: "library", label: "Library source", icon: "key", mark: "plain" });
 registerTabKind({ id: "structure", label: "Structure", icon: "json", mark: "plain" });
 
-// ===== a structure's file beside the code (2026-11-22, the owner: "I want it beside the ide so you can search
-// and explore"): its tree and its text, an IDE (structureDoc.ts), on the page it was opened from =====
+// ===== a structure's file, a library's source, a code app's file: tabs beside the code (workbenchFileTabs.ts) =====
 
-/** A Python document is open in this window: the structure's Copy as code is offered. */
-const pythonBeside = (): boolean => docs.some((d) => d.kind === "script" || d.kind === "notebook");
-
-/** A structure's file (or an open structure by its id) as a tab in the focused group; one tab a file. `at`: a
- *  node to select. */
-async function openStructureTab(target: { path?: string; id?: string }, at: Part[] | null = null): Promise<Doc | null> {
-  const already = docs.find((d) => d.structure && ((target.path && d.path === target.path) || (target.id && d.structure.id === target.id)));
-  if (already) {
-    show(already);
-    if (at?.length) already.structure!.select(at);
-    return already;
-  }
-  const doc = makeDoc("structure", target.path ? baseName(target.path) : "Structure", target.path ?? null, null);
-  let view: StructureDoc | null = null;
-  try {
-    view = await openStructureDoc(
-      target,
-      {
-        pythonBeside,
-        dirty: (dirty) => {
-          if (doc.dirty === dirty) return;
-          doc.dirty = dirty;
-          drawTabs();
-        },
-        renamed: (title, path) => {
-          doc.title = title;
-          doc.path = path;
-          drawTabs();
-          remember();
-          codexHooks.refresh();
-        },
-        close: () => close(doc, true),
-        openPage: (id) => openStructures(id),
-      },
-      at,
-    );
-  } catch (e) {
-    docs.splice(docs.indexOf(doc), 1);
-    errorHere(e);
-    return null;
-  }
-  if (!view) {
-    docs.splice(docs.indexOf(doc), 1); // a missing package: its prompt is up
-    return null;
-  }
-  doc.structure = view;
-  doc.path = view.path() ?? doc.path;
-  if (!target.path) doc.title = view.title();
-  doc.element.append(view.element);
-  show(doc);
-  return doc;
-}
-
-/** The structure in front (or the one of `path`), for the palette's and the agent's structure commands. */
-function structureOf(args: Record<string, unknown>): StructureDoc {
-  const path = typeof args.path === "string" ? args.path : null;
-  const doc = path ? docs.find((d) => d.structure && d.path === path) : current?.structure ? current : docs.find((d) => d.structure);
-  if (!doc?.structure) throw new Error(path ? `${path} is not open as a structure here: structure.open opens it.` : "No structure is open here: structure.open opens one.");
-  if (doc !== current) show(doc);
-  return doc.structure;
-}
-
-// ===== a library's source, read-only (go to definition outside the project: the owner's IDE shows it) =====
-
-/** An installed library's file in a tab of its own, read-only (marked so), at `line`; one tab a file. */
-async function openLibraryDoc(path: string, line: number, module: string | null): Promise<void> {
-  const already = docs.find((d) => d.kind === "library" && d.path === path);
-  if (already) {
-    show(already);
-    already.libraryAt?.(line);
-    return;
-  }
-  const said = await api<{ text: string }>("/scripts/library-file", "POST", { path });
-  const doc = makeDoc("library", baseName(path), path, null);
-  const host = h("div", { class: "wb-library-code", "data-own-zoom": "" });
-  doc.element.append(
-    h("div", { class: "wb-library-bar", role: "note" }, icon("key"), h("span", { class: "chip ide-readonly" }, "read-only"), h("span", { class: "hint", title: path }, module ?? path)),
-    host,
-  );
-  show(doc);
-  const m = await editors();
-  const editor = m.createCodeEditor(host, { language: path.endsWith(".pyi") || path.endsWith(".py") ? "python" : "plaintext", value: said.text, theme: effectiveTheme(), readOnly: true, readOnlyMessage: "A library's own source: read-only here." });
-  doc.libraryAt = (at) => editor.reveal(at, 1);
-  editor.reveal(line, 1);
-}
-
-// ===== a code app's files (the Power Apps extension's plug-in: workbenchCodeFile.ts) =====
-
-/** A file of the open code app, in the editor (TypeScript or TSX with Monaco's own language service). */
-async function openCodeFileDoc(path: string): Promise<void> {
-  const already = docs.find((d) => d.kind === "codefile" && d.codefile?.path === path);
-  if (already) return show(already);
-  const doc = makeDoc("codefile", baseName(path), path, null);
-  try {
-    doc.codefile = await openCodeFile(path, effectiveTheme(), () => {
-      if (!doc.dirty) {
-        doc.dirty = true;
-        drawTabs();
-      }
-    });
-  } catch (e) {
-    docs.splice(docs.indexOf(doc), 1);
-    errorHere(e);
-    return;
-  }
-  doc.element.append(doc.codefile.element);
-  show(doc);
-}
-
-/** The mode's first language when it is not Python: New makes a file of it (a code app: TypeScript). */
-const scriptLanguage = (): string | null => {
-  const first = activeMode().mode.languages[0];
-  return first && first !== "python" ? first : null;
-};
-const LANGUAGE_WORDS: Record<string, string> = { typescript: "TypeScript", tsx: "TSX", python: "Python" };
-async function newModeFile(language: string): Promise<void> {
-  const ending = language === "tsx" ? ".tsx" : ".ts";
-  const name = await askText(`New ${LANGUAGE_WORDS[language] ?? language} file (in src/shared, or a path under src/pages/<Page>/)`, `module${ending}`);
-  if (!name) return;
-  try {
-    const path = await newCodeFile(name.endsWith(ending) || /\.(ts|tsx)$/.test(name) ? name : `${name}${ending}`);
-    await openCodeFileDoc(path);
-  } catch (e) {
-    errorHere(e);
-  }
-}
+const { openStructureTab, structureOf, openLibraryDoc, openCodeFileDoc, scriptLanguage, newModeFile, LANGUAGE_WORDS } = fileTabs({
+  docs, makeDoc, show, close, drawTabs, remember,
+  filesChanged: () => codexHooks.refresh(),
+  editors: () => editors(),
+  get current() {
+    return current;
+  },
+});
 
 const groups = mountGroups<Doc>({
   kindOf,
@@ -1369,409 +1246,74 @@ function recentMenu(anchor: HTMLElement): void {
 
 // ===== the top bar, a group's row, the status bar =====
 
-// A kernel that is ready says nothing (principle 7.9): only the states that explain a wait, or need a click.
-const STATE_WORDS: Record<string, string> = { off: "not started", starting: "starting…", busy: "running…" };
-
 function folderOf(path: string | null): string {
   if (!path) return homeFolder;
   const at = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return at > 0 ? path.slice(0, at) : homeFolder;
 }
 
-/** Run in another Python from the next Run on (a running kernel is stopped first). A loose file's only:
- *  a project's documents run in the project's one Python (the Environment's Libraries tab). */
-function useEnvironment(doc: Doc, python: string): void {
-  doc.python = python;
-  if (!pythons.some((p) => p.python === python)) pythons.push({ python, version: "", ipykernel: true, swissarmybench: true });
-  if (doc.kernel?.id) {
-    doc.kernel.stop();
-    toast("Kernel stopped");
-  }
-  if (doc.path) void api("/workbench/environment", "POST", { path: doc.path, python }).catch((e: Error) => errorHere(e));
-  drawStatus();
-}
+// ----- the top bar and a group's row (workbenchBars.ts)
 
-/** A Python by its environment's last two folders (project/.venv); this app's own by those words. */
-function pythonName(python: string): string {
-  if (python === pythons[0]?.python) return "This app's Python";
-  return python.replace(/[\\/](bin[\\/]python[\d.]*|Scripts[\\/]python\.exe)$/i, "").split(/[\\/]/).filter(Boolean).slice(-2).join("/");
-}
-
-function pythonPicker(doc: Doc): HTMLElement {
-  if (inSession(doc)) {
-    // One Python per project: nothing to pick. What it is, and the way to its libraries.
-    const project = projectPython();
-    const words = project?.own ? "The project's Python" : project?.status === "making" ? "This app's Python (the project's is being made)" : "This app's Python";
-    return button(words, () => openProjectLibraries(), { class: "ghost wb-env-project", title: `${project?.words ?? ""} Libraries: the Environment page.`.trim() });
-  }
-  const select = h("select", { class: "wb-env-pick", "aria-label": "Environment", title: "Environment" }) as HTMLSelectElement;
-  const own = pythons[0];
-  const label = (p: PythonChoice): string => `${pythonName(p.python)}${p.version ? ` (${p.version})` : ""}${p.ipykernel ? "" : ", no ipykernel"}`;
-  for (const p of pythons) select.append(h("option", { value: p.python, title: p.python, selected: (doc.python ?? own?.python) === p.python }, label(p)));
-  select.append(h("option", { value: "__new" }, "New environment…"), h("option", { value: "__other" }, "Another Python…"));
-  select.addEventListener("change", async () => {
-    if (select.value === "__new") {
-      const made = await newEnvironment({ folder: folderOf(doc.path), document: doc.path, appVersion: own?.version ?? "" });
-      if (made) {
-        useEnvironment(doc, made.python);
-        if (made.imports.length && doc.notebook) doc.notebook.add("code", made.imports.join("\n"), true);
-      }
-      drawStatus();
-      return;
-    }
-    if (select.value === "__other") {
-      const path = await chooseFile({ title: "Choose a Python", mode: "file", start: folderOf(doc.path) });
-      if (path) useEnvironment(doc, path);
-      drawStatus();
-      return;
-    }
-    useEnvironment(doc, select.value);
-  });
-  return select;
-}
-
-// ----- the top bar: the mark, the focused document's name, Save, Save as…, "…"
-
-const topName = h("span", { class: "wb-name" });
-const saveButton = button("Save", () => void saveFront().catch((e: Error) => errorHere(e)), { icon: "save", title: "Save (Ctrl+S)" });
-const topProject = menuButton(button("Project", () => undefined, { icon: "project", class: "ghost wb-project" }), "Project", () => projectEntries());
-const saveAsButton = button("Save as…", () => void save(current, true), { icon: "save", title: "Save as (Ctrl+Shift+S)" });
-// New and Open… beside them (the owner, 2026-11-16: "new script and open should be in the bar above along
-// with the save and save as"): New makes the kind on show (the landing's, else the document's in front's).
-const topNew = button("New notebook", () => topStart(), { icon: "plus", class: "wb-top-new" });
-const topOpen = button("Open…", () => void open(), { icon: "folder", title: "Open a notebook, script or Streamlit app (Ctrl+O)" });
-const topMenu = menuButton(button("Workbench menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost", title: "More" }), "Workbench menu", () => topEntries(), { align: "right" });
-// The app's mark: the window's icon, drawn small, a link home (it brings the home window forward).
-top.append(topProject, topName, saveButton, saveAsButton, topNew, topOpen, h("span", { class: "wb-grow" }), topMenu);
-
-/** The kind the top bar's New makes: the landing's on show, else the document's in front (a data or app
- *  notebook makes a notebook), else the address's, else a notebook. */
-function topKind(): Kind {
-  return landing.kind() ?? docKindOf(current) ?? codeKindOf(new URLSearchParams(location.search).get("kind")) ?? "notebook";
-}
-
-/** The top bar's New: that kind's start. From a landing page the move is pushed, so Back returns to it. */
-function topStart(): void {
-  const k = topKind();
-  const own = k === "script" ? scriptLanguage() : null;
-  if (own) {
-    void newModeFile(own);
-    return;
-  }
-  const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
-  if (!start) return;
-  if (landing.kind()) {
-    hideLanding();
-    void go(withParams({ view: null, kind: k }), "push");
-  }
-  start.run();
-}
-
+const bars = workbenchBars({
+  top, isMainWindow, open, save, saveFront, firstDataset, sabOpen, importDocuments, recentMenu, canSplit, splitDoc,
+  docKindOf, codeKindOf, scriptLanguage, newModeFile, startLabel, newEntries, projectEntries, inSession, moves,
+  docMark, popOut, moveToMain, close, isApiFile, runApi, modeSwitch, tablesHost, drawTablesTool,
+  saves: () => saves(),
+  kernelOf: () => kernelOf(),
+  hideLanding: () => hideLanding(),
+  controls: () => groups.controls(),
+  landingKind: () => landing.kind(),
+  languageWords: LANGUAGE_WORDS,
+  splitWhy: SPLIT_WHY,
+  newLabel: (label) => codexHooks.label(label),
+  explorerOpen: () => explorerPane.isOpen(),
+  exportDocument: (doc, format) => exportDocument(doc, format),
+  fullScreen: () => fullScreen(),
+  dataView: (doc) => dataViews.get(doc)?.view ?? "cells",
+  get current() {
+    return current;
+  },
+});
+const { topMenu, restartKernel, stopSession, openProjectLibraries } = bars;
 function drawTop(): void {
-  const doc = current;
-  const makes = tabKinds().find((t) => t.mark === topKind() && t.start);
-  const own = topKind() === "script" ? scriptLanguage() : null;
-  const making = own ? `New ${LANGUAGE_WORDS[own] ?? own} file` : makes ? startLabel(makes) : "";
-  const newLabel = topNew.querySelector(".btn-label");
-  if (newLabel && making) newLabel.textContent = making;
-  topNew.title = making;
-  topNew.setAttribute("aria-label", making || "New");
-  if (making) codexHooks.label(making); // the explorer's New says the same
-  topNew.dataset.kind = topKind();
-  clear(topName, h("span", { class: "wb-name-text" }, doc?.title ?? "Workbench"), doc?.dirty ? h("span", { class: "wb-name-dot", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes" }) : null);
-  topName.title = doc?.path ?? doc?.title ?? "";
-  // The open project's name, with its unsaved mark (●): its menu saves, saves as, closes.
-  const opened = projectState().project;
-  topProject.hidden = !opened;
-  const label = topProject.querySelector(".btn-label");
-  if (opened && label) label.textContent = projectLabel(opened);
-  topProject.title = opened?.path ?? opened?.name ?? "";
-  for (const b of [saveButton, saveAsButton]) {
-    b.disabled = !saves() && !(b === saveButton && opened);
-    b.title = saves() ? (b === saveButton ? "Save (Ctrl+S)" : "Save as (Ctrl+Shift+S)") : "Nothing that saves is in front";
-  }
+  bars.drawTop();
 }
-
-/** The top bar's "…": what makes a document, opens one, splits the groups, and every command. */
-function topEntries(): MenuEntry[] {
-  const shown = explorerPane.isOpen();
-  return [
-    ...newEntries(topMenu),
-    null,
-    { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
-    { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
-    null,
-    { label: shown ? "Close the Data Explorer" : "Data Explorer", icon: "zoom", keys: "Ctrl+Shift+E", run: () => void runCommand("view.explorer") },
-    { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
-    { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
-    null,
-    { label: "Commands…", icon: "steps", keys: "Ctrl+Shift+P", run: () => openPalette() },
-    { label: "Settings…", icon: "cog", run: () => openSettings() },
-    null,
-    betaOn() ? { label: "Turn beta mode off", icon: "exclude", run: () => void setBeta(false) } : { label: "Turn beta mode on", icon: "check", run: () => void setBeta(true) },
-    { label: "Export beta log…", icon: "export", run: () => void exportBetaLog() },
-  ];
+function topStart(): void {
+  bars.topStart();
 }
-
-// ----- a group's row: the focused document's controls
-
-/** The kinds of cell "+ Cell" adds: a notebook's five, a script's two (its cells are marked lines).
- *  There is no Streamlit kind: a Python cell that calls Streamlit is shown live. */
-function cellEntries(doc: Doc): MenuEntry[] {
-  if (doc.script) {
-    return [
-      { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: () => void firstDataset().then((d) => doc.script!.addDax(d)) },
-      { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: () => void doc.script!.addHtml() },
-    ];
-  }
-  const add = (kind: CellKind) => (): void => doc.notebook!.add(kind);
-  return [
-    { label: "Python", icon: "code", keys: "B", run: add("code") },
-    { label: "SQL", icon: "sql", run: add("sql") },
-    { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: add("dax") },
-    { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: add("html") },
-    { label: "Markdown", icon: "edit", run: add("markdown") },
-    // The open project's mode's own cell kinds (a code app: TypeScript and TSX): run where its routes say;
-    // a kind with no route yet is offered as coming.
-    ...activeMode().mode.cell_kinds
-      .filter((k) => !["code", "python", "sql", "dax", "html", "markdown"].includes(k))
-      .map((k) =>
-        cellRoute(k) && (k === "typescript" || k === "tsx")
-          ? { label: cellRoute(k)!.name || (LANGUAGE_WORDS[k] ?? k), icon: k === "tsx" ? "image" : "code", title: k === "tsx" ? "A React component, drawn" : "Run in the data notebook's kernel", run: add(k) }
-          : { label: `${LANGUAGE_WORDS[k] ?? k} (coming)`, icon: "code", disabled: true, title: "Coming: a later version runs these cells", run: () => undefined },
-      ),
-  ];
+function drawControls(): void {
+  bars.drawControls();
 }
-
-/** A group's "…": the rest of what the old toolbar held, for the document in front of it. */
-function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
-  const kernel = doc.kernel;
-  const split = canSplit(doc);
-  return [
-    ...(doc.script ? [{ label: "Run statement", icon: "play", keys: "Ctrl+Enter", run: () => void doc.script!.runSelection() }] : []),
-    ...(doc.notebook ? [{ label: "Clear every output", icon: "clean", run: () => doc.notebook!.clearAll() }] : []),
-    null,
-    { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
-    { label: "Import…", icon: "import", title: "Notebooks, scripts and apps from another project", disabled: !sabOpen(), run: () => void importDocuments() },
-    { label: "In this project…", icon: "more", run: () => recentMenu(anchor) },
-    ...(doc.notebook || doc.script
-      ? [
-          { label: "Save", icon: "save", keys: "Ctrl+S", run: () => void save(doc) },
-          { label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) },
-        ]
-      : []),
-    ...(doc.notebook || doc.script
-      ? [
-          { label: "Export as one Python script…", icon: "export", title: "One .py that runs with plain python: its connections, vault lookups and grid steps written out", run: () => void exportDocument(doc, "script").catch((e: Error) => errorHere(e)) },
-          { label: "Export as one notebook…", icon: "export", title: "One linear .ipynb that runs top to bottom in any Jupyter (nbconvert, papermill)", run: () => void exportDocument(doc, "notebook").catch((e: Error) => errorHere(e)) },
-        ]
-      : []),
-    null,
-    ...(kernel ? sessionEntries(kernel, inSession(doc)) : []),
-    null,
-    ...moveEntries(doc),
-    { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "right") },
-    { label: "Split down", icon: "splitDown", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "down") },
-    { label: "Close", icon: "close", run: () => close(doc) },
-  ];
-}
-
 /** A tab's moves between windows (its "…" menu and its right-click menu). */
 function moveEntries(doc: Doc): MenuEntry[] {
-  if (!moves(doc)) return [];
-  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
-  const mark = docMark(doc);
-  return [
-    { label: "Open in its own window", icon: "popout", mark, run: guarded(() => popOut(doc)) },
-    ...(isMainWindow() ? [] : [{ label: "Move to the main window", icon: "back", mark, run: guarded(() => moveToMain(doc)) }]),
-  ];
+  return bars.moveEntries(doc);
 }
 
-/** The focused group's row, right side: Run tables (only while one waits), "+ Cell", the main Run, "…". */
-function drawControls(): void {
-  drawTop();
-  const host = groups.controls();
-  const doc = current;
-  if (!doc) return void host.replaceChildren();
-  const more = button("Document menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost wb-more", title: "More" });
-  menuButton(more, "Document menu", () => moreEntries(doc, more), { align: "right" });
-  // Its own Save in its row (no top bar: the owner, 2026-11-21); Save as… is its "…" or Ctrl+Shift+S.
-  const saveHere = button("Save", () => void saveFront().catch((e: Error) => errorHere(e)), { icon: "save", iconOnly: true, class: "ghost wb-save", title: "Save (Ctrl+S)" });
-  const full = document.body.classList.contains("wb-full"); // workbenchView.ts fullScreen sets it first
-  const fullButton = button(full ? "Leave full screen" : "Full screen", () => void fullScreen(), { icon: full ? "restore" : "max", iconOnly: true, class: "ghost wb-full-toggle", title: full ? "Leave full screen (Escape)" : "Full screen (F11)", pressed: full });
-  if (doc.workbook) return void host.replaceChildren(doc.workbook.tools, saveHere, more);
-  if (!doc.notebook && !doc.script) return void host.replaceChildren(more);
-  const addCell = h("button", { type: "button", class: "btn line wb-add-cell", "aria-label": "Add cell", title: "Add cell" }, icon("plus"), h("span", { class: "btn-label" }, "Cell"), icon("down")) as HTMLButtonElement;
-  menuButton(addCell, "Cell kinds", () => cellEntries(doc));
-  const run = doc.notebook
-    ? button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" })
-    : isApiFile(doc)
-      ? button("Run API", busyClick("Starting…", (b) => runApi(doc, b)), { icon: "play", class: "primary", title: "Run the local sandbox API (F5)" })
-      : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
-  const debugButton = doc.debug ? button("Start debugging", () => void doc.debug!.start().catch((e: Error) => errorHere(e)), { icon: "bug", iconOnly: true, class: "ghost wb-debug-start", title: "Start debugging (Ctrl+Shift+D)" }) : null;
-  const view = dataViews.get(doc)?.view ?? "cells";
-  // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
-  // shouldnt be"): cells are a notebook's.
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, view === "cells" ? run : null, debugButton, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
-  drawTablesTool();
-}
+// ----- the status bar: for the focused document (workbenchStatusBar.ts)
 
-async function restartKernel(kernel: Kernel): Promise<boolean> {
-  // The project's one session: every notebook's and script's variables go, so it is asked first.
-  if (kernel.shared && kernel.id && !(await askYesNo("Restart the project's Python session? Every variable is cleared, for every notebook and script of the project."))) return false;
-  const did = await kernel.restart();
-  toast(did ? (kernel.shared ? "The project's Python session was restarted: every variable is cleared." : "Restarted") : "Nothing to restart");
-  return did;
-}
-
-/** The session's entries (the status bar's menu and a document's "…"): for a project's document they say
- *  whose they are, and one more stops the session for all of them. */
-function sessionEntries(kernel: Kernel, shared: boolean): { label: string; icon: string; title?: string; run: () => void }[] {
-  if (!shared) {
-    return [
-      { label: "Interrupt", icon: "stop", run: () => void kernel.interrupt() },
-      { label: "Restart", icon: "back", run: () => void restartKernel(kernel) },
-    ];
-  }
-  const words = kernel.sessionWords || projectPython()?.session || "";
-  return [
-    { label: "Interrupt the project's Python session", icon: "stop", title: words, run: () => void kernel.interrupt() },
-    { label: "Restart the project's Python session", icon: "back", title: words, run: () => void restartKernel(kernel) },
-    { label: "Libraries…", icon: "settings", title: "The project's Python and its libraries (the Environment page)", run: () => openProjectLibraries() },
-  ];
-}
-
-/** Stop the document's Python: its own kernel, or (asked first) the project's one session for every
- *  document of the project. The next Run starts a new one. */
-async function stopSession(): Promise<{ stopped: boolean }> {
-  const kernel = kernelOf();
-  if (!kernel.id) return { stopped: false };
-  if (kernel.shared && !(await askYesNo("Stop the project's Python session? Every variable is gone, for every notebook and script of the project. The next Run starts a new one."))) return { stopped: false };
-  kernel.stop(false, kernel.shared);
-  toast(kernel.shared ? "The project's Python session stopped" : "Kernel stopped");
-  return { stopped: true };
-}
-
-/** The Environment's Libraries tab, over this page (the project's Python, requirements.txt). */
-function openProjectLibraries(): void {
-  openEnvironment("library");
-}
-
-// ----- the status bar: for the focused document
-
-const kernelHost = h("span", { class: "wb-status-kernel" });
-const envHost = h("span", { class: "wb-status-env" });
-const cursorHost = h("span", { class: "wb-status-cursor" });
-const consoleToggle = button("Console", () => {
-  layout.toggle("console");
-  drawStatus();
-}, { class: "ghost wb-toggle wb-console-toggle", pressed: false });
-const variablesToggle = button("Environment", () => {
-  if (layout.toggle("right")) void variables.refresh();
-  drawStatus();
-}, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
 installZoomInput();
-const explorerToggle = button("Data Explorer", () => void runCommand("view.explorer").catch((e: Error) => errorHere(e)), { class: "ghost wb-toggle wb-explorer-toggle", pressed: false, title: "Data Explorer (Ctrl+Shift+E)" });
-// The lint's count for the document in front (errors and warnings; unused names are faded, not counted):
-// a click lists every problem, and goes to the one picked. Nothing shows while there is none.
-const problemsButton = menuButton(
-  button("Problems", () => undefined, { icon: "warning", class: "ghost wb-problems" }),
-  "Problems",
-  () => {
-    const found = problemsOf(problemsKey(current));
-    const entries: MenuEntry[] = found.flatMap((s) =>
-      s.problems.map((p) => ({
-        label: `${s.place ? `${s.place}, ` : ""}line ${p.line}: ${p.message.replace(/`/g, "")}${p.code ? ` (${p.code})` : ""}`,
-        icon: p.severity === "error" ? "problem" : p.severity === "warning" ? "warning" : "info",
-        run: () => s.reveal(p.line, p.col),
-      })),
-    );
-    const listed: MenuEntry[] = entries.length ? entries : [{ label: "No problems", disabled: true }];
-    // Ruff, offered here only (quietly: never a prompt by itself): into the document's own Python.
-    const doc = current;
-    const ruff = doc ? ruffOffer(problemsKey(doc)) : null;
-    if (ruff && doc) listed.push(null, { label: "Check with Ruff too: install ruff…", icon: "import", run: () => void promptInstall(ruff, { force: true, install: kernelInstall(doc), then: () => relint(doc) }) });
-    return listed;
+const status = statusBar({
+  layout, variables, modeToggles, drawModeToggles, inSession, folderOf,
+  sessionEntries: (kernel, shared) => bars.sessionEntries(kernel, shared),
+  openProjectLibraries,
+  kernelInstall: (doc) => kernelInstall(doc),
+  explorer: { isOpen: () => explorerPane.isOpen(), popped: () => explorerPane.popped() },
+  get current() {
+    return current;
   },
-  { above: true },
-);
-problemsButton.hidden = true;
-/** The key the editors' problems are kept under for a document (workbenchIntel.ts's document). */
-function problemsKey(doc: Doc | null): string {
-  if (!doc) return "\u0000none";
-  return doc.path ?? (doc.kind === "notebook" ? "Untitled notebook" : "Untitled script");
-}
-function drawProblems(): void {
-  const doc = current;
-  const found = doc && (doc.notebook || doc.script) ? problemsOf(problemsKey(doc)).flatMap((s) => s.problems) : [];
-  const errors = found.filter((p) => p.severity === "error").length;
-  const warnings = found.filter((p) => p.severity === "warning").length;
-  problemsButton.hidden = errors + warnings === 0;
-  const words = [errors ? `${errors} ${errors === 1 ? "error" : "errors"}` : "", warnings ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : ""].filter(Boolean).join(", ");
-  const label = problemsButton.querySelector(".btn-label");
-  if (label) label.textContent = words;
-  problemsButton.setAttribute("aria-label", words ? `Problems: ${words}` : "Problems");
-  problemsButton.title = words;
-  problemsButton.classList.toggle("has-errors", errors > 0);
-}
-onProblems(drawProblems);
-/** Check a document's editors again (Ruff came in). */
-function relint(doc: Doc): void {
-  doc.script?.relint();
-  doc.notebook?.relint();
-}
-// The app's one footer (appFooter.ts), the Workbench's own parts in its middle: the panes' switches on the right.
-// Files and Blades' buttons (sidePanes.ts) at the end, as the Canvas's Widgets and Properties: put in once the panes exist.
-const sideToggles = h("span", { class: "wb-side-toggles", role: "group", "aria-label": "Panes" });
-mountAppFooter(layout.status, [explorerToggle, kernelHost, envHost, cursorHost, problemsButton, inlineStatus()], [consoleToggle, modeToggles, variablesToggle, sideToggles]);
-
-function drawCursor(): void {
-  const doc = current;
-  cursorHost.textContent = doc?.notebook || doc?.script ? `Line ${cursor.line}, column ${cursor.column}` : "";
-}
-
-/** The status bar: the kernel (its state only while it is not ready, as principle 7.9 asks; its menu
- *  always), the environment, the cursor; the Console and Variables toggles. */
+  get cursor() {
+    return cursor;
+  },
+  get pythons() {
+    return pythons;
+  },
+});
+const { sideToggles } = status;
 function drawStatus(): void {
-  const doc = current;
-  const kernel = doc?.kernel;
-  if (kernel) {
-    // A project's document: the project's one Python session (busy while any of its documents runs).
-    const shared = inSession(doc);
-    const elsewhere = kernel.state === "idle" && kernel.othersRunning() > 0;
-    const look = elsewhere ? "busy" : kernel.state;
-    const words = elsewhere ? "running another document's code…" : STATE_WORDS[kernel.state];
-    const name = shared ? "Python session" : "Kernel";
-    const knob = h(
-      "button",
-      { type: "button", class: `btn ghost wb-kernel ${look}${shared ? " shared" : ""}`, "aria-label": name, title: shared ? kernel.sessionWords || projectPython()?.session || "" : "Kernel: Interrupt, Restart" },
-      h("span", { class: "wb-dot", "aria-hidden": "true" }),
-      h("span", {}, name),
-      words ? h("span", { class: `wb-state ${look}` }, words, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "") : null,
-      icon("down"),
-    ) as HTMLButtonElement;
-    menuButton(knob, name, () => sessionEntries(kernel, shared), { above: true });
-    clear(kernelHost, knob);
-    // Not drawn again while the picker is in use (a run's state changes would close it).
-    if (!envHost.contains(document.activeElement) || envHost.dataset.doc !== String(doc.id)) {
-      clear(envHost, pythonPicker(doc));
-      envHost.dataset.doc = String(doc.id);
-    }
-  } else {
-    clear(kernelHost, doc ? h("span", { class: "hint" }, doc.kind === "blade" ? "Blade" : doc.kind === "structure" ? "Structure" : "Table") : null);
-    clear(envHost);
-    envHost.dataset.doc = "";
-  }
-  drawCursor();
-  drawProblems();
-  explorerToggle.setAttribute("aria-pressed", String(explorerPane.isOpen() || explorerPane.popped()));
-  const state = layout.state();
-  consoleToggle.setAttribute("aria-pressed", String(state.console));
-  variablesToggle.setAttribute("aria-pressed", String(state.right));
-  consoleToggle.disabled = !doc?.console;
-  consoleToggle.title = doc?.console ? "Console (Ctrl+2)" : "No console for what is in front";
-  variablesToggle.hidden = doc?.kind === "script";
-  drawModeToggles(doc);
+  status.drawStatus();
+}
+function drawCursor(): void {
+  status.drawCursor();
 }
 
 // ===== the Data Explorer: one search over what holds data; the catalog and the blades beside it =====
@@ -1846,104 +1388,18 @@ const explorerPane = mountExplorerPane({
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(explorerPane.element);
 
-/** What the app generates, read-only (a table's transformations as one DuckDB query), with Fine-tune. */
-function showGenerated(file: TreeFile): void {
-  const { body, foot, close } = openDialog(`${file.name}: its transformations (read-only)`, true);
-  body.append(h("pre", { class: "mono wb-generated" }, file.text ?? ""));
-  foot.append(button("Fine-tune as a script", () => (close(), void fineTune(file.name)), { class: "primary" }), button("Close", () => close(), { class: "ghost" }));
-}
+// ===== the Files and Blades panes on the right (workbenchSides.ts) =====
 
-/** Fine-tune as a script: the table's transformations as a new script in scripts/, opened here. */
-async function fineTune(table: string): Promise<void> {
-  try {
-    const made = await api<{ path: string }>("/scripts/fine-tune", "POST", { table });
-    await codex.refresh();
-    await open(made.path);
-  } catch (e) {
-    errorHere(e);
-  }
-}
-
-/** The Scripts explorer's tree actions (2026-11-21): Rename (imports follow, previewed), Duplicate, Delete (to
- *  the trash), a package's own. */
-function treeAction(file: TreeFile, action: string, path: string): void {
-  const refreshed = (): void => void codex.refresh();
-  if (action === "rename" || action === "rename-package") renameFile(path, refreshed);
-  else if (action === "duplicate") void duplicateFile(path).then((made) => (refreshed(), void open(made))).catch((e: Error) => errorHere(e));
-  else if (action === "delete" || action === "delete-package") deleteFile(path, refreshed);
-  else if (action === "new-package") newPackage(path, refreshed);
-  void file;
-}
-
-/** The page's New: a script here, a notebook on the Notebooks page (the creator's and the explorer's). */
-function newHere(): void {
-  const k: Kind = PAGE === "scripts" ? "script" : "notebook";
-  const own = k === "script" ? scriptLanguage() : null;
-  if (own) return void newModeFile(own);
-  const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
-  if (!start) return;
-  if (landing.kind()) {
-    hideLanding();
-    void go(withParams({ view: null, kind: k }), "push");
-  }
-  start.run();
-}
-
-// The Scripts page's Blades, a pane on the right beside Files (the owner, 2026-11-22: "make the blades and files
-// panes function just like properties and widgets on canvas"): the blades list (catalogRail.ts) drawn here; a
-// blade opens as a tab (bladeDoc). Elsewhere the Data Explorer's.
-const bladesPane = PAGE === "scripts" ? h("section", { class: "rail-section wb-blades-pane", id: "blades", "aria-labelledby": "blades-title" }) : null;
-
-// The page's Files pane (codeExplorer.ts): the project's scripts by module, or its notebooks; a click opens the
-// file as a tab here.
-const codex = mountCodeExplorer({
-  page: PAGE,
-  open: (file) => (file.item ? showGenerated(file) : void open(file.full)),
-  action: (file, id) => {
-    if (id === "fine-tune") void fineTune(file.name);
-  },
-  openAt: (file, line) => void openAt(file.full, line),
-  newDocument: newHere,
-  newPackage: PAGE === "scripts" ? () => newPackage(null, () => void codex.refresh()) : undefined,
-  fileAction: PAGE === "scripts" ? treeAction : undefined,
+const { codex, sides, bladesPane, bladeAsked } = workbenchSides({
+  page: PAGE, docs, open, openAt, scriptLanguage, newModeFile, bladeDoc, sideToggles,
   menu: topMenu, // the page's "…" (no top bar: the owner, 2026-11-21)
-  openNow: () => ({ paths: docs.map((d) => d.path ?? "").filter(Boolean), dirty: docs.filter((d) => d.dirty && d.path).map((d) => d.path!), front: current?.path ?? null }),
+  landingKind: () => landing.kind(),
+  hideLanding: () => hideLanding(),
+  get current() {
+    return current;
+  },
 });
 codexHooks.mark = codex.mark;
-// Files and Blades: columns on the right of the documents, side by side (Files nearest the code), each shown or
-// hidden by its status bar button and resized by its edge, as the Canvas's Properties and Widgets (sidePanes.ts);
-// remembered per page in this browser.
-const bladesSide = bladesPane ? h("aside", { class: "wb-side wb-blades-side", "aria-label": "Blades" }, bladesPane) : null;
-codex.element.classList.add("wb-side");
-const sides = sidePanes(() => `wb-sides:${PAGE}`, [
-  { id: "files", label: "Files", icon: PAGE === "scripts" ? "code" : "notebook", pane: codex.element, title: "Files (Ctrl+B)" },
-  ...(bladesSide ? [{ id: "blades", label: "Blades", icon: "blade", pane: bladesSide, shown: false, title: "Blades" }] : []),
-]);
-{
-  const docs = document.getElementById("wb-body") as HTMLElement;
-  const row = h("div", { class: "wb-siderow" });
-  docs.before(row);
-  row.append(docs, codex.element, ...(bladesSide ? [bladesSide] : []));
-  sides.mount();
-  sideToggles.append(...sides.toggles);
-}
-/** The Blades pane shown, the focus in it (the old rail icon's place: ?pane=blades, ?blade=, app_navigate). */
-function showBlades(): void {
-  if (!bladesSide) return;
-  sides.show("blades", true);
-  bladesSide.querySelector<HTMLElement>("input, button")?.focus();
-}
-window.addEventListener("sab-blades", () => showBlades());
-if (new URLSearchParams(location.search).get("pane") === "blades") window.setTimeout(() => showBlades(), 0);
-/** ?blade=<name> (the old /catalog?blade=, a Session link, the agent's blade:<name>): that blade's tab here; an
- *  empty name: New blade. The word leaves the address once it is shown (a reload does not open it again). */
-function bladeAsked(url: URL): void {
-  if (PAGE !== "scripts" || !url.searchParams.has("blade")) return;
-  const name = url.searchParams.get("blade") ?? "";
-  void go(withParams({ blade: null }), "replace");
-  showBlades();
-  bladeDoc(name || null);
-}
 
 // ===== the code's own zoom, and full screen (workbenchView.ts) =====
 const editors = (): Promise<typeof import("./lazy/codeEditor")> => import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>;
@@ -2347,7 +1803,7 @@ onNotice((notice) => {
   // One Python per project: the project's Python as it is made, and its one session's restart and end.
   if (heardProjectPython(notice as unknown as { type: string })) {
     for (const d of docs) joinSession(d);
-    envHost.dataset.doc = "";
+    status.forgetPicker();
     drawStatus();
   }
   if (notice.type === "session_restarted" || notice.type === "session_ended") {
