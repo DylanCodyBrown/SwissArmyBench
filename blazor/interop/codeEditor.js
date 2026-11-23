@@ -149,6 +149,66 @@ function registerIntel() {
   });
 }
 
+// Ghost text (the classic inlineCompletion.ts and codeEditor.ts): from the provider the open project's mode declares
+// for the editor's language (GitHub Copilot's routes, when that extension is on); the document is asked of C# (a
+// script's text, or a notebook's code cells and the one being edited). Monaco's cancellation aborts the request and
+// posts the provider's cancel; an item shown, accepted or partly accepted is told to its event route.
+const inlineRegistered = new Set();
+let inlineAsked = 0;
+
+async function post(route, body, signal) {
+  const answer = await fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+  return answer.ok ? answer.json() : null;
+}
+
+function registerInline(language) {
+  if (inlineRegistered.has(language)) return;
+  inlineRegistered.add(language);
+  monaco.languages.registerInlineCompletionsProvider(language, {
+    debounceDelayMs: 250,
+    provideInlineCompletions: async (model, position, _context, token) => {
+      const owner = owners.get(model);
+      const provider = owner?.inline?.find((p) => p.languages.includes(language));
+      if (!provider || token.isCancellationRequested) return { items: [] };
+      let document = null;
+      try {
+        document = await owner.dotnet.invokeMethodAsync("InlineDocument");
+      } catch {
+        return { items: [] };
+      }
+      if (!document) return { items: [] };
+      const abort = new AbortController();
+      const request = `b${++inlineAsked}`;
+      const listening = token.onCancellationRequested(() => {
+        abort.abort();
+        if (provider.cancel) post(provider.cancel, { request }).catch(() => {});
+      });
+      try {
+        const options = model.getOptions();
+        const body = { request, document, position: { line: position.lineNumber - 1, character: position.column - 1 }, tab_size: options.tabSize, insert_spaces: options.insertSpaces };
+        const found = (await post(provider.complete, body, abort.signal).catch(() => null))?.items ?? [];
+        const items = found.map((item) => ({
+          insertText: item.text,
+          range: item.range
+            ? new monaco.Range(item.range.start.line + 1, item.range.start.character + 1, item.range.end.line + 1, item.range.end.character + 1)
+            : new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          sabId: item.id,
+          sabEvent: provider.event,
+        }));
+        return { items, enableForwardStability: true };
+      } finally {
+        listening.dispose();
+      }
+    },
+    handleItemDidShow: (_c, item) => item.sabEvent && post(item.sabEvent, { id: item.sabId, kind: "shown" }).catch(() => {}),
+    handlePartialAccept: (_c, item, accepted) => item.sabEvent && post(item.sabEvent, { id: item.sabId, kind: "partial", length: accepted }).catch(() => {}),
+    handleEndOfLifetime: (_c, item, reason) => {
+      if (reason.kind === monaco.languages.InlineCompletionEndOfLifeReasonKind.Accepted && item.sabEvent) post(item.sabEvent, { id: item.sabId, kind: "accepted" }).catch(() => {});
+    },
+    disposeInlineCompletions: () => undefined,
+  });
+}
+
 const SEVERITY = {
   error: monaco.MarkerSeverity.Error,
   warning: monaco.MarkerSeverity.Warning,
@@ -213,7 +273,8 @@ export function create(host, dotnet, options) {
     glyphMargin: !!options.breakpoints,
   });
   const model = editor.getModel();
-  const owner = { dotnet, intel: !!options.intel, language };
+  const owner = { dotnet, intel: !!options.intel, language, inline: options.inline ?? [] };
+  for (const provider of owner.inline) provider.languages.forEach(registerInline);
   owners.set(model, owner);
 
   const minLines = options.minLines ?? 1;

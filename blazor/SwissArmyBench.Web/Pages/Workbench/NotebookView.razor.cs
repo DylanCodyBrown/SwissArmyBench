@@ -36,6 +36,21 @@ public partial class NotebookView
     [Parameter]
     public string? Path { get; set; }
 
+    /// <summary>The ghost text providers the mode declares.</summary>
+    [Parameter]
+    public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
+
+    /// <summary>The notebook as a ghost text provider is told of it: its code cells, the one edited among them.</summary>
+    private object InlineFor(CellModel cell) => new
+    {
+        key = Path ?? "untitled",
+        name = System.IO.Path.GetFileName(Path ?? "untitled.ipynb"),
+        kind = "notebook",
+        cells = _kept.Cells.Where(c => c.Kind is "code" or "sql" && !c.IsAppCell)
+            .Select(c => new { id = c.Number.ToString(System.Globalization.CultureInfo.InvariantCulture), text = c.Source, language = c.Kind == "sql" ? "sql" : "python" }),
+        cell = cell.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
     /// <summary>Its cells kept with its document (a tab moved keeps them).</summary>
     [Parameter]
     public NotebookKept? Kept { get; set; }

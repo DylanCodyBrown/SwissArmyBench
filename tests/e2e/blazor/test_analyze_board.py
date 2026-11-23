@@ -48,7 +48,9 @@ def test_cards_are_added_pinned_moved_sized_and_saved(browser: Browser, server: 
     # The corner grip's keys: the card's size is kept on the server.
     first.locator(".card-grip").focus()
     page.keyboard.press("ArrowRight")
-    expect(first.locator(".card-grip")).to_have_attribute("aria-valuetext", "7 of 12 columns wide, 10 rows tall")
+    expect(first.locator(".card-grip")).to_have_attribute(
+        "aria-valuetext", "7 of 12 columns wide, 10 rows tall"
+    )
     card_id = first.get_attribute("data-card")
     sized = next(c for c in call(server, "GET", "/cards")["cards"] if c["id"] == card_id)
     assert sized["size"] == {"w": 7, "h": 10}

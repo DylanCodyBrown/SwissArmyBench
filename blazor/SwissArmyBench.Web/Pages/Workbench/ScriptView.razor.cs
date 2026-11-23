@@ -43,6 +43,12 @@ public partial class ScriptView
     [Parameter]
     public EventCallback<string> OnPageKey { get; set; }
 
+    /// <summary>The ghost text providers the mode declares.</summary>
+    [Parameter]
+    public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
+
+    private object InlineDocument() => new { key = Path ?? "untitled", name = System.IO.Path.GetFileName(Path ?? "untitled.py"), kind = "script", language = "python", text = Text };
+
     /// <summary>The IDE moves at the cursor (F12, Shift+F12, F2, Shift+Alt+F), for the page.</summary>
     [Parameter]
     public EventCallback<IdeMove> OnIde { get; set; }

@@ -78,7 +78,7 @@
     {
         <CodeEditor @ref="_editor" Value="@Cell.Source" Language="@EditorLanguage" ReadOnly="Cell.IsAppCell" Grow="true" MinLines="2"
                     Label="@Label" Intel="EditorIntel"
-                    OnChange="TextChangedAsync" OnKey="KeyAsync" />
+                    OnChange="TextChangedAsync" OnKey="KeyAsync" Inline="Inline" InlineDocument="InlineDocument" />
     }
     @if (Cell.OutputHidden)
     {

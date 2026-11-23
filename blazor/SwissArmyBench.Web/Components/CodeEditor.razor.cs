@@ -72,6 +72,14 @@ public partial class CodeEditor
     [Parameter]
     public EventCallback<GutterClick> OnGutter { get; set; }
 
+    /// <summary>The ghost text providers the open project's mode declares (GitHub Copilot's), by language.</summary>
+    [Parameter]
+    public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
+
+    /// <summary>The document a provider is told of (a script's text, or a notebook's cells and this one), or null.</summary>
+    [Parameter]
+    public Func<object?>? InlineDocument { get; set; }
+
     /// <summary>The lint's problems at warning or worse, as they change.</summary>
     [Parameter]
     public EventCallback<int> OnProblems { get; set; }
@@ -87,7 +95,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, inline = InlineDocument is null ? [] : Inline };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
@@ -195,6 +203,10 @@ public partial class CodeEditor
     }
 
     public async Task<int> CursorLineAsync() => _editor is null ? 0 : await _editor.InvokeAsync<int>("cursorLine");
+
+    /// <summary>The document ghost text is asked over, with this editor's text as it is now.</summary>
+    [JSInvokable("InlineDocument")]
+    public object? AskedDocument() => InlineDocument?.Invoke();
 
     [JSInvokable]
     public Task Focused() => OnFocus.InvokeAsync();

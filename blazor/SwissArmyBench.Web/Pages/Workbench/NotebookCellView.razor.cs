@@ -55,6 +55,16 @@ public partial class NotebookCellView
     [Parameter]
     public EventCallback<(CellModel Cell, RunErrorFrame Frame)> OnGoTo { get; set; }
 
+    /// <summary>The ghost text providers the mode declares.</summary>
+    [Parameter]
+    public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
+
+    /// <summary>The notebook as a provider is told of it, with this cell the one edited.</summary>
+    [Parameter]
+    public Func<CellModel, object?>? InlineFor { get; set; }
+
+    private Func<object?>? InlineDocument => InlineFor is null || Cell.IsAppCell ? null : () => InlineFor(Cell);
+
     /// <summary>The notebook's name, for the agent's title.</summary>
     [Parameter]
     public string Document { get; set; } = "the notebook";

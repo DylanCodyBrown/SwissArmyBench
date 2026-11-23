@@ -71,6 +71,11 @@
             <span class="muted">@said</span>
         }
         <span class="status-spacer"></span>
+        @if (_inlineStatus is { } inline)
+        {
+            <button type="button" class="btn small ghost wb-inline-status" aria-pressed="@(inline.On ? "true" : "false")" data-on="@(inline.On ? "true" : "false")"
+                    title="@(inline.On ? $"Turn {inline.Name} off" : $"Turn {inline.Name} on")" @onclick="ToggleInlineAsync">Completions: @inline.Name · @inline.Words</button>
+        }
         @if (Front is not null)
         {
             <span class="muted wb-problems" role="status">@ProblemWords(Front)</span>
@@ -134,12 +139,12 @@
         @<text>
             @if (doc.IsNotebook)
             {
-                <NotebookView @ref="doc.NotebookView" Kept="doc.Kept" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
+                <NotebookView @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" />
             }
             else
             {
-                <ScriptView @ref="doc.ScriptView" Console="doc.Console" Text="@doc.ScriptText" Path="@doc.Path" Saved="!doc.Dirty && doc.Path is not null"
+                <ScriptView @ref="doc.ScriptView" Console="doc.Console" Inline="_inline" Text="@doc.ScriptText" Path="@doc.Path" Saved="!doc.Dirty && doc.Path is not null"
                             OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)"
                             OnIde="m => IdeAsync(doc, m)" />
             }
