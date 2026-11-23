@@ -13,31 +13,8 @@ export const MAX_CELL_NAME = 80;
 /** A cell's name as typed: one line, at most 80 characters ("" is no name). */
 export const cleanName = (typed: string): string => typed.replace(/[\r\n]+/g, " ").trim().slice(0, MAX_CELL_NAME);
 
-// A script cell's name is its marker's own words (domain/table_cells.py marker_words): words that
-// would read as the marker's grammar are written after a backslash.
-const GRAMMAR = /^(?:\[(?:\d+|table|transformations|html|streamlit)\]|height=\d|\\)/;
-const MARKER = /^(# ?%%(?: \[\d+\])?(?: \[(?:table|transformations)\] [A-Za-z_][\w-]*)?(?: \[(?:html|streamlit)\])?(?: height=\d{1,5})?)((?: .*)?)$/;
-
-export const markerWords = (name: string): string => (GRAMMAR.test(name) ? `\\${name}` : name);
-
-export function markerName(words: string): string {
-  const said = words.trim();
-  return said.startsWith("\\") && GRAMMAR.test(said.slice(1)) ? said.slice(1) : said;
-}
-
-/** A marker line's own words (the cell's name as written), or null when the line is no marker. */
-export function markerWordsOf(line: string): string | null {
-  const found = MARKER.exec(line);
-  return found ? (found[2] ?? "") : null;
-}
-
-/** A marker line with the cell's name in place of its words. */
-export function withMarkerName(line: string, name: string): string {
-  const found = MARKER.exec(line);
-  if (!found) return line;
-  return name ? `${found[1]} ${markerWords(name)}` : found[1]!;
-}
-
+// A script cell's name is its marker's own words: the rules are scriptCells.ts's (pure, tested in Node).
+export { markerName, markerWords, markerWordsOf, withMarkerName } from "./scriptCells";
 
 // ===== a copied cell: what Copy keeps =====
 
