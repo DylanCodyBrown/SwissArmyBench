@@ -1,0 +1,90 @@
+@* The Code App's Custom connector tab (the classic codeAppPage.ts drawCustom): from an API on the APIs page, its two
+   files shown first (the dry run: title, host, operations, sign-in), then Make the connector (pac connector create). *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.Apis
+@using SwissArmyBench.Web.Api.PowerApps
+@inject CodeAppClient CodeApps
+@inject ApisClient Apis
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+@if (_apis is { } apis)
+{
+    <section class="ca-custom">
+        @if (apis.Count > 0)
+        {
+            <label class="ca-field"><span>From the API</span>
+                <select aria-label="The API" class="ca-api" @bind="_api">
+                    @foreach (var api in apis)
+                    {
+                        <option value="@api.Name">@api.Name (@api.Operations operations, sign-in: @api.Auth)</option>
+                    }
+                </select>
+            </label>
+            <div class="ca-section-head"><button type="button" class="btn primary ca-dry-run" @onclick="DryAsync"><Icon Name="eye" /><span class="btn-label">Show its files</span></button></div>
+        }
+        else
+        {
+            <p class="empty-note">No APIs yet: add one on the APIs page.</p>
+        }
+        <div class="ca-custom-files">
+            @if (_plan is { } plan)
+            {
+                <p><strong>@plan.Title</strong> · @plan.Host · @plan.Operations operations · @plan.SignIn</p>
+                @foreach (var (name, text) in plan.Files)
+                {
+                    <details class="ca-file-text" open="@name.StartsWith("apiProperties", StringComparison.Ordinal)"><summary><Icon Name="page" /> @name</summary><pre class="mono">@text</pre></details>
+                }
+                <div class="ca-section-head">
+                    <button type="button" class="btn primary ca-make-connector" @onclick="MakeAsync"><Icon Name="plug" /><span class="btn-label">Make the connector</span></button>
+                    <span class="muted">pac connector create, in the code app's connectors folder</span>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private IReadOnlyList<ApiCard>? _apis;
+    private CustomConnectorPlan? _plan;
+    private string _api = string.Empty;
+    private Exception? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _apis = (await Apis.CardsAsync()).Apis;
+            _api = _apis.FirstOrDefault()?.Name ?? string.Empty;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task DryAsync()
+    {
+        try
+        {
+            _plan = await CodeApps.CustomConnectorPlanAsync(_api);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task MakeAsync()
+    {
+        try
+        {
+            var done = await CodeApps.MakeCustomConnectorAsync(_api);
+            await Notes.SayAsync($"The custom connector is made ({done.Files.Count} files written).");
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

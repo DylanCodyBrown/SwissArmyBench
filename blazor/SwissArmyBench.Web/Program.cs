@@ -3,21 +3,29 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 using SwissArmyBench.Web.Api;
+using SwissArmyBench.Web.Api.Accounting;
 using SwissArmyBench.Web.Api.Analyze;
 using SwissArmyBench.Web.Api.Apis;
 using SwissArmyBench.Web.Api.App;
+using SwissArmyBench.Web.Api.Canvas;
 using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
 using SwissArmyBench.Web.Api.Extensions;
 using SwissArmyBench.Web.Api.Files;
+using SwissArmyBench.Web.Api.Git;
 using SwissArmyBench.Web.Api.Grids;
+using SwissArmyBench.Web.Api.Panels;
+using SwissArmyBench.Web.Api.PowerApps;
+using SwissArmyBench.Web.Api.PowerBi;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
 using SwissArmyBench.Web.Api.Sandbox;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
+using SwissArmyBench.Web.Api.Sharing;
 using SwissArmyBench.Web.Api.Structures;
+using SwissArmyBench.Web.Api.Widgets;
 using SwissArmyBench.Web.Api.Workbench;
 using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
@@ -67,6 +75,15 @@ public static class Program
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();
         services.AddScoped<ExtensionsClient>();
+        // The extensions' pages (the Canvas, Widgets, Share…).
+        services.AddScoped<CanvasClient>();
+        services.AddScoped<WidgetsClient>();
+        services.AddScoped<SharingClient>();
+        services.AddScoped<GitClient>();
+        services.AddScoped<PowerBiClient>();
+        services.AddScoped<PanelClient>();
+        services.AddScoped<CodeAppClient>();
+        services.AddScoped<AccountingClient>();
     }
 
     private static void AddState(IServiceCollection services)
@@ -84,6 +101,6 @@ public static class Program
         services.AddScoped<BetaState>();
         // The page plug-ins: an extension's page (Power BI export, Source Control, Code App) registered under the id its
         // PAGE_ACTIONS names (Components/PagePlugins.cs).
-        services.AddSingleton(new PagePlugins());
+        services.AddSingleton(ExtensionPlugins.RegisterIn(new PagePlugins()));
     }
 }

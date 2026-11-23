@@ -1,0 +1,92 @@
+@* The Widgets window's Properties (the classic widgetPage.ts drawProps): Name (checked as it is typed: available,
+   taken, not a valid name; Enter keeps it) and Description (the file's header only); the code's problem; each
+   property (a top-level plain value) by its mask, a default checked by the server before it is written into only its
+   own characters; the contract read-only (Inputs, Outputs, Events) and Upgrade to In/Out…; Delete widget. Logic in
+   WidgetProperties.razor.cs. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Widgets
+
+<div class="wg-header">
+    <label class="wg-field"><span class="wg-label">Name</span>
+        <input class="wg-name" value="@_name" aria-label="Name" spellcheck="false" data-no-variables readonly="@Widget.Prebuilt"
+               @oninput="NameTypedAsync" @onchange="CommitAsync" @onkeydown="NameKeyAsync" />
+    </label>
+    <div class="wg-name-line" aria-live="polite" data-state="@_nameState">@_nameLine</div>
+    <label class="wg-field"><span class="wg-label">Description</span>
+        <textarea class="wg-description" rows="2" aria-label="Description" data-no-variables readonly="@Widget.Prebuilt"
+                  @bind="_description" @bind:after="CommitAsync"></textarea>
+    </label>
+</div>
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+@if (Widget.Problem is { } problem)
+{
+    <div class="wg-props-problem"><Icon Name="warning" />@problem.Error @problem.Fix</div>
+}
+@if (Widget.Properties.Count == 0 && Widget.Problem is null)
+{
+    <p class="wg-props-none">A top-level value in the code (title = "Sales") is a property.</p>
+}
+@foreach (var prop in Widget.Properties)
+{
+    <PropertyField @key="@($"{Widget.Name}:{prop.Name}")" Prop="prop" Values="Defaults" Context="Context" ReadOnly="Widget.Prebuilt" OnValue="v => SetDefaultAsync(prop.Name, v)" />
+}
+@if (Widget.Contract is { } contract)
+{
+    @foreach (var (section, title, ports, kind) in Sections(contract))
+    {
+        <section class="wg-contract" data-section="@section">
+            <h3>@title</h3>
+            @foreach (var port in ports)
+            {
+                <div class="wg-prop wg-port @(port.Problem is not null ? "marked" : null)" data-port="@port.Name" data-direction="@kind">
+                    <div class="wg-prop-head"><span class="wg-prop-name">@port.Name</span><span class="wg-prop-mask">@(kind == "event" ? "Event" : $"{(kind == "in" ? "In" : "Out")} · {port.Words}")</span></div>
+                    @if (port.Help.Length > 0)
+                    {
+                        <div class="wg-prop-help">@port.Help</div>
+                    }
+                    @if (port.Problem is { } portProblem)
+                    {
+                        <div class="wg-field-line">@portProblem</div>
+                    }
+                </div>
+            }
+        </section>
+    }
+}
+@if (Widget.Upgradable && !Widget.Prebuilt)
+{
+    <section class="wg-contract wg-upgrade">
+        <button type="button" class="btn ghost wg-upgrade-button" @onclick="UpgradePreviewAsync"><Icon Name="link" /><span class="btn-label">Upgrade to In/Out…</span></button>
+    </section>
+}
+@if (!Widget.Prebuilt)
+{
+    <div class="wg-props-foot">
+        <button type="button" class="btn ghost danger" @onclick="DeleteAsync"><Icon Name="trash" /><span class="btn-label">Delete widget</span></button>
+    </div>
+}
+@if (_plan is { } plan)
+{
+    <AppDialog Title="Upgrade to In/Out" OnClose="() => _plan = null">
+        <ChildContent>
+            <div class="wg-upgrade-dialog">
+                <ul>
+                    @foreach (var change in plan.Changes)
+                    {
+                        <li>@change.Key: @change.Port: @(change.Direction == "in" ? "In" : "Out")[@change.Type]</li>
+                    }
+                </ul>
+                @if (plan.Kept.Count > 0)
+                {
+                    <p class="wg-prop-help">Kept as it is: @string.Join("; ", plan.Kept)</p>
+                }
+                <pre class="wg-upgrade-diff">@plan.Diff</pre>
+                <ErrorNote Error="_upgradeError" />
+            </div>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="() => _plan = null">Cancel</button>
+            <button type="button" class="btn primary" @onclick="UpgradeAsync">Apply</button>
+        </Foot>
+    </AppDialog>
+}

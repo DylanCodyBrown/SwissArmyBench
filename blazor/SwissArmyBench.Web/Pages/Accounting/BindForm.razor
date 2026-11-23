@@ -1,0 +1,87 @@
+@* A template's place bound (the classic excelTemplates.ts drawForm): the place (its named range, else Sheet!B3), bound
+   to a value (from a column of the group's row, text, the number or the date, with a format) or to a table of lines
+   that grows (the lines' columns left to right, the rows the template has for them); Bind. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<div class="xc-bind">
+    <h4>@Place</h4>
+    <input type="text" class="xc-bind-place mono" aria-label="Place" spellcheck="false" data-no-variables @bind="_place" />
+    <select class="xc-bind-kind" aria-label="Bound to" @bind="_kind">
+        <option value="value">A value</option>
+        <option value="table">A table of lines</option>
+    </select>
+    <select class="xc-bind-from" aria-label="From" hidden="@Table" @bind="_from">
+        <option value="column">A column</option>
+        <option value="text">Text</option>
+        <option value="number">The number</option>
+        <option value="date">The date</option>
+    </select>
+    <input type="text" class="xc-bind-what" aria-label="Column or text" spellcheck="false" data-no-variables placeholder="@WhatHint"
+           hidden="@(!Table && _from is "number" or "date")" @bind="_what" @ref="_whatBox" />
+    <input type="text" class="xc-bind-format" aria-label="Format" placeholder="keep" spellcheck="false" hidden="@Table" @bind="_format" />
+    <input type="number" min="1" class="xc-bind-rows" aria-label="Rows in the template" hidden="@(!Table)" @bind="_rows" />
+    <button type="button" class="btn primary xc-bind-go" @onclick="BindAsync"><Icon Name="link" /><span class="btn-label">Bind</span></button>
+</div>
+
+@code {
+    private string _place = string.Empty;
+    private string _kind = "value";
+    private string _from = "column";
+    private string _what = string.Empty;
+    private string _format = string.Empty;
+    private int _rows = 1;
+    private ElementReference _whatBox;
+
+    [Parameter, EditorRequired]
+    public string Place { get; set; } = string.Empty;
+
+    [Parameter]
+    public TemplateBinding? Existing { get; set; }
+
+    [Parameter]
+    public EventCallback<TemplateBinding> OnBind { get; set; }
+
+    private bool Table => _kind == "table";
+
+    private string WhatHint => Table ? "the lines' columns, left to right" : _from == "text" ? "Statement for {cedant}" : "a column";
+
+    protected override void OnInitialized()
+    {
+        var b = Existing;
+        _place = Place;
+        _kind = b?.Kind ?? "value";
+        _from = b?.Value?.Number == true ? "number" : b?.Value?.Date == true ? "date" : b?.Value?.Text is not null ? "text" : "column";
+        _what = b?.Value?.Column ?? b?.Value?.Text ?? string.Join(", ", b?.Columns ?? []);
+        _format = b?.Format ?? string.Empty;
+        _rows = b?.Rows ?? 1;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _whatBox.FocusAsync();
+        }
+    }
+
+    private Task BindAsync()
+    {
+        var place = _place.Trim();
+        var binding = Table
+            ? new TemplateBinding { Kind = "table", Place = place, Columns = WorkbookRules.Split(_what), Rows = Math.Max(1, _rows), Grow = true }
+            : new TemplateBinding
+            {
+                Kind = "value",
+                Place = place,
+                Value = _from switch
+                {
+                    "number" => new BindingValue { Number = true },
+                    "date" => new BindingValue { Date = true },
+                    "text" => new BindingValue { Text = _what },
+                    _ => new BindingValue { Column = _what.Trim() },
+                },
+                Format = _format.Trim().Length > 0 ? _format.Trim() : null,
+            };
+        return OnBind.InvokeAsync(binding);
+    }
+}

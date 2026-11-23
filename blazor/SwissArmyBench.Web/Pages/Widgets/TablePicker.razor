@@ -1,0 +1,103 @@
+@* The table picker (the classic widgetFields.ts tablePicker): Sample data first, the open tables, data.ipynb's, then a
+   group per connection (the Sandbox first) with "Another table of <connection>…" (or "Type a table of…" while its
+   catalog is not listed): a connection's table typed as DuckDB SQL names it, [Conn].table. *@
+@using SwissArmyBench.Web.Api.Widgets
+
+<span class="wg-table-field">
+    <select class="wg-input wg-table-picker" disabled="@ReadOnly" aria-label="@Label" @onchange="PickedAsync">
+        <option value="" selected="@(Value.Length == 0)">Sample data (made up)</option>
+        @if (Context is { } context)
+        {
+            @foreach (var (label, tables) in new[] { ("Open tables", context.OpenTables), ("data.ipynb", context.DataTables) }.Where(g => g.Item2.Count > 0))
+            {
+                <optgroup label="@label">
+                    @foreach (var table in tables)
+                    {
+                        <option value="@table" selected="@(table == Value)">@table</option>
+                    }
+                </optgroup>
+            }
+            @foreach (var connection in Connections)
+            {
+                <optgroup label="@connection.Key" data-connection="@connection.Key">
+                    @foreach (var table in connection.Value ?? [])
+                    {
+                        <option value="@table" selected="@(table == Value)">@table</option>
+                    }
+                    <option value="@(TypeMark + connection.Key)">@(connection.Value is null ? $"Type a table of {connection.Key}…" : $"Another table of {connection.Key}…")</option>
+                </optgroup>
+            }
+        }
+        @if (Value.Length > 0 && !Known.Contains(Value))
+        {
+            <option value="@Value" selected>@(Value.StartsWith('[') ? Value : $"{Value} (not here)")</option>
+        }
+    </select>
+    <input type="text" class="wg-input wg-table-typed" hidden="@(_typing is null)" spellcheck="false" aria-label="The connection's table" data-no-variables
+           @bind="_typed" @bind:after="TypedAsync" @onkeydown="TypedKeyAsync" @ref="_typedBox" />
+</span>
+
+@code {
+    private const string TypeMark = "sab-type:";
+
+    private string? _typing;
+    private string _typed = string.Empty;
+    private ElementReference _typedBox;
+
+    [Parameter]
+    public WidgetContext? Context { get; set; }
+
+    [Parameter]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public string Label { get; set; } = "Table";
+
+    [Parameter]
+    public EventCallback<string> OnPick { get; set; }
+
+    /// <summary>The connections in order: the Sandbox first, then by name.</summary>
+    private IEnumerable<KeyValuePair<string, IReadOnlyList<string>?>> Connections =>
+        (Context?.ConnectionTables ?? new Dictionary<string, IReadOnlyList<string>?>())
+            .OrderByDescending(c => c.Key == "Sandbox")
+            .ThenBy(c => c.Key, StringComparer.Ordinal);
+
+    private HashSet<string> Known =>
+        (Context?.OpenTables ?? []).Concat(Context?.DataTables ?? []).Concat(Connections.SelectMany(c => c.Value ?? [])).Append(string.Empty).ToHashSet();
+
+    private async Task PickedAsync(ChangeEventArgs e)
+    {
+        var picked = e.Value as string ?? string.Empty;
+        if (picked.StartsWith(TypeMark, StringComparison.Ordinal))
+        {
+            _typing = picked[TypeMark.Length..];
+            _typed = $"[{_typing}].";
+            StateHasChanged();
+            await Task.Yield();
+            await _typedBox.FocusAsync();
+            return;
+        }
+        _typing = null;
+        await OnPick.InvokeAsync(picked);
+    }
+
+    private async Task TypedAsync()
+    {
+        var typed = _typed.Trim();
+        if (typed.Length > 0 && !typed.EndsWith("].", StringComparison.Ordinal))
+        {
+            await OnPick.InvokeAsync(typed);
+        }
+    }
+
+    private async Task TypedKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await TypedAsync();
+        }
+    }
+}

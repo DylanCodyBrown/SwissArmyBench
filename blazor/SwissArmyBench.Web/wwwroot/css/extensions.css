@@ -1,0 +1,1081 @@
+/* extensions.css: the extensions' own pages and dialogs (Export to Power BI, an extension's panel, the Code App
+   page, the Excel canvas): the classic grid.css's rules for their classes, each with its line there. */
+/* grid.css line 3056 */
+.pbi-export .pbi-name-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+/* grid.css line 3062 */
+.pbi-export .pbi-name {
+  flex: 1;
+}
+/* grid.css line 3065 */
+.pbi-export .pbi-tables,
+.pbi-export .pbi-rels {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+/* grid.css line 3071 */
+.pbi-export .pbi-table {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+/* grid.css line 3075 */
+.pbi-export .pbi-table > label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+/* grid.css line 3080 */
+.pbi-export .pbi-why,
+.pbi-export .pbi-note,
+.pbi-export .pbi-rows,
+.pbi-export .pbi-local {
+  margin: 2px 0 0 24px;
+}
+/* grid.css line 3086 */
+.pbi-export .pbi-not > label strong {
+  text-decoration: line-through;
+}
+/* grid.css line 3089 */
+.pbi-export .pbi-local {
+  color: var(--warn);
+  background: var(--warn-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+/* grid.css line 3095 */
+.pbi-export .pbi-out li {
+  color: var(--muted);
+}
+/* grid.css line 3098 */
+.pbi-export .pbi-drop {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0 10px;
+}
+/* grid.css line 3108 */
+.pbi-export .pbi-drop.over {
+  border-color: var(--accent);
+}
+/* grid.css line 3111 */
+.pbi-export .pbi-report-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+/* grid.css line 3117 */
+.pbi-export .pbi-fields {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+/* grid.css line 3122 */
+.pbi-export .pbi-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+/* grid.css line 3128 */
+.pbi-export .pbi-unmapped > span:first-child {
+  color: var(--warn);
+}
+/* grid.css line 3131 */
+.pbi-export .pbi-written {
+  margin: 10px 0 6px;
+  overflow-wrap: anywhere;
+}
+/* grid.css line 8938 */
+.autosave-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+/* grid.css line 8985 */
+.project-group .autosave-switch {
+  padding: 0 6px;
+  font-size: 0.92em;
+}
+/* grid.css line 14205 */
+.extension-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+/* grid.css line 14212 */
+.extension-panel-line {
+  margin: 0;
+}
+/* grid.css line 14215 */
+.extension-panel-line.tone-ok {
+  color: var(--ok);
+}
+/* grid.css line 14218 */
+.extension-panel-line.tone-warn {
+  color: var(--warn);
+}
+/* grid.css line 14221 */
+.extension-panel-line.tone-error {
+  color: var(--error);
+}
+/* grid.css line 14224 */
+.extension-panel-controls,
+.extension-panel-code,
+.extension-panel-busy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* grid.css line 14232 */
+.extension-panel-usercode {
+  font-size: 18px;
+  letter-spacing: 2px;
+  user-select: all;
+}
+/* grid.css line 16908 */
+.extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
+/* grid.css line 16909 */
+.extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+/* grid.css line 16910 */
+.extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+
+/* ===== Export to Power BI's drop zone: the browser's own file box lies over it (a dropped file lands there) ===== */
+.pbi-drop { position: relative; }
+.pbi-drop .pbi-drop-input { position: absolute; inset: 0; opacity: 0; cursor: default; }
+.pbi-drop .btn { position: relative; z-index: 2; }
+/* ===== The Excel canvas (excelCanvas.ts, excelPreview.ts, excelTemplates.ts: the Accounting extension's
+   front-end plug-in). Blocks on a grid of cells; Play's sheet as Excel draws it; templates and statements. */
+
+.xc-middle {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.xc-board,
+.xc-played {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.xc-played {
+  padding: 12px;
+}
+
+.xc-cells {
+  position: relative;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: var(--col) var(--row);
+  background-position: 40px 22px;
+}
+
+.xc-heads span {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 11px;
+  background: var(--surface);
+  user-select: none;
+}
+
+.xc-colhead {
+  top: 0;
+  height: 22px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.xc-rowhead {
+  left: 0;
+  width: 40px;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+.xc-freeze {
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.xc-freeze-row {
+  left: 0;
+  height: 2px;
+}
+
+.xc-freeze-col {
+  top: 0;
+  width: 2px;
+}
+
+.xc-empty {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.xc-block {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  padding: 3px 6px 4px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--kind-app);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow);
+  cursor: grab;
+  touch-action: none;
+}
+
+.xc-block:focus-visible,
+.xc-block.selected {
+  outline: var(--focus-width, 2px) solid var(--kind-app);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+.xc-block.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  z-index: 3;
+}
+
+.xc-block-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.xc-block-head svg {
+  width: 14px;
+  height: 14px;
+  color: var(--kind-app);
+}
+
+.xc-block-head .btn.icon {
+  min-height: 0;
+  padding: 0 2px;
+}
+
+.xc-block-words {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.xc-title-words {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.xc-size {
+  margin-top: auto;
+  font-size: 10px;
+}
+
+.xc-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+.xc-props {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.xc-props h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.xc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.xc-field input,
+.xc-field select,
+.xc-field textarea,
+.xc-column select,
+.xc-value select,
+.xc-value input,
+.xc-rule select,
+.xc-rule input {
+  min-width: 0;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.xc-column,
+.xc-value,
+.xc-rule,
+.xc-sizes {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.xc-sizes {
+  grid-template-columns: 1fr 1fr;
+}
+
+.xc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+/* Play: a sheet as Excel draws it. */
+.xc-preview-sheet {
+  position: relative;
+  display: inline-block;
+}
+
+.xc-grid {
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #1c2228;
+  background: #ffffff;
+  table-layout: fixed;
+}
+
+.xc-grid th {
+  padding: 1px 4px;
+  font-weight: 400;
+  font-size: 11px;
+  color: #525c66;
+  background: #f1f3f5;
+  border: 1px solid #d3d8de;
+}
+
+.xc-rowhead-col {
+  width: 40px;
+}
+
+.xc-grid td {
+  height: 20px;
+  overflow: hidden;
+  padding: 1px 4px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid #e3e6ea;
+}
+
+.xc-grid td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.xc-grid td.b {
+  font-weight: 700;
+}
+
+.xc-grid td.i {
+  font-style: italic;
+}
+
+.xc-grid td.top {
+  border-top: 1px solid #6b7785;
+}
+
+.xc-grid td.bottom {
+  border-bottom: 1px solid #6b7785;
+}
+
+.xc-grid.pickable td {
+  cursor: cell;
+}
+
+.xc-grid.pickable td:hover {
+  outline: 2px solid var(--kind-app);
+  outline-offset: -2px;
+}
+
+.xc-grid td.named {
+  box-shadow: inset 0 0 0 1px #2e75b6;
+}
+
+.xc-grid td.bound {
+  background: #efe7fb;
+}
+
+.xc-mark {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 10px;
+  color: #ffffff;
+  background: #7b3fc4;
+  border-radius: 3px;
+}
+
+.xc-chart-holder {
+  position: absolute;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+}
+
+.xc-chart-frame {
+  fill: #ffffff;
+  stroke: #c8d0d8;
+}
+
+.xc-chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  fill: #1c2228;
+}
+
+.xc-chart-legend,
+.xc-chart-tick {
+  font-size: 10px;
+  fill: #525c66;
+}
+
+.xc-chart-axis {
+  stroke: #9aa5b8;
+}
+
+.xc-chart-slice {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+/* Templates and statements. */
+.xc-template-body {
+  display: flex;
+  gap: 14px;
+  min-height: 360px;
+}
+
+.xc-template-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  width: 180px;
+}
+
+.xc-template-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variables-vault-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.variables-vault-card:hover {
+  border-color: var(--accent);
+}
+
+.variables-vault-cards > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.variables-vault-stale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.variables-vault-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.xc-template-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow: auto;
+}
+
+.xc-template-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.xc-template-head h3 {
+  margin: 0;
+}
+
+.xc-bindings {
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  list-style: none;
+}
+
+.xc-bind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.xc-bind h4 {
+  width: 100%;
+  margin: 0;
+}
+
+.xc-bind input,
+.xc-bind select,
+.xc-build-form input,
+.xc-build-form select {
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.xc-build-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.xc-plan {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.xc-plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.xc-plan-table th,
+.xc-plan-table td {
+  padding: 3px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.xc-plan-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.xc-plan-table tfoot td {
+  font-weight: 650;
+}
+
+.snippet-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.snippet-head .cat-search {
+  flex: 1;
+}
+
+.blade-group .starter-all {
+  margin-left: auto;
+  min-height: 0;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.xc-block.xc-title {
+  justify-content: center;
+  padding: 0 6px;
+}
+
+.xc-block-head .xc-title-words {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ===== The Code App page (codeAppPage.ts: the Power Apps extension's plug-in) and a code app's file in the
+   Workbench (workbenchCodeFile.ts) ===== */
+.ca-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.ca-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.ca-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ca-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.ca-tool svg {
+  width: 14px;
+  height: 14px;
+}
+.ca-tool.ok svg {
+  color: var(--ok);
+}
+.ca-tool.missing {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.ca-tool.missing svg {
+  color: var(--warn);
+}
+.ca-tool.later {
+  color: var(--muted);
+}
+.ca-account,
+.ca-env {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.ca-account svg,
+.ca-env svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+.ca-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.ca-tab {
+  padding: 7px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ca-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+  font-weight: 600;
+}
+.ca-tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ca-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.ca-panel h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.ca-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ca-section-head h2 {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ca-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: baseline;
+}
+.ca-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.ca-table th,
+.ca-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.ca-table td svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  color: var(--muted);
+}
+.ca-files,
+.ca-files ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ca-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ca-file svg,
+.ca-folder summary svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.ca-folder summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.ca-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ca-search {
+  flex: 1 1 260px;
+}
+.ca-in-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ok);
+}
+.ca-in-app svg {
+  width: 13px;
+  height: 13px;
+}
+.ca-method code {
+  font-size: 13px;
+}
+.ca-live-frame {
+  width: 100%;
+  min-height: 420px;
+  height: 55vh;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.ca-live-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 200px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.ca-live-empty svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+.ca-output {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--raised);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.ca-output:empty {
+  display: none;
+}
+.ca-commands {
+  margin: 0;
+}
+.ca-pushed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ca-pushed svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ok);
+}
+.ca-runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ca-run summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.ca-run summary svg {
+  width: 14px;
+  height: 14px;
+}
+.ca-run.ok summary svg {
+  color: var(--ok);
+}
+.ca-run.failed summary svg {
+  color: var(--error);
+}
+.ca-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.ca-row {
+  display: flex;
+  gap: 6px;
+}
+.ca-row input {
+  flex: 1;
+}
+.ca-file-text pre {
+  max-height: 280px;
+  overflow: auto;
+  font-size: 12px;
+  background: var(--raised);
+  padding: 8px;
+  border-radius: 6px;
+}
+.ca-this {
+  font-weight: 600;
+}
+.wb-gbody:has(> .wb-doc-body.kind-codefile) {
+  overflow: hidden;
+}
+.wb-doc-body.kind-codefile {
+  height: 100%;
+}
+.wb-codefile {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.wb-codefile-head {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.wb-codefile-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+
+/* ===== The Excel canvas's page (Pages/Accounting): the classic page's canvas frame and tabs (grid.css .cv,
+   .tab-item, .card-grip), scoped to it ===== */
+.page-main > .xc-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+.cv.xc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+
+.xc-page .busy-host {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.xc .tab-item,
+.xc-templates .tab-item {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  max-width: 240px;
+  min-width: 90px;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+}
+
+.xc .tab-item:hover,
+.xc-templates .tab-item:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+
+.xc .tab-item.active,
+.xc-templates .tab-item.active {
+  margin-bottom: -1px;
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.xc .tab-label {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xc .tab-item .tab-close {
+  opacity: 0.6;
+}
+
+.xc .tab-item:hover .tab-close,
+.xc .tab-item.active .tab-close {
+  opacity: 1;
+}
+
+.xc .card-grip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: linear-gradient(135deg, transparent 0 55%, var(--border-strong) 55% 62%, transparent 62% 72%, var(--border-strong) 72% 79%, transparent 79%);
+  cursor: nwse-resize;
+  opacity: 0.7;
+  touch-action: none;
+}
+
+.xc .card-grip:hover,
+.xc .card-grip:focus-visible {
+  opacity: 1;
+}
+
+.xc-board {
+  touch-action: none;
+}
+
+.xc-dirty {
+  margin-left: 2px;
+  color: var(--accent);
+}
+
+.dialog:has(.xc-templates),
+.dialog:has(.xc-statements) {
+  width: min(1200px, calc(100vw - var(--rail-w) - 32px));
+  max-width: none;
+}
+
+/* The wide dialog keeps clear of the rail (the classic page's dialog.wide). */
+.dialog-shade:has(.xc-templates),
+.dialog-shade:has(.xc-statements) {
+  padding-left: var(--rail-w);
+}
+
+.xc-landing .hint {
+  margin: 0 0 8px;
+}

@@ -1,0 +1,51 @@
+@* The Canvas's Widgets pane (the classic canvasGallery.ts [GALLERY]): a card per widget (its preview, name and
+   description), search, groups (yours first, then the starter packs); drag a card onto the board or a container,
+   double-click it or press Insert or Enter to put it in the selected container; resting on a card shows its preview
+   large. Logic in GalleryPane.razor.cs. *@
+@using SwissArmyBench.Web.Api.Widgets
+@implements IDisposable
+
+<div class="cvs-pane-head">
+    <h2>Widgets</h2>
+    <button type="button" class="btn ghost icon" aria-label="Open the Widgets window" title="Open the Widgets window" @onclick="OpenWidgetsAsync"><Icon Name="popout" /></button>
+</div>
+<input type="search" class="cvs-gallery-search" placeholder="Search widgets" aria-label="Search widgets" data-no-variables @bind="_query" @bind:event="oninput" />
+<div class="cvs-cards">
+    @foreach (var group in Shown)
+    {
+        var first = group.First();
+        var description = WidgetHeadings.Description(first);
+        @if (description.Length > 0)
+        {
+            <div class="wg-pack">
+                <div class="cvs-gallery-group" title="@description" data-pack="@first.Pack">@group.Key</div>
+                <div class="wg-pack-desc">@description</div>
+            </div>
+        }
+        else
+        {
+            <div class="cvs-gallery-group">@group.Key</div>
+        }
+        @foreach (var widget in group)
+        {
+            <div class="cvs-card @(_focused == widget.Name ? "focused" : null)" draggable="true" tabindex="0" role="button" data-widget="@widget.Name"
+                 aria-label="@($"{widget.Name}: {widget.Description}")"
+                 @ondragstart="() => DragStartAsync(widget)" @ondragend="() => OnDragging.InvokeAsync(null)"
+                 @onfocus="() => _focused = widget.Name" @ondblclick="() => InsertAsync(widget)"
+                 @onkeydown="e => KeyAsync(e, widget)" @onkeydown:stopPropagation="true"
+                 @onmouseenter="e => HoverAsync(widget, e)" @onmouseleave="HidePreview">
+                <PreviewBox Name="@widget.Name" ClassName="cvs-card-preview" How="card" />
+                <div class="cvs-card-name">@widget.Name</div>
+                <div class="cvs-card-desc">@widget.Description</div>
+            </div>
+        }
+    }
+</div>
+@if (_big is { } big)
+{
+    <div class="cvs-big-preview" role="tooltip" style="@BigPlace">
+        <PreviewBox Name="@big.Name" ClassName="cvs-big-image" How="hover" />
+        <div class="cvs-card-name">@big.Name</div>
+        <div class="cvs-card-desc">@big.Description</div>
+    </div>
+}

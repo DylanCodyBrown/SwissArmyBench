@@ -39,6 +39,10 @@ public partial class CodeEditor
     [Parameter]
     public bool ReadOnly { get; set; }
 
+    /// <summary>What a read-only editor says when typed in (null: the editor's own words).</summary>
+    [Parameter]
+    public string? ReadOnlyMessage { get; set; }
+
     /// <summary>A notebook cell's editor: as tall as its text, no scrollbar of its own. Else it fills its box.</summary>
     [Parameter]
     public bool Grow { get; set; }
@@ -78,7 +82,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
@@ -119,6 +123,15 @@ public partial class CodeEditor
         if (_editor is not null)
         {
             await _editor.InvokeVoidAsync("insertLine", text);
+        }
+    }
+
+    /// <summary>The line shown in the middle, the cursor at its start, the focus in the editor (Go to line).</summary>
+    public async Task RevealLineAsync(int line)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("revealLine", line);
         }
     }
 

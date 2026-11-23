@@ -1,0 +1,49 @@
+@* A chart block's own fields (the classic excelCanvas.ts drawProps): Excel's chart kind, the table or pivot it shows,
+   its title, its category (its first column when none), its series (every number column when none) and, for a
+   combo, the series drawn as lines. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<label class="xc-field"><span>Chart</span>
+    <WorkbookChoice Class="xc-chart-kind" Value="@(Block.Chart ?? "column")" Options="WorkbookRules.Charts" OnPick="@(v => SetAsync("chart", v))" />
+</label>
+<label class="xc-field"><span>Shows</span>
+    <select class="xc-chart-from" @onchange="@(e => SetAsync("from", e.Value as string ?? string.Empty))">
+        <option value="" selected="@(string.IsNullOrEmpty(Block.From))">—</option>
+        @foreach (var source in Sources)
+        {
+            <option value="@source.Id" selected="@(source.Id == Block.From)">@WorkbookRules.Word(source.Kind) at @source.Cell@(source.Source?.Table is { } t ? $" ({t})" : string.Empty)</option>
+        }
+    </select>
+</label>
+<label class="xc-field"><span>Title</span>
+    <input type="text" spellcheck="false" value="@Block.Title" @onchange="@(e => SetAsync("title", Blank(e)))" />
+</label>
+<label class="xc-field"><span>Category</span>
+    <input type="text" spellcheck="false" placeholder="its first column" value="@Block.Category" @onchange="@(e => SetAsync("category", Blank(e)?.Trim()))" />
+</label>
+<label class="xc-field"><span>Series</span>
+    <input type="text" spellcheck="false" placeholder="every number column" value="@string.Join(", ", Block.Series ?? [])" @onchange="@(e => SetAsync("series", WorkbookRules.Split(e.Value as string ?? string.Empty)))" />
+</label>
+@if (Block.Chart == "combo")
+{
+    <label class="xc-field"><span>As lines</span>
+        <input type="text" spellcheck="false" value="@string.Join(", ", Block.LineSeries ?? [])" @onchange="@(e => SetAsync("line_series", WorkbookRules.Split(e.Value as string ?? string.Empty)))" />
+    </label>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkbookBlock Block { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public WorkbookDesign Design { get; set; } = default!;
+
+    [Parameter]
+    public Func<IReadOnlyDictionary<string, object?>, Task> OnSet { get; set; } = default!;
+
+    private IEnumerable<WorkbookBlock> Sources => Design.Sheets.SelectMany(s => s.Blocks).Where(b => b.Kind is "table" or "pivot");
+
+    private static string? Blank(ChangeEventArgs e) => e.Value is string { Length: > 0 } text ? text : null;
+
+    private Task SetAsync(string key, object? value) => OnSet(new Dictionary<string, object?> { [key] = value });
+}

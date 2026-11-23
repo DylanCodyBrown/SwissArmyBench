@@ -1,0 +1,123 @@
+@* The Canvas's bottom bar (the classic canvasPage.ts drawBottom): the sizing (Columns, Row height, Gap; narrow, they
+   fold into More sizing), Desktop | Phone and the preview width, Snap and its step, Undo and Redo, the panes'
+   buttons (a hidden Properties pane with a selection shows a dot), Wiring, and the zoom (−, %, +, Fit). *@
+@using System.Globalization
+@using SwissArmyBench.Web.Api.Canvas
+
+<footer class="cvs-bottom" role="toolbar" aria-label="Canvas">
+    <span class="cvs-group cvs-sizing">
+        @Sizing()
+    </span>
+    <button type="button" class="btn ghost icon cvs-sizing-more" aria-label="More sizing" title="More sizing" @onclick="() => _sizingOpen = !_sizingOpen"><Icon Name="more" /></button>
+    @if (_sizingOpen)
+    {
+        <div class="menu-shade" @onclick="() => _sizingOpen = false"></div>
+        <div class="cvs-menu cvs-sizing-menu" role="dialog" aria-label="Sizing" style="left: 12px; bottom: 44px; top: auto;">@Sizing()</div>
+    }
+    <span class="cvs-seg cvs-layouts" role="group" aria-label="Layout">
+        @foreach (var (value, label) in _layouts)
+        {
+            <button type="button" class="cvs-seg-item @(View.Layout == value ? "on" : null)" aria-pressed="@(View.Layout == value ? "true" : "false")" data-layout="@value" @onclick="() => OnLayout.InvokeAsync(value)">
+                <Icon Name="@value" />@label
+            </button>
+        }
+    </span>
+    <label class="cvs-field cvs-width-field">
+        <input type="number" class="cvs-num cvs-preview-width" min="@N(View.Range.Low)" max="@N(View.Range.High)" value="@N(View.PreviewWidth[View.Layout])"
+               aria-label="Preview width (px)" title="@($"Preview width: {N(View.Range.Low)} to {N(View.Range.High)} px")" @onchange="PreviewWidthAsync" />
+        <span>px</span>
+    </label>
+    <span class="cvs-sep" aria-hidden="true"></span>
+    <label class="cvs-field">
+        <input type="checkbox" class="cvs-snap" role="switch" checked="@S.Snap" disabled="@(!View.Editable)" aria-label="Snap" @onchange="@(e => SizingAsync("snap", e.Value is true))" />
+        <span>Snap</span>
+    </label>
+    <select class="cvs-step" aria-label="Snap step" disabled="@(!View.Editable || !S.Snap)" @onchange="StepAsync">
+        @foreach (var (value, label) in _steps)
+        {
+            <option value="@value" selected="@(SnapStep.From(S.Step).Value == value)">@label</option>
+        }
+    </select>
+    <span class="cvs-sep" aria-hidden="true"></span>
+    <button type="button" class="btn ghost icon" aria-label="Undo" title="Undo (Ctrl+Z)" disabled="@(!View.Editable || View.State!.Undo == 0)" @onclick="() => OnUndo.InvokeAsync(false)"><Icon Name="undo" /></button>
+    <button type="button" class="btn ghost icon" aria-label="Redo" title="Redo (Ctrl+Y)" disabled="@(!View.Editable || View.State!.Redo == 0)" @onclick="() => OnUndo.InvokeAsync(true)"><Icon Name="redo" /></button>
+    <span class="cvs-sep" aria-hidden="true"></span>
+    <button type="button" class="btn ghost side-toggle cvs-toggle" title="Widgets" aria-pressed="@(Panes.Widgets ? "true" : "false")" @onclick="@(() => OnPane.InvokeAsync("widgets"))"><Icon Name="blade" /><span class="btn-label">Widgets</span></button>
+    <button type="button" title="Properties" class="btn ghost side-toggle cvs-toggle @(!Panes.Properties && View.Selected.Count > 0 ? "has-dot" : null)" aria-pressed="@(Panes.Properties ? "true" : "false")" @onclick="@(() => OnPane.InvokeAsync("properties"))"><Icon Name="properties" /><span class="btn-label">Properties</span></button>
+    <button type="button" class="btn ghost cvs-toggle cvs-wiring-toggle" aria-pressed="@(ShowWires ? "true" : "false")" title="Show the wires between widgets" @onclick="OnWires"><Icon Name="link" /><span class="btn-label">Wiring</span></button>
+    <span class="cvs-grow"></span>
+    <button type="button" class="btn ghost icon" aria-label="Zoom out" title="Zoom out" @onclick="() => OnZoom.InvokeAsync(View.Zoom / ZoomStep)"><Icon Name="minus" /></button>
+    <button type="button" class="cvs-zoom-label" title="Back to 100%" @onclick="() => OnZoom.InvokeAsync(1)">@($"{Math.Round(View.Zoom * 100)}%")</button>
+    <button type="button" class="btn ghost icon" aria-label="Zoom in" title="Zoom in" @onclick="() => OnZoom.InvokeAsync(View.Zoom * ZoomStep)"><Icon Name="plus" /></button>
+    <button type="button" class="btn ghost cvs-fit" @onclick="OnFit">Fit</button>
+</footer>
+
+@code {
+    private const double ZoomStep = 1.25;
+
+    private static readonly (string Value, string Label)[] _layouts = [(CanvasView.Desktop, "Desktop"), (CanvasView.Phone, "Phone")];
+    private static readonly (string Value, string Label)[] _steps = [("1", "1 px"), ("2", "2 px"), ("4", "4 px"), ("8", "8 px"), ("grid", "Grid cell")];
+
+    private bool _sizingOpen;
+
+    [Parameter, EditorRequired]
+    public CanvasView View { get; set; } = default!;
+
+    [Parameter]
+    public bool ShowWires { get; set; }
+
+    [Parameter]
+    public CanvasPanes Panes { get; set; } = new();
+
+    [Parameter]
+    public Func<string, Dictionary<string, object?>, Task<CanvasState?>> OnSend { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<bool> OnUndo { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnLayout { get; set; }
+
+    [Parameter]
+    public EventCallback OnPreviewWidth { get; set; }
+
+    [Parameter]
+    public EventCallback<double> OnZoom { get; set; }
+
+    [Parameter]
+    public EventCallback OnFit { get; set; }
+
+    [Parameter]
+    public EventCallback OnWires { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnPane { get; set; }
+
+    private CanvasSizing S => View.State!.Model.Sizing;
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private RenderFragment Sizing() => __builder =>
+    {
+        <NumberBox Label="Columns" Value="S.Columns" Lowest="1" Highest="48" Disabled="!View.Editable" OnValue="@(v => SizingAsync("columns", v))" />
+        <NumberBox Label="Row height" Value="S.RowHeight" Lowest="8" Highest="400" Disabled="!View.Editable" OnValue="@(v => SizingAsync("row_height", v))" />
+        <NumberBox Label="Gap" Value="S.Gap" Lowest="0" Highest="64" Disabled="!View.Editable" OnValue="@(v => SizingAsync("gap", v))" />
+    };
+
+    private Task SizingAsync(string name, object value) => OnSend("sizing", new() { [name] = value });
+
+    private Task StepAsync(ChangeEventArgs e)
+    {
+        var picked = e.Value as string ?? "1";
+        return SizingAsync("step", picked == "grid" ? "grid" : int.Parse(picked, CultureInfo.InvariantCulture));
+    }
+
+    private async Task PreviewWidthAsync(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var width))
+        {
+            View.PreviewWidth[View.Layout] = Math.Clamp(CanvasGrid.Round(width), View.Range.Low, View.Range.High);
+            await OnPreviewWidth.InvokeAsync();
+        }
+    }
+}

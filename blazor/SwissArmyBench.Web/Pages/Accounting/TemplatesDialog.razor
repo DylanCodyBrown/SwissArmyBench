@@ -1,0 +1,74 @@
+@* Templates (the classic excelTemplates.ts openTemplates): the project's templates (templates/<name>.xlsx); Import…
+   an existing workbook (its layout, formats, merged cells and named ranges kept); one shown as its sheets, its named
+   ranges and bound places marked; a click on a cell names its place for the binding form (BindForm); each binding
+   with Unbind. Statements and invoices… goes on with the template shown. Logic in TemplatesDialog.razor.cs. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<AppDialog Title="Templates" OnClose="OnClose">
+    <ChildContent>
+        <div class="xc-templates">
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            <div class="xc-template-body">
+                <div class="xc-template-side">
+                    <ul class="xc-template-list" aria-label="Templates">
+                        @foreach (var name in _names)
+                        {
+                            <li><button type="button" class="btn ghost xc-template-name @(_current?.Name == name ? "active" : null)" aria-pressed="@(_current?.Name == name ? "true" : "false")" @onclick="() => ShowAsync(name)">@name</button></li>
+                        }
+                        @if (_listed && _names.Count == 0)
+                        {
+                            <li class="hint">None yet</li>
+                        }
+                    </ul>
+                    <button type="button" class="btn xc-import" @onclick="ImportAsync"><Icon Name="import" /><span class="btn-label">Import…</span></button>
+                </div>
+                <div class="xc-template-main">
+                    <div class="xc-template">
+                        @if (_current is not { } t)
+                        {
+                            <p class="cv-empty">Import an existing workbook: a statement, an invoice</p>
+                        }
+                        else
+                        {
+                            <div class="xc-template-head">
+                                <h3>@t.Name</h3>
+                                @if (t.Preview.Names.Count > 0)
+                                {
+                                    <span class="hint">Named ranges: @string.Join(", ", t.Preview.Names.Keys)</span>
+                                }
+                            </div>
+                            <div class="cv-tabs" role="tablist" aria-label="Sheets">
+                                @for (var i = 0; i < t.Preview.Sheets.Count; i++)
+                                {
+                                    var at = i;
+                                    <button type="button" role="tab" class="tab-item cv-tab @(at == _sheet ? "active" : null)" aria-selected="@(at == _sheet ? "true" : "false")" @onclick="() => _sheet = at">@t.Preview.Sheets[at].Name</button>
+                                }
+                            </div>
+                            @if (Shown is { } sheet)
+                            {
+                                <SheetView Sheet="sheet" Names="t.Preview.Names" Marks="Marks" OnPick="@(p => Pick(sheet.Name, p))" />
+                            }
+                            <ul class="xc-bindings" aria-label="Bindings">
+                                @foreach (var b in t.Bindings)
+                                {
+                                    <li data-place="@b.Place">
+                                        <span class="mono">@b.Place</span><span> ← @Said(b)</span>
+                                        <button type="button" class="btn ghost icon" aria-label="Unbind @b.Place" title="Unbind @b.Place" @onclick="@(() => BindAsync(new() { ["unbind"] = b.Place }))"><Icon Name="close" /></button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                    @if (_current is not null && _place is { } place)
+                    {
+                        <BindForm @key="place" Place="@place" Existing="Existing(place)" OnBind="@(binding => BindAsync(new() { ["binding"] = binding }))" />
+                    }
+                </div>
+            </div>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn xc-to-build" @onclick="() => OnStatements.InvokeAsync(_current?.Name)"><Icon Name="copy" /><span class="btn-label">Statements and invoices…</span></button>
+        <button type="button" class="btn ghost" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

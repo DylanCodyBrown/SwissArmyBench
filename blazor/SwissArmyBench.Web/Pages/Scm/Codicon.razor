@@ -1,0 +1,10 @@
+@* One of VS Code's codicons (the classic scmPage.ts codicon). *@
+<span class="codicon codicon-@Name @Extra" aria-hidden="true" data-codicon="@Name">@Codicons.Glyph(Name)</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Extra { get; set; }
+}

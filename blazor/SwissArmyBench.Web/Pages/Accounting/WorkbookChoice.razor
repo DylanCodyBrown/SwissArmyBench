@@ -1,0 +1,26 @@
+@* A drop-down of plain words (the classic excelCanvas.ts choice): an empty option reads "—"; the pick is sent as it
+   changes. *@
+
+<select class="@Class" aria-label="@Label" @onchange="e => OnPick.InvokeAsync(e.Value as string ?? string.Empty)">
+    @foreach (var option in Options)
+    {
+        <option value="@option" selected="@(option == (Value ?? string.Empty))">@(option.Length > 0 ? option : "—")</option>
+    }
+</select>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Options { get; set; } = [];
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnPick { get; set; }
+}

@@ -1,0 +1,26 @@
+@* A graph row's card (the classic scmPage.ts hover): the author, how long ago and when, the message; the refs and the
+   short commit id. *@
+@using System.Globalization
+
+<div class="scm-hover monaco-hover" role="tooltip" style="@FormattableString.Invariant($"left: {Hover.X}px; top: {Hover.Y}px;")">
+    <div class="hover-contents">
+        <p><Codicon Name="account" /> <strong>@Hover.Item.Author</strong>@When</p>
+        <p class="hover-message">@Hover.Item.Message</p>
+    </div>
+    <div class="hover-row status-bar">
+        @foreach (var label in Hover.Item.References)
+        {
+            <span class="hover-ref" style="@(label.Color is { } c ? $"background-color: var(--vscode-{c})" : null)"><Codicon Name="@(label.Kind == "remote" ? "cloud" : "target")" />@label.Name</span>
+        }
+        <span class="hover-sha"><Codicon Name="git-commit" /> @Hover.Item.Id[..Math.Min(8, Hover.Item.Id.Length)]</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public HoverCard Hover { get; set; } = default!;
+
+    private string When => DateTimeOffset.TryParse(Hover.Item.Date, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at)
+        ? $", {ScmTime.Ago(at, DateTimeOffset.Now)} ({at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)})"
+        : string.Empty;
+}

@@ -1,0 +1,45 @@
+@* A container's fields (the classic canvasProps.ts containerFields): Title, Border, Scrollable, Resizable, Height
+   (Fit or Fixed), Padding, Columns inside, Background, and its Size. *@
+@using SwissArmyBench.Web.Api.Canvas
+
+<label class="wg-field"><span class="wg-label">Title</span>
+    <input class="wg-input" value="@P.Title" aria-label="Title" disabled="@(!Editable)" data-no-variables @onchange="@(e => SetAsync("title", e.Value as string ?? string.Empty))" />
+</label>
+@foreach (var (label, key, on) in Flags)
+{
+    <label class="cvs-flag">
+        <input type="checkbox" role="switch" class="wg-switch" checked="@on" disabled="@(!Editable)" aria-label="@label" data-prop="@key" @onchange="e => SetAsync(key, e.Value is true)" />
+        <span>@label</span>
+    </label>
+}
+<label class="wg-field"><span class="wg-label">Height</span>
+    <select class="wg-input" aria-label="Height" disabled="@(!Editable)" @onchange="@(e => SetAsync("height", e.Value as string ?? "fit"))">
+        <option value="fit" selected="@(P.Height == "fit")">Fit</option>
+        <option value="fixed" selected="@(P.Height == "fixed")">Fixed</option>
+    </select>
+</label>
+<NumberBox Label="Padding" Value="P.Padding" Lowest="0" Highest="64" Disabled="!Editable" OnValue="@(v => SetAsync("padding", v))" />
+<NumberBox Label="Columns inside" Value="P.Columns" Lowest="1" Highest="48" Disabled="!Editable" OnValue="@(v => SetAsync("columns", v))" />
+<label class="wg-field"><span class="wg-label">Background</span>
+    <input type="text" class="wg-input" value="@P.Background" placeholder="none" aria-label="Background" disabled="@(!Editable)" data-no-variables @onchange="@(e => SetAsync("background", (e.Value as string ?? string.Empty).Trim()))" />
+</label>
+<div class="wg-label">Size</div>
+<SizeFields Node="Node" Editable="Editable" OnSend="OnSend" />
+
+@code {
+    [Parameter, EditorRequired]
+    public CanvasNode Node { get; set; } = default!;
+
+    [Parameter]
+    public bool Editable { get; set; }
+
+    [Parameter]
+    public Func<string, Dictionary<string, object?>, Task<CanvasState?>> OnSend { get; set; } = default!;
+
+    private ContainerProps P => Node.Props ?? new ContainerProps();
+
+    private (string Label, string Key, bool On)[] Flags => [("Border", "border", P.Border), ("Scrollable", "scrollable", P.Scrollable), ("Resizable", "resizable", P.Resizable)];
+
+    private Task SetAsync(string key, object value) =>
+        OnSend("set_container", new() { ["id"] = Node.Id, ["props"] = new Dictionary<string, object?> { [key] = value } });
+}

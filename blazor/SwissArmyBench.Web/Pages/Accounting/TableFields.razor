@@ -1,0 +1,92 @@
+@* A table block's own fields (the classic excelCanvas.ts drawProps): its columns (none named: every column), each
+   one's number format and total, the total row, and one colour rule (a column, a comparison, a value). *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<label class="xc-field"><span>Columns</span>
+    <input type="text" class="xc-columns" spellcheck="false" placeholder="every column" value="@string.Join(", ", Specs.Select(c => c.Name))" @onchange="ColumnsAsync" />
+</label>
+@foreach (var spec in Specs)
+{
+    <div class="xc-column" data-column="@spec.Name">
+        <span class="mono">@spec.Name</span>
+        <WorkbookChoice Label="@($"{spec.Name}'s format")" Value="@spec.Format" Options="WorkbookRules.Formats" OnPick="@(v => SpecAsync(spec.Name, s => s with { Format = Blank(v) }, null))" />
+        <WorkbookChoice Label="@($"{spec.Name}'s total")" Value="@spec.Total" Options="WorkbookRules.Totals" OnPick="@(v => SpecAsync(spec.Name, s => s with { Total = Blank(v) }, v.Length > 0 ? true : Block.TotalRow))" />
+    </div>
+}
+<label class="xc-check">
+    <input type="checkbox" class="xc-total-row" checked="@(Block.TotalRow == true)" @onchange="@(e => OnSet(new Dictionary<string, object?> { ["total_row"] = e.Value is true }))" />Total row
+</label>
+<label class="xc-field"><span>Colour when</span>
+    <span class="xc-rule">
+        <WorkbookChoice Label="Column" Value="@Rule?.Column" Options="@(Specs.Select(c => c.Name).Prepend(string.Empty).ToList())" OnPick="RuleColumnAsync" />
+        <WorkbookChoice Label="Rule" Value="@(Rule?.Op ?? ">")" Options="WorkbookRules.Comparisons" OnPick="@(v => RuleAsync(r => new Dictionary<string, object?>(r) { ["op"] = v }))" />
+        <input type="text" class="xc-rule-value" aria-label="Value" spellcheck="false" value="@WorkbookRules.Text(Rule?.Value)"
+               @onchange="@(e => RuleAsync(r => new Dictionary<string, object?>(r) { ["value"] = WorkbookRules.RuleValue(e.Value as string ?? string.Empty) }))" />
+    </span>
+</label>
+
+@code {
+    // A colour rule's fill when none is named (a light red).
+    private const string RuleFill = "#F8D7DA";
+
+    [Parameter, EditorRequired]
+    public WorkbookBlock Block { get; set; } = default!;
+
+    [Parameter]
+    public Func<IReadOnlyDictionary<string, object?>, Task> OnSet { get; set; } = default!;
+
+    private IReadOnlyList<ColumnSpec> Specs => WorkbookRules.Specs(Block);
+
+    private ColourRule? Rule => Block.Conditional?.FirstOrDefault();
+
+    private static string? Blank(string value) => value.Length > 0 ? value : null;
+
+    private Task ColumnsAsync(ChangeEventArgs e)
+    {
+        var names = WorkbookRules.Split(e.Value as string ?? string.Empty);
+        var specs = names.Select(n => Specs.FirstOrDefault(c => c.Name == n) ?? new ColumnSpec { Name = n }).ToList();
+        return OnSet(new Dictionary<string, object?> { ["columns"] = specs });
+    }
+
+    private Task SpecAsync(string name, Func<ColumnSpec, ColumnSpec> change, bool? totalRow)
+    {
+        var body = new Dictionary<string, object?> { ["columns"] = Specs.Select(c => c.Name == name ? change(c) : c).ToList() };
+        if (totalRow is not null)
+        {
+            body["total_row"] = totalRow;
+        }
+        return OnSet(body);
+    }
+
+    private Task RuleColumnAsync(string column)
+    {
+        object rules = column.Length == 0
+            ? Array.Empty<object>()
+            : new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["column"] = column,
+                    ["op"] = Rule?.Op ?? ">",
+                    ["value"] = Rule?.Value is { } v ? v : 0,
+                    ["fill"] = Rule?.Fill ?? RuleFill,
+                },
+            };
+        return OnSet(new Dictionary<string, object?> { ["conditional"] = rules });
+    }
+
+    /// <summary>The rule changed (only when there is one: a column picked first).</summary>
+    private Task RuleAsync(Func<IReadOnlyDictionary<string, object?>, Dictionary<string, object?>> change)
+    {
+        if (Rule is not { } rule)
+        {
+            return Task.CompletedTask;
+        }
+        var now = new Dictionary<string, object?> { ["column"] = rule.Column, ["op"] = rule.Op, ["value"] = rule.Value, ["fill"] = rule.Fill };
+        if (rule.To is { } to)
+        {
+            now["to"] = to;
+        }
+        return OnSet(new Dictionary<string, object?> { ["conditional"] = new[] { change(now) } });
+    }
+}

@@ -1,0 +1,133 @@
+@* The Code App's Connectors tab (the classic codeAppPage.ts drawConnectors and explore): the environment's
+   connectors searched (Refresh), each a card (tables or actions, in the app, Add to app); one opened as the APIs
+   explorer draws an API (read-only): its operations by tag, one's inputs, body and outputs as schema trees, and how
+   the app calls it. Add to app asks its connection (and, for tables, how it goes in). Logic in
+   CodeAppConnectorsTab.razor.cs. *@
+@using SwissArmyBench.Web.Api.PowerApps
+
+@if (_explored is { } explored)
+{
+    <div class="ca-section-head">
+        <h2><Icon Name="plug" /> @explored.DisplayName</h2>
+        <span class="muted">read from @explored.From</span>
+        <button type="button" class="btn primary ca-add-connector" @onclick="() => AddAsync(_connector!)"><Icon Name="plus" /><span class="btn-label">Add to app</span></button>
+    </div>
+    <div class="api-explorer">
+        <nav class="api-ops" aria-label="@($"{explored.DisplayName}'s operations")">
+            @foreach (var group in explored.Operations.GroupBy(o => o.Tags.FirstOrDefault() is { Length: > 0 } tag ? tag : "Operations"))
+            {
+                <details class="api-tag" open>
+                    <summary>@group.Key<span class="count">@group.Count()</span></summary>
+                    @foreach (var each in group)
+                    {
+                        <button type="button" class="api-op @(each == _operation ? "current" : null)" data-operation="@(each.OperationId.Length > 0 ? each.OperationId : each.Id)" title="@each.Name" @onclick="() => _operation = each">
+                            <span class="api-method m-@each.Method.ToLowerInvariant()">@each.Method</span><code>@(each.OperationId.Length > 0 ? each.OperationId : each.Path)</code>
+                        </button>
+                    }
+                </details>
+            }
+        </nav>
+        <div class="api-detail">
+            @if (_operation is { } op)
+            {
+                <h2 class="api-op-title"><span class="api-method m-@op.Method.ToLowerInvariant()">@op.Method</span><code>@op.Path</code></h2>
+                <p class="api-op-name">@op.Name</p>
+                @if (op.Description.Length > 0)
+                {
+                    <p>@op.Description</p>
+                }
+                @if (op.OperationId.Length > 0)
+                {
+                    <p class="ca-method">In the app: <code>@($"{ServiceName(_connector!.Name)}.{op.OperationId}(…)")</code></p>
+                }
+                <section class="api-inputs">
+                    <h3>Inputs</h3>
+                    @if (op.Parameters.Count > 0)
+                    {
+                        <table class="api-params">
+                            <thead><tr><th>Name</th><th>Where</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                @foreach (var p in op.Parameters)
+                                {
+                                    <tr><td class="mono">@p.Name</td><td>@p.In</td><td>@p.Type</td><td>@(p.Required ? "yes" : string.Empty)</td><td>@p.Description</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <p class="muted">No inputs.</p>
+                    }
+                    @if (op.Body is { } body)
+                    {
+                        <div class="api-two">@Tree(body.Required ? "Body (required)" : "Body", body.Schema)@Tree("Example", body.Example)</div>
+                    }
+                </section>
+                <section class="api-outputs">
+                    <h3>Outputs</h3>
+                    @foreach (var r in op.Responses)
+                    {
+                        <div class="api-answer">
+                            <h4><span class="api-status s@(r.Status.Length > 0 ? r.Status[..1] : string.Empty)">@r.Status</span> @r.Description</h4>
+                            @if (r.Schema.ValueKind is not (System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined))
+                            {
+                                <div class="api-two">@Tree("Schema", r.Schema)@Tree("Example", r.Example)</div>
+                            }
+                            else
+                            {
+                                <p class="muted">No body.</p>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    </div>
+    <div class="ca-foot"><button type="button" class="btn ghost" @onclick="() => _explored = null">← Connectors</button></div>
+}
+else
+{
+    <div class="ca-section-head">
+        <input type="search" class="apis-search ca-search" placeholder="Search the environment's connectors" aria-label="Search the environment's connectors" @bind="_query" @bind:event="oninput" @bind:after="SearchSoonAsync" />
+        <button type="button" class="btn ghost" disabled="@_refreshing" @onclick="RefreshAsync"><Icon Name="reset" /><span class="btn-label">@(_refreshing ? "Refreshing…" : "Refresh")</span></button>
+    </div>
+    <div class="apis-cards ca-connectors" role="list">
+        @if (_connectors is null)
+        {
+            <div class="loading-block">Loading the environment's connectors…</div>
+        }
+        else if (_connectors.Count == 0)
+        {
+            <p class="empty-note">No match.</p>
+        }
+        @foreach (var c in _connectors ?? [])
+        {
+            <article class="api-card ca-connector" role="listitem" data-connector="@c.Name">
+                <button type="button" class="api-card-open" @onclick="() => ExploreAsync(c)"><span class="api-card-name"><Icon Name="plug" />@c.DisplayName</span><span class="muted mono">@c.Name</span></button>
+                <p class="muted">@c.Description</p>
+                <div class="api-card-facts">
+                    <span>@(c.Tabular ? "tables" : "actions")</span>
+                    @if (c.InApp)
+                    {
+                        <span class="ca-in-app"><Icon Name="check" />in the app</span>
+                    }
+                </div>
+                <div class="api-card-actions"><button type="button" class="btn ca-add-connector" @onclick="() => AddAsync(c)"><Icon Name="plus" /><span class="btn-label">Add to app</span></button></div>
+            </article>
+        }
+    </div>
+}
+@if (_adding is { } adding)
+{
+    <AddConnectorDialog Connector="adding.Connector" Connections="adding.Connections" OnClose="() => _adding = null" OnAdded="AddedAsync" />
+}
+
+@code {
+    private RenderFragment Tree(string title, System.Text.Json.JsonElement value) => __builder =>
+    {
+        <div class="api-tree-block">
+            <h4>@title</h4>
+            <div class="tree" role="tree" aria-label="@title"><StructureNode Name="@title" Path="$" Value="value" Depth="0" Selected="" OnSelect="_ => Task.CompletedTask" /></div>
+        </div>
+    };
+}

@@ -1,0 +1,2269 @@
+/* canvas.css: the Canvas, the Widgets window, Launch, Builds, the Performance Analyzer and Share… (the classic
+   grid.css's own sections, copied with their class names so both front ends look alike). */
+/* ===== The canvas's property pane (canvasPane.ts; the owner, 2026-11-19): WinForms' Properties window. ===== */
+
+/* ===== Launch, Builds and the Performance Analyzer (canvasLaunch.ts, perfPage.ts; 2026-11-19) ===== */
+
+.bd {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 2.2fr);
+  gap: 16px;
+  min-height: 60vh;
+}
+
+.bd-list {
+  overflow: auto;
+  max-height: 70vh;
+}
+
+.bd-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bd-row > :not(input) {
+  grid-column: 2;
+}
+
+.bd-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.bd-result {
+  color: var(--ok);
+  font-size: 0.9em;
+}
+
+.bd-result-failed {
+  color: var(--error);
+}
+
+.bd-changed {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.bd-error {
+  color: var(--error);
+}
+
+.bd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bd-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bd-split {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(160px, 0.4fr) minmax(0, 1.6fr);
+  min-height: 420px;
+  border: 1px solid var(--border);
+}
+
+.bd-files {
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  list-style: none;
+}
+
+.bd-file {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.bd-file.selected,
+.bd-file:hover {
+  background: var(--surface-2);
+}
+
+.bd-file.bd-added .mono {
+  color: var(--ok);
+}
+
+.bd-file.bd-removed .mono {
+  color: var(--error);
+}
+
+.bd-diff {
+  min-width: 0;
+  min-height: 420px;
+}
+
+.perf-page {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.pf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.pf-top {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.pf-top h1 {
+  margin: 0;
+  font-size: 1.3em;
+}
+
+.pf-state {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.pf-state.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pf-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pf-tab.selected {
+  border-bottom: 2px solid var(--accent);
+}
+
+.pf-reruns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.pf-rerun {
+  display: grid;
+  grid-template-columns: 160px 1fr 80px 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-rerun.selected,
+.pf-rerun:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.pf-bar {
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--kind-app, var(--accent));
+}
+
+.pf-block {
+  display: grid;
+  grid-template-columns: 200px 1fr 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 8px;
+}
+
+.pf-block-bar {
+  opacity: 0.7;
+}
+
+.pf-ms,
+.pf-table .num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.pf-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-hint {
+  padding: 10px 12px;
+  border-left: 3px solid var(--warn);
+  background: var(--warn-soft);
+}
+
+/* ===== everyday comforts (feel-b, 2026-11-19) ===== */
+
+/* The filter's checklist: a column's values with their counts (stepForms.ts valuesChecklist). */
+.filter-values-field {
+  grid-column: 1 / -1;
+}
+
+.filter-values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(420px, 80vw);
+}
+
+.filter-values-all {
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.filter-values-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.filter-value {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.filter-value:hover {
+  background: var(--row-hover);
+}
+
+.filter-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-value-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-values-none {
+  padding: 8px;
+}
+
+/* The palette: why a command cannot run now, in its row. */
+.wb-palette-item {
+  grid-template-columns: 90px 1fr auto auto;
+}
+
+.wb-palette-why {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-style: italic;
+  text-align: right;
+}
+
+/* Keyboard shortcuts (? and Ctrl+/): the commands that have keys, by group. */
+.wb-palette.shortcuts {
+  width: min(860px, 94vw);
+  max-height: 80vh;
+  margin-top: 6vh;
+}
+
+.shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 0 16px;
+}
+
+.shortcuts-head h2 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.shortcuts-head button {
+  padding: 2px 8px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.3em;
+  cursor: pointer;
+}
+
+.shortcuts-groups {
+  columns: 2 300px;
+  column-gap: 24px;
+  padding: 0 16px 14px;
+  overflow: auto;
+}
+
+.shortcuts-group {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+
+.shortcuts-group h3 {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shortcuts-group dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.shortcuts-group dt {
+  display: flex;
+  gap: 3px;
+}
+
+.shortcuts-group dd {
+  margin: 0;
+}
+
+.shortcuts-group kbd {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 0.82em;
+  white-space: nowrap;
+}
+
+/* A column's numbers on hovering its header (headerCard.ts). */
+.header-card {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+  font-size: 0.86em;
+  pointer-events: none;
+}
+
+.header-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.header-card-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-card-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header-card-line span {
+  color: var(--muted);
+}
+
+.header-card-line strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.header-card-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 36px;
+  margin-top: 6px;
+}
+
+.header-card-bars span {
+  flex: 1;
+  border-radius: 1px 1px 0 0;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.header-card-top {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.header-card-top li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header-card-top li span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A notebook cell's run time beside its count; its name box stays once it has run. */
+.wb-elapsed {
+  color: var(--muted);
+  font-size: 0.82em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wb-elapsed.running {
+  color: var(--accent);
+}
+
+.wb-cell.has-run .wb-cell-name.unnamed:not(:focus) {
+  opacity: 0.6;
+}
+
+/* gates.ts: a feature the project's type keeps closed (its rail item hidden; one line on a way in). */
+/* A closed area stays hidden whether the rail shows names or not (html.rail-names sets the items' display). */
+.nav-rail .nav-rail-item[data-gated],
+html.rail-names .nav-rail .nav-rail-item[data-gated] {
+  display: none;
+}
+.gate-line {
+  position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px;
+  background: var(--surface, var(--bg)); color: var(--fg); border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+.extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
+.extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+/* An address on a closed area: the page covered (beside the rail), the line in its middle. */
+.gate-cover {
+  position: fixed; inset: 0 0 0 var(--rail-w, 0); width: auto; height: auto; margin: 0; padding: 0;
+  border: 0; background: var(--bg); color: var(--fg);
+}
+.gate-cover:popover-open { display: grid; place-items: center; }
+.gate-cover .gate-line { position: static; transform: none; }
+.gates-first { padding: 20px 24px; max-width: 560px; border-radius: 8px; }
+.gates-first .dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* ===== the Widgets window (widgetPage.ts): the list, one widget's editor or its run, its Properties ===== */
+.widget-page {
+  margin: 0;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+}
+.wg {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  height: 100vh;
+}
+.wg.no-list {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.wg.no-list .wg-list {
+  display: none;
+}
+.wg-list {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  min-height: 0;
+}
+.wg-list-top {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.wg-search {
+  flex: 1;
+  min-width: 0;
+}
+.wg-items {
+  overflow: auto;
+  padding: 4px 6px 12px;
+}
+.wg-group {
+  margin: 12px 6px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+/* A widget starter pack's heading and its one-line description (widgetPacks.ts). */
+.wg-pack .wg-group,
+.wg-pack .cvs-gallery-group {
+  margin-bottom: 0;
+}
+.wg-pack-desc {
+  margin: 1px 6px 6px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+.cvs-cards .wg-pack-desc {
+  margin: 1px 2px 4px;
+}
+.wg-empty {
+  margin: 4px 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.wg-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wg-item:hover {
+  background: var(--row-hover);
+}
+.wg-item.selected {
+  background: var(--selected);
+  border-color: var(--border-strong);
+}
+.wg-item-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.wg-item-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.wg-item-hides {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.wg-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.wg-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.wg-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.wg-saved {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.wg-grow {
+  flex: 1;
+}
+.wg-ran-note:empty {
+  display: none;
+}
+.wg-ran-note {
+  padding: 8px 12px 0;
+}
+.wg-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.wg-editor,
+.wg-frame-host {
+  position: absolute;
+  inset: 0;
+}
+.wg-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+.wg-props {
+  display: flex;
+  flex-direction: column;
+}
+.wg-props-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+.wg-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.wg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wg-label,
+.wg-prop-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.wg-name,
+.wg-description,
+.wg-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+/* A table property's picker and, for a connection not listed yet, its typed [Conn].table under it. */
+.wg-table-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wg-table-typed {
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.wg-name-line {
+  font-size: 0.78rem;
+  min-height: 1em;
+}
+.wg-name-line[data-state="available"] {
+  color: var(--ok);
+}
+.wg-name-line[data-state="taken"],
+.wg-name-line[data-state="invalid"] {
+  color: var(--error);
+}
+.wg-prop {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
+}
+.wg-prop.marked .wg-prop-name {
+  color: var(--warn);
+}
+.wg-prop-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.wg-prop-mask {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.wg-prop-help {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.wg-reset {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+}
+.wg-field-line {
+  font-size: 0.78rem;
+  color: var(--error);
+}
+.wg-colour-pair {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wg-colour {
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: none;
+}
+.wg-json {
+  font-family: var(--mono, ui-monospace, monospace);
+  resize: vertical;
+}
+.wg-props-problem {
+  display: flex;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--warn);
+  padding: 6px 0;
+}
+.wg-props-none {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.wg-props-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* ===== the Canvas (canvasPage.ts): page tabs above; the board; Properties and Widgets panes; the bottom bar ===== */
+.canvas-page {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+}
+.cvs {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 0;
+}
+.cvs-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  min-height: 34px;
+}
+.cvs-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+}
+.cvs-tab {
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.cvs-tab.current {
+  color: var(--fg);
+  border-color: var(--border);
+  border-bottom-color: var(--bg);
+  font-weight: 600;
+}
+.cvs-notice {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  background: var(--warn-soft);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+}
+.cvs-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.cvs-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.cvs-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--surface);
+  padding: 24px;
+}
+.cvs-scaler {
+  position: relative;
+}
+.cvs-board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--border-strong) 0.6px, transparent 0.7px);
+  background-size: var(--dots, 8px) var(--dots, 8px);
+  box-shadow: 0 0 0 1px var(--border);
+  outline: none;
+  user-select: none;
+}
+.cvs-columns {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cvs-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.cvs-node {
+  position: absolute;
+  box-sizing: border-box;
+}
+.cvs-container {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.cvs-container.borderless {
+  border-style: dotted;
+  border-color: var(--border);
+}
+.cvs-container.scrollable::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  opacity: 0.5;
+}
+.cvs-container.drop {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cvs-container-title {
+  position: absolute;
+  left: 8px;
+  top: -10px;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--muted);
+  pointer-events: none;
+  z-index: 1; /* over a widget placed at the container's top: the title is never cut by it */
+}
+.cvs-widget {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--raised);
+  overflow: hidden;
+  cursor: move;
+}
+.cvs-widget.marked {
+  border-color: var(--warn);
+}
+/* The wiring (canvasWiring.ts): a selected widget's sources and readers lit; a broken wire marked at both ends. */
+.cvs-widget.wire-source {
+  box-shadow: 0 0 0 2px var(--ok);
+}
+.cvs-widget.wire-reader {
+  box-shadow: 0 0 0 2px var(--agent);
+}
+.cvs-widget.wire-broken {
+  border: 1.5px dashed var(--error);
+}
+.cvs-wires {
+  position: absolute;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+}
+.cvs-wire {
+  fill: none;
+  stroke: var(--agent);
+  stroke-width: 2;
+}
+.cvs-wire.auto {
+  stroke-dasharray: 5 4;
+}
+.cvs-wire-stub.broken {
+  stroke: var(--error);
+  stroke-dasharray: 3 3;
+}
+.cvs-wire-label {
+  font: 600 10px/1 var(--font, system-ui), sans-serif;
+  fill: var(--agent);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+}
+.cvs-wire-label.broken {
+  fill: var(--error);
+}
+.cvs-port-dot {
+  fill: var(--bg);
+  stroke: var(--agent);
+  stroke-width: 1.5;
+}
+.cvs-port-dot.out {
+  fill: var(--agent);
+}
+/* Hidden in the app: it runs and its Outs flow, the page gives it no space. */
+.cvs-widget.app-hidden,
+.cvs-container.app-hidden {
+  opacity: 0.45;
+  outline: 1px dashed var(--muted);
+}
+.cvs-hidden-mark {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  color: var(--muted);
+  pointer-events: auto;
+}
+.cvs-hidden-mark svg {
+  width: 16px;
+  height: 16px;
+}
+.cvs-payload {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+.cvs-wire-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.cvs-wire-row select {
+  flex: 1;
+  min-width: 0;
+}
+.cvs-readers {
+  color: var(--muted);
+  font-size: 12px;
+}
+.cvs-action {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+.cvs-action-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+.cvs-source-typed {
+  margin-top: 4px;
+}
+.cvs-widget.missing {
+  border: 1.5px dashed var(--error);
+  background: var(--error-soft);
+}
+.cvs-node.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  z-index: 2;
+}
+.cvs-node.dragging {
+  opacity: 0.85;
+  z-index: 5;
+}
+.cvs-widget-preview {
+  position: absolute;
+  inset: 0 0 18px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.cvs-widget-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.cvs-widget-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  line-height: 18px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The instance's own title over the widget's default preview (canvasPage.ts instanceText). */
+.cvs-instance-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.cvs-missing {
+  padding: 6px;
+  font-size: 0.78rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.cvs-handle {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--border-strong) 50%);
+  z-index: 3;
+}
+.cvs-band {
+  position: absolute;
+  border: 1.5px dashed var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.cvs-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.cvs-guide {
+  position: absolute;
+  background: var(--accent);
+}
+.cvs-guide.v {
+  width: 1px;
+}
+.cvs-guide.h {
+  height: 1px;
+}
+.cvs-empty,
+.cvs-broken {
+  position: absolute;
+  left: 24px;
+  top: 24px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  pointer-events: none;
+}
+.cvs-broken {
+  color: var(--error);
+  pointer-events: auto;
+}
+.cvs-live {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cvs-live-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.cvs-live-frame {
+  flex: 1;
+  border: 0;
+  background: #ffffff;
+}
+.cvs-grip,
+.side-grip {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.cvs-grip:hover,
+.side-grip:hover,
+.side-grip:focus-visible {
+  background: var(--border-strong);
+}
+.cvs-pane {
+  width: 280px;
+  flex-shrink: 0;
+  overflow: auto;
+  background: var(--surface);
+  padding: 8px 10px 16px;
+  box-sizing: border-box;
+}
+.cvs-gallery {
+  width: 300px;
+}
+.cvs-pane[hidden],
+.cvs-grip[hidden],
+.side-pane[hidden],
+.side-grip[hidden] {
+  display: none;
+}
+.cvs-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cvs-pane-head h2 {
+  margin: 4px 0 8px;
+  font-size: 0.9rem;
+}
+.cvs-gallery-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+.cvs-gallery-group,
+.cvs-menu-group {
+  margin: 10px 2px 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cvs-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cvs-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  padding: 6px;
+  cursor: grab;
+}
+.cvs-card.focused,
+.cvs-card:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.cvs-card-preview {
+  height: 84px;
+  border-radius: 4px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.cvs-card-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+/* A dark preview is a picture of the widget on Streamlit's dark page (#171614): its holder takes that
+   backdrop once the picture is there, so it is not a darker patch in a lighter box (the board, the cards). */
+html[data-theme="dark"] .cvs-preview:has(> img),
+html[data-theme="hc-dark"] .cvs-preview:has(> img) {
+  background: #171614;
+}
+/* What a widget's box shows until its picture is made, or when it could not be (canvasPage.ts paintPreview):
+   a card with the widget's icon and name and one line (Preview is being made…, or the failure's words with
+   Try again), never an empty box. Smaller boxes keep the icon and the name only. */
+.cvs-widget-preview,
+.cvs-card-preview {
+  container-type: size; /* their own height: the placeholder fits what room there is */
+}
+.cvs-widget-preview {
+  container-name: cvs-box;
+}
+.cvs-big-image .cvs-ph {
+  min-height: 120px;
+}
+.cvs-ph {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  overflow: hidden;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.cvs-ph.failed {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg));
+}
+.cvs-ph-icon {
+  display: inline-flex;
+  color: var(--muted);
+}
+.cvs-ph.failed .cvs-ph-icon {
+  color: var(--warn);
+}
+.cvs-ph-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.cvs-ph-name {
+  max-width: 100%;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cvs-ph-line {
+  max-width: 100%;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.cvs-ph.failed .cvs-ph-line {
+  color: var(--fg);
+}
+.cvs-ph:not(.failed) .cvs-ph-line::after {
+  content: "";
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-left: 5px;
+  vertical-align: -1px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: cvs-ph-turn 0.9s linear infinite;
+}
+@keyframes cvs-ph-turn {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cvs-ph:not(.failed) .cvs-ph-line::after { animation: none; }
+}
+.cvs-ph-again {
+  pointer-events: auto;
+}
+/* A short box: one row. Being made: the icon and the name. Failed: its words and Try again (the name is
+   under the box already), then only the button. */
+@container cvs-box (max-height: 96px) {
+  .cvs-ph { flex-direction: row; gap: 6px; padding: 2px 8px; }
+  .cvs-ph:not(.failed) .cvs-ph-line { display: none; }
+  .cvs-ph.failed .cvs-ph-name { display: none; }
+  .cvs-ph.failed .cvs-ph-line { -webkit-line-clamp: 1; text-align: left; }
+}
+@container cvs-box (max-height: 40px) {
+  .cvs-ph.failed .cvs-ph-line { display: none; }
+}
+@container cvs-box (max-height: 26px) {
+  .cvs-ph-icon { display: none; }
+}
+/* The instance's own title lies over the box's top: the card starts below it. */
+.cvs-widget:has(.cvs-instance-text) .cvs-ph {
+  padding-top: 30px;
+}
+.cvs-card-name {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.cvs-card-desc {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.cvs-big-preview {
+  position: fixed;
+  z-index: 60;
+  width: 496px;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.cvs-big-image {
+  width: 480px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border-radius: 4px;
+}
+.cvs-big-image img {
+  width: 480px;
+}
+.cvs-props-none {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cvs-props-section {
+  border-top: 1px solid var(--border);
+  padding: 6px 0 8px;
+}
+.cvs-props-section h3 {
+  margin: 4px 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.cvs-widget-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.cvs-widget-title {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-weight: 600;
+}
+.cvs-flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  padding: 3px 0;
+}
+.cvs-size {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cvs-size .cvs-num {
+  width: 58px;
+}
+.cvs-px {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.cvs-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8rem;
+  min-height: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cvs-bottom .btn {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+}
+.cvs-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cvs-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.cvs-grow {
+  flex: 1;
+}
+.cvs-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cvs-num {
+  width: 52px;
+  font: inherit;
+  padding: 1px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.cvs-step {
+  font: inherit;
+}
+.cvs-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.cvs-seg-item {
+  border: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.cvs-seg-item.on {
+  background: var(--selected);
+  font-weight: 600;
+}
+.cvs-toggle[aria-pressed="false"],
+.side-toggle[aria-pressed="false"] {
+  opacity: 0.6;
+}
+.cvs-toggle.has-dot::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+.cvs-zoom-label {
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  min-width: 44px;
+  cursor: pointer;
+}
+.cvs-sizing-more {
+  display: none;
+}
+@media (max-width: 1350px) {
+  .cvs-bottom .cvs-sizing {
+    display: none;
+  }
+  .cvs-sizing-more {
+    display: inline-flex;
+  }
+}
+.cvs-menu {
+  position: fixed;
+  z-index: 70;
+  min-width: 190px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+.cvs-sizing-menu {
+  gap: 8px;
+  padding: 10px;
+}
+.cvs-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.cvs-menu-item:hover,
+.cvs-menu-item:focus-visible {
+  background: var(--row-hover);
+}
+.cvs-menu-item:disabled {
+  opacity: 0.5;
+}
+.cvs-check {
+  width: 14px;
+}
+.cvs-sub {
+  margin-left: auto;
+}
+.cvs-menu-search {
+  margin: 2px 2px 6px;
+}
+.cvs-widget-menu {
+  width: 260px;
+}
+.cvs-landing {
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.cvs-landing-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--fg);
+}
+.cvs-landing-old {
+  display: flex;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cvs-bottom .cvs-toggle[aria-pressed="true"],
+.side-toggle[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+/* ===== Share… a running app (shareApp.ts) ===== */
+.share-dialog { width: min(560px, calc(100vw - 32px)); }
+.share-main { display: flex; flex-direction: column; gap: 12px; min-height: 96px; }
+.share-sentence { margin: 0; }
+.share-needs { margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.share-checks { color: var(--muted); display: inline-flex; }
+.share-link-row { display: flex; gap: 6px; align-items: center; }
+.share-link { flex: 1; min-width: 0; font-family: var(--mono, ui-monospace, monospace); font-size: 13px; padding: 6px 8px; }
+.share-who, .share-account { margin: 0; display: flex; align-items: center; gap: 6px; }
+.share-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 6px;
+  color: var(--warn); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
+.share-note .icon-svg { flex: none; margin-top: 2px; }
+.share-device { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.share-code { font-size: 20px; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 6px; background: var(--panel-2, rgba(127, 127, 127, 0.12)); }
+.share-mark { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 2px; border-radius: 999px;
+  color: var(--warn); background: var(--warn-soft); font-size: 12px; }
+.share-mark[hidden] { display: none; }
+.share-mark-label { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; font-weight: 600; }
+.share-mark-label:focus-visible { outline: 2px solid var(--accent); border-radius: 999px; }
+.share-mark .icon-svg { width: 14px; height: 14px; }
+.cvs-share { display: inline-flex; align-items: center; }
+.cvs-share:empty { display: none; }
+
+
+/* ===== the same classes' rules from grid.css's other sections (each with its line there) ===== */
+/* grid.css line 7408 */
+.cv-top {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+/* grid.css line 7419 */
+.cv-tabs {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+/* grid.css line 7428 */
+.cv-tab {
+  cursor: pointer;
+}
+/* grid.css line 7432 */
+.cv-rename {
+  width: 14ch;
+  padding: 1px 4px;
+  font: inherit;
+}
+/* grid.css line 7438 */
+.cv-tools {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+/* grid.css line 7448 */
+.cv-mode {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+/* grid.css line 7458 */
+.cv-mode .btn {
+  border-color: transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+/* grid.css line 7466 */
+.cv-mode .btn:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--fg);
+}
+/* grid.css line 7471 */
+.cv-mode .btn[aria-pressed="true"] {
+  border-color: var(--border);
+  background: var(--raised);
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+/* grid.css line 7479 */
+.cv-mode .btn[aria-pressed="true"]::before {
+  content: none;
+}
+/* grid.css line 7484 */
+.cv-mode .btn[aria-pressed="true"]:disabled {
+  opacity: 1;
+}
+/* grid.css line 7488 */
+.cv-mode .cv-play.cv-stale {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--fg);
+  box-shadow: inset 0 -2px 0 var(--warn);
+}
+/* grid.css line 7495 */
+.cv-notes {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+/* grid.css line 7503 */
+.cv-notes[hidden],
+.cv-board[hidden],
+.cv-live[hidden] {
+  display: none;
+}
+/* grid.css line 7509 */
+.cv-empty {
+  margin: auto;
+  padding: 14px;
+  color: var(--muted);
+}
+/* grid.css line 8351 */
+.cv-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+}
+/* grid.css line 19074 */
+.cvs-width-handle { position: absolute; top: 0; right: -10px; width: 10px; height: 100%; cursor: ew-resize; z-index: 5; display: flex; align-items: flex-start; justify-content: center; }
+/* grid.css line 19075 */
+.cvs-width-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: var(--border); }
+/* grid.css line 19076 */
+.cvs-width-handle:hover::before { background: var(--accent); }
+/* grid.css line 19077 */
+.cvs-width-label { position: sticky; top: 8px; margin-top: 8px; left: 14px; transform: translateX(14px); white-space: nowrap; font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; pointer-events: none; }
+/* grid.css line 19078 */
+.cvs-node.hidden-here { opacity: 0.35; outline: 1px dashed var(--muted); }
+/* grid.css line 19079 */
+.cvs-layouts { flex-shrink: 0; }
+/* grid.css line 19080 */
+.cvs-layouts .cvs-seg-item { white-space: nowrap; }
+/* grid.css line 19081 */
+.cvs-layouts .icon-svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+/* grid.css line 19084 */
+.wg-main > .code-ide { flex: 1; min-height: 0; }
+/* grid.css line 19088 */
+.wg-frame-host { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* grid.css line 19089 */
+.wg-frame-host .wg-frame { flex: 1; }
+/* grid.css line 19090 */
+.wg-preview-error { padding: 10px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+/* grid.css line 19091 */
+.wg-mode { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+/* grid.css line 19092 */
+.wg-mode-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer; }
+/* grid.css line 19093 */
+.wg-mode-item + .wg-mode-item { border-left: 1px solid var(--border-strong); }
+/* grid.css line 19094 */
+.wg-mode-item.on { background: var(--selected); color: var(--fg); font-weight: 600; }
+/* grid.css line 19095 */
+.wg-mode-item .icon-svg { width: 14px; height: 14px; }
+/* grid.css line 19096 */
+.wg-props .wg-header { margin-top: 0; }
+/* grid.css line 19099 */
+.cvs-menu-key { margin-left: auto; padding-left: 16px; font-family: inherit; font-size: 0.75rem; color: var(--muted); background: none; border: 0; }
+/* grid.css line 19100 */
+.cvs-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+/* grid.css line 19101 */
+.cvs-width-field .cvs-preview-width { width: 64px; }
+/* grid.css line 19105 */
+.cvs-top { min-height: 50px; padding: 0 0 0 8px; gap: 0; }
+/* grid.css line 19106 */
+.cvs-top .cvs-tabs { flex: 1; min-width: 0; }
+/* grid.css line 19107 */
+.cvs-top .cvs-grow { display: none; }
+/* grid.css line 19108 */
+.cvs-run { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; align-self: stretch; padding: 0 12px; margin-left: 8px; border-left: 1px solid var(--border); }
+/* grid.css line 19109 */
+.cvs-split { display: inline-flex; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08); border-radius: 7px; }
+/* grid.css line 19110 */
+.cvs-run .cvs-play,
+.cvs-run .cvs-play-more,
+.cvs-run .cvs-export { height: 34px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+/* grid.css line 19113 */
+.cvs-run .cvs-play { padding: 0 16px 0 13px; background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-radius: 7px 0 0 7px; }
+/* grid.css line 19114 */
+.cvs-run .cvs-play-more { padding: 0 7px; background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-left: 1px solid color-mix(in srgb, var(--accent-fg) 35%, var(--accent)); border-radius: 0 7px 7px 0; }
+/* grid.css line 19115 */
+.cvs-run .cvs-play:hover,
+.cvs-run .cvs-play-more:hover { filter: brightness(1.08); }
+/* grid.css line 19117 */
+.cvs-run .cvs-play .icon-svg,
+.cvs-run .cvs-play-more .icon-svg,
+.cvs-run .cvs-export .icon-svg { width: 16px; height: 16px; }
+/* grid.css line 19120 */
+.cvs-run .cvs-play .icon-svg[data-icon="play"],
+.cvs-run .cvs-play .icon-svg[data-icon="stop"] { fill: currentColor; }
+/* grid.css line 19122 */
+.cvs-run .cvs-play.running { background: var(--accent); }
+/* grid.css line 19123 */
+.cvs-run .cvs-export { padding: 0 14px; background: var(--surface); color: var(--fg); border: 1.5px solid var(--border-strong); border-radius: 7px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+/* grid.css line 19124 */
+.cvs-run .cvs-export:hover { background: var(--row-hover); }
+/* grid.css line 19125 */
+.cvs-run .btn-label { display: inline !important; }
+/* grid.css line 19485 */
+.wg-path-values { display: flex; flex-direction: column; gap: 4px; }
+/* grid.css line 19486 */
+.wg-path-value { display: grid; grid-template-columns: minmax(64px, auto) 1fr; align-items: center; gap: 6px; }
+/* grid.css line 19514 */
+.wg-contract h3 {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+/* grid.css line 19521 */
+.wg-upgrade-diff {
+  max-height: 50vh;
+  overflow: auto;
+  font-size: 12px;
+  background: var(--surface);
+  padding: 8px;
+}
+
+/* ===== codeIde.ts: a page that is an IDE (the owner, 2026-11-21: "This is an IDE not a save form") ===== */
+
+.code-ide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg);
+}
+
+.ide-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 2px 6px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ide-bar-gap {
+  flex: 1;
+}
+
+/* the local sandbox API's slim bar (localApis.ts) and its folded Properties */
+.local-api-bar { border: 1px solid var(--border); border-radius: 6px; gap: 6px; }
+.local-api-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted, #888); flex: none; }
+.local-api-dot.on { background: var(--ok, #2e7d32); }
+.local-api-props { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; }
+.local-api-about input { min-width: 260px; }
+.local-api-agent { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px 0 8px; border-radius: 10px; background: var(--sandbox-soft, rgb(58 58 160 / 12%)); font-size: 0.86em; }
+.local-api-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.local-api-head > h2 { margin: 0; }
+.local-api-pane-bar { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+
+.btn.ide-btn {
+  min-height: 24px;
+  padding: 1px 8px;
+  font-size: 0.86em;
+  gap: 4px;
+}
+
+.btn.ide-btn.icon {
+  padding: 1px 4px;
+}
+
+.btn.ide-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn.ide-btn.running {
+  color: var(--error);
+}
+
+.ide-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: 6px;
+  font-weight: 600;
+}
+
+.ide-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The dirty dot: unsaved changes. */
+.ide-dirty {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.ide-readonly {
+  font-weight: normal;
+  font-size: 0.8em;
+}
+
+.ide-note {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warn-soft);
+}
+
+.ide-note-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ide-note-row > .error-note {
+  flex: 1;
+  margin: 0;
+}
+
+.ide-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ide-center {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ide-editor {
+  position: relative;
+  flex: 1;
+  min-height: 80px;
+}
+
+.ide-editor > .ide-plain {
+  height: 100%;
+  margin: 0;
+  overflow: auto;
+}
+
+.ide-split {
+  flex: none;
+  height: 5px;
+  background: var(--border);
+  cursor: row-resize;
+}
+
+.ide-split:hover,
+.ide-split:focus-visible {
+  background: var(--accent);
+}
+
+.ide-panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: 240px;
+  min-height: 60px;
+  background: var(--surface);
+}
+
+.ide-panel.folded {
+  height: auto !important;
+  min-height: 0;
+}
+
+.ide-panel.folded .ide-panel-body {
+  display: none;
+}
+
+.ide-tabs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ide-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88em;
+  cursor: pointer;
+}
+
+.ide-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
+.ide-tab-spin {
+  width: 10px;
+  height: 10px;
+}
+
+.ide-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--border);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.ide-panel-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.ide-panel-body > * {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.ide-output {
+  margin: 0;
+  padding: 6px 10px;
+  font: 0.85em/1.45 var(--mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ide-out.stderr {
+  color: var(--error);
+}
+
+.ide-out.note {
+  color: var(--muted);
+}
+
+.ide-result {
+  padding: 6px 10px;
+}
+
+.ide-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ide-grid-wrap {
+  overflow: auto;
+}
+
+.ide-grid {
+  border-collapse: collapse;
+  font-size: 0.86em;
+}
+
+.ide-grid th,
+.ide-grid td {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ide-grid th {
+  position: sticky;
+  top: 0;
+  background: var(--raised);
+}
+
+.ide-grid td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ide-problems {
+  padding: 4px 6px;
+}
+
+.ide-problem-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ide-problem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+.ide-problem svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.ide-problem.error svg {
+  color: var(--error);
+}
+
+.ide-problem.warning svg {
+  color: var(--warn);
+}
+
+.ide-problem-text {
+  color: var(--fg);
+}
+
+.ide-props {
+  flex: none;
+  width: 290px;
+  padding: 8px 12px;
+  border-left: 1px solid var(--border);
+  overflow: auto;
+}
+
+.ide-props[hidden] {
+  display: none;
+}
+
+.ide-props-title {
+  margin: 0 0 8px;
+  font-size: 0.95em;
+}
+
+.ide-props-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.ide-props-form input,
+.ide-props-form textarea,
+.ide-props-form select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Every header field (domain/blade_header.py): a check's words under its box. */
+.ide-props-form .ide-prop-check:empty {
+  display: none;
+}
+
+.ide-prop-check.error {
+  color: var(--error, #b00020);
+}
+
+.ide-prop-check.ok {
+  color: var(--muted, inherit);
+}
+
+.ide-props-form label.ide-prop-bool {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.ide-props-form label.ide-prop-bool input {
+  width: auto;
+}
+
+.ide-props-form textarea.mono {
+  font-family: var(--mono, monospace);
+  font-size: 0.9em;
+}
+
+.ide-prop-read {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.ide-prop-read code {
+  overflow-wrap: anywhere;
+}
+
+/* New blade: a name and a kind. */
+.new-blade-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.new-blade-kind {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* The hosts it fills: the blades page's main area, the Workbench's blade tab. */
+.cat-main:has(> .blade-host > .code-ide) {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.blade-host:has(> .code-ide) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb-doc-body.kind-blade:has(> .code-ide) {
+  display: flex;
+  height: 100%;
+  padding: 0;
+}
+
+@media (max-width: 760px) {
+  .ide-props {
+    width: 200px;
+  }
+  .ide-bar .btn.ide-btn .btn-label {
+    display: none;
+  }
+}
+
+/* Design principle 8.14: no page heading over the place where code is written. */
+body:has(.cat-main > .blade-host > .code-ide) .cat-top {
+  display: none;
+}
+
+
+/* ===== the Blazor page's frame: the Canvas fills the page beside the rail (the classic one is its own window) ===== */
+.page-main > .cvs { flex: 1 1 auto; min-height: 0; height: auto; }
+.cvs-body > .busy-host { position: relative; display: flex; flex: 1; min-width: 0; }
+.cvs-body > .busy-host > .cvs-stage { flex: 1; }
+.cvs-live { position: absolute; inset: 0; display: flex; flex-direction: column; }
+/* Pressed toggles as the classic grid.css draws them: a check mark, never a ring like the focus. */
+.cvs-bottom .btn[aria-pressed="true"] { box-shadow: none; }
+.cvs-bottom .btn[aria-pressed="true"]::before { content: "\2713"; font-weight: 700; }
+/* The classic pages' boxes have no base padding or height of their own (grid.css sets only the font): this page's
+   app.css gives every input one, so the classic classes are put back inside these pages. */
+:is(.cvs, .wg-page, .cvs-menu, .share-dialog, .bd) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="color"]) {
+  min-height: auto;
+}
+:is(.cvs, .wg-page) input.cvs-num { padding: 1px 4px; border-radius: 4px; }
+:is(.cvs, .wg-page) select.cvs-step { padding: 1px 4px; border-radius: 4px; }
+

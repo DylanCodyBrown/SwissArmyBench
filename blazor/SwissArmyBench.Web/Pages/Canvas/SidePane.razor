@@ -1,0 +1,88 @@
+@* One pane down the right of the Canvas (the classic sidePanes.ts): its column, its grip on its left edge (drag, or
+   the arrow keys on the focused grip: 200 to 560 px); hidden, its grip goes with it. *@
+@if (Shown)
+{
+    <div class="side-grip cvs-grip" role="separator" aria-orientation="vertical" aria-label="@($"{Label} width")" title="Drag to resize" tabindex="0"
+         @onpointerdown="DownAsync" @onpointermove="Move" @onpointerup="UpAsync" @onkeydown="KeyAsync" @ref="_grip"></div>
+    <aside class="cvs-pane cvs-@(Id == "properties" ? "props" : "gallery")" data-side-pane="@Id" aria-label="@Label" style="@(_width is { } w ? FormattableString.Invariant($"width: {w}px") : null)">
+        @ChildContent
+    </aside>
+}
+
+@code {
+    private const double Narrowest = 200;
+    private const double Widest = 560;
+    private const double KeyStep = 16;
+    private const double Default = 280;
+
+    private ElementReference _grip;
+    private double? _width;
+    private double? _from;
+    private double _start;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Shown { get; set; } = true;
+
+    [Parameter]
+    public double? Width { get; set; }
+
+    [Parameter]
+    public EventCallback<double> OnWidth { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (_from is null)
+        {
+            _width = Width;
+        }
+    }
+
+    private async Task DownAsync(PointerEventArgs e)
+    {
+        _from = _width ?? Default;
+        _start = e.ClientX;
+        var module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/canvas.js");
+        await module.InvokeVoidAsync("capture", _grip, e.PointerId);
+    }
+
+    // The grip is on the pane's left edge: dragging left makes it wider.
+    private void Move(PointerEventArgs e)
+    {
+        if (_from is { } from)
+        {
+            _width = Math.Clamp(from - (e.ClientX - _start), Narrowest, Widest);
+        }
+    }
+
+    private async Task UpAsync()
+    {
+        if (_from is not null && _width is { } width)
+        {
+            _from = null;
+            await OnWidth.InvokeAsync(width);
+        }
+        _from = null;
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        var by = e.Key switch { "ArrowLeft" => KeyStep, "ArrowRight" => -KeyStep, _ => 0 };
+        if (by != 0)
+        {
+            _width = Math.Clamp((_width ?? Default) + by, Narrowest, Widest);
+            await OnWidth.InvokeAsync(_width.Value);
+        }
+    }
+}

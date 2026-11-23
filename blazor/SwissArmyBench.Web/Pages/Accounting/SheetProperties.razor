@@ -1,0 +1,55 @@
+@* A sheet's own Properties when no block is selected (the classic excelCanvas.ts drawProps): freeze panes, print
+   setup (orientation, paper, fit to width, header, footer). Each box is sent as it changes. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<h3>@Sheet.Name</h3>
+<label class="xc-field"><span>Freeze panes at</span>
+    <input type="text" class="xc-freeze-at" placeholder="A2" spellcheck="false" data-no-variables value="@Sheet.Freeze" @onchange="e => FreezeAsync(e)" />
+</label>
+<label class="xc-field"><span>Orientation</span>
+    <WorkbookChoice Class="xc-orientation" Value="@Print.Orientation" Options="@(["", "portrait", "landscape"])" OnPick="@(v => SetAsync("orientation", v))" />
+</label>
+<label class="xc-field"><span>Paper</span>
+    <WorkbookChoice Value="@Print.Paper" Options="@(["", "A4", "Letter"])" OnPick="@(v => SetAsync("paper", v))" />
+</label>
+<label class="xc-check">
+    <input type="checkbox" class="xc-fit" checked="@(Print.FitWidth == true)" @onchange="@(e => SetAsync("fit_width", e.Value is true))" />Fit to width
+</label>
+<label class="xc-field"><span>Header</span>
+    <input type="text" spellcheck="false" value="@Print.Header" @onchange="@(e => SetAsync("header", e.Value as string))" />
+</label>
+<label class="xc-field"><span>Footer</span>
+    <input type="text" spellcheck="false" placeholder="Page &P of &N" value="@Print.Footer" @onchange="@(e => SetAsync("footer", e.Value as string))" />
+</label>
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkbookSheet Sheet { get; set; } = default!;
+
+    [Parameter]
+    public Func<IReadOnlyDictionary<string, object?>, Task<WorkbookState?>> OnChange { get; set; } = default!;
+
+    private SheetPrint Print => Sheet.Print ?? new SheetPrint();
+
+    private Task FreezeAsync(ChangeEventArgs e)
+    {
+        var text = (e.Value as string ?? string.Empty).Trim();
+        return OnChange(new Dictionary<string, object?> { ["freeze"] = text.Length > 0 ? text : null });
+    }
+
+    /// <summary>One print setting changed; an empty one (or off, for text) leaves the setup.</summary>
+    private Task SetAsync(string key, object? value)
+    {
+        var print = new Dictionary<string, object?>
+        {
+            ["orientation"] = Print.Orientation,
+            ["paper"] = Print.Paper,
+            ["fit_width"] = Print.FitWidth,
+            ["header"] = Print.Header,
+            ["footer"] = Print.Footer,
+        };
+        print[key] = value is string { Length: 0 } ? null : value;
+        var kept = print.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => p.Value);
+        return OnChange(new Dictionary<string, object?> { ["print"] = kept });
+    }
+}

@@ -1,0 +1,162 @@
+@* One container or widget instance on the board (the classic canvasPage.ts drawNode), and its children: placed by
+   the layout's pixels times the preview's stretch; selected, hidden in this layout, Hidden in the app (faded, the
+   eye-off mark), a widget missing from the library (Replace, Remove), marked by the server or the wiring. Its corner's
+   handle sizes it. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Canvas
+@using SwissArmyBench.Web.Api.Widgets
+
+@if (Node.Kind == "container" && Node.Props is { } p)
+{
+    <div class="@ContainerClass(p)"
+         data-id="@Node.Id" style="@(Place + (p.Background.Length > 0 ? $" background: {p.Background};" : string.Empty))"
+         @onpointerdown="e => OnDown.InvokeAsync(new NodeDown(Node, e, false))" @onpointerdown:stopPropagation="true"
+         @oncontextmenu="e => OnMenu.InvokeAsync(new NodeMenuAt(Node, e.ClientX, e.ClientY))" @oncontextmenu:preventDefault="true" @oncontextmenu:stopPropagation="true"
+         @ondragenter="() => _drop = Dragging is not null" @ondragleave="() => _drop = false"
+         @ondragover:preventDefault="true" @ondragover:stopPropagation="true"
+         @ondrop="e => DropAsync(e)" @ondrop:stopPropagation="true">
+        @if (p.Title.Length > 0)
+        {
+            <div class="cvs-container-title">@p.Title</div>
+        }
+        @foreach (var child in Node.Children ?? [])
+        {
+            <CanvasNodeView @key="child.Id" Node="child" View="View" Widgets="Widgets" Moving="Moving" Dragging="Dragging"
+                            OnDown="OnDown" OnMenu="OnMenu" OnDrop="OnDrop" OnEditWidget="OnEditWidget" OnReplace="OnReplace" OnRemove="OnRemove" />
+        }
+        @if (Node.Hidden)
+        {
+            <div class="cvs-hidden-mark" title="Hidden in the app"><Icon Name="eye-off" /></div>
+        }
+        <div class="cvs-handle" data-handle="se" aria-hidden="true" @onpointerdown="e => OnDown.InvokeAsync(new NodeDown(Node, e, true))" @onpointerdown:stopPropagation="true"></div>
+    </div>
+}
+else
+{
+    var known = Widgets.FirstOrDefault(w => w.Name == Node.Widget);
+    var missing = View.State?.Missing.Contains(Node.Id) ?? false;
+    var marked = View.State?.Marks.ContainsKey(Node.Id) ?? false;
+    <div class="@WidgetClass(missing, marked)"
+         data-id="@Node.Id" data-widget="@Node.Widget" style="@Place"
+         @onpointerdown="e => OnDown.InvokeAsync(new NodeDown(Node, e, false))" @onpointerdown:stopPropagation="true"
+         @ondblclick="() => OnEditWidget.InvokeAsync(Node.Widget)" @ondblclick:stopPropagation="true"
+         @oncontextmenu="e => OnMenu.InvokeAsync(new NodeMenuAt(Node, e.ClientX, e.ClientY))" @oncontextmenu:preventDefault="true" @oncontextmenu:stopPropagation="true">
+        @if (missing)
+        {
+            <div class="cvs-missing">
+                <span>@Node.Widget is not in the library any more.</span>
+                <button type="button" class="btn ghost" @onpointerdown:stopPropagation="true" @onclick="e => OnReplace.InvokeAsync((e.ClientX, e.ClientY, Node.Id))">Replace</button>
+                <button type="button" class="btn ghost" @onpointerdown:stopPropagation="true" @onclick="() => OnRemove.InvokeAsync(Node.Id)">Remove</button>
+            </div>
+        }
+        else
+        {
+            <PreviewBox Name="@(Node.Widget ?? string.Empty)" />
+            @if (InstanceText(known) is { } text)
+            {
+                <div class="cvs-instance-text" title="@($"{text.Name}: {text.Value}")">@text.Value</div>
+            }
+        }
+        <div class="cvs-widget-name">@(known?.Name ?? Node.Widget)</div>
+        @if (Node.Hidden)
+        {
+            <div class="cvs-hidden-mark" title="Hidden in the app"><Icon Name="eye-off" /></div>
+        }
+        <div class="cvs-handle" data-handle="se" aria-hidden="true" @onpointerdown="e => OnDown.InvokeAsync(new NodeDown(Node, e, true))" @onpointerdown:stopPropagation="true"></div>
+    </div>
+}
+
+@code {
+    // The instance's own words laid over its preview (the picture is the widget's, drawn once with its defaults):
+    // the first of these text properties that differs from the default.
+    private static readonly string[] _textProperties = ["title", "label", "heading", "header", "text", "caption"];
+
+    private bool _drop;
+
+    [Parameter, EditorRequired]
+    public CanvasNode Node { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CanvasView View { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<WidgetEntry> Widgets { get; set; } = [];
+
+    /// <summary>The node being dragged or sized and where it is now (drawn there until the server answers).</summary>
+    [Parameter]
+    public BoardRect? Moving { get; set; }
+
+    [Parameter]
+    public string? Dragging { get; set; }
+
+    [Parameter]
+    public EventCallback<NodeDown> OnDown { get; set; }
+
+    [Parameter]
+    public EventCallback<NodeMenuAt> OnMenu { get; set; }
+
+    [Parameter]
+    public EventCallback<NodeDrop> OnDrop { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> OnEditWidget { get; set; }
+
+    [Parameter]
+    public EventCallback<(double X, double Y, string Id)> OnReplace { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnRemove { get; set; }
+
+    private bool Selected => View.Selected.Contains(Node.Id);
+
+    private string Dragged => Moving?.Id == Node.Id ? " dragging" : string.Empty;
+
+    private string ContainerClass(SwissArmyBench.Web.Api.Canvas.ContainerProps p) => string.Concat(
+        "cvs-node cvs-container",
+        Elsewhere,
+        Node.Hidden ? " app-hidden" : string.Empty,
+        Selected ? " selected" : string.Empty,
+        p.Scrollable ? " scrollable" : string.Empty,
+        p.Border ? string.Empty : " borderless",
+        _drop ? " drop" : string.Empty,
+        Dragged);
+
+    private string WidgetClass(bool missing, bool marked) => string.Concat(
+        "cvs-node cvs-widget",
+        Elsewhere,
+        Node.Hidden ? " app-hidden" : string.Empty,
+        Selected ? " selected" : string.Empty,
+        missing ? " missing" : string.Empty,
+        marked ? " marked" : string.Empty,
+        WiringRules.NodeMarks(Node.Id, View.Selected, View.State?.Wiring),
+        Dragged);
+
+    private string? Elsewhere => (Node.Show ?? "both") != "both" && Node.Show != View.Layout ? " hidden-here" : null;
+
+    private string Place
+    {
+        get
+        {
+            var (x, y, w, h) = Moving?.Id == Node.Id ? (Moving.Left, Moving.Top, Moving.Width, Moving.Height) : (Node.X, Node.Y, Node.W, Node.H);
+            return FormattableString.Invariant($"left: {View.X(x)}px; top: {y}px; width: {View.X(w)}px; height: {h}px;");
+        }
+    }
+
+    private (string Name, string Value)? InstanceText(WidgetEntry? known)
+    {
+        var values = Node.Values ?? new Dictionary<string, JsonElement>();
+        return _textProperties
+            .Where(name => values.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String)
+            .Select(name => (Name: name, Value: values[name].GetString() ?? string.Empty))
+            .Where(t => t.Value.Trim().Length > 0 && !t.Value.StartsWith("out:", StringComparison.Ordinal)
+                && t.Value != SwissArmyBench.Web.Pages.Widgets.PropertyValues.Text(known?.Properties.FirstOrDefault(p => p.Name == t.Name)?.Default))
+            .Select(t => ((string Name, string Value)?)t)
+            .FirstOrDefault();
+    }
+
+    private async Task DropAsync(DragEventArgs e)
+    {
+        _drop = false;
+        await OnDrop.InvokeAsync(new NodeDrop(Node, e.ClientX, e.ClientY));
+    }
+}

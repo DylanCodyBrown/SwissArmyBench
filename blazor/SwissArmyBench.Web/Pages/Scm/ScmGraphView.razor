@@ -1,0 +1,85 @@
+@* GRAPH's body (the classic scmPage.ts drawGraph): the branch's history from GitHub as VS Code's swimlanes, each row's
+   subject, author and the refs' labels, Incoming Changes when GitHub is ahead; a row opened shows its files (each
+   opens its diff); resting on a row shows its card; Load More... Logic in ScmGraphView.razor.cs. *@
+@using SwissArmyBench.Web.Api.Git
+
+@if (Repo is { } repo && SignedIn)
+{
+    @if (History is null)
+    {
+        <div class="scm-graph-loading"><Codicon Name="loading" Extra="codicon-modifier-spin" /></div>
+    }
+    else
+    {
+        <div class="monaco-list" role="tree" aria-label="Source Control Graph" tabindex="0">
+            @foreach (var row in Rows)
+            {
+                var item = row.Item;
+                var incoming = item.Id == ScmGraph.IncomingId;
+                var isOpen = Opened.ContainsKey(item.Id);
+                <div class="monaco-list-row" role="treeitem" aria-level="1" aria-expanded="@(incoming ? null : isOpen ? "true" : "false")" data-commit="@item.Id" aria-label="@item.Subject" tabindex="-1"
+                     @onclick="() => incoming ? Task.CompletedTask : Host.ToggleCommitAsync(repo, item.Id)"
+                     @onmouseenter="e => Hover(e, item, incoming)" @onmouseleave="() => Host.ShowHover(null)"
+                     @oncontextmenu="e => Menu(e, repo, item, incoming)" @oncontextmenu:preventDefault="true">
+                    <div class="monaco-tl-row">
+                        <div class="monaco-tl-twistie @(isOpen ? null : "collapsed")"></div>
+                        <div class="monaco-tl-contents">
+                            <div class="history-item">
+                                <div class="graph-container @(row.Kind == "HEAD" ? "current" : null) @(incoming ? "incoming-changes" : null)"><GraphSvg Row="row" /></div>
+                                <div class="monaco-icon-label @(row.Kind == "HEAD" ? "history-item-current" : null)">
+                                    <div class="monaco-icon-label-container">
+                                        <span class="monaco-icon-name-container"><a class="label-name">@item.Subject</a></span>
+                                        @if (item.Author.Length > 0)
+                                        {
+                                            <span class="monaco-icon-description-container"><span class="label-description">@item.Author</span></span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="label-container">
+                                    @foreach (var label in item.References)
+                                    {
+                                        <div class="label" style="@LabelStyle(label)" title="@label.Name"><Codicon Name="@(label.Kind == "remote" ? "cloud" : "target")" /><div class="description">@label.Name</div></div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @foreach (var file in Opened.GetValueOrDefault(item.Id) ?? [])
+                {
+                    var colour = $"color: var(--vscode-{file.Colour.Replace('.', '-')})";
+                    var selected = Shown is { } s && s.Commit == item.Id && s.Path == file.Path;
+                    <div class="monaco-list-row @(selected ? "selected focused" : null)" role="treeitem" aria-level="2" data-commit-file="@file.Path" tabindex="-1" title="@($"{file.Path} • {file.Tooltip}")"
+                         @onclick="() => Host.ShowDiffAsync(new ShownDiff(repo.Which, file.Path, item.Id, false, Opened.GetValueOrDefault(item.Id) ?? [file], item.Subject))">
+                        <div class="monaco-tl-row">
+                            <div class="monaco-tl-indent" style="width: 8px"></div>
+                            <div class="monaco-tl-twistie"></div>
+                            <div class="monaco-tl-contents">
+                                <div class="history-item-change">
+                                    <div class="graph-container"><GraphSvg Row="row" Placeholder="true" /></div>
+                                    <div class="label-container">
+                                        <div class="monaco-icon-label file-icon">
+                                            <Codicon Name="file" Extra="file-icon-glyph" />
+                                            <div class="monaco-icon-label-container">
+                                                <span class="monaco-icon-name-container"><a class="label-name" style="@colour">@ScmPage.BaseName(file.Path)</a></span>
+                                                @if (ScmPage.DirName(file.Path) is { Length: > 0 } folder)
+                                                {
+                                                    <span class="monaco-icon-description-container"><span class="label-description">@folder</span></span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="decoration-letter" style="@colour">@file.Letter</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            @if (History.More)
+            {
+                <div class="monaco-list-row history-load-more" role="treeitem" @onclick="() => Host.LoadHistoryAsync(repo, true)"><div class="history-item-load-more"><span>Load More...</span></div></div>
+            }
+        </div>
+    }
+}

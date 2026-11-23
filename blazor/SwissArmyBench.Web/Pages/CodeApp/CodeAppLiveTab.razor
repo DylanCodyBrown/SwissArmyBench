@@ -1,0 +1,68 @@
+@* The Code App's Run live tab (the classic codeAppPage.ts drawLive): Run live (the app's dev server in a pane through
+   this server, reloading on save) or Stop; Local Play opens it in the browser where its connectors answer. *@
+@using SwissArmyBench.Web.Api.PowerApps
+@inject CodeAppClient CodeApps
+@inject IJSRuntime Js
+
+<div class="ca-section-head">
+    @if (Live.Running)
+    {
+        <button type="button" class="btn ca-stop" @onclick="StopAsync"><Icon Name="stop" /><span class="btn-label">Stop</span></button>
+        @if (Live.PlayUrl is { } play)
+        {
+            <button type="button" class="btn ca-play" title="In your browser, signed in: its connectors answer there" data-href="@play" @onclick="() => PlayAsync(play)"><Icon Name="popout" /><span class="btn-label">Local Play</span></button>
+        }
+        @if (Live.Ready)
+        {
+            <span class="muted">Running: it reloads as you save.</span>
+        }
+        else
+        {
+            <span class="loading-block">Starting the dev server…</span>
+        }
+    }
+    else
+    {
+        <button type="button" class="btn primary ca-run-live" disabled="@_starting" @onclick="StartAsync"><Icon Name="play" /><span class="btn-label">@(_starting ? "Starting…" : "Run live")</span></button>
+        <span class="muted">The app's dev server, here; Local Play opens it in Power Apps, where its data answers.</span>
+    }
+</div>
+@if (Live is { Running: true, Pane: { } pane })
+{
+    <iframe class="ca-live-frame" src="@pane" title="The code app, live" sandbox="allow-scripts allow-forms allow-popups"></iframe>
+}
+else
+{
+    <div class="ca-live-empty"><Icon Name="play" /><p class="muted">Not running.</p></div>
+}
+<pre class="ca-output" aria-live="polite"></pre>
+
+@code {
+    private bool _starting;
+
+    [Parameter, EditorRequired]
+    public CodeAppLive Live { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public CodeAppPage Host { get; set; } = default!;
+
+    private async Task StartAsync()
+    {
+        _starting = true;
+        if (await Host.CallAsync(CodeApps.StartLiveAsync) is not null)
+        {
+            await Host.LoadAsync();
+        }
+        _starting = false;
+    }
+
+    private async Task StopAsync()
+    {
+        if (await Host.CallAsync(CodeApps.StopLiveAsync) is not null)
+        {
+            await Host.LoadAsync();
+        }
+    }
+
+    private async Task PlayAsync(string url) => await Js.InvokeVoidAsync("open", url, "_blank", "noopener,noreferrer");
+}

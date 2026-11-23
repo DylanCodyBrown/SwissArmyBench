@@ -55,9 +55,10 @@ def test_both_themes_from_the_same_tokens(browser: Browser, server: dict[str, An
 
 
 def test_a_page_not_built_yet_links_to_the_classic_one(browser: Browser, server: dict[str, Any]) -> None:
-    page = open_page(browser, server, "canvas")
+    # Every rail area has a page now; an extension's area with no panel is one line and its classic place.
+    page = open_page(browser, server, "x-stockroom")
     expect(page.locator(".not-yet")).to_contain_text("not in the Blazor front end yet")
-    expect(page.locator(".not-yet a")).to_have_attribute("href", "/streamlit/canvas")
+    expect(page.locator(".not-yet a")).to_have_attribute("href", "/workspace?open=stockroom")
     page.close()
 
 

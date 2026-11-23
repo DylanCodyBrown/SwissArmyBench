@@ -1,0 +1,108 @@
+@* A Canvas menu at the pointer (the classic canvasMenus.ts menu): its lines with their keys, a tick on a switch, a
+   line above a group; a line with ▸ opens the widget picker beside it (every widget, grouped, with search). A click
+   elsewhere or Escape closes it; its first line takes the focus and the arrow keys move (shell.js menuKeys). *@
+@inject IJSRuntime Js
+<div class="menu-shade" @onclick="OnClose" @oncontextmenu="OnClose" @oncontextmenu:preventDefault="true"></div>
+<div class="cvs-menu" role="menu" aria-label="Canvas" style="@Place(X, Y)" @onkeydown="KeyAsync" @ref="_menu">
+    @foreach (var item in Items)
+    {
+        @if (item.Group)
+        {
+            <div class="cvs-menu-sep" role="separator"></div>
+        }
+        <button type="button" class="cvs-menu-item" role="@(item.Checked is null ? "menuitem" : "menuitemcheckbox")"
+                aria-checked="@(item.Checked is { } on ? (on ? "true" : "false") : null)" disabled="@item.Disabled"
+                @onclick="() => ChooseAsync(item)" @onmouseenter="() => HoverAsync(item)">
+            <span class="cvs-check">@(item.Checked == true ? "✓" : string.Empty)</span>
+            <span>@item.Label</span>
+            @if (item.Key is not null)
+            {
+                <kbd class="cvs-menu-key">@item.Key</kbd>
+            }
+            @if (item.Pick is not null)
+            {
+                <span class="cvs-sub">▸</span>
+            }
+        </button>
+    }
+</div>
+@if (_picking is not null)
+{
+    <WidgetPicker Widgets="Widgets" X="@(X + MenuWidth)" Y="@Y" OnPick="PickAsync" OnClose="OnClose" />
+}
+
+@code {
+    // The menu keeps clear of the window's edges by about its own size; the picker opens beside it.
+    private const double MenuWidth = 260;
+    private const double LineHeight = 30;
+
+    private ElementReference _menu;
+    private CanvasMenuItem? _picking;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CanvasMenuItem> Items { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SwissArmyBench.Web.Api.Widgets.WidgetEntry> Widgets { get; set; } = [];
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Place(double x, double y) =>
+        FormattableString.Invariant($"left: min({x}px, calc(100vw - {MenuWidth}px)); top: min({y}px, calc(100vh - {(Items.Count * LineHeight) + 24}px));");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Js.InvokeVoidAsync("sab.menuKeys", _menu);
+        }
+    }
+
+    private async Task ChooseAsync(CanvasMenuItem item)
+    {
+        if (item.Pick is not null)
+        {
+            _picking = item;
+            return;
+        }
+        await OnClose.InvokeAsync();
+        if (item.Run is not null)
+        {
+            await item.Run();
+        }
+    }
+
+    private Task HoverAsync(CanvasMenuItem item)
+    {
+        if (item.Pick is not null && !item.Disabled)
+        {
+            _picking = item;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task PickAsync(string widget)
+    {
+        var picking = _picking;
+        await OnClose.InvokeAsync();
+        if (picking?.Pick is not null)
+        {
+            await picking.Pick(widget);
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

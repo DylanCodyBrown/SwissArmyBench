@@ -32,10 +32,6 @@ public sealed class ExtensionsClient
     public Task NewAsync(string id, string? name, string? projectType) =>
         _api.PostAsync("/extensions/new", new { id, name, project_type = projectType });
 
-    public Task<PanelData> PanelAsync(string route) => _api.GetAsync<PanelData>(route);
-
-    public Task<PanelData> PanelPostAsync(string route, object body) => _api.PostAsync<PanelData>(route, body);
-
     /// <summary>Whether the server answers (an extension's install restarts it): its status code, 0 for none.</summary>
     public async Task<int> HealthAsync()
     {

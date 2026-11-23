@@ -1,0 +1,84 @@
+@* Monaco's diff editor (interop/codeEditor.js createDiff): two texts side by side, or inline; the next and previous
+   change. A build's files compared, and the Source Control page's diff. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject SwissArmyBench.Web.State.ThemeState Theme
+
+<div class="code-editor fill diff-editor" @ref="_host" role="group" aria-label="@Label"></div>
+
+@code {
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _viewer;
+    private (string Before, string After, string File)? _shown;
+    private bool _inline;
+
+    [Parameter]
+    public string Before { get; set; } = string.Empty;
+
+    [Parameter]
+    public string After { get; set; } = string.Empty;
+
+    /// <summary>The file's name: its language from its extension.</summary>
+    [Parameter]
+    public string File { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public string Label { get; set; } = "Changes";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/codeEditor.js");
+            _viewer = await _module.InvokeAsync<IJSObjectReference>("createDiff", _host, new { theme = Theme.Effective, inline = Inline });
+            _inline = Inline;
+        }
+        if (_viewer is null)
+        {
+            return;
+        }
+        if (_shown != (Before, After, File))
+        {
+            _shown = (Before, After, File);
+            await _viewer.InvokeVoidAsync("show", Before, After, File);
+        }
+        if (_inline != Inline)
+        {
+            _inline = Inline;
+            await _viewer.InvokeVoidAsync("setInline", Inline);
+        }
+    }
+
+    /// <summary>The next change (F7), or the one before (Shift+F7).</summary>
+    public async Task MoveAsync(bool next)
+    {
+        if (_viewer is not null)
+        {
+            await _viewer.InvokeVoidAsync(next ? "next" : "previous");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_viewer is not null)
+            {
+                await _viewer.InvokeVoidAsync("dispose");
+                await _viewer.DisposeAsync();
+            }
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // the page is closing
+        }
+    }
+}

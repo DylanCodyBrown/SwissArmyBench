@@ -1,0 +1,57 @@
+@* A sheet's cells with its blocks on them (the classic excelCanvas.ts drawBoard and card): column letters and row
+   numbers, the freeze panes' lines, each block where its cell is and as big as its cells. A click selects a block,
+   a drag moves it (snapped to the cells), its corner sizes it; the arrow keys move it, Delete or Backspace takes it
+   off, Enter or Space selects it; on the corner the arrow keys size it. Logic in BlockBoard.razor.cs. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<div class="xc-board" role="list" aria-label="Blocks" tabindex="-1" @ref="_board"
+     @onpointerdown="BoardDownAsync" @onpointermove="Move" @onpointerup="UpAsync" @onpointercancel="() => _drag = null">
+    <div class="xc-cells" style="@CellsStyle">
+        <div class="xc-heads" aria-hidden="true">
+            @for (var i = 0; i < Right; i++)
+            {
+                <span class="xc-colhead" style="@Px("left", HeadW + (i * ColW), "width", ColW)">@WorkbookRules.Letters(i + 1)</span>
+            }
+            @for (var i = 0; i < Bottom; i++)
+            {
+                <span class="xc-rowhead" style="@Px("top", HeadH + (i * RowH), "height", RowH)">@(i + 1)</span>
+            }
+        </div>
+        @if (Sheet.Freeze is { Length: > 0 } freeze)
+        {
+            var (fr, fc) = WorkbookRules.CellAt(freeze);
+            <span class="xc-freeze xc-freeze-row" style="@Px("top", HeadH + ((fr - 1) * RowH), "width", Width)"></span>
+            <span class="xc-freeze xc-freeze-col" style="@Px("left", HeadW + ((fc - 1) * ColW), "height", Height)"></span>
+        }
+        @foreach (var block in Sheet.Blocks)
+        {
+            var (row, column, w, h) = Shown(block);
+            var word = WorkbookRules.Word(block.Kind);
+            var cell = WorkbookRules.Address(row, column);
+            var on = block.Id == Selected;
+            <article class="xc-block xc-@block.Kind @(on ? "selected" : null) @(_drag?.Id == block.Id && _drag.Moved ? (_drag.Sizing ? "resizing" : "dragging") : null)"
+                     role="listitem" tabindex="0" aria-selected="@(on ? "true" : "false")" aria-label="@($"{word} at {block.Cell}, {block.W} columns by {block.H} rows")"
+                     data-block="@block.Id" data-cell="@block.Cell" data-kind="@block.Kind" style="@BlockStyle(row, column, w, h)"
+                     @onpointerdown="e => BlockDownAsync(e, block, false)" @onpointerdown:stopPropagation="true" @onkeydown="e => BlockKeyAsync(e, block)">
+                <div class="xc-block-head">
+                    <Icon Name="@WorkbookRules.IconOf(block.Kind)" />
+                    <span class="xc-block-kind @(block.Kind == "title" ? "xc-title-words" : null)">@(block.Kind == "title" ? (string.IsNullOrEmpty(block.Text) ? "Title" : block.Text) : word)</span>
+                    <span class="spacer"></span>
+                    <button type="button" class="btn ghost icon xc-remove" aria-label="@($"Remove the {word.ToLowerInvariant()} at {block.Cell}")" title="@($"Remove the {word.ToLowerInvariant()} at {block.Cell}")"
+                            @onpointerdown:stopPropagation="true" @onkeydown:stopPropagation="true" @onclick="() => OnRemove.InvokeAsync(block.Id)"><Icon Name="close" /></button>
+                </div>
+                @if (block.Kind != "title")
+                {
+                    <div class="xc-block-words">@WorkbookRules.Words(block, Sheet.Blocks)</div>
+                }
+                <span class="hint xc-size">@cell · @(w)×@(h)</span>
+                <button type="button" class="card-grip cv-grip xc-grip" aria-label="@($"Resize {word} at {block.Cell}")" title="Resize: drag, or the arrow keys"
+                        @onpointerdown="e => BlockDownAsync(e, block, true)" @onpointerdown:stopPropagation="true" @onkeydown="e => GripKeyAsync(e, block)" @onkeydown:stopPropagation="true"></button>
+            </article>
+        }
+    </div>
+    @if (Sheet.Blocks.Count == 0)
+    {
+        <p class="cv-empty xc-empty">Add a block: a title, a table, a pivot, a chart</p>
+    }
+</div>

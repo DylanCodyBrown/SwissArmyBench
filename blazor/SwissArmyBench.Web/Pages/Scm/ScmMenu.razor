@@ -1,0 +1,128 @@
+@* VS Code's context menu (the classic scmPage.ts menu): its rows, separators, keybindings, greyed-out entries and
+   submenus (opened on resting over the row). The arrow keys move, Enter runs, Escape closes; a click elsewhere
+   closes it. *@
+
+@if (Parent is null)
+{
+    <div class="menu-shade" @onmousedown="OnClose" @oncontextmenu="OnClose" @oncontextmenu:preventDefault="true"></div>
+}
+<div class="scm-context-view monaco-menu-container" tabindex="-1" style="@Place" @onkeydown="KeyAsync" @ref="_view">
+    <div class="monaco-menu">
+        <div class="monaco-action-bar vertical">
+            <ul class="actions-container" role="menu" aria-label="@Label">
+                @for (var i = 0; i < Items.Count; i++)
+                {
+                    var at = i;
+                    var item = Items[at];
+                    if (item is null)
+                    {
+                        <li class="action-item disabled" role="presentation"><a class="action-label codicon separator disabled" role="presentation"></a></li>
+                        continue;
+                    }
+                    <li class="action-item @(item.Disabled ? "disabled" : null)" role="presentation">
+                        <a class="action-menu-item @(item.Disabled ? "disabled" : null) @(_focused == at ? "focused" : null)" role="menuitem" tabindex="-1"
+                           aria-disabled="@(item.Disabled ? "true" : null)" aria-haspopup="@(item.Submenu is not null ? "true" : null)"
+                           aria-checked="@(item.Checked is { } c ? (c ? "true" : "false") : null)"
+                           @onmouseenter="() => Hover(at)" @onclick="() => ChooseAsync(item)" @onclick:stopPropagation="true">
+                            <span class="menu-item-check codicon codicon-menu-selection @(item.Checked == true ? "checked" : null)">@(item.Checked == true ? Codicons.Glyph("check") : string.Empty)</span>
+                            <span class="action-label">@item.Label</span>
+                            @if (item.Keys is not null)
+                            {
+                                <span class="keybinding">@item.Keys</span>
+                            }
+                            @if (item.Submenu is not null)
+                            {
+                                <span class="submenu-indicator codicon codicon-menu-submenu">@Codicons.Glyph("chevron-right")</span>
+                            }
+                        </a>
+                        @if (_open == at && item.Submenu is { } submenu && !item.Disabled)
+                        {
+                            <ScmMenu Items="submenu" Label="@item.Label" X="@(X + Width)" Y="@(Y + (at * RowHeight))" Parent="this" OnClose="OnClose" />
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const double Width = 260;
+    private const double RowHeight = 26;
+
+    private ElementReference _view;
+    private int _focused = -1;
+    private int _open = -1;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ScmMenuItem?> Items { get; set; } = [];
+
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    /// <summary>The menu a submenu opens from (null: the top menu, with its shade).</summary>
+    [Parameter]
+    public ScmMenu? Parent { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Place => FormattableString.Invariant(
+        $"left: min({X}px, calc(100vw - {Width}px)); top: min({Y}px, calc(100vh - {Math.Min((Items.Count * RowHeight) + 16, 600)}px));");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Parent is null)
+        {
+            await _view.FocusAsync();
+        }
+    }
+
+    private void Hover(int at)
+    {
+        _focused = at;
+        _open = Items[at]?.Submenu is not null ? at : -1;
+    }
+
+    private async Task ChooseAsync(ScmMenuItem item)
+    {
+        if (item.Disabled || item.Submenu is not null)
+        {
+            return;
+        }
+        await OnClose.InvokeAsync();
+        if (item.Run is not null)
+        {
+            await item.Run();
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        var live = Items.Select((item, at) => (item, at)).Where(x => x.item is { Disabled: false }).Select(x => x.at).ToList();
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" && live.Count > 0)
+        {
+            var now = live.IndexOf(_focused);
+            _focused = live[(now + (e.Key == "ArrowDown" ? 1 : -1) + live.Count) % live.Count];
+        }
+        else if (e.Key == "Enter" && _focused >= 0 && Items[_focused] is { } item)
+        {
+            if (item.Submenu is not null)
+            {
+                _open = _focused;
+                return;
+            }
+            await ChooseAsync(item);
+        }
+    }
+}

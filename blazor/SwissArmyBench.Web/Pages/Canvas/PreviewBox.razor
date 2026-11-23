@@ -1,0 +1,141 @@
+@* A widget's rendered preview (the classic canvasGallery.ts preview): the picture once it is made; until then a card
+   with its name and "Preview is being made…"; a failure's one line with Try again (its full words in the title), or
+   what it needs to draw with Install. *@
+@implements IAsyncDisposable
+
+<div @ref="_box" class="@ClassName cvs-preview" data-preview="@Name" data-how="@How" data-state="@(Said?.State ?? "coming")">
+    @if (Said is { State: "ready", Url: { } url })
+    {
+        <img src="@Address(url)" alt="@($"{Name}, rendered")" draggable="false" />
+    }
+    else
+    {
+        var failed = Said?.State == "failed";
+        <div class="cvs-ph @(failed ? "failed" : null)" title="@(failed ? Said!.Said ?? string.Empty : $"{Name}: its preview is being made")">
+            <span class="cvs-ph-icon"><Icon Name="@(failed ? "warning" : "sliders")" /></span>
+            @if (How != "card")
+            {
+                <span class="cvs-ph-name">@Name</span>
+            }
+            <span class="cvs-ph-line" role="status">@Words</span>
+            @if (failed && How != "card")
+            {
+                @if (Said!.Missing is { } missing)
+                {
+                    <button type="button" class="btn ghost small cvs-ph-again" @onclick="InstallAsync"><Icon Name="import" /> Install @string.Join(", ", missing.Packages)</button>
+                }
+                else
+                {
+                    <button type="button" class="btn ghost small cvs-ph-again" @onclick="@(() => Previews.Want(Name, How == "board", retry: true))"><Icon Name="reset" /> Try again</button>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // A failure's words cut to one short line for a box.
+    private const int LongestLine = 110;
+
+    private ElementReference _box;
+
+    [CascadingParameter]
+    public WidgetPreviews Previews { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string ClassName { get; set; } = "cvs-widget-preview";
+
+    /// <summary>board (asked for first), card (a gallery card), hover (the large one).</summary>
+    [Parameter]
+    public string How { get; set; } = "board";
+
+    private SwissArmyBench.Web.Api.Widgets.PreviewState? Said => Previews.Of(Name);
+
+    private string Words => Said switch
+    {
+        { State: "failed", Missing: { } missing } => $"Needs {string.Join(", ", missing.Packages)} to draw.",
+        { State: "failed" } failed => FirstLine(failed.Said ?? string.Empty),
+        _ => "Preview is being made…",
+    };
+
+    protected override void OnInitialized() => Previews.Changed += OnChanged;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    private IJSObjectReference? _seen;
+    private DotNetObjectReference<PreviewBox>? _self;
+
+    /// <summary>A gallery card's preview is asked for once the card is in view (113 prebuilt widgets: never all at
+    /// once, never ahead of the board's); a board's and a hover's at once.</summary>
+    protected override void OnParametersSet()
+    {
+        if (How != "card")
+        {
+            Previews.Want(Name, How == "board");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && How == "card")
+        {
+            var module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/canvas.js");
+            _self = DotNetObjectReference.Create(this);
+            _seen = await module.InvokeAsync<IJSObjectReference>("seen", _box, _self);
+        }
+    }
+
+    /// <summary>The card came into view (canvas.js).</summary>
+    [JSInvokable]
+    public void Seen() => Previews.Want(Name, board: false);
+
+    private static string Address(string url) => url.StartsWith('/') ? url : $"/{url}";
+
+    private static string FirstLine(string said)
+    {
+        var line = said.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "The preview could not be made.";
+        return line.Length > LongestLine ? $"{line[..(LongestLine - 2)]}…" : line;
+    }
+
+    private async Task InstallAsync()
+    {
+        try
+        {
+            if (Said is { } said)
+            {
+                await Previews.InstallAsync(said);
+            }
+        }
+        catch (SwissArmyBench.Web.Api.ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Previews.Changed -= OnChanged;
+        if (_seen is not null)
+        {
+            try
+            {
+                await _seen.InvokeVoidAsync("stop");
+                await _seen.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // the page is closing
+            }
+        }
+        _self?.Dispose();
+    }
+}

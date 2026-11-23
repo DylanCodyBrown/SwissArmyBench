@@ -1,0 +1,109 @@
+@* Signed out, the Source Control view's welcome (the classic scmPage.ts githubSignIn): Sign in with GitHub (the device
+   flow: the code to type and GitHub's page opened; greyed out until the app is registered with GitHub), or a
+   fine-grained personal access token pasted once (its steps listed; Enter or Use Token). *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.Git
+@implements IDisposable
+@inject GitClient Git
+@inject IJSRuntime Js
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<div class="button-container">
+    <button type="button" class="monaco-button monaco-text-button scm-device" disabled="@(Status?.Device != true)"
+            title="@(Status?.Device == true ? "Sign in with GitHub" : "Sign in with GitHub needs the app's registration with GitHub: use a token")" @onclick="DeviceAsync">
+        <Codicon Name="github" /> Sign in with GitHub
+    </button>
+</div>
+@if (_code is { } shown)
+{
+    <p class="scm-device-code">
+        @if (shown.Words is { } words)
+        {
+            @words
+        }
+        else
+        {
+            <text>Type <strong class="mono">@shown.UserCode</strong> at <a href="@shown.Uri" target="_blank" rel="noopener">@shown.Uri</a></text>
+        }
+    </p>
+}
+<p>Or use a fine-grained personal access token:</p>
+<ol class="scm-token-steps">
+    @foreach (var step in Status?.TokenSteps ?? [])
+    {
+        <li>@step</li>
+    }
+</ol>
+<div class="scm-token-row">
+    <input type="password" class="input scm-token" placeholder="github_pat_…" aria-label="Personal access token" autocomplete="off" spellcheck="false" @bind="_token" @bind:event="oninput" @onkeydown="TokenKeyAsync" />
+    <button type="button" class="monaco-button monaco-text-button" @onclick="UseAsync">Use Token</button>
+</div>
+
+@code {
+    private readonly CancellationTokenSource _stop = new();
+    private string _token = string.Empty;
+    private (string UserCode, string Uri, string? Words)? _code;
+
+    [Parameter]
+    public ScmStatus? Status { get; set; }
+
+    [Parameter]
+    public EventCallback OnSignedIn { get; set; }
+
+    private Task TokenKeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? UseAsync() : Task.CompletedTask;
+
+    private async Task UseAsync()
+    {
+        if (_token.Trim().Length == 0)
+        {
+            return;
+        }
+        try
+        {
+            await Git.SignInWithTokenAsync(_token.Trim());
+            _token = string.Empty;
+            await OnSignedIn.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private async Task DeviceAsync()
+    {
+        try
+        {
+            var words = await new DeviceSignIn(Git).RunAsync(StartedAsync, () => !_stop.IsCancellationRequested, _stop.Token);
+            if (words is null)
+            {
+                await OnSignedIn.InvokeAsync();
+            }
+            else if (_code is { } started)
+            {
+                _code = started with { Words = words };
+            }
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+        catch (TaskCanceledException)
+        {
+            // the page closed
+        }
+    }
+
+    private async Task StartedAsync(DeviceFlow flow)
+    {
+        _code = (flow.UserCode, flow.VerificationUri, null);
+        StateHasChanged();
+        await Js.InvokeVoidAsync("open", flow.VerificationUri, "_blank", "noopener");
+    }
+
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _stop.Dispose();
+    }
+}

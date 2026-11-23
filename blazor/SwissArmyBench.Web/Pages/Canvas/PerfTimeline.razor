@@ -1,0 +1,61 @@
+@* The analyzer's Timeline (the classic perfPage.ts timeline; Chrome's Performance panel): each rerun a bar (its
+   trigger, its time, what it sent), and under it each widget instance's time in the rerun picked (else the last). *@
+@using System.Globalization
+@using SwissArmyBench.Web.Api.Canvas
+
+@if (Session.Reruns.Count == 0)
+{
+    <p class="hint app-empty">@(Session.Recording ? "Use the app: each rerun shows here" : "Paused")</p>
+}
+else
+{
+    var longest = Math.Max(1, Session.Reruns.Max(r => r.Ms));
+    var shown = Session.Reruns.FirstOrDefault(r => r.Index == Picked) ?? Session.Reruns[^1];
+    var slowest = Math.Max(1, shown.Blocks.Select(b => b.Ms).DefaultIfEmpty(1).Max());
+    <div class="pf-timeline">
+        <div class="pf-reruns" role="list" aria-label="Reruns">
+            @foreach (var rerun in Session.Reruns)
+            {
+                <button type="button" class="pf-rerun @(Picked == rerun.Index ? "selected" : null)" data-rerun="@rerun.Index" data-trigger="@rerun.Trigger"
+                        title="@($"{rerun.Trigger}: {PerfWords.Ms(rerun.Ms)}")" @onclick="() => OnPick.InvokeAsync(rerun.Index)">
+                    <span class="pf-trigger">@rerun.Trigger</span>
+                    <span class="pf-bar" style="@Width(rerun.Ms / longest, 2)"></span>
+                    <span class="pf-ms">@PerfWords.Ms(rerun.Ms)</span>
+                    @if (rerun.Socket is { } socket)
+                    {
+                        <span class="hint pf-sent">@PerfWords.Size(socket.Size)</span>
+                    }
+                </button>
+            }
+        </div>
+        <section class="pf-blocks" aria-label="@($"Rerun {shown.Index}")">
+            <h3 class="app-heading">Rerun @shown.Index · @shown.Trigger · @PerfWords.Ms(shown.Ms)</h3>
+            @foreach (var block in shown.Blocks)
+            {
+                <div class="pf-block" data-block="@block.Block">
+                    <span class="pf-name">@block.Title</span>
+                    <span class="pf-bar pf-block-bar" style="@Width(block.Ms / slowest, 1)"></span>
+                    <span class="pf-ms">@PerfWords.Ms(block.Ms)</span>
+                </div>
+            }
+            @if (shown.Socket is { } sent)
+            {
+                <div class="pf-socket-line hint">@sent.Messages socket messages · @PerfWords.Size(sent.Size)</div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public PerfSession Session { get; set; } = default!;
+
+    [Parameter]
+    public int? Picked { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnPick { get; set; }
+
+    private static string Width(double share, double least) =>
+        string.Create(CultureInfo.InvariantCulture, $"width: {Math.Max(least, share * 100)}%;");
+}

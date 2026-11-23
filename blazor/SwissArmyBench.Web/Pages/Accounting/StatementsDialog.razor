@@ -1,0 +1,103 @@
+@* Statements and invoices (the classic excelTemplates.ts openStatements): a template, the groups' table and the lines'
+   table (open tables), grouped by columns, named from them, numbered, dated, one workbook each or one of sheets.
+   Dry run first (the files, their rows and totals: nothing written); Build only for the request the dry run was for;
+   then the register as a grid. Logic in StatementsDialog.razor.cs. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<AppDialog Title="Statements and invoices" OnClose="OnClose">
+    <ChildContent>
+        <div class="xc-statements">
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            @if (!_loaded)
+            {
+                <div class="loading-block">Loading…</div>
+            }
+            else
+            {
+                <div class="xc-build-form">
+                    <label class="xc-field"><span>Template</span>
+                        <select class="xc-b-template" @bind="_template">
+                            @foreach (var t in _templates)
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="xc-field"><span>One per row of</span>
+                        <select class="xc-b-data" @bind="_data">
+                            @foreach (var t in _tables)
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="xc-field"><span>Lines from</span>
+                        <select class="xc-b-lines" @bind="_lines">
+                            <option value="">—</option>
+                            @foreach (var t in _tables)
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="xc-field"><span>Grouped by</span><input type="text" class="xc-b-group" placeholder="cedant, period" spellcheck="false" data-no-variables @bind="_groupBy" @bind:event="oninput" /></label>
+                    <label class="xc-field"><span>File name</span><input type="text" class="xc-b-name" placeholder="{cedant} {period}.xlsx" spellcheck="false" data-no-variables @bind="_name" @bind:event="oninput" /></label>
+                    <label class="xc-field"><span>Numbered from</span><input type="text" class="xc-b-start" placeholder="1001" spellcheck="false" @bind="_start" @bind:event="oninput" /></label>
+                    <label class="xc-field"><span>Number as</span><input type="text" class="xc-b-pattern" placeholder="INV-{n:05d}" spellcheck="false" data-no-variables @bind="_pattern" @bind:event="oninput" /></label>
+                    <label class="xc-field"><span>Dated</span><input type="date" class="xc-b-date" @bind="_date" @bind:event="oninput" /></label>
+                    <label class="xc-check"><input type="checkbox" class="xc-b-one" @bind="_oneBook" />One workbook, a sheet each</label>
+                </div>
+                @if (_plan is { } plan)
+                {
+                    <div class="xc-plan">
+                        <p class="xc-plan-head">@(plan.DryRun ? "Dry run" : "Built"): @plan.Count @(BySheet ? "sheets" : "files") in @plan.Folder</p>
+                        <table class="xc-plan-table" aria-label="@(plan.DryRun ? "Dry run" : "Built")">
+                            <thead>
+                                <tr>
+                                    <th>@(BySheet ? "Sheet" : "File")</th>
+                                    <th>No.</th>
+                                    <th class="num">Rows</th>
+                                    @foreach (var c in TotalColumns)
+                                    {
+                                        <th class="num">@c</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var f in plan.Files)
+                                {
+                                    <tr>
+                                        <td>@(f.Sheet ?? f.File)</td>
+                                        <td>@WorkbookRules.Text(f.Number)</td>
+                                        <td class="num">@f.Rows</td>
+                                        @foreach (var c in TotalColumns)
+                                        {
+                                            <td class="num">@(f.Totals.TryGetValue(c, out var v) ? Money(v) : string.Empty)</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td>Total</td>
+                                    <td></td>
+                                    <td class="num">@plan.Files.Sum(f => f.Rows)</td>
+                                    @foreach (var c in TotalColumns)
+                                    {
+                                        <td class="num">@Money(plan.Totals.GetValueOrDefault(c))</td>
+                                    }
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost xc-register" title="What was built, as a grid" @onclick="RegisterAsync"><Icon Name="rows" /><span class="btn-label">Register</span></button>
+        <button type="button" class="btn xc-dry-run" @onclick="() => BuildAsync(true)"><Icon Name="eye" /><span class="btn-label">Dry run</span></button>
+        <button type="button" class="btn primary xc-build" aria-label="@BuildWord" disabled="@(!CanBuild)" @onclick="() => BuildAsync(false)"><Icon Name="check" /><span class="btn-label">@BuildWord</span></button>
+        <button type="button" class="btn ghost" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

@@ -1,0 +1,52 @@
+@* The Code App's Runs tab (the classic codeAppPage.ts drawRuns): every pa, pac and npm run of this session, who ran it
+   and how long, its lines as they come (powerapps_output). *@
+@using System.Globalization
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.PowerApps
+@inject CodeAppClient CodeApps
+
+@if (Shown.Count == 0)
+{
+    <p class="empty-note">No runs this session.</p>
+}
+else
+{
+    <ul class="ca-runs">
+        @foreach (var run in Shown)
+        {
+            <li class="ca-run @(run.Done ? (run.Ok ? "ok" : "failed") : "running")" data-run="@run.Id">
+                <details>
+                    <summary><Icon Name="@(run.Done ? (run.Ok ? "check" : "warning") : "clock")" /><code>@run.Command</code>
+                        <span class="muted"> @(run.Who == "agent" ? "the agent" : "you")@(run.Done ? $", {run.Seconds.ToString("0.0", CultureInfo.InvariantCulture)} s" : string.Empty)</span>
+                    </summary>
+                    <pre class="ca-output">@string.Join('\n', Lines.TryGetValue(run.Id, out var lines) ? lines : run.Output.Split('\n'))</pre>
+                </details>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<CodeAppRun>? _runs;
+
+    [Parameter]
+    public IReadOnlyList<CodeAppRun> Runs { get; set; } = [];
+
+    /// <summary>Each run's lines as they came (the page keeps them).</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, List<string>> Lines { get; set; } = new Dictionary<string, List<string>>();
+
+    private IReadOnlyList<CodeAppRun> Shown => _runs ?? Runs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _runs = (await CodeApps.RunsAsync()).Runs;
+        }
+        catch (ApiException)
+        {
+            // the page's own list stays
+        }
+    }
+}

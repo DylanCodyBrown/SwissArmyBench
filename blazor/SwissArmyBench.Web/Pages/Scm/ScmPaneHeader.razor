@@ -1,0 +1,34 @@
+@* A view's header in VS Code's side bar (paneview): the twistie, the title, the count badge, the actions; a click or
+   Enter and Space fold it. *@
+<div class="pane-header @(Expanded ? "expanded" : null)" role="button" tabindex="0" aria-expanded="@(Expanded ? "true" : "false")" aria-label="@($"{Title} Section")" data-pane="@Id"
+     @onclick="() => OnToggle.InvokeAsync(Id)" @onkeydown="KeyAsync">
+    <Codicon Name="@(Expanded ? "chevron-down" : "chevron-right")" Extra="twisty-container" />
+    <h3 class="title" title="@Title">@Title</h3>
+    @if (Count is > 0)
+    {
+        <div class="count-badge-wrapper"><div class="monaco-count-badge long">@Count</div></div>
+    }
+    <div class="actions" @onclick:stopPropagation="true">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Expanded { get; set; }
+
+    [Parameter]
+    public int? Count { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnToggle { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key is "Enter" or " " ? OnToggle.InvokeAsync(Id) : Task.CompletedTask;
+}

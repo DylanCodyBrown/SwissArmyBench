@@ -1,0 +1,56 @@
+@* VS Code's modal dialog (the classic scmPage.ts dialog): its message, detail and buttons (the first the primary),
+   Cancel at the end; Escape cancels. *@
+<div class="scm-dialog-shade">
+    <div class="scm-dialog monaco-dialog-box" role="dialog" aria-modal="true" aria-label="@Request.Message" @onkeydown="KeyAsync">
+        <div class="dialog-message-row">
+            <Codicon Name="warning" Extra="dialog-icon" />
+            <div class="dialog-message-container">
+                <div class="dialog-message">@Request.Message</div>
+                <div class="dialog-message-detail">@Request.Detail</div>
+            </div>
+        </div>
+        <div class="dialog-buttons-row">
+            <div class="dialog-buttons">
+                <button type="button" class="monaco-button monaco-text-button" @onclick="() => Close(Request.Buttons[0])" @ref="_first">@Request.Buttons[0]</button>
+                @foreach (var label in Request.Buttons.Skip(1))
+                {
+                    <button type="button" class="monaco-button monaco-text-button secondary" @onclick="() => Close(label)">@label</button>
+                }
+                <button type="button" class="monaco-button monaco-text-button secondary" @onclick="() => Close(null)">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ElementReference _first;
+
+    [Parameter, EditorRequired]
+    public DialogRequest Request { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _first.FocusAsync();
+        }
+    }
+
+    private void Close(string? picked)
+    {
+        Request.Answer.TrySetResult(picked);
+        _ = OnClosed.InvokeAsync();
+    }
+
+    private Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Close(null);
+        }
+        return Task.CompletedTask;
+    }
+}

@@ -1,0 +1,37 @@
+@* VS Code's action item (the classic scmPage.ts action): a codicon button with its title; Enter and Space run it;
+   disabled, it does nothing. *@
+<li class="action-item" role="presentation">
+    <a class="action-label codicon codicon-@Icon @(Disabled ? "disabled" : null)" role="button" tabindex="@(Disabled ? -1 : 0)" aria-label="@Title" title="@Title"
+       aria-disabled="@(Disabled ? "true" : null)" data-codicon="@Icon"
+       @onclick="RunAsync" @onclick:stopPropagation="true" @onclick:preventDefault="true" @onkeydown="KeyAsync" @onkeydown:stopPropagation="true">@Codicons.Glyph(Icon)</a>
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnRun { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private async Task RunAsync(MouseEventArgs e)
+    {
+        if (!Disabled)
+        {
+            await OnRun.InvokeAsync(e);
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " " && !Disabled)
+        {
+            await OnRun.InvokeAsync(new MouseEventArgs());
+        }
+    }
+}

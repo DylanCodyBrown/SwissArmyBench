@@ -1,0 +1,72 @@
+@* The Canvas with no canvas named (the classic canvasPage.ts landing): the project's canvases, an older app file's
+   words, and New canvas (its name asked). No project: open one first. *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.Canvas
+@inject CanvasClient Canvases
+@inject SwissArmyBench.Web.State.Dialogs Dialogs
+@inject NavigationManager Nav
+
+<section class="area-page">
+    <div class="cvs-landing">
+        <h1>Canvas</h1>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_listing is { } listing)
+        {
+            @if (listing.Folder is null)
+            {
+                <p>Open a project first: its canvases are its files.</p>
+            }
+            @foreach (var canvas in listing.Canvases)
+            {
+                <a class="cvs-landing-item" href="@($"canvas?path={Uri.EscapeDataString(canvas.Path)}")"><Icon Name="page" />@canvas.Name</a>
+            }
+            @foreach (var old in listing.Old)
+            {
+                <div class="cvs-landing-old"><Icon Name="info" />@old.Name: @old.Said</div>
+            }
+            @if (listing.Folder is { } folder)
+            {
+                <button type="button" class="btn primary" @onclick="() => NewAsync(folder)"><Icon Name="plus" /><span class="btn-label">New canvas</span></button>
+            }
+        }
+        else if (_error is null)
+        {
+            <div class="loading-block">Loading…</div>
+        }
+    </div>
+</section>
+
+@code {
+    private CanvasListing? _listing;
+    private Exception? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _listing = await Canvases.ListAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task NewAsync(string folder)
+    {
+        var name = await Dialogs.AskTextAsync("The new canvas's name", string.Empty, "The new canvas's name", "App");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+        try
+        {
+            var made = await Canvases.NewAsync(name, folder);
+            Nav.NavigateTo($"canvas?path={Uri.EscapeDataString(made.Path)}");
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

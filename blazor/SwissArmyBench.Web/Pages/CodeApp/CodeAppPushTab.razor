@@ -1,0 +1,97 @@
+@* The Code App's Push tab (the classic codeAppPage.ts drawPush): what Push runs (npm run build, pa app push) on which
+   app and environment; Push (its lines under Runs), the app's link; Versions: this session's pushes and the
+   environment's code apps. *@
+@using System.Globalization
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.PowerApps
+@inject CodeAppClient CodeApps
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+@if (_plan is { } plan)
+{
+    <section class="ca-push">
+        <p>Push makes a new version of <strong>@plan.App</strong> in <strong>@plan.Environment</strong>:</p>
+        <ol class="ca-commands">
+            @foreach (var command in plan.Commands)
+            {
+                <li><code>@command</code></li>
+            }
+        </ol>
+        <div class="ca-section-head">
+            <button type="button" class="btn primary ca-push-button" disabled="@_pushing" @onclick="PushAsync"><Icon Name="upload" /><span class="btn-label">@(_pushing ? "Pushing…" : "Push")</span></button>
+            <button type="button" class="btn ghost ca-versions" @onclick="VersionsAsync"><Icon Name="clock" /><span class="btn-label">Versions</span></button>
+        </div>
+        <div class="ca-push-result">
+            @if (_pushing)
+            {
+                <p class="muted">Pushing… (its lines are under Runs)</p>
+            }
+            else if (_pushed is { } pushed)
+            {
+                <p class="ca-pushed"><Icon Name="check" /> Pushed. @if (pushed.Link is { } link) { <a href="@link" target="_blank" rel="noopener noreferrer">Open the app</a> }</p>
+            }
+            @if (_versions is { } versions)
+            {
+                <h3>This session's pushes</h3>
+                @if (versions.Pushes.Count > 0)
+                {
+                    <ul>
+                        @foreach (var push in versions.Pushes)
+                        {
+                            <li>@DateTimeOffset.FromUnixTimeMilliseconds((long)(push.At * 1000)).ToLocalTime().ToString("g", CultureInfo.CurrentCulture)@(push.Who == "agent" ? " (the agent)" : string.Empty)
+                                @if (push.Link is { } link) { <a href="@link" target="_blank" rel="noopener noreferrer">Open</a> }</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="muted">None this session.</p>
+                }
+                <h3>The environment's code apps</h3>
+                <ul>
+                    @foreach (var app in versions.Apps)
+                    {
+                        <li class="@(app.This ? "ca-this" : null)">@app.Name@if (app.This) { <span class="muted"> (this one)</span> }<span class="muted mono"> @app.Id</span></li>
+                    }
+                </ul>
+            }
+        </div>
+    </section>
+}
+else if (_error is null)
+{
+    <div class="loading-block">Loading…</div>
+}
+
+@code {
+    private CodeAppPushPlan? _plan;
+    private CodeAppPushed? _pushed;
+    private CodeAppVersions? _versions;
+    private Exception? _error;
+    private bool _pushing;
+
+    protected override async Task OnInitializedAsync() => await WorkAsync(async () => _plan = await CodeApps.PushPlanAsync());
+
+    private async Task WorkAsync(Func<Task> work)
+    {
+        try
+        {
+            await work();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task PushAsync()
+    {
+        _pushing = true;
+        _pushed = null;
+        await WorkAsync(async () => _pushed = await CodeApps.PushAsync());
+        _pushing = false;
+    }
+
+    private Task VersionsAsync() => WorkAsync(async () => _versions = await CodeApps.VersionsAsync());
+}
