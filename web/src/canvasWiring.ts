@@ -298,9 +298,20 @@ function eventField(port: Port, given: Wire | undefined, context: WiringContext,
       ...parts,
     );
   });
-  const add = h("select", { class: "wg-input cvs-action-add", disabled: !editable, "aria-label": `${port.name}: add an action` }, h("option", { value: "" }, "Add an action…"), h("option", { value: "call" }, "Call an API endpoint"), h("option", { value: "set" }, "Set a page value"), h("option", { value: "rerun" }, "Rerun the page"));
+  const add = h(
+    "select",
+    { class: "wg-input cvs-action-add", disabled: !editable, "aria-label": `${port.name}: add an action` },
+    h("option", { value: "" }, "Add an action…"),
+    h("option", { value: "call" }, "Call an API endpoint"),
+    h("option", { value: "set" }, "Set a page value"),
+    h("option", { value: "rerun" }, "Rerun the page")
+  );
   add.addEventListener("change", () => {
-    const made: Action | null = add.value === "call" ? { do: "call", endpoint: (context.endpoints ?? []).find((e) => !readsOnly(e)) ?? context.endpoints?.[0] ?? "", body: "" } : add.value === "set" ? { do: "set", key: `${port.name}_payload`, value: "" } : add.value === "rerun" ? { do: "rerun" } : null;
+    const made: Action | null = add.value === "call" ? {
+      do: "call",
+      endpoint: (context.endpoints ?? []).find((e) => !readsOnly(e)) ?? context.endpoints?.[0] ?? "",
+      body: ""
+    } : add.value === "set" ? { do: "set", key: `${port.name}_payload`, value: "" } : add.value === "rerun" ? { do: "rerun" } : null;
     if (made) put([...actions, made]);
   });
   return h(

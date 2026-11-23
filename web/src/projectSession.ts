@@ -119,7 +119,11 @@ export function offerRow(offer: Offer, then: () => void): HTMLElement {
   const row = h("div", { class: "env-offer", role: "note" }, h("span", {}, offer.words));
   if (offer.libraries.length) {
     row.append(
-      button(offer.libraries.length === 1 ? "Add it" : "Add them", busyClick("Installing…", (b) => answerOffer(offer, true).then(then, (e: Error) => errorHere(e, {}, b))), { class: "line env-offer-add", title: `Installs ${offer.libraries.join(", ")} into the project's Python and adds them to requirements.txt` }),
+      button(
+        offer.libraries.length === 1 ? "Add it" : "Add them",
+        busyClick("Installing…", (b) => answerOffer(offer, true).then(then, (e: Error) => errorHere(e, {}, b))),
+        { class: "line env-offer-add", title: `Installs ${offer.libraries.join(", ")} into the project's Python and adds them to requirements.txt` }
+      ),
       button("Not now", (event) => void answerOffer(offer, false).then(then, (e: Error) => errorHere(e, {}, event.currentTarget as HTMLElement)), { class: "ghost env-offer-skip" }),
     );
   }

@@ -217,7 +217,23 @@ function drawPage(): void {
       localApisSection(),
       h("div", { class: "apis-cards", role: "list" }, ...got.apis.map(card)),
       ...(got.older.length
-        ? [h("section", { class: "apis-older" }, h("h2", {}, "Older API connections"), h("p", { class: "muted" }, "Made before APIs were blades; they keep working."), h("ul", {}, ...got.older.map((o) => h("li", {}, icon("plug"), h("span", {}, o.name), button("Make into blades", () => void makeIntoBlades(o.name), { class: "ghost api-make-blades" })))))]
+        ? [h(
+          "section",
+          { class: "apis-older" },
+          h("h2", {}, "Older API connections"),
+          h("p", { class: "muted" }, "Made before APIs were blades; they keep working."),
+          h(
+            "ul",
+            {},
+            ...got.older.map((o) => h(
+              "li",
+              {},
+              icon("plug"),
+              h("span", {}, o.name),
+              button("Make into blades", () => void makeIntoBlades(o.name), { class: "ghost api-make-blades" })
+            ))
+          )
+        )]
         : []),
     );
     for (const c of got.apis) if (c.source.check && c.source.kind === "address") void refresh(c.name, true);
@@ -254,7 +270,11 @@ function drawPage(): void {
   };
 
   const refresh = async (name: string, quiet = false): Promise<void> => {
-    const got = await call<{ diff: { added: { id: string; method: string; path: string }[]; removed: { id: string; method: string; path: string }[]; changed: { id: string; method: string; path: string; changes: string[] }[]; any: boolean; base_url: boolean } }>(`/apis/${encodeURIComponent(name)}/refresh`, "POST", {});
+    const got = await call<{ diff: { added: { id: string; method: string; path: string }[]; removed: { id: string; method: string; path: string }[]; changed: { id: string; method: string; path: string; changes: string[] }[]; any: boolean; base_url: boolean } }>(
+      `/apis/${encodeURIComponent(name)}/refresh`,
+      "POST",
+      {}
+    );
     if (!got) return;
     const d = got.diff;
     if (!d.any) {
@@ -264,7 +284,23 @@ function drawPage(): void {
     const { dialog, body: box, foot: buttons, close } = openDialog(`${name}: what changed`, true);
     dialog.classList.add("api-diff");
     const group = (title: string, rows: { id: string; method: string; path: string; changes?: string[] }[], kind: string): HTMLElement | null =>
-      rows.length ? h("section", { class: `api-diff-${kind}` }, h("h3", {}, `${title} (${rows.length})`), h("ul", {}, ...rows.map((r) => h("li", {}, badge(r.method), h("code", {}, r.path), h("span", { class: "muted" }, ` ${r.id}`), r.changes ? h("ul", { class: "api-diff-notes" }, ...r.changes.map((c) => h("li", {}, c))) : null)))) : null;
+      rows.length ? h(
+        "section",
+        { class: `api-diff-${kind}` },
+        h("h3", {}, `${title} (${rows.length})`),
+        h(
+          "ul",
+          {},
+          ...rows.map((r) => h(
+            "li",
+            {},
+            badge(r.method),
+            h("code", {}, r.path),
+            h("span", { class: "muted" }, ` ${r.id}`),
+            r.changes ? h("ul", { class: "api-diff-notes" }, ...r.changes.map((c) => h("li", {}, c))) : null
+          ))
+        )
+      ) : null;
     box.append(...[group("Added", d.added, "added"), group("Removed", d.removed, "removed"), group("Changed", d.changed, "changed")].filter((x): x is HTMLElement => x !== null));
     if (d.base_url) box.append(h("p", {}, "Its base address changed."));
     buttons.append(button("Not now", () => close()), button("Apply", busyClick("Applying…", async () => {
@@ -388,7 +424,15 @@ function drawPage(): void {
       const group = h("details", { class: "api-tag", open: true }, h("summary", {}, tag, h("span", { class: "count" }, String(ops.length))));
       for (const op of ops) {
         const known = learned.get(op.id);
-        const item = h("button", { type: "button", class: `api-op${known?.drift ? " drifted" : ""}`, "data-operation": op.id, title: known?.drift || op.name }, badge(op.method), h("code", {}, op.path), op.as_table ? icon("table") : null, known?.learned ? h("span", { class: "api-op-kind" }, known.kind) : null, known?.drift ? icon("warning") : null);
+        const item = h(
+          "button",
+          { type: "button", class: `api-op${known?.drift ? " drifted" : ""}`, "data-operation": op.id, title: known?.drift || op.name },
+          badge(op.method),
+          h("code", {}, op.path),
+          op.as_table ? icon("table") : null,
+          known?.learned ? h("span", { class: "api-op-kind" }, known.kind) : null,
+          known?.drift ? icon("warning") : null
+        );
         item.addEventListener("click", () => pick(() => showOperation(got, op, right), item));
         group.append(item);
       }
@@ -422,7 +466,25 @@ function drawPage(): void {
 
   const showOperation = (got: Explored, op: Operation, right: HTMLElement): void => {
     const inputs = op.parameters.length
-      ? h("table", { class: "api-params" }, h("thead", {}, h("tr", {}, ...["Name", "Where", "Type", "Required", "Default", "Description"].map((t) => h("th", {}, t)))), h("tbody", {}, ...op.parameters.map((p) => h("tr", {}, h("td", { class: "mono" }, p.name), h("td", {}, p.in), h("td", {}, p.type), h("td", {}, p.required ? "yes" : ""), h("td", { class: "mono" }, p.default === null || p.default === undefined ? "" : JSON.stringify(p.default)), h("td", {}, p.description)))))
+      ? h(
+        "table",
+        { class: "api-params" },
+        h("thead", {}, h("tr", {}, ...["Name", "Where", "Type", "Required", "Default", "Description"].map((t) => h("th", {}, t)))),
+        h(
+          "tbody",
+          {},
+          ...op.parameters.map((p) => h(
+            "tr",
+            {},
+            h("td", { class: "mono" }, p.name),
+            h("td", {}, p.in),
+            h("td", {}, p.type),
+            h("td", {}, p.required ? "yes" : ""),
+            h("td", { class: "mono" }, p.default === null || p.default === undefined ? "" : JSON.stringify(p.default)),
+            h("td", {}, p.description)
+          ))
+        )
+      )
       : h("p", { class: "muted" }, "No parameters.");
     right.replaceChildren(
       h("h2", { class: "api-op-title" }, badge(op.method), h("code", {}, op.path)),
@@ -431,12 +493,37 @@ function drawPage(): void {
       h("div", { class: "api-op-actions" },
         button("Author a call", () => author(got, op, right), { icon: "edit", class: "primary api-author" }),
         ["POST", "PUT", "PATCH", "DELETE"].includes(op.method) ? button("Write rows with this call", () => void writeRows(got, op, right), { icon: "rows", class: "api-write" }) : null,
-        op.sql_name ? h("span", { class: "api-sql" }, icon("table"), h("code", {}, `SELECT * FROM ${op.sql_name}`), button("Copy name for SQL", () => void navigator.clipboard.writeText(op.sql_name!).then(() => toast(`Copied ${op.sql_name}`)), { icon: "copy", iconOnly: true, class: "ghost" })) : h("span", { class: "muted" }, "Not a table (Return as table is off)."),
+        op.sql_name ? h(
+          "span",
+          { class: "api-sql" },
+          icon("table"),
+          h("code", {}, `SELECT * FROM ${op.sql_name}`),
+          button(
+            "Copy name for SQL",
+            () => void navigator.clipboard.writeText(op.sql_name!).then(() => toast(`Copied ${op.sql_name}`)),
+            { icon: "copy", iconOnly: true, class: "ghost" }
+          )
+        ) : h("span", { class: "muted" }, "Not a table (Return as table is off)."),
       ),
       op.sql_name ? conversionBox(got, op) : "",
       h("section", { class: "api-inputs" }, h("h3", {}, "Inputs"), inputs, op.body ? h("div", { class: "api-two" }, treeBlock(`Body${op.body.required ? " (required)" : ""}`, op.body.schema, true), treeBlock("Example", op.body.example, false)) : ""),
       learnedSection(got.name, op.id, ["POST", "PUT", "PATCH", "DELETE"].includes(op.method), () => savedInputs(op)),
-      h("section", { class: "api-outputs" }, h("h3", {}, "Outputs"), ...op.responses.map((r) => h("div", { class: "api-answer" }, h("h4", {}, h("span", { class: `api-status s${r.status[0]}` }, r.status), " ", r.description), r.schema ? h("div", { class: "api-two" }, treeBlock("Schema", r.schema, true), treeBlock("Example", r.example, false)) : h("p", { class: "muted" }, "No body.")))),
+      h(
+        "section",
+        { class: "api-outputs" },
+        h("h3", {}, "Outputs"),
+        ...op.responses.map((r) => h(
+          "div",
+          { class: "api-answer" },
+          h("h4", {}, h("span", { class: `api-status s${r.status[0]}` }, r.status), " ", r.description),
+          r.schema ? h(
+            "div",
+            { class: "api-two" },
+            treeBlock("Schema", r.schema, true),
+            treeBlock("Example", r.example, false)
+          ) : h("p", { class: "muted" }, "No body.")
+        ))
+      ),
       op.schemas.length ? h("p", { class: "muted" }, "Schemas: ", op.schemas.join(", ")) : "",
     );
   };
@@ -472,7 +559,19 @@ function drawPage(): void {
       const start = saved(p) ?? p.default ?? p.example ?? "";
       const input = h("input", { "aria-label": p.name, value: start === null ? "" : typeof start === "string" ? start : JSON.stringify(start), placeholder: p.type, "data-param": `${p.in}:${p.name}` }) as HTMLInputElement;
       fields.set(`${p.in}:${p.name}`, input);
-      return h("label", { class: "api-input" }, h("span", { class: "api-input-name" }, p.name, p.required ? h("span", { class: "required", "aria-label": "required" }, "*") : null, h("span", { class: "muted" }, ` ${p.in} · ${p.type}`)), input, p.description ? h("span", { class: "muted api-input-help" }, p.description) : null);
+      return h(
+        "label",
+        { class: "api-input" },
+        h(
+          "span",
+          { class: "api-input-name" },
+          p.name,
+          p.required ? h("span", { class: "required", "aria-label": "required" }, "*") : null,
+          h("span", { class: "muted" }, ` ${p.in} · ${p.type}`)
+        ),
+        input,
+        p.description ? h("span", { class: "muted api-input-help" }, p.description) : null
+      );
     };
     const params = op.parameters.filter((p) => p.in !== "header");
     const headers = op.parameters.filter((p) => p.in === "header");
@@ -562,7 +661,16 @@ function drawPage(): void {
       openStructures(done.structure);
     };
     const save = async (): Promise<void> => {
-      const done = await call<{ blade: string; sql_name: string | null; web_call: { records: string; shape: string; conversion?: string } }>(`/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}`, "PUT", { inputs: values(), ...(op.body ? { body } : {}), as_table: asTable.checked, ...(asTable.checked ? { records: records.value || "$", ...(queryEdited && query.value.trim() ? { conversion: query.value } : {}) } : {}) });
+      const done = await call<{ blade: string; sql_name: string | null; web_call: { records: string; shape: string; conversion?: string } }>(
+        `/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}`,
+        "PUT",
+        {
+          inputs: values(),
+          ...(op.body ? { body } : {}),
+          as_table: asTable.checked,
+          ...(asTable.checked ? { records: records.value || "$", ...(queryEdited && query.value.trim() ? { conversion: query.value } : {}) } : {})
+        }
+      );
       if (!done) return;
       // The explorer's copy follows (Back shows it as saved).
       Object.assign(op, { blade: done.blade, sql_name: done.sql_name, as_table: Boolean(done.sql_name), table: done.web_call });

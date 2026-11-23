@@ -256,7 +256,15 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
       h("td", { class: "num" }, bar(pair.source_found), pct(pair.source_found)),
       h("td", { class: "num" }, bar(pair.target_found), pct(pair.target_found)),
       // Shared values as fractions: of this table's distinct values, and (below) of the other's.
-      h("td", { class: "num", title: `${formatCount(pair.shared)} values in both: out of ${formatCount(pair.source_distinct)} distinct here and ${formatCount(pair.target_distinct)} in ${pair.target}` }, `${formatCount(pair.shared)}/${formatCount(pair.source_distinct)}`, h("div", { class: "hint" }, `${formatCount(pair.shared)}/${formatCount(pair.target_distinct)} of theirs`)),
+      h(
+        "td",
+        {
+          class: "num",
+          title: `${formatCount(pair.shared)} values in both: out of ${formatCount(pair.source_distinct)} distinct here and ${formatCount(pair.target_distinct)} in ${pair.target}`
+        },
+        `${formatCount(pair.shared)}/${formatCount(pair.source_distinct)}`,
+        h("div", { class: "hint" }, `${formatCount(pair.shared)}/${formatCount(pair.target_distinct)} of theirs`)
+      ),
       h(
         "td",
         { class: "kf-actions" },

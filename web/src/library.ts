@@ -259,7 +259,14 @@ export function openTeamFlow(action: Action): void {
               h(
                 "li",
                 { role: "option" },
-                h("button", { type: "button", class: "team-repo", "data-repository": r.repository, onclick: () => join(r.repository) }, icon("source-control"), h("span", { class: "team-repo-name" }, r.repository), r.private ? h("span", { class: "chip" }, "Private") : null, h("span", { class: "hint team-repo-day" }, day(r.pushed))),
+                h(
+                  "button",
+                  { type: "button", class: "team-repo", "data-repository": r.repository, onclick: () => join(r.repository) },
+                  icon("source-control"),
+                  h("span", { class: "team-repo-name" }, r.repository),
+                  r.private ? h("span", { class: "chip" }, "Private") : null,
+                  h("span", { class: "hint team-repo-day" }, day(r.pushed))
+                ),
               ),
             )
           : [h("li", { class: "hint team-repos-none" }, "No repository")]),

@@ -224,7 +224,13 @@ export function pythonCompleter(kernel: Kernel, names: () => { connections: stri
     // Sent the whole cell, Jedi reads `rainfall = pd.DataFrame(...)` above it as code and misses them.
     const word = /(^|[^\w.])([A-Za-z_]\w*)$/.exec(before)?.[2] ?? "";
     const connected = word
-      ? (names().codeNames ?? []).filter((c) => c.name.startsWith(word.toLowerCase())).map((c) => ({ label: c.name, kind: "connection", detail: `${c.connection} (${c.kind === "file" ? "a file" : c.kind === "python" ? "your own Python" : "a database"} connection)`, start: offset - word.length, end: offset }))
+      ? (names().codeNames ?? []).filter((c) => c.name.startsWith(word.toLowerCase())).map((c) => ({
+        label: c.name,
+        kind: "connection",
+        detail: `${c.connection} (${c.kind === "file" ? "a file" : c.kind === "python" ? "your own Python" : "a database"} connection)`,
+        start: offset - word.length,
+        end: offset
+      }))
       : [];
     const lineStart = text.lastIndexOf("\n", offset - 1) + 1;
     const lineEnd = text.indexOf("\n", offset);

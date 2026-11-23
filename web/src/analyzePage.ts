@@ -263,7 +263,18 @@ function drawToolbar(): void {
         ),
       );
     }
-    return h("div", { class: "analyze-group", role: "group", "aria-label": group }, h("span", { class: "analyze-group-label" }, group), h("div", { class: "analyze-group-buttons" }, ...extra.filter(() => group === "Describe"), ...mine.map(analysisButton), ...extra.filter(() => group !== "Describe")));
+    return h(
+      "div",
+      { class: "analyze-group", role: "group", "aria-label": group },
+      h("span", { class: "analyze-group-label" }, group),
+      h(
+        "div",
+        { class: "analyze-group-buttons" },
+        ...extra.filter(() => group === "Describe"),
+        ...mine.map(analysisButton),
+        ...extra.filter(() => group !== "Describe")
+      )
+    );
   });
   clear(bar, ...groups);
 }
@@ -704,7 +715,16 @@ async function drawColumns(): Promise<void> {
       ...found.columns.map((c) =>
         h(
           "button",
-          { type: "button", class: "analyze-column", role: "option", "aria-selected": String(c.name === asked.column), "data-column": c.name, disabled: !c.analyses.length, title: c.analyses.length ? "" : "Nothing analyses this column (an identifier, or all one value)", onclick: () => { asked.column = c.name; void drawColumns(); } },
+          {
+            type: "button",
+            class: "analyze-column",
+            role: "option",
+            "aria-selected": String(c.name === asked.column),
+            "data-column": c.name,
+            disabled: !c.analyses.length,
+            title: c.analyses.length ? "" : "Nothing analyses this column (an identifier, or all one value)",
+            onclick: () => { asked.column = c.name; void drawColumns(); }
+          },
           h("strong", {}, c.name),
           h("span", { class: "analyze-column-type" }, c.type),
           h("span", { class: "analyze-column-preview" }, c.preview.join(", ")),

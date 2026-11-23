@@ -93,7 +93,17 @@ export async function openBuilds(canvas: string, host: BuildsHost): Promise<void
               "div",
               { class: `bd-row bd-${b.result}`, role: "listitem", dataset: { build: String(b.number) } },
               tick,
-              h("div", { class: "bd-head" }, h("strong", {}, `Build ${b.number}`), h("span", { class: "hint" }, dateTime(b.time)), h("span", { class: `bd-result bd-result-${b.result}` }, b.result === "started" ? (b.first_load_ms !== null ? `started · ${b.first_load_ms} ms` : "started") : b.result)),
+              h(
+                "div",
+                { class: "bd-head" },
+                h("strong", {}, `Build ${b.number}`),
+                h("span", { class: "hint" }, dateTime(b.time)),
+                h(
+                  "span",
+                  { class: `bd-result bd-result-${b.result}` },
+                  b.result === "started" ? (b.first_load_ms !== null ? `started · ${b.first_load_ms} ms` : "started") : b.result,
+                ),
+              ),
               h("ul", { class: "bd-changed" }, ...b.changed.map((c) => h("li", {}, c))),
               b.error ? h("div", { class: "bd-error", role: "alert" }, b.error) : null,
               h(

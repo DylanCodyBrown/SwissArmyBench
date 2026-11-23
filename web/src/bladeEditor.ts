@@ -671,7 +671,18 @@ export function bladeProperties(detail: BladeDetail, options: { readOnly: boolea
       el = h("textarea", { rows: field.type === "code" ? "4" : "3", "aria-label": aria, readonly: locked, spellcheck: "false", class: field.type === "code" ? "mono" : undefined }) as HTMLTextAreaElement;
       el.value = field.type === "names" ? fieldText(field).replace(/, /g, "\n") : fieldText(field);
     } else {
-      el = h("input", { type: "text", inputmode: field.type === "number" ? "numeric" : "text", "aria-label": aria, readonly: locked, spellcheck: "false", maxlength: field.key === "name" || field.key === "table" ? "64" : undefined, placeholder: field.key === "table" ? (detail.variable ?? "") : undefined }) as HTMLInputElement;
+      el = h(
+        "input",
+        {
+          type: "text",
+          inputmode: field.type === "number" ? "numeric" : "text",
+          "aria-label": aria,
+          readonly: locked,
+          spellcheck: "false",
+          maxlength: field.key === "name" || field.key === "table" ? "64" : undefined,
+          placeholder: field.key === "table" ? (detail.variable ?? "") : undefined
+        }
+      ) as HTMLInputElement;
       el.value = fieldText(field);
     }
     const get = (): string => (el instanceof HTMLInputElement && el.type === "checkbox" ? String(el.checked) : el.value);
@@ -746,7 +757,18 @@ export function bladeProperties(detail: BladeDetail, options: { readOnly: boolea
         const text = box.get();
         // name, description and tags always go (the older Save's shape); the rest only when changed.
         if (!["name", "description", "tags", "table"].includes(field.key) && text === original(field)) continue;
-        out[field.key] = field.type === "tags" ? splitTags(text) : field.type === "bool" ? text === "true" : field.type === "names" ? text.split(/[\n,]/).map((n) => n.trim()).filter(Boolean) : field.type === "number" ? (text.trim() === "" ? null : Number(text)) : field.key === "description" || field.key === "name" || field.key === "table" ? text.trim() : text;
+        out[field.key] =
+          field.type === "tags"
+            ? splitTags(text)
+            : field.type === "bool"
+              ? text === "true"
+              : field.type === "names"
+                ? text.split(/[\n,]/).map((n) => n.trim()).filter(Boolean)
+                : field.type === "number"
+                  ? text.trim() === "" ? null : Number(text)
+                  : field.key === "description" || field.key === "name" || field.key === "table"
+                    ? text.trim()
+                    : text;
       }
       const secrets = Object.fromEntries([...typedSecrets].filter(([, value]) => value));
       if (Object.keys(secrets).length) out.secrets = secrets;

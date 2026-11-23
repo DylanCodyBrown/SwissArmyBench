@@ -441,7 +441,18 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
         dataset: { block: b.id, cell: b.cell, kind: b.kind },
         style: { left: `${HEAD_W + (col - 1) * COL_W}px`, top: `${HEAD_H + (row - 1) * ROW_H}px`, width: `${b.w * COL_W - 2}px`, height: `${b.h * ROW_H - 2}px` },
       },
-      h("div", { class: "xc-block-head" }, icon(KIND_ICONS[b.kind]), h("span", { class: `xc-block-kind ${b.kind === "title" ? "xc-title-words" : ""}` }, b.kind === "title" ? b.text || "Title" : KIND_WORDS[b.kind]), h("span", { class: "spacer" }), button(`Remove the ${KIND_WORDS[b.kind].toLowerCase()} at ${b.cell}`, () => void change(blockPath(b.id), "DELETE"), { icon: "close", iconOnly: true, class: "ghost xc-remove" })),
+      h(
+        "div",
+        { class: "xc-block-head" },
+        icon(KIND_ICONS[b.kind]),
+        h("span", { class: `xc-block-kind ${b.kind === "title" ? "xc-title-words" : ""}` }, b.kind === "title" ? b.text || "Title" : KIND_WORDS[b.kind]),
+        h("span", { class: "spacer" }),
+        button(
+          `Remove the ${KIND_WORDS[b.kind].toLowerCase()} at ${b.cell}`,
+          () => void change(blockPath(b.id), "DELETE"),
+          { icon: "close", iconOnly: true, class: "ghost xc-remove" }
+        )
+      ),
       b.kind === "title" ? null : h("div", { class: "xc-block-words" }, blockWords(b, every)),
       size,
       grip,

@@ -119,7 +119,26 @@ function valuesTable(rows: { name: string; repr: string; type: string; table?: b
   return h(
     "table",
     { class: "wb-err-values" },
-    h("tbody", {}, ...rows.map((r) => h("tr", {}, h("th", { scope: "row" }, h("code", {}, r.name)), h("td", { class: "mono" }, r.repr, r.table && actions.openGrid ? button(`Open ${r.name} as a grid`, () => actions.openGrid!(r.name), { icon: "export", iconOnly: true, class: "ghost" }) : null), h("td", { class: "hint" }, r.type)))),
+    h(
+      "tbody",
+      {},
+      ...rows.map((r) => h(
+        "tr",
+        {},
+        h("th", { scope: "row" }, h("code", {}, r.name)),
+        h(
+          "td",
+          { class: "mono" },
+          r.repr,
+          r.table && actions.openGrid ? button(
+            `Open ${r.name} as a grid`,
+            () => actions.openGrid!(r.name),
+            { icon: "export", iconOnly: true, class: "ghost" }
+          ) : null
+        ),
+        h("td", { class: "hint" }, r.type)
+      ))
+    ),
   );
 }
 
@@ -148,7 +167,15 @@ export function errorPanel(detail: ErrorDetail, traceback: HTMLElement | null, a
   for (const note of entry.notes ?? []) parts.push(h("p", { class: "hint" }, note));
   if (entry.group?.length) parts.push(h("ul", { class: "wb-err-group" }, ...entry.group.map((g) => h("li", { class: "mono" }, g))));
   if (entry.fixes.length) {
-    parts.push(h("div", { class: "wb-err-fixes", role: "group", "aria-label": "Fixes" }, ...entry.fixes.map((f) => button(f.title.replace(/`/g, ""), () => actions.fix(f, detail), { icon: f.kind === "install" ? "import" : f.kind === "define" ? "play" : f.kind === "cell" || f.kind === "table" ? "plus" : "edit", class: "ghost" }))));
+    parts.push(h(
+      "div",
+      { class: "wb-err-fixes", role: "group", "aria-label": "Fixes" },
+      ...entry.fixes.map((f) => button(
+        f.title.replace(/`/g, ""),
+        () => actions.fix(f, detail),
+        { icon: f.kind === "install" ? "import" : f.kind === "define" ? "play" : f.kind === "cell" || f.kind === "table" ? "plus" : "edit", class: "ghost" }
+      ))
+    ));
   }
   if (frame && (frame.values.length || frame.locals.length)) {
     parts.push(
@@ -200,7 +227,21 @@ function callStack(frames: Frame[], current: Frame | null, actions: ErrorActions
       const run: Frame[] = [];
       while (i < frames.length && (frames[i]!.where === "library" || frames[i]!.where === "stdlib")) run.push(frames[i++]!);
       const names = [...new Set(run.map(libraryOf))].join(", ");
-      const folded = h("details", { class: "wb-err-lib" }, h("summary", {}, `${run.length} frame${run.length === 1 ? "" : "s"} in ${names}`), h("ol", {}, ...run.map((r) => h("li", { class: "mono hint" }, `${r.module || r.file}: ${r.function}, line ${r.line}`, r.code ? h("div", {}, r.code.trim()) : null))));
+      const folded = h(
+        "details",
+        { class: "wb-err-lib" },
+        h("summary", {}, `${run.length} frame${run.length === 1 ? "" : "s"} in ${names}`),
+        h(
+          "ol",
+          {},
+          ...run.map((r) => h(
+            "li",
+            { class: "mono hint" },
+            `${r.module || r.file}: ${r.function}, line ${r.line}`,
+            r.code ? h("div", {}, r.code.trim()) : null
+          ))
+        )
+      );
       list.append(h("li", {}, folded));
       continue;
     }

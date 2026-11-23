@@ -116,7 +116,18 @@ export function tableProfileCards(r: { rows: number; duplicate_rows: number; col
     `# Profile of ${dataset}`,
     `**${fmt(r.rows)} rows, ${fmt(r.columns.length)} columns, ${fmt(r.duplicate_rows)} duplicate rows.**`,
     "",
-    mdTable(["Column", "Type", "Blank", "Blank %", "Different values", "Lowest", "Highest"], r.columns.map((c) => [c.column, String(c.type).toLowerCase(), c.blanks, `${String(c.blank_percent)}%`, c.distinct, ...(isLabelColumn(String(c.column), c.min, c.max) ? [plainNumber(c.min), plainNumber(c.max)] : [c.min, c.max])]), [false, false, true, true, true, false, false]),
+    mdTable(
+      ["Column", "Type", "Blank", "Blank %", "Different values", "Lowest", "Highest"],
+      r.columns.map((c) => [
+        c.column,
+        String(c.type).toLowerCase(),
+        c.blanks,
+        `${String(c.blank_percent)}%`,
+        c.distinct,
+        ...(isLabelColumn(String(c.column), c.min, c.max) ? [plainNumber(c.min), plainNumber(c.max)] : [c.min, c.max])
+      ]),
+      [false, false, true, true, true, false, false]
+    ),
   ].join("\n");
   return pair(`Profile of ${dataset}`, markdown, null).map((card) => ({ ...card, size: { w: 12, h: card.size.h } }));
 }
@@ -133,6 +144,16 @@ export function valueCards(value: unknown, title: string, dataset: string): Sand
 
 /** One row: each column and its value, as a two-column table. */
 export function rowCards(values: Record<string, unknown>, row: number, dataset: string): SandboxCard[] {
-  const markdown = [`# Row ${fmt(row + 1)} of ${dataset}`, "", mdTable(["Column", "Value"], Object.entries(values).map(([k, v]) => [k, v === null || v === undefined ? "(blank)" : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" && isLabelColumn(k) ? plainNumber(v) : v]))].join("\n");
+  const markdown = [
+    `# Row ${fmt(row + 1)} of ${dataset}`,
+    "",
+    mdTable(
+      ["Column", "Value"],
+      Object.entries(values).map(([k, v]) => [
+        k,
+        v === null || v === undefined ? "(blank)" : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" && isLabelColumn(k) ? plainNumber(v) : v
+      ])
+    )
+  ].join("\n");
   return [{ kind: "note", title: `Row ${fmt(row + 1)} of ${dataset}`, body: markdown, size: { w: 5, h: Math.max(5, Math.min(18, Math.ceil(Object.keys(values).length * 0.6) + 3)) } }];
 }

@@ -193,7 +193,20 @@ export function workbenchCommands(h: CommandHost): Command[] {
     { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(h.current, true) },
     { id: "file.exportScript", group: "File", title: "Export as one Python script…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(h.current, "script", text(a, "path"), from.agent) },
     { id: "file.exportNotebook", group: "File", title: "Export as one notebook…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(h.current, "notebook", text(a, "path"), from.agent) },
-    { id: "project.new", group: "Project", title: "New project…", args: "name: its name; folder: where it goes (default: the projects folder); notebooks: names of notebooks to make; app: true for a Streamlit app; type: a project type (project_types) (without a name, New project's dialog opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], typeof a.app === "boolean" ? a.app : undefined, from.agent, text(a, "type")) },
+    {
+      id: "project.new",
+      group: "Project",
+      title: "New project…",
+      args: "name: its name; folder: where it goes (default: the projects folder); notebooks: names of notebooks to make; app: true for a Streamlit app; type: a project type (project_types) (without a name, New project's dialog opens)",
+      run: (a, from) => newProject(
+        text(a, "folder"),
+        text(a, "name"),
+        Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [],
+        typeof a.app === "boolean" ? a.app : undefined,
+        from.agent,
+        text(a, "type")
+      )
+    },
     { id: "workbook.new", group: "Workbook", title: "New Excel workbook", args: "(the Excel canvas: offered while the open project's mode names it)", when: () => offersCanvas("excel"), whyNot: "the open project's mode has no Excel canvas", run: () => openWorkbook(null).workbook!.report() },
     { id: "workbook.play", group: "Workbook", title: "Play the workbook", when: () => !!h.current?.workbook, whyNot: "no workbook is in front", run: () => workbookInFront().play() },
     { id: "workbook.edit", group: "Workbook", title: "Edit the workbook's blocks", when: () => !!h.current?.workbook, whyNot: "no workbook is in front", run: () => (workbookInFront().edit(), workbookInFront().report()) },
@@ -282,7 +295,8 @@ export function workbenchCommands(h: CommandHost): Command[] {
       await script().addDax(dataset, source);
       return { document: h.current!.title, dataset: dataset || null };
     } },
-    { id: "snippet.insert", group: "Cell", title: "Insert a snippet…", args: "name: a snippet (blades_starters); values: {placeholder: value} (with them, no form: the agent's); number: the cell's own number (default: the selected cell, else a new one)", when: isCode, whyNot: "no notebook or script is in front", run: async (a, from) => {
+    { id: "snippet.insert", group: "Cell", title: "Insert a snippet…", args: "name: a snippet (blades_starters); values: {placeholder: value} (with " +
+        "them, no form: the agent's); number: the cell's own number (default: the selected cell, else a new one)", when: isCode, whyNot: "no notebook or script is in front", run: async (a, from) => {
       const name = text(a, "name");
       const values = (a.values && typeof a.values === "object" ? a.values : {}) as Record<string, unknown>;
       const number = num(a, "number");
@@ -299,7 +313,16 @@ export function workbenchCommands(h: CommandHost): Command[] {
       return { document: h.current!.title, language: filled.language, name: filled.cell_name };
     } },
     { id: "cell.toHtml", group: "Cell", title: "Make it an HTML cell", keys: "H", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("html") },
-    { id: "cell.copy", group: "Cell", title: "Copy the cell (for a paste into a notebook)", keys: "C", args: "number: the cell's own number (default: the selected cell, or the cursor's)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => (h.current?.notebook ? notebook().copy(num(a, "number")) : script().copy(num(a, "number"))) },
+    {
+      id: "cell.copy",
+      group: "Cell",
+      title: "Copy the cell (for a paste into a notebook)",
+      keys: "C",
+      args: "number: the cell's own number (default: the selected cell, or the cursor's)",
+      when: isCode,
+      whyNot: "no notebook or script is in front",
+      run: (a) => (h.current?.notebook ? notebook().copy(num(a, "number")) : script().copy(num(a, "number")))
+    },
     { id: "cell.paste", group: "Cell", title: "Paste the copied cell", keys: "V", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => {
       if (!notebook().paste()) throw new Error("No cell was copied.");
       return { index: notebook().selected() };
@@ -309,7 +332,8 @@ export function workbenchCommands(h: CommandHost): Command[] {
     { id: "cell.clearOutput", group: "Cell", title: "Clear the cell's output", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().clearOutput(num(a, "index")) },
     { id: "cell.clearAll", group: "Cell", title: "Clear every output", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().clearAll() },
     { id: "cell.toggleOutput", group: "Cell", title: "Hide or show the cell's output", keys: "O", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().toggleOutput() },
-    { id: "cell.name", group: "Cell", title: "Name the cell…", args: "number: the cell's own number (default: the selected cell, or the cursor's); name: one line (\"\" takes the name away; without it, the name is typed in place)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    { id: "cell.name", group: "Cell", title: "Name the cell…", args: "number: the cell's own number (default: the selected cell, or the cursor's); " +
+        "name: one line (\"\" takes the name away; without it, the name is typed in place)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
       const name = text(a, "name");
       const view = h.current?.notebook ?? script();
       if (name === undefined) return void view.editName();
@@ -337,7 +361,14 @@ export function workbenchCommands(h: CommandHost): Command[] {
       if (!table) throw new Error("Send the table's name.");
       return { table, ok: await tablesView().runTable(table) };
     } },
-    { id: "tables.runOutOfDate", group: "Tables", title: "Run every table's cell that is not up to date", when: isCode, whyNot: "no notebook or script is in front", run: async () => ({ ran: await tablesView().runOutOfDate(), tables: tablesView().tables().map((t) => ({ name: t.name, state: t.state })) }) },
+    {
+      id: "tables.runOutOfDate",
+      group: "Tables",
+      title: "Run every table's cell that is not up to date",
+      when: isCode,
+      whyNot: "no notebook or script is in front",
+      run: async () => ({ ran: await tablesView().runOutOfDate(), tables: tablesView().tables().map((t) => ({ name: t.name, state: t.state })) })
+    },
     { id: "tables.fold", group: "Tables", title: "Fold the Tables group (or one table)", args: "table: one table (default: the whole group)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => tablesView().foldTables(true, text(a, "table")) },
     { id: "tables.unfold", group: "Tables", title: "Open the Tables group (or one table)", args: "table: one table (default: the group, one level)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => tablesView().foldTables(false, text(a, "table")) },
     // HTML cells: a design drawn from the cell's HTML, its {{ names }} filled from the kernel
@@ -356,7 +387,15 @@ export function workbenchCommands(h: CommandHost): Command[] {
       return { document: h.current!.title, cells: script().htmlCells() };
     } },
     { id: "html.list", agentOnly: true, group: "HTML", title: "The document's HTML cells (and Markdown cells with names): each one's text, names and state", when: isCode, whyNot: "no notebook or script is in front", run: () => ({ document: h.current!.title, cells: tablesView().htmlCells() }) },
-    { id: "html.run", group: "HTML", title: "Run an HTML cell (or a Markdown cell with names): fill its names and draw it", args: "number: the cell's own number (default: every one not up to date)", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => ({ document: h.current!.title, cells: await tablesView().runHtml(num(a, "number")) }) },
+    {
+      id: "html.run",
+      group: "HTML",
+      title: "Run an HTML cell (or a Markdown cell with names): fill its names and draw it",
+      args: "number: the cell's own number (default: every one not up to date)",
+      when: isCode,
+      whyNot: "no notebook or script is in front",
+      run: async (a) => ({ document: h.current!.title, cells: await tablesView().runHtml(num(a, "number")) })
+    },
     { id: "html.resize", group: "HTML", title: "Size an HTML cell's pane", args: "number: the cell's own number; height: pixels (60 to 2000; without it: the design's own height)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
       const number = num(a, "number");
       if (number === undefined) throw new Error("Send the cell's number.");
@@ -383,20 +422,46 @@ export function workbenchCommands(h: CommandHost): Command[] {
       drawStatus();
       return { panel, open };
     } },
-    { id: "notebook.runOrder", agentOnly: true, group: "Notebook", title: "The run order: each cell's makes, reads and state (notRun, edited, outOfDate with the names, current)", when: isNotebook, whyNot: "the document in front is not a notebook", run: async () => (await refreshFlow(h.current!))?.cells ?? [] },
+    {
+      id: "notebook.runOrder",
+      agentOnly: true,
+      group: "Notebook",
+      title: "The run order: each cell's makes, reads and state (notRun, edited, outOfDate with the names, current)",
+      when: isNotebook,
+      whyNot: "the document in front is not a notebook",
+      run: async () => (await refreshFlow(h.current!))?.cells ?? []
+    },
     { id: "notebook.outline", agentOnly: true, group: "Notebook", title: "The Outline: the Markdown headings and the named cells", when: isNotebook, whyNot: "the document in front is not a notebook", run: async () => (await refreshFlow(h.current!))?.outline ?? [] },
     { id: "run.upToHere", group: "Run", title: "Run up to here: every cell from the top to the selected one", args: "number: a cell's own number (default: the selected cell)", when: isNotebook, whyNot: "the document in front is not a notebook", run: async (a) => {
       await notebook().runUpTo(num(a, "number"));
       return (await refreshFlow(h.current!))?.cells ?? [];
     } },
-    { id: "notebook.present", group: "Notebook", title: "Present: the notebook as a document (no code)", args: "on: true or false (default: the other way)", when: () => isNotebook() && !dataViews.has(h.current!), whyNot: "the document in front is not a notebook (data.ipynb has its own views)", run: (a) => ({ presenting: present(h.current!, a.on === undefined ? undefined : a.on === true) }) },
+    {
+      id: "notebook.present",
+      group: "Notebook",
+      title: "Present: the notebook as a document (no code)",
+      args: "on: true or false (default: the other way)",
+      when: () => isNotebook() && !dataViews.has(h.current!),
+      whyNot: "the document in front is not a notebook (data.ipynb has its own views)",
+      run: (a) => ({ presenting: present(h.current!, a.on === undefined ? undefined : a.on === true) })
+    },
     { id: "data.view", group: "Data", title: "data.ipynb's view: Cells, Lineage or Dictionary", args: 'view: "cells", "lineage" or "dictionary"', when: () => !!h.current && dataViews.has(h.current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
       const view = text(a, "view") ?? "cells";
       if (view !== "cells" && view !== "lineage" && view !== "dictionary") throw new Error('view is "cells", "lineage" or "dictionary".');
       return { view: setDataView(h.current!, view) };
     } },
-    { id: "dictionary.list", agentOnly: true, group: "Data", title: "The data dictionary: each table's columns, plain types, descriptions, where each comes from", when: () => !!h.current && dataViews.has(h.current), whyNot: "the document in front is not a project's data.ipynb", run: () => dictionaryTables(h.current!) },
-    { id: "dictionary.describe", group: "Data", title: "Describe a table or a column in the data dictionary (kept in data.ipynb, written into data.py)", args: "table; column (none: the table itself); text (empty: no description)", when: () => !!h.current && dataViews.has(h.current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
+    {
+      id: "dictionary.list",
+      agentOnly: true,
+      group: "Data",
+      title: "The data dictionary: each table's columns, plain types, descriptions, where each comes from",
+      when: () => !!h.current && dataViews.has(h.current),
+      whyNot: "the document in front is not a project's data.ipynb",
+      run: () => dictionaryTables(h.current!)
+    },
+    { id: "dictionary.describe", group: "Data", title: "Describe a table or a column in the data dictionary (kept in data.ipynb, written into data.py)",
+      args: "table; column (none: the table itself); text (empty: no description)",
+      when: () => !!h.current && dataViews.has(h.current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
       const table = text(a, "table");
       if (!table) throw new Error("Send table.");
       const said = describe(h.current!, table, text(a, "column") ?? null, text(a, "text") ?? "");
@@ -423,9 +488,35 @@ export function workbenchCommands(h: CommandHost): Command[] {
     { id: "view.fullScreen", group: "View", title: "Full screen", keys: "F11", args: "on: true or false (default: the other way)", run: (a) => ({ on: fullScreen(typeof a.on === "boolean" ? a.on : undefined) }) },
     { id: "view.codeSize", group: "View", title: "Code size", args: "px: 8 to 40 (13: as it was)", run: (a) => ({ px: setCodeFont(typeof a.px === "number" ? a.px : BASE_FONT) }) },
     { id: "view.files", group: "View", title: "Show or hide the Files pane", keys: "Ctrl+B", args: "show: true or false (default: the other way)", run: (a) => ({ open: sides.show("files", typeof a.show === "boolean" ? a.show : undefined) }) },
-    { id: "view.blades", group: "View", title: "Show or hide the Blades pane", args: "show: true or false (default: the other way)", when: () => PAGE === "scripts", whyNot: "the Blades pane is on the Scripts page", run: (a) => ({ open: sides.show("blades", typeof a.show === "boolean" ? a.show : undefined) }) },
+    {
+      id: "view.blades",
+      group: "View",
+      title: "Show or hide the Blades pane",
+      args: "show: true or false (default: the other way)",
+      when: () => PAGE === "scripts",
+      whyNot: "the Blades pane is on the Scripts page",
+      run: (a) => ({ open: sides.show("blades", typeof a.show === "boolean" ? a.show : undefined) })
+    },
     ...(PAGE === "scripts"
-      ? [{ id: "search.scripts", group: "Find", title: "Search in scripts…", keys: "Ctrl+Shift+F", run: () => (searchScripts({ openAt: (p: string, line: number) => void openAt(p, line) }, () => (h.current?.script ? { path: () => h.current!.path, text: () => h.current!.script!.text(), python: () => h.current!.python, replaceText: (t: string) => h.current!.script!.replaceText(t), reveal: (line: number) => h.current!.script!.reveal(line) } : null)), { opened: true }) }]
+      ? [{
+        id: "search.scripts",
+        group: "Find",
+        title: "Search in scripts…",
+        keys: "Ctrl+Shift+F",
+        run: () => (
+          searchScripts(
+            { openAt: (p: string, line: number) => void openAt(p, line) },
+            () => (h.current?.script ? {
+              path: () => h.current!.path,
+              text: () => h.current!.script!.text(),
+              python: () => h.current!.python,
+              replaceText: (t: string) => h.current!.script!.replaceText(t),
+              reveal: (line: number) => h.current!.script!.reveal(line)
+            } : null)
+          ),
+          { opened: true }
+        )
+      }]
       : []),
     { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", run: (a) => {
       const show = typeof a.show === "boolean" ? a.show : undefined;
@@ -454,7 +545,9 @@ export function workbenchCommands(h: CommandHost): Command[] {
       splitDoc(docArg(a), "down");
       return { groups: groups.list().length, focused: groups.focusedIndex() };
     } },
-    { id: "group.moveTab", group: "Groups", title: "Move a tab to another group", args: "group: the group, from 0 in reading order; index: a document (default: the one in front); position: its place in that group's row, from 0 (default: the end); side: left, right, up or down to split that side of the group instead", when: hasTabs, whyNot: "nothing is open", run: (a) => {
+    { id: "group.moveTab", group: "Groups", title: "Move a tab to another group", args: "group: the group, from 0 in reading order; index: a document " +
+        "(default: the one in front); position: its place in that group's row, from 0 (default: the end); side: left, " +
+        "right, up or down to split that side of the group instead", when: hasTabs, whyNot: "nothing is open", run: (a) => {
       const doc = docArg(a);
       const at = groupArg(a);
       const side = sideArg(a);
@@ -473,7 +566,17 @@ export function workbenchCommands(h: CommandHost): Command[] {
     { id: "tab.moveLeft", group: "Groups", title: "Move the tab left in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), -1) },
     { id: "tab.moveRight", group: "Groups", title: "Move the tab right in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), 1) },
     // The open tables and the blades' variables (once the Data panel's; the Data Explorer finds them)
-    { id: "data.list", agentOnly: true, group: "Data", title: "The open tables and the blades' variables (the Data Explorer finds more: explorer.search)", run: () => ({ tables: h.tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: h.bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed" }) },
+    {
+      id: "data.list",
+      agentOnly: true,
+      group: "Data",
+      title: "The open tables and the blades' variables (the Data Explorer finds more: explorer.search)",
+      run: () => ({
+        tables: h.tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })),
+        variables: h.bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })),
+        explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed"
+      })
+    },
     // The Data Explorer (workbenchExplorer.ts, dataExplorer.ts): its search, its Insert, popping out and back
     { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", run: async (a) => {
       const kinds = Array.isArray(a.kinds) ? a.kinds.map(String) : typeof a.kinds === "string" ? a.kinds.split(",") : [];
@@ -483,7 +586,8 @@ export function workbenchCommands(h: CommandHost): Command[] {
       const params = new URLSearchParams({ q: state.text, kinds: state.kinds.join(","), connection: state.connection, column: state.column });
       return api(`/explorer/search?${params.toString()}`);
     } },
-    { id: "explorer.insert", group: "Data", title: "Insert a Data Explorer result's code into the focused document (a notebook's selected cell, a script's cursor)", args: "insert: {sql, python} (a result's insert); name: the result's name", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    { id: "explorer.insert", group: "Data", title: "Insert a Data Explorer result's code into the focused document (a notebook's selected cell, a " +
+        "script's cursor)", args: "insert: {sql, python} (a result's insert); name: the result's name", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
       const insert = (a.insert && typeof a.insert === "object" ? a.insert : {}) as { sql?: string; python?: string };
       if (typeof insert.sql !== "string" && typeof insert.python !== "string") throw new Error("Send insert: {sql, python}, as explorer_search's result has it.");
       return explorerInsert({ ...(typeof insert.sql === "string" ? { sql: insert.sql } : {}), ...(typeof insert.python === "string" ? { python: insert.python } : {}) });
