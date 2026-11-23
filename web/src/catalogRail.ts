@@ -34,6 +34,10 @@ export interface CatalogInfo {
   tables: number;
   views: number;
   columns: number;
+  /** How a name is quoted in its source's dialect (a closing mark inside it doubled), and whether a table is
+   *  named by itself (no schema): the server's own rules (domain/catalogs.py naming), so the page names no kind. */
+  quote?: { open: string; close: string };
+  table_alone?: boolean;
 }
 
 interface SchemaRow {
@@ -291,21 +295,19 @@ export function mountRail(host: RailHost): Rail {
 
   const catalogPath = (name: string): string => `/catalogs/${encodeURIComponent(name)}`;
 
-  // ===== quoting for the source's dialect (as engine/catalog.py) =====
+  // ===== quoting for the source's dialect: the marks the catalog's listing carries (domain/catalogs.py naming) =====
 
-  function quoteName(name: string, dialect: string): string {
-    if (dialect === "dax") return `'${name.replaceAll("'", "''")}'`; // a table: 'Order Lines'
-    if (dialect === "sqlserver" || dialect === "dataverse") return `[${name.replaceAll("]", "]]")}]`;
-    if (dialect === "mysql") return `\`${name.replaceAll("`", "``")}\``;
-    return `"${name.replaceAll('"', '""')}"`;
+  /** A name quoted as the catalog in front quotes it ('Order Lines' in DAX, [Order Lines] in T-SQL). */
+  function quoteName(name: string): string {
+    const { open, close } = current?.quote ?? { open: '"', close: '"' };
+    return `${open}${name.replaceAll(close, close + close)}${close}`;
   }
 
   function qualified(row: { database: string; schema: string; table: string }): string {
-    const dialect = current?.dialect ?? "other";
-    if (dialect === "dax") return quoteName(row.table, dialect); // the schema is the dataset the DAX is sent to
-    if (dialect === "dataverse") return quoteName(row.table, dialect); // its one schema needs no naming
+    // DAX's schema is the dataset the query is sent to; Dataverse's one schema needs no naming.
+    if (current?.table_alone) return quoteName(row.table);
     const parts = [current && current.databases > 1 ? row.database : "", row.schema, row.table].filter(Boolean);
-    return parts.map((p) => quoteName(p, dialect)).join(".");
+    return parts.map((p) => quoteName(p)).join(".");
   }
 
   // ===== blades =====
@@ -362,7 +364,20 @@ export function mountRail(host: RailHost): Rail {
           ]);
         },
       },
-      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit", python: "Python", typescript: "TypeScript", tsx: "TSX" }[language] : "Python"),
+      h(
+        "span",
+        { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` },
+        icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"),
+        snippet ? {
+          dax: "DAX",
+          html: "HTML",
+          markdown: "Markdown",
+          streamlit: "Streamlit",
+          python: "Python",
+          typescript: "TypeScript",
+          tsx: "TSX"
+        }[language] : "Python"
+      ),
       h(
         "span",
         { class: "blade-text" },
@@ -737,7 +752,7 @@ export function mountRail(host: RailHost): Rail {
 
   function dragText(data: NodeData): string {
     if (data.kind === "column" && data.column && current?.dialect === "dax") return daxColumn(data.column, data.table ?? "", data.type ?? "");
-    if (data.kind === "column" && data.column) return quoteName(data.column, current?.dialect ?? "other");
+    if (data.kind === "column" && data.column) return quoteName(data.column);
     return qualified({ database: data.database, schema: data.schema, table: data.table ?? "" });
   }
 
@@ -750,7 +765,7 @@ export function mountRail(host: RailHost): Rail {
   /** A DAX name: a column 'Sales'[Amount]; a measure, which has no table in front, [Total Sales]. */
   function daxColumn(column: string, table: string, type: string): string {
     const name = `[${column.replaceAll("]", "]]")}]`;
-    return type.startsWith("measure") ? name : quoteName(table, "dax") + name;
+    return type.startsWith("measure") ? name : quoteName(table) + name;
   }
 
   /** A table's name for people, when it says more than its own name does (Account for account: no). */
@@ -1077,7 +1092,7 @@ export function mountRail(host: RailHost): Rail {
       ),
       h("div", { class: "result-group" }, `Columns (${formatCount(found.total_columns)})`),
       ...found.columns.map((c) =>
-        hit(`${c.table}.${c.column}`, c.type, () => void reveal(c.database, c.schema, c.table, c.column), dialect === "dax" ? daxColumn(c.column, c.table, c.type) : quoteName(c.column, dialect)),
+        hit(`${c.table}.${c.column}`, c.type, () => void reveal(c.database, c.schema, c.table, c.column), dialect === "dax" ? daxColumn(c.column, c.table, c.type) : quoteName(c.column)),
       ),
       found.total_tables + found.total_columns === 0 ? h("p", { class: "empty" }, "Nothing matches.") : null,
     );

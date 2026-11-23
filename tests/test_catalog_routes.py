@@ -130,6 +130,8 @@ def test_save_refresh_and_browse_a_blade(client: TestClient, bakery: Path) -> No
         "tables": 1,
         "views": 0,
         "columns": 2,
+        "quote": {"open": '"', "close": '"'},
+        "table_alone": False,
     }
     columns = client.get(
         "/catalogs/Bakery%20DB/columns", params={"schema": "", "table": "loaves"}, headers=AUTH
