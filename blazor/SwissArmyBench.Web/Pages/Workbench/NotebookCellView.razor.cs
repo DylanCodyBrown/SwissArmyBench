@@ -43,6 +43,17 @@ public partial class NotebookCellView
     [Parameter]
     public EventCallback<CellModel> OnDelete { get; set; }
 
+    /// <summary>More actions: the cell's menu, opened under its button.</summary>
+    [Parameter]
+    public EventCallback<(CellModel Cell, MouseEventArgs At)> OnMenu { get; set; }
+
+    /// <summary>Run up to here: every cell from the top to this one.</summary>
+    [Parameter]
+    public EventCallback<CellModel> OnRunTo { get; set; }
+
+    // A cell's name is at most this long (the classic MAX_CELL_NAME).
+    private const int MaxName = 80;
+
     [Parameter]
     public EventCallback<(CellModel Cell, string Line)> OnAnswer { get; set; }
 
@@ -104,7 +115,7 @@ public partial class NotebookCellView
     private async Task KeyAsync(EditorKey key)
     {
         Cell.Source = key.Text;
-        if (Cell.Kind == "markdown" && key.Name is "run" or "runHere")
+        if (Cell.Kind is "markdown" or "html" && key.Name is "run" or "runHere")
         {
             Cell.Editing = false; // drawn again: Shift+Enter on Markdown shows it
         }
@@ -114,7 +125,14 @@ public partial class NotebookCellView
     private async Task KindChangedAsync(ChangeEventArgs e)
     {
         Cell.Kind = e.Value?.ToString() ?? "code";
-        Cell.Editing = Cell.Kind == "markdown";
+        Cell.Editing = Cell.Kind is "markdown" or "html";
+        await OnChanged.InvokeAsync(Cell);
+    }
+
+    private async Task NameChangedAsync(ChangeEventArgs e)
+    {
+        var name = e.Value?.ToString()?.Trim() ?? string.Empty;
+        Cell.Name = name.Length == 0 ? null : name;
         await OnChanged.InvokeAsync(Cell);
     }
 

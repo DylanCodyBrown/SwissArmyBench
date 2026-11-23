@@ -1,0 +1,36 @@
+@* The groups' layout drawn (the classic workbenchGroups.ts render): a split as a row or a column of its children
+   with a sash between each two, a group as the page draws it (Group). *@
+
+@if (Node is TabSplit split)
+{
+    <div class="wb-gsplit @(split.Row ? "row" : "column")">
+        @for (var i = 0; i < split.Children.Count; i++)
+        {
+            var at = i;
+            if (at > 0)
+            {
+                <Sash Split="split" Index="at" OnResized="OnResized" />
+            }
+            <div class="wb-layout" style="@Flex(split.Sizes[at])">
+                <GroupsView Node="split.Children[at]" Group="@Group" OnResized="OnResized" />
+            </div>
+        }
+    </div>
+}
+else if (Node is TabGroup group)
+{
+    @Group(group)
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public LayoutNode Node { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public RenderFragment<TabGroup> Group { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnResized { get; set; }
+
+    private static string Flex(double size) => FormattableString.Invariant($"flex: {size} 1 0px");
+}

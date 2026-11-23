@@ -9,11 +9,10 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 
 public partial class ScriptView
 {
-    private readonly CellModel _console = new();
+    private CellModel _console = new();
     private CodeEditor? _editor;
     private CellRunner? _runner;
     private string _line = string.Empty;
-    private int _problems;
     private Exception? _error;
 
     [Inject]
@@ -33,20 +32,26 @@ public partial class ScriptView
     [Parameter]
     public bool Saved { get; set; }
 
+    /// <summary>The console's runs, kept with its document (a tab moved keeps them).</summary>
+    [Parameter]
+    public CellModel? Console { get; set; }
+
     [Parameter]
     public EventCallback<string> OnTextChanged { get; set; }
 
     [Parameter]
     public EventCallback<string> OnPageKey { get; set; }
 
-    private string ProblemWords => _problems switch
-    {
-        0 => string.Empty,
-        1 => "1 problem",
-        _ => $"{_problems} problems",
-    };
+    /// <summary>The lint's problems at warning or worse, as they change (the status bar's count).</summary>
+    [Parameter]
+    public EventCallback<int> OnProblems { get; set; }
 
-    protected override void OnInitialized() => _runner = new CellRunner(Workbench, Session);
+
+    protected override void OnInitialized()
+    {
+        _runner = new CellRunner(Workbench, Session);
+        _console = Console ?? new CellModel();
+    }
 
     /// <summary>A blade's line put in at the cursor.</summary>
     public Task InsertAsync(string text) => _editor?.InsertAsync(text) ?? Task.CompletedTask;
@@ -76,7 +81,7 @@ public partial class ScriptView
 
     /// <summary>The script as `python script.py` runs it (its own __main__ and __file__): the saved file when it
     /// is saved, else the text on screen.</summary>
-    private async Task RunFileAsync()
+    public async Task RunFileAsync()
     {
         // The editor's text as it is now: typing not yet told to the page runs too.
         var text = _editor is null ? Text : await _editor.TextAsync();
@@ -86,7 +91,8 @@ public partial class ScriptView
         await RunAsync(request);
     }
 
-    private async Task RunSelectionAsync()
+    /// <summary>Run statement: the selected lines, else the cursor's line (Ctrl+Enter).</summary>
+    public async Task RunSelectionAsync()
     {
         if (_editor is not null)
         {

@@ -1,0 +1,69 @@
+/* workbench.css: the Notebooks and Scripts pages' tab groups, menus, palette and panels (the classic grid.css's
+   .wb-group, .wb-tab, .wb-gsplit and .wb-gsash measures, written compactly). */
+.mark-notebook { --kc: var(--kind-notebook); }
+.mark-script { --kc: var(--kind-script); }
+.wb-layout { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.wb-layout > .wb-group, .wb-layout > .wb-gsplit { flex: 1 1 0px; }
+.wb-gsplit { display: flex; min-width: 0; min-height: 0; }
+.wb-gsplit.column { flex-direction: column; }
+.wb-gsash { position: relative; flex: none; background: var(--surface-2); touch-action: none; }
+.wb-gsash.row { width: 7px; border-right: 1px solid var(--border); border-left: 1px solid var(--border); cursor: col-resize; }
+.wb-gsash.column { height: 7px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); cursor: row-resize; }
+.wb-gsash::after { position: absolute; top: 50%; left: 50%; width: 3px; height: 28px; margin: -14px 0 0 -1.5px; border-radius: 2px; background: var(--border-strong); content: ""; }
+.wb-gsash.column::after { width: 28px; height: 3px; margin: -1.5px 0 0 -14px; }
+.wb-gsash:hover, .wb-gsash:focus-visible { outline: none; background: var(--accent-soft); }
+.wb-gsash:hover::after, .wb-gsash:focus-visible::after { background: var(--accent); }
+.wb-group { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; container-type: inline-size; }
+.wb-group.focused:not(.only) > .wb-gstrip { background: var(--surface-2); }
+.wb-group.mark-notebook > .wb-gstrip, .wb-group.mark-script > .wb-gstrip { box-shadow: inset 0 2px 0 color-mix(in srgb, var(--kc) 70%, transparent); }
+.wb-gstrip { display: flex; flex: none; align-items: flex-end; gap: 2px; height: 48px; padding: 0 12px 0 8px; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 14px; }
+.wb-gstrip > .btn { align-self: center; }
+.wb-tabs { position: relative; display: flex; flex: 0 1 auto; align-items: flex-end; gap: 2px; min-width: min(200px, 40%); height: 100%; overflow-x: auto; scrollbar-width: none; }
+.wb-tab { position: relative; top: 1px; display: flex; flex: none; align-items: center; gap: 8px; max-width: 260px; height: 40px; padding: 0 8px 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 7px 7px 0 0; box-shadow: inset 0 3px 0 -1px color-mix(in srgb, var(--kc) 45%, transparent); color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
+.wb-tab:hover { color: var(--fg); }
+.wb-tab.active { border-color: var(--border); background: var(--bg); box-shadow: inset 0 3px 0 var(--kc); color: var(--fg); font-weight: 600; }
+.wb-tab:focus-visible { outline: var(--focus-width, 2px) solid var(--focus, var(--accent)); outline-offset: -3px; }
+.wb-tab-icon { display: flex; color: var(--kc); }
+.wb-tab .tab-label { overflow: hidden; text-overflow: ellipsis; }
+.wb-tab-dirty { flex: none; color: var(--fg); font-size: 0.75em; line-height: 1; }
+.wb-tab-dirty:empty { display: none; }
+.wb-tab .tab-close { min-width: 0; min-height: 0; padding: 2px; border: 0; background: transparent; color: var(--muted); opacity: 0; cursor: pointer; }
+.wb-tab.active .tab-close, .wb-tab:hover .tab-close, .wb-tab:focus-within .tab-close { opacity: 1; }
+.wb-tab-new { color: var(--muted); }
+.wb-grow { flex: 1 1 auto; }
+.wb-gcontrols { display: flex; flex: 0 1 auto; align-items: center; align-self: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.wb-gcontrols .wb-more { color: var(--muted); }
+.wb-gbody { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
+.wb-gbody > .wb-doc-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+.wb-gbody > .wb-doc-body[hidden] { display: none; }
+@container (max-width: 480px) { .wb-gcontrols .btn .btn-label { display: none; } .wb-tab { gap: 6px; padding: 0 6px 0 9px; } }
+.menu-keys { margin-left: auto; padding-left: 18px; color: var(--muted); font-size: 0.9em; }
+.menu-item { display: flex; align-items: center; gap: 6px; }
+body.wb-full .nav-rail, body.wb-full .wb-doc-bar, body.wb-full .side-pane { display: none; }
+/* The command palette (the classic workbenchCommands.ts): a box over the page, the commands under it. */
+.palette-shade { position: fixed; inset: 0; z-index: 900; background: color-mix(in srgb, var(--bg) 40%, transparent); }
+.palette { position: fixed; top: 64px; left: 50%; z-index: 901; display: flex; flex-direction: column; width: min(640px, calc(100vw - 32px)); max-height: min(70vh, 560px); transform: translateX(-50%); border: 1px solid var(--border-strong); border-radius: 8px; background: var(--raised, var(--bg)); box-shadow: 0 12px 40px rgb(0 0 0 / 25%); }
+.palette input { margin: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.palette-list { overflow: auto; padding: 0 6px 8px; }
+.palette-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border: 0; border-radius: 4px; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.palette-item.active, .palette-item:hover { background: var(--surface-2); }
+.palette-item[disabled] { color: var(--muted); cursor: default; }
+.palette-group { color: var(--muted); font-size: 0.85em; min-width: 6em; }
+.palette-empty { padding: 10px; color: var(--muted); }
+/* An HTML cell's design (the classic .wb-design measures). */
+.wb-design { display: flex; flex-direction: column; min-width: 0; }
+.wb-design-bar { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-bottom: 1px dashed var(--border); }
+.wb-design-state { padding: 1px 9px; border: 1px solid var(--border); border-radius: 10px; color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+.wb-design-stage { min-height: 60px; overflow: hidden; }
+.wb-design-frame { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
+.wb-design-notes { padding: 3px 10px; border-top: 1px dashed var(--border); }
+.wb-design-grip { position: relative; flex: none; height: 9px; border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; cursor: ns-resize; touch-action: none; }
+.wb-design-grip::after { position: absolute; top: 3px; left: calc(50% - 16px); width: 32px; height: 2px; border-radius: 2px; background: var(--border); content: ""; }
+.wb-design-grip:hover, .wb-design-grip:focus-visible { outline: none; background: var(--accent-soft); }
+.wb-design-grip:hover::after, .wb-design-grip:focus-visible::after { background: var(--accent); }
+.wb-number { color: var(--muted); font-size: 11px; font-family: "Cascadia Code", Consolas, monospace; }
+.wb-cell-name { width: 9em; padding: 1px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--fg); font: inherit; }
+.wb-cell-name:hover, .wb-cell-name:focus { border-color: var(--border); }
+.wb-cell-name:placeholder-shown { opacity: 0; }
+.wb-cell:hover .wb-cell-name:placeholder-shown, .wb-cell-name:focus:placeholder-shown { opacity: 1; }
+.wb-output-hidden { margin: 2px 10px 6px; }

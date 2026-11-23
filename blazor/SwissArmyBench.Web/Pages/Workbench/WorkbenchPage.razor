@@ -1,25 +1,32 @@
-@* The Notebooks page and the Scripts page (two pages, the owner 2026-11-21; the classic workbenchPage.ts): the
-   document's bar (its name and unsaved dot, New, Open…, Save, Save as…), the notebook or the script, the Files and
-   Blades panes on the right, and the page's status bar (the Python session with Interrupt and Restart; the panes'
-   toggles). With no document, the page's documents to open. Logic in WorkbenchPage.razor.cs. *@
-@implements IDisposable
+@* The Notebooks page and the Scripts page (two pages, the owner 2026-11-21; the classic workbenchPage.ts and
+   workbenchBars.ts): the top bar (the open project's menu, the document in front's name and unsaved dot, Save, Save
+   as…, New, Open…, the "…" menu), the documents as tabs in groups (split right or down, each group's row with the
+   document's controls), the Files and Blades panes on the right, the status bar (the Python session, Problems, the
+   panes' toggles), and the command palette (Ctrl+Shift+P). With no document open, the page's documents to open.
+   Logic in WorkbenchPage.razor.cs (the page), .Documents.cs (open, save, close), .Menus.cs (menus and commands). *@
+@implements IAsyncDisposable
+@using SwissArmyBench.Web.Pages.Workbench.Tabs
 
 <section class="area-page workbench-page kind-@Kind">
     <header class="wb-doc-bar">
-        <h1 class="wb-doc-title"><Icon Name="@(IsNotebooks ? "notebook" : "code")" /> @Title
-            @if (_dirty)
+        @if (Project.Current is { } project)
+        {
+            <button type="button" class="btn small ghost wb-project" aria-haspopup="menu" title="@project.Path" @onclick="e => ShowMenuAsync(e, ProjectMenu())">
+                <Icon Name="project" /> @project.Name@(project.Dirty ? " ●" : string.Empty)
+            </button>
+        }
+        <h1 class="wb-doc-title" title="@(Front?.Path ?? Front?.Title ?? string.Empty)"><Icon Name="@(IsNotebooks ? "notebook" : "code")" /> @Title
+            @if (Front?.Dirty == true)
             {
-                <span class="dirty-dot" aria-label="Unsaved changes">●</span>
+                <span class="dirty-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes">●</span>
             }
         </h1>
         <div class="area-page-actions" role="toolbar" aria-label="Document">
-            <button type="button" class="btn small" @onclick="NewAsync"><Icon Name="plus" /> New @KindWord</button>
-            <button type="button" class="btn small" @onclick="OpenAsync"><Icon Name="folder" /> Open…</button>
-            @if (HasDocument)
-            {
-                <button type="button" class="btn small primary" title="Save (Ctrl+S)" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
-                <button type="button" class="btn small" title="Save as (Ctrl+Shift+S)" @onclick="SaveAsAsync">Save as…</button>
-            }
+            <button type="button" class="btn small" disabled="@(Front is null && Project.Current is null)" title="@(Front is null && Project.Current is null ? NothingSaves : "Save (Ctrl+S)")" @onclick="SaveFrontAsync"><Icon Name="save" /> Save</button>
+            <button type="button" class="btn small" disabled="@(Front is null)" title="@(Front is null ? NothingSaves : "Save as (Ctrl+Shift+S)")" @onclick="() => SaveAsAsync(Front)"><Icon Name="save" /> Save as…</button>
+            <button type="button" class="btn small wb-top-new" @onclick="NewAsync"><Icon Name="plus" /> New @KindWord</button>
+            <button type="button" class="btn small" title="Open a notebook or script (Ctrl+O)" @onclick="OpenAsync"><Icon Name="folder" /> Open…</button>
+            <button type="button" class="btn small ghost icon" aria-label="Workbench menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, TopMenu())"><Icon Name="more" /></button>
         </div>
     </header>
     <ErrorNote Error="_error" OnClose="() => _error = null" />
@@ -33,22 +40,20 @@
             {
                 <div class="loading-block">Opening…</div>
             }
-            else if (_notebook is not null || (IsNotebooks && _newDocument))
+            @if (_documents.Count == 0)
             {
-                <NotebookView @ref="_notebookView" @key="_documentKey" Opened="_notebook" Path="@_path" Connections="_connections" OnChanged="MarkDirty" OnPageKey="PageKeyAsync" />
-            }
-            else if (_script is not null || (!IsNotebooks && _newDocument))
-            {
-                <ScriptView @ref="_scriptView" @key="_documentKey" Text="@_scriptText" Path="@_path" Saved="!_dirty && _path is not null" OnTextChanged="ScriptChanged" OnPageKey="PageKeyAsync" />
+                <WorkbenchLanding Page="@Page" Tree="_tree" Recent="_recent" OnNew="NewAsync" OnOpen="OpenAsync" />
             }
             else
             {
-                <WorkbenchLanding Page="@Page" Tree="_tree" Recent="_recent" OnNew="NewAsync" OnOpen="OpenAsync" />
+                <div class="wb-layout">
+                    <GroupsView Node="_layout.Root" Group="GroupFragment" OnResized="StateHasChanged" />
+                </div>
             }
         </div>
         @if (_showFiles)
         {
-            <FilesPane Page="@Page" Tree="_tree" Current="@_path" OnRefresh="LoadTreeAsync" />
+            <FilesPane Page="@Page" Tree="_tree" Current="@Front?.Path" OnRefresh="LoadTreeAsync" />
         }
         @if (_showBlades)
         {
@@ -66,7 +71,64 @@
             <span class="muted">@said</span>
         }
         <span class="status-spacer"></span>
-        <button type="button" class="btn small ghost" aria-pressed="@(_showFiles ? "true" : "false")" @onclick="ToggleFilesAsync">Files</button>
+        @if (Front is not null)
+        {
+            <span class="muted wb-problems" role="status">@ProblemWords(Front)</span>
+        }
+        <button type="button" class="btn small ghost" aria-pressed="@(_showFiles ? "true" : "false")" title="Files (Ctrl+B)" @onclick="ToggleFilesAsync">Files</button>
         <button type="button" class="btn small ghost" aria-pressed="@(_showBlades ? "true" : "false")" @onclick="ToggleBladesAsync">Blades</button>
     </footer>
+    @if (_menu is { } menu)
+    {
+        <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+    }
+    @if (_newProject is { } listing)
+    {
+        <SwissArmyBench.Web.Pages.Home.NewProjectDialog Listing="listing" OnDone="NewProjectDoneAsync" />
+    }
+    @if (_palette)
+    {
+        <CommandPalette Commands="Commands()" Recent="_recentCommands" OnClose="() => _palette = false" OnRun="RunCommandAsync" />
+    }
 </section>
+
+@code {
+    private RenderFragment<TabGroup> GroupFragment => group =>
+        @<GroupView Group="group" Number="@(_layout.Groups.ToList().IndexOf(group) + 1)" Documents="_byKey" Focused="group == _layout.Focused" Only="_layout.Groups.Count == 1"
+                    Content="DocumentFragment" Controls="ControlsFragment"
+                    OnShow="ShowAsync" OnClose="CloseAsync" OnFocus="() => _layout.Focus(group)"
+                    OnNewTab="e => ShowMenuAsync(e, NewTabMenu())" OnTabMenu="t => ShowMenuAsync(t.At, TabMenu(t.Key))" />;
+
+    private RenderFragment<OpenDocument> DocumentFragment => doc =>
+        @<text>
+            @if (doc.IsNotebook)
+            {
+                <NotebookView @ref="doc.NotebookView" Kept="doc.Kept" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
+                              OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" />
+            }
+            else
+            {
+                <ScriptView @ref="doc.ScriptView" Console="doc.Console" Text="@doc.ScriptText" Path="@doc.Path" Saved="!doc.Dirty && doc.Path is not null"
+                            OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" />
+            }
+        </text>;
+
+    private RenderFragment<OpenDocument> ControlsFragment => doc =>
+        @<text>
+            @if (doc.IsNotebook)
+            {
+                <button type="button" class="btn small line wb-add-cell" aria-label="Add cell" title="Add cell" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, CellMenu(doc))">
+                    <Icon Name="plus" /> <span class="btn-label">Cell</span> <Icon Name="down" />
+                </button>
+                <button type="button" class="btn small primary wb-run-all" title="Run all (F5)" disabled="@(doc.NotebookView?.RunningAll == true)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run all</span></button>
+            }
+            else
+            {
+                <button type="button" class="btn small primary wb-run-file" title="Run file (F5)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
+            }
+            <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
+            <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, DocumentMenu(doc))"><Icon Name="more" /></button>
+            <button type="button" class="btn small ghost icon wb-full-toggle" aria-label="@(_full ? "Leave full screen" : "Full screen")" title="@(_full ? "Leave full screen (Escape)" : "Full screen (F11)")"
+                    aria-pressed="@(_full ? "true" : "false")" @onclick="FullScreenAsync"><Icon Name="@(_full ? "restore" : "max")" /></button>
+        </text>;
+}

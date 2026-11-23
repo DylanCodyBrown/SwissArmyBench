@@ -21,7 +21,8 @@ def made_up_notebook(server: dict[str, Any], name: str) -> str:
 
 
 def type_in_new_cell(page: Page, kind: str, code: str) -> None:
-    page.click(f".wb-notebook-bar button:has-text('{kind}')")
+    page.click(".wb-gcontrols button[aria-label='Add cell']")
+    page.click(f".context-menu [role=menuitem]:has-text('{kind}')")
     page.locator(".wb-cell.selected .monaco-editor").last.wait_for()
     page.wait_for_timeout(300)  # the editor takes the focus once Monaco is made
     page.keyboard.type(code)

@@ -45,6 +45,9 @@ public sealed class WorkbenchClient
 
     public Task RestartAsync(string kernel) => _api.PostAsync($"/workbench/kernels/{ApiClient.Part(kernel)}/restart");
 
+    /// <summary>An HTML cell's design: its names filled from its run's values (each as the kernel gave it).</summary>
+    public Task<FilledHtml> FillHtmlAsync(string html, JsonElement values) => _api.PostAsync<FilledHtml>("/workbench/html/fill", new { html, values });
+
     public Task<TableList> TablesAsync() => _api.GetAsync<TableList>("/workbench/tables");
 
     /// <summary>The notebook as it should be with its Tables group (the server's rules: domain/table_cells.py).</summary>

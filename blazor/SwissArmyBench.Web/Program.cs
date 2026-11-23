@@ -58,6 +58,7 @@ public static class Program
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
+        services.AddScoped<ExportsClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();

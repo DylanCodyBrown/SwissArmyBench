@@ -1,0 +1,102 @@
+@* The command palette (the classic workbenchCommands.ts, Ctrl+Shift+P): every command of the page by its words, the
+   ones run lately first; typed words narrow it (each word anywhere in the group or the words), the arrow keys move,
+   Enter runs one and Escape closes it. A command that cannot run now is greyed out with its reason. *@
+
+<div class="palette-shade" @onclick="OnClose"></div>
+<div class="palette" role="dialog" aria-label="Commands" @onkeydown="KeyAsync">
+    <input type="text" aria-label="Type a command" placeholder="Type a command" @bind="_query" @bind:event="oninput" @bind:after="() => _at = 0" @ref="_box" autocomplete="off" spellcheck="false" />
+    <div class="palette-list" role="listbox" aria-label="Commands">
+        @{
+            var shown = Shown;
+        }
+        @if (shown.Count == 0)
+        {
+            <div class="palette-empty">No command has those words.</div>
+        }
+        @for (var i = 0; i < shown.Count; i++)
+        {
+            var command = shown[i];
+            var at = i;
+            <button type="button" class="palette-item @(at == _at ? "active" : string.Empty)" role="option" aria-selected="@(at == _at ? "true" : "false")"
+                    disabled="@(command.Disabled is not null)" title="@command.Disabled" @onclick="() => RunAsync(command)">
+                <span class="palette-group">@command.Group</span>
+                <span>@command.Label</span>
+                @if (command.Keys is { } keys)
+                {
+                    <span class="menu-keys">@keys</span>
+                }
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private string _query = string.Empty;
+    private int _at;
+    private ElementReference _box;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<WorkbenchCommand> Commands { get; set; } = [];
+
+    /// <summary>The commands run lately, newest first: they come first.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Recent { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<WorkbenchCommand> OnRun { get; set; }
+
+    private List<WorkbenchCommand> Shown => Matching(Commands, Recent, _query);
+
+    /// <summary>The commands whose group and words hold every typed word (any case), the recent ones first.</summary>
+    public static List<WorkbenchCommand> Matching(IReadOnlyList<WorkbenchCommand> commands, IReadOnlyList<string> recent, string query)
+    {
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return commands
+            .Where(c => words.All(w => $"{c.Group} {c.Label}".Contains(w, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(c => recent.ToList().IndexOf(c.Id) is var at and >= 0 ? at : int.MaxValue)
+            .ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _box.FocusAsync();
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        var shown = Shown;
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _at = shown.Count == 0 ? 0 : (_at + 1) % shown.Count;
+                break;
+            case "ArrowUp":
+                _at = shown.Count == 0 ? 0 : (_at - 1 + shown.Count) % shown.Count;
+                break;
+            case "Enter" when _at < shown.Count:
+                await RunAsync(shown[_at]);
+                break;
+            case "Escape":
+                await OnClose.InvokeAsync();
+                break;
+            default:
+                break;
+        }
+    }
+
+    private async Task RunAsync(WorkbenchCommand command)
+    {
+        if (command.Disabled is not null)
+        {
+            return;
+        }
+        await OnClose.InvokeAsync();
+        await OnRun.InvokeAsync(command);
+    }
+}

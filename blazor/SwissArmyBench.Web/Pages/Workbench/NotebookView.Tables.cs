@@ -27,15 +27,15 @@ public partial class NotebookView
         {
             var open = (await Workbench.TablesAsync()).Tables;
             var mine = open
-                .Where(t => t.Document == Path || (IsData && t.Document is null) || _cells.Any(c => c.IsAppCell && c.Table == t.Name))
+                .Where(t => t.Document == Path || (IsData && t.Document is null) || _kept.Cells.Any(c => c.IsAppCell && c.Table == t.Name))
                 .Select(t => t.Name)
                 .ToList();
-            if (mine.Count == 0 && _cells.All(c => !c.IsAppCell))
+            if (mine.Count == 0 && _kept.Cells.All(c => !c.IsAppCell))
             {
                 return;
             }
             var asked = _shape;
-            var arranged = await Workbench.ArrangeAsync(_cells.Select(c => c.ToSaved()).ToList(), mine, _nextCell);
+            var arranged = await Workbench.ArrangeAsync(_kept.Cells.Select(c => c.ToSaved()).ToList(), mine, _kept.NextCell);
             if (asked != _shape)
             {
                 // A cell was added, moved or deleted meanwhile: its number may be one the answer gave a table.
@@ -54,11 +54,11 @@ public partial class NotebookView
     /// number stay); an app cell takes the server's text; a cell the server adds is made.</summary>
     private void Apply(ArrangedNotebook arranged)
     {
-        var byNumber = _cells.ToDictionary(c => c.Number);
-        _cells = arranged.Cells
+        var byNumber = _kept.Cells.ToDictionary(c => c.Number);
+        _kept.Cells = arranged.Cells
             .Select(a => byNumber.TryGetValue(a.Number, out var kept) ? Followed(kept, a) : Made(a))
             .ToList();
-        _nextCell = Math.Max(_nextCell, arranged.NextCell);
+        _kept.NextCell = Math.Max(_kept.NextCell, arranged.NextCell);
     }
 
     private static CellModel Followed(CellModel kept, ArrangedCell arranged)

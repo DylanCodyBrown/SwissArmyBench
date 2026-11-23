@@ -36,6 +36,9 @@ public sealed class CellModel
 
     public bool Running { get; set; }
 
+    /// <summary>Its output folded away (Hide the output); the page's only.</summary>
+    public bool OutputHidden { get; set; }
+
     /// <summary>The last error taken apart by the server (its title, what it means, where).</summary>
     public JsonElement? ErrorDetail { get; set; }
 
