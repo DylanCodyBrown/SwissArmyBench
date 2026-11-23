@@ -39,4 +39,14 @@ public sealed record BoardCard
     public double Order { get; init; }
 
     public JsonElement? Analysis { get; init; }
+
+    public JsonElement? Spec { get; init; }
+
+    public JsonElement Source { get; init; }
+
+    public JsonElement? VegaLite { get; init; }
+
+    public JsonElement? Note { get; init; }
+
+    public long Points { get; init; }
 }
