@@ -1,0 +1,53 @@
+@* The table line of the Analyze side (the classic analyzePage.ts tableLine): the table's name and rows, and Change: the
+   open tables (the one in use checked), then Find data… (the Catalog, where a connection's table is opened). Never a
+   dead end: Change is there even when the table could not be read. *@
+@using SwissArmyBench.Web.Pages.Workbench
+@inject NavigationManager Nav
+
+<div class="analyze-table">
+    <Icon Name="table" />
+    <span class="analyze-table-name" title="@Words">@Words</span>
+    <button type="button" class="btn small ghost analyze-change" aria-haspopup="menu" @onclick="Change">Change</button>
+</div>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="Table" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+
+@code {
+    private ShownMenu? _menu;
+
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public long? Rows { get; set; }
+
+    [Parameter]
+    public string? Current { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<AnalyzeTable> Tables { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<string> OnPick { get; set; }
+
+    private string Words => Label.Length > 0
+        ? $"{Label}{(Rows is { } rows ? $" · {rows:N0} row{(rows == 1 ? string.Empty : "s")}" : string.Empty)}"
+        : Tables.Count > 0 ? "Pick a table" : "No table is open";
+
+    private void Change(MouseEventArgs at)
+    {
+        List<MenuEntry> entries =
+        [
+            .. Tables.Select(t => new MenuEntry(t.Label, t.Grid == Current ? "check" : "table", () => OnPick.InvokeAsync(t.Grid))),
+            .. Tables.Count > 0 ? [MenuEntry.Separator] : Array.Empty<MenuEntry>(),
+            new("Find data…", "data", () =>
+            {
+                Nav.NavigateTo("catalog");
+                return Task.CompletedTask;
+            }),
+        ];
+        _menu = new ShownMenu("Table", entries, at.ClientX, at.ClientY + 4);
+    }
+}

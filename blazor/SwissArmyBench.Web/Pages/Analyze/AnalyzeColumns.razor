@@ -1,0 +1,92 @@
+@* What can I do with a column? (the classic analyzePage.ts drawColumns): the table line, its columns (one with
+   nothing that analyses it greyed out, with why), and for the column picked, each analysis that fits it as a
+   one-click button. *@
+@inject AnalyzeClient AnalyzeApi
+
+<section class="analyze-form analyze-by-column" aria-label="What can I do with a column?">
+    <h2 class="analyze-title">What can I do with a column? <span class="muted">by column</span></h2>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_found is { } found)
+    {
+        <AnalyzeTableLine Label="@found.TableLabel" Rows="found.Rows" Current="@found.Grid" Tables="Tables" OnPick="PickAsync" />
+        <div class="analyze-columns" role="listbox" aria-label="Columns">
+            @foreach (var column in found.Columns)
+            {
+                var name = column.Name;
+                <button type="button" class="analyze-column" role="option" aria-selected="@(name == _column ? "true" : "false")" data-column="@name"
+                        disabled="@(column.Analyses.Count == 0)" title="@(column.Analyses.Count == 0 ? "Nothing analyses this column (an identifier, or all one value)" : string.Empty)"
+                        @onclick="() => _column = name">
+                    <strong>@name</strong>
+                    <span class="analyze-column-type">@column.Type</span>
+                    <span class="analyze-column-preview">@string.Join(", ", column.Preview)</span>
+                </button>
+            }
+        </div>
+        @if (found.Columns.FirstOrDefault(c => c.Name == _column) is { } picked)
+        {
+            <div class="analyze-big" aria-label="What fits @picked.Name">
+                @foreach (var fit in picked.Analyses)
+                {
+                    var f = fit;
+                    <AnalyzeBigButton Label="@f.Label" Name="@f.Name" Reason="@f.Get" OnRun="() => RunAsync(found.Grid, f)" />
+                }
+            </div>
+        }
+    }
+    else if (_error is null)
+    {
+        <div class="loading-block">Reading the table…</div>
+    }
+    else
+    {
+        <AnalyzeTableLine Current="@Table" Tables="Tables" OnPick="PickAsync" />
+    }
+</section>
+
+@code {
+    private ColumnsAnswer? _found;
+    private Exception? _error;
+    private string? _column;
+    private bool _loaded;
+
+    [Parameter]
+    public string? Table { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<AnalyzeTable> Tables { get; set; } = [];
+
+    protected override Task OnParametersSetAsync() => _loaded ? Task.CompletedTask : LoadAsync(Table);
+
+    private Task PickAsync(string grid)
+    {
+        _column = null;
+        return LoadAsync(grid);
+    }
+
+    private async Task LoadAsync(string? table)
+    {
+        _loaded = true;
+        try
+        {
+            _found = await AnalyzeApi.ColumnsAsync(table);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            (_found, _error) = (null, error);
+        }
+    }
+
+    private async Task RunAsync(string grid, ColumnFit fit)
+    {
+        try
+        {
+            await AnalyzeApi.RunOneAsync(fit.Analysis, grid, fit.Columns, false);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

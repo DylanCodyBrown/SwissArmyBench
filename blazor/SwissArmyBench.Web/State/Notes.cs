@@ -15,9 +15,12 @@ public sealed class Notes
     public IReadOnlyList<Note> Shown => _shown;
 
     /// <summary>A short line that goes by itself ("Copied.", "Saved.").</summary>
-    public async Task SayAsync(string words)
+    public Task SayAsync(string words) => SayAsync(words, null, null);
+
+    /// <summary>A short line with one action: its label and what it does (Undo, Show).</summary>
+    public async Task SayAsync(string words, string? actionLabel, Func<Task>? action)
     {
-        var note = new Note(words, null);
+        var note = new Note(words, null, actionLabel, action);
         _shown.Add(note);
         Changed?.Invoke();
         await Task.Delay(ShownMilliseconds);

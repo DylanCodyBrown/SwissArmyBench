@@ -16,6 +16,10 @@
         }
         <button type="button" class="btn ghost icon small" aria-label="@(Card.Pinned ? "Unpin" : "Pin to the top")" title="@(Card.Pinned ? "Unpin" : "Pin to the top")"
                 aria-pressed="@(Card.Pinned ? "true" : "false")" @onclick="TogglePinAsync"><Icon Name="pin" /></button>
+        @if (IsChart)
+        {
+            <button type="button" class="btn ghost icon small" aria-label="Open large" title="Open large" @onclick="() => _large = true"><Icon Name="zoom" /></button>
+        }
         <button type="button" class="btn ghost icon small" aria-label="More card actions" title="More card actions" aria-haspopup="menu" @onclick="ShowMenu"><Icon Name="more" /></button>
         <button type="button" class="btn ghost icon small" aria-label="Remove" title="Remove" @onclick="() => OnRemove.InvokeAsync(Card)"><Icon Name="trash" /></button>
     </header>
@@ -30,6 +34,12 @@
                 break;
             case "image" when (Card.Body ?? string.Empty).StartsWith("data:image/", StringComparison.Ordinal):
                 <img class="card-image" src="@Card.Body" alt="@Card.Title" />
+                break;
+            case "chart" when IsChart:
+                <VegaChart @ref="_chart" Spec="@ChartSpec" Label="@Name" OnSelect="CrossFilterAsync" />
+                break;
+            case "chart":
+                <p class="muted">@NoChart</p>
                 break;
             case "diagram":
                 <MermaidDiagram Text="@(Card.Body ?? string.Empty)" />
@@ -68,6 +78,17 @@
         </ChildContent>
         <Foot>
             <button type="button" class="btn primary" @onclick="() => _math = null">Close</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_large && IsChart)
+{
+    <AppDialog Title="@Name" Wide="true" OnClose="() => _large = false">
+        <ChildContent>
+            <VegaChart Spec="@ChartSpec" Label="@Name" Large="true" Zoomable="@Zoomable" Height="560" OnSelect="LargeSelectAsync" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn primary" @onclick="() => _large = false">Close</button>
         </Foot>
     </AppDialog>
 }

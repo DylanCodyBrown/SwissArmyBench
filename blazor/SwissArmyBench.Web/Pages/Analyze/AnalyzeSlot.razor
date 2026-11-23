@@ -1,49 +1,54 @@
-@* One slot of the form (Values, Group, Predictors...): the columns the server offers for it, one or several, with a
-   column's first values beside it; the columns that do not fit folded, each with why. *@
+@* One slot of the form as a chip (the classic analyzePage.ts chip): its label, the column picked (one or several,
+   each a chip with × to take it off), a list to add or pick from (the columns that fit, then the ones that do not,
+   each with why and not to be chosen), and why the app picked what it did. *@
 
-<fieldset class="fieldset analyze-slot" data-slot="@Slot.Key">
-    <legend>@Slot.Label</legend>
-    <p class="muted">@Slot.Words</p>
-    @if (Slot.Many)
-    {
-        <div class="form-grid" role="group" aria-label="@Slot.Label">
-            @foreach (var column in Slot.Offered)
+<div class="analyze-chip-row" data-slot="@Slot.Key">
+    <span class="chip-label" title="@Slot.Words">@Slot.Label</span>
+    <span class="chips">
+        @if (Slot.Many)
+        {
+            @foreach (var name in Picked)
             {
-                var name = column.Name;
-                <label class="check" title="@string.Join(", ", column.Preview)"><input type="checkbox" checked="@Picked.Contains(name)" @onchange="e => ToggleAsync(name, e.Value is true)" /> @Shown(column)</label>
+                var shown = name;
+                <span class="chip" data-column="@shown">@shown<button type="button" class="chip-remove" aria-label="Remove @shown" title="Remove @shown" @onclick="() => RemoveAsync(shown)">×</button></span>
             }
-        </div>
-    }
-    else
-    {
-        <select aria-label="@Slot.Label" value="@(Picked.FirstOrDefault() ?? string.Empty)" @onchange="e => OnPick.InvokeAsync((Slot.Key, Json(e.Value?.ToString())))">
-            @if (Slot.Optional || Picked.Count == 0)
-            {
-                <option value="">(none)</option>
-            }
-            @foreach (var column in Slot.Offered)
-            {
-                <option value="@column.Name">@Shown(column)@(Slot.Table || column.Preview.Count == 0 ? string.Empty : $" · {string.Join(", ", column.Preview)}")</option>
-            }
-        </select>
-    }
-    @if (Slot.Said is { Length: > 0 } said)
-    {
-        <p class="muted analyze-said">Picked: @said</p>
-    }
-    @if (Slot.Rejected.Count > 0)
-    {
-        <details class="analyze-rejected">
-            <summary>@Slot.Rejected.Count not offered</summary>
-            <ul class="plain-list">
-                @foreach (var column in Slot.Rejected)
+            <select class="chip-add" aria-label="Add to @Slot.Label" value="" @onchange="AddAsync">
+                <option value="">@AddWords</option>
+                @foreach (var column in Slot.Offered.Where(o => !Picked.Contains(o.Name)))
                 {
-                    <li><strong>@column.Name</strong>: @column.Why</li>
+                    <option value="@column.Name">@Shown(column)</option>
                 }
-            </ul>
-        </details>
+                @Rejected
+            </select>
+        }
+        else
+        {
+            var value = Picked.FirstOrDefault() ?? string.Empty;
+            <span class="chip @(value.Length == 0 ? "empty" : string.Empty)">
+                <select class="chip-select @(value.Length == 0 ? "empty" : string.Empty)" aria-label="@Slot.Label" title="@Slot.Words" value="@value"
+                        @onchange="e => OnPick.InvokeAsync((Slot.Key, Json(e.Value?.ToString())))">
+                    @if (Slot.Optional || value.Length == 0)
+                    {
+                        <option value="">@(Slot.Optional ? "(none)" : "Pick…")</option>
+                    }
+                    @foreach (var column in Slot.Offered)
+                    {
+                        <option value="@column.Name">@Shown(column)</option>
+                    }
+                    @Rejected
+                </select>
+            </span>
+        }
+    </span>
+    @if (Slot.Said is { Length: > 0 } said && (!Slot.Many || Picked.Count > 0))
+    {
+        <span class="chip-said">@said</span>
     }
-</fieldset>
+    @foreach (var caution in Slot.Cautions)
+    {
+        <span class="chip-caution"><Icon Name="warning" /> @caution</span>
+    }
+</div>
 
 @code {
     [Parameter, EditorRequired]
@@ -60,14 +65,36 @@
         _ => [],
     };
 
-    // A table slot's choices are grids: shown by the table's name (the server's preview).
-    private string Shown(OfferedColumn column) => Slot.Table && column.Preview.Count > 0 ? column.Preview[0] : column.Name;
+    // The add list's first line: Add… once one is picked, else the slot's own words (Pick… when one is needed).
+    private string AddWords => Picked.Count > 0 ? "Add…" : Slot.Optional ? (Slot.Said is { Length: > 0 } said ? said : "Add…") : "Pick…";
 
-    private Task ToggleAsync(string name, bool on)
-    {
-        var picked = on ? Picked.Append(name).Distinct().ToList() : Picked.Where(p => p != name).ToList();
-        return OnPick.InvokeAsync((Slot.Key, System.Text.Json.JsonSerializer.SerializeToElement(picked)));
-    }
+    private RenderFragment Rejected => @<text>
+        @if (Slot.Rejected.Count > 0)
+        {
+            <optgroup label="Does not fit">
+                @foreach (var column in Slot.Rejected)
+                {
+                    <option value="" disabled>@column.Name: @WhyOf(column)</option>
+                }
+            </optgroup>
+        }
+    </text>;
+
+    // A table slot's choices are grids: shown by the table's name; a column by its name, type and first values.
+    private string Shown(OfferedColumn column) => Slot.Table
+        ? column.Preview.FirstOrDefault() ?? column.Name
+        : $"{column.Name} · {column.Type}{(column.Preview.Count > 0 ? $": {string.Join(", ", column.Preview)}" : string.Empty)}";
+
+    private static string WhyOf(RejectedColumn column) =>
+        column.Why.StartsWith($"{column.Name} ", StringComparison.Ordinal) ? column.Why[(column.Name.Length + 1)..] : column.Why;
+
+    private Task AddAsync(ChangeEventArgs e) => e.Value?.ToString() is { Length: > 0 } name
+        ? OnPick.InvokeAsync((Slot.Key, System.Text.Json.JsonSerializer.SerializeToElement(Picked.Append(name).ToList())))
+        : Task.CompletedTask;
+
+    // The last column of a slot that needs one stays (as the classic chip).
+    private Task RemoveAsync(string name) => OnPick.InvokeAsync((Slot.Key, System.Text.Json.JsonSerializer.SerializeToElement(
+        Picked.Count > 1 || Slot.Optional ? Picked.Where(p => p != name).ToList() : Picked.ToList())));
 
     private static System.Text.Json.JsonElement Json(string? value) =>
         System.Text.Json.JsonSerializer.SerializeToElement(string.IsNullOrEmpty(value) ? null : value);

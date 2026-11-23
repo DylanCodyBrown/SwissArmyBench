@@ -40,6 +40,9 @@ public partial class BoardBar
     public EventCallback OnAddNote { get; set; }
 
     [Parameter]
+    public EventCallback OnAddChart { get; set; }
+
+    [Parameter]
     public EventCallback<bool> OnPageView { get; set; }
 
     [Parameter]

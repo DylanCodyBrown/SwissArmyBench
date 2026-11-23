@@ -112,6 +112,7 @@ public partial class BoardCardView
         {
             entries.Add(new("Edit note", "edit", () => OnEditNote.InvokeAsync(Card)));
         }
+        entries.AddRange(ChartEntries());
         if (Previous is { } previous)
         {
             entries.Add(new("Move earlier", "up", () => PatchAsync(new() { ["before"] = previous })));

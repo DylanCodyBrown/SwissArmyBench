@@ -15,6 +15,7 @@ public partial class AnalyzePage
     private string? _analysis;
     private RunInputs? _again;
     private Exception? _error;
+    private bool _chart;
 
     [Inject]
     private AnalyzeClient AnalyzeApi { get; set; } = default!;
@@ -26,16 +27,18 @@ public partial class AnalyzePage
     private IJSRuntime Js { get; set; } = default!;
 
     /// <summary>The toolbar's analyses by their group, in the server's order (everyday words first).</summary>
-    private IEnumerable<IGrouping<string, AnalysisEntry>> Groups =>
-        (_toolbar?.Analyses ?? [])
-            .GroupBy(a => a.Group)
-            .OrderBy(g => (_toolbar?.Groups ?? []).ToList().IndexOf(g.Key));
+    /// <summary>Each group with its analyses (Yours shown even empty: Make your own…).</summary>
+    private IEnumerable<(string Key, List<AnalysisEntry> Entries)> Groups =>
+        (_toolbar?.Groups ?? [])
+            .Select(g => (Key: g, Entries: (_toolbar?.Analyses ?? []).Where(a => a.Group == g).ToList()))
+            .Where(g => g.Entries.Count > 0 || g.Key == "Yours");
 
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
         await Js.InvokeVoidAsync("sab.setTitle", "Analyze");
         await RecallBoardAsync();
+        await RecallPanelAsync();
         await LoadAsync();
     }
 
@@ -58,6 +61,12 @@ public partial class AnalyzePage
     {
         // In the server's order: pinned first, then each card's place on the board.
         _cards = (await AnalyzeApi.CardsAsync()).Cards;
+    }
+
+    private async Task ChartAddedAsync()
+    {
+        _chart = false;
+        await LoadCardsAsync();
     }
 
     private void Choose(string analysis)

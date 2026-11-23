@@ -21,10 +21,12 @@ def test_an_analysis_runs_from_its_form_and_lands_on_the_board(
     page.click("[data-analysis=outliers]")
     form = page.locator(".analyze-form[data-analysis=outliers]")
     expect(form).to_contain_text("Find unusual values")
-    page.select_option(".analyze-form select[aria-label=Table]", label="orders")
+    form.locator(".analyze-change").click()
+    page.click(".context-menu [role=menuitem]:has-text('orders')")
+    expect(form.locator(".analyze-table-name")).to_contain_text("orders")
     expect(form.locator(".analyze-sentence")).to_contain_text("Find the unusual values of amount")
-    form.locator(".analyze-slot[data-slot=column] details summary").click()
-    expect(form.locator(".analyze-rejected")).to_contain_text("identifier")
+    rejected = form.locator(".analyze-chip-row[data-slot=column] optgroup[label='Does not fit'] option")
+    expect(rejected.first).to_be_attached()
 
     form.locator(".analyze-run").click()
     note = page.locator(".board-card[data-kind=note]", has_text="Unusual values of amount").first
@@ -53,5 +55,5 @@ def test_try_it_on_this_sample(browser: Browser, server: dict[str, Any]) -> None
     form.locator(".analyze-needs summary").click()
     form.locator("button:has-text('Try it on this sample')").click()
     expect(page.locator(".board-card[data-kind=note]").first).to_be_visible(timeout=60_000)
-    expect(form.locator("select[aria-label=Table]")).to_contain_text("sample_benford")
+    expect(form.locator(".analyze-table-name")).to_contain_text("sample_benford")
     page.close()

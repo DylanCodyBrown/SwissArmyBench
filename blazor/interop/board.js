@@ -69,7 +69,7 @@ export async function pictures(board) {
     const id = card.dataset.card;
     const plot = card.querySelector(".js-plotly-plot");
     const image = card.querySelector("img.card-image");
-    const svg = card.querySelector(".mermaid-host svg, svg.mermaid");
+    const svg = card.querySelector(".mermaid-host svg, svg.mermaid, .vega-host svg");
     if (plot && window.Plotly?.toImage) out[id] = await window.Plotly.toImage(plot, { format: "png", scale: 2 }).catch(() => null);
     else if (image) out[id] = image.src;
     else if (svg) out[id] = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(new XMLSerializer().serializeToString(svg))))}`;
@@ -102,4 +102,11 @@ export function print(paperCss) {
   };
   window.addEventListener("afterprint", done);
   window.print();
+}
+
+/** Show: a card brought into view (the board's own scroll) and marked as it lands. */
+export function reveal(board, id) {
+  const card = board?.querySelector(`.board-card[data-card="${CSS.escape(id)}"]`);
+  card?.scrollIntoView({ block: "start", behavior: "auto" });
+  return Boolean(card);
 }

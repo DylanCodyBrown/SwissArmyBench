@@ -12,7 +12,12 @@
         }
         else
         {
-            <div class="toast" role="status">@note.Words</div>
+            <div class="toast" role="status">@note.Words
+                @if (note.ActionLabel is { } label && note.Action is { } action)
+                {
+                    <button type="button" class="btn small ghost toast-action" @onclick="async () => { Notes.Dismiss(note); await action(); }">@label</button>
+                }
+            </div>
         }
     }
 </div>

@@ -446,3 +446,112 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .environment-viewer { position: sticky; top: 0; flex: 0 0 320px; max-height: 70vh; border: 1px solid var(--border); border-radius: 8px; }
 .environment-name { color: inherit; text-decoration: none; }
 .environment-parts td { padding: 2px 8px; font-size: 12px; }
+
+/* Analyze's side: the chips, the table line, Check this table and What can I do with a column? (the classic grid.css) */
+.analyze-table {display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.analyze-table .icon-svg {flex: none; width: 16px; height: 16px; color: var(--muted); }
+.analyze-table-name {flex: 1; min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.analyze-chip-row {display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.analyze-chip-row .chip-label {min-width: 72px; color: var(--muted); }
+.analyze-chip-row .chips {display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.analyze-chip-row .chip {display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 1px 4px 1px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg); font-weight: 600; }
+.analyze-chip-row .chip.empty {border-style: dashed; font-weight: 400; }
+.analyze-chip-row .chip:has(select) {padding: 0; }
+.analyze-chip-row .chip-select,
+.analyze-chip-row .chip-add {max-width: 230px; padding: 3px 6px 3px 10px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-overflow: ellipsis; }
+.analyze-chip-row .chip-add {border: 1px dashed var(--border-strong); color: var(--muted); font-weight: 400; }
+.chip-said {color: var(--muted); font-size: 0.9em; }
+.analyze-more,
+.analyze-needs,
+.analyze-rest {border-top: 1px solid var(--border); padding-top: 8px; }
+.analyze-more > summary,
+.analyze-needs > summary,
+.analyze-rest > summary {cursor: pointer; font-weight: 600; }
+.analyze-option small,
+.analyze-ranked small,
+.analyze-sample-wrap small {color: var(--muted); }
+.analyze-columns {display: flex; flex-direction: column; gap: 3px; }
+.analyze-column {display: grid; grid-template-columns: minmax(90px, 1fr) 90px minmax(0, 1.3fr); align-items: baseline; gap: 8px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.analyze-column[aria-selected="true"] {border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.analyze-column:disabled {color: var(--muted); cursor: default; }
+.analyze-column-type,
+.analyze-column-preview {overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.analyze-big {display: flex; flex-direction: column; gap: 8px; }
+.analyze-big-btn {display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.analyze-big-btn:hover,
+.analyze-big-btn:focus-visible {border-color: var(--accent); }
+.analyze-big-label {font-size: 1.12em; font-weight: 700; }
+.analyze-big-name,
+.analyze-big-reason {grid-column: 1; color: var(--muted); }
+.analyze-big-verb {grid-column: 2; grid-row: 1 / span 3; display: inline-flex; align-items: center; align-self: center; gap: 5px; padding: 5px 10px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.analyze-big-verb .icon-svg {width: 14px; height: 14px; }
+.analyze-ranked {margin: 6px 0 0; padding: 0; list-style: none; }
+.analyze-ranked li {display: flex; flex-direction: column; align-items: flex-start; padding: 4px 0; }
+.analyze-ranked li[data-status="no"] .analyze-ranked-label {color: var(--muted); }
+.dialog.wide { width: min(1100px, calc(100vw - 48px)); max-width: none; }
+.vega-host { width: 100%; min-height: 120px; }
+.vega-host.expanded-chart { min-height: 560px; }
+.analyze-page.dock-bottom .analyze-main { flex-direction: column-reverse; }
+.analyze-page.dock-bottom .analyze-side { flex-basis: auto; max-height: 45%; border-right: 0; border-top: 1px solid var(--border); }
+.analyze-page.panel-max .analyze-toolbar, .analyze-page.panel-max .analyze-side { display: none; }
+.analyze-side-head { display: flex; justify-content: flex-end; }
+.wb-table-line { border: 0; background: transparent; }
+.wb-table-bar { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+.wb-table-bar .spacer { flex: 1; }
+.wb-table-line.role-tables .wb-fold { font-weight: 600; font-size: 1.05em; }
+.wb-fold { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; }
+.wb-table-note { color: var(--muted); }
+
+/* A cell's lineage with its values (the classic grid.css) */
+.monaco-editor .wb-line-note { color: var(--muted); font-style: italic; }
+.monaco-editor .wb-line-note.stale { color: var(--warn); font-weight: 600; }
+.wb-lineage-shade { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / 0.25); }
+.wb-lineage { position: absolute; inset: 24px; display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--raised); box-shadow: var(--shadow); overflow: hidden; }
+/* The Data mode's Lineage view: the same flow, in place in data.ipynb's group. */
+.wb-lineage.in-place { position: static; grid-column: 1 / -1; min-height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.wb-lin-top { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.wb-lin-top h2 { margin: 0; font-size: 1.08em; }
+.wb-lin-target { min-width: 0; overflow: hidden; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
+.wb-lin-body { flex: 1; min-height: 0; padding: 14px; overflow: auto; }
+.wb-lin-flow { position: relative; display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.wb-lin-values { position: relative; }
+.wb-lin-chart { display: flex; justify-content: center; min-width: 0; }
+.wb-lin-chart svg { height: auto; }
+.wb-lin-chart g.node { cursor: pointer; }
+.wb-lin-chart g.node.picked :is(rect, polygon, path, circle, ellipse) { stroke: var(--accent) !important; stroke-width: 4px !important; }
+.wb-lin-card { position: absolute; right: 0; left: 0; box-sizing: border-box; padding: 6px 8px 6px 10px; border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: 10px; background: var(--bg); cursor: pointer; }
+.wb-lin-card.doc-notebook,
+.wb-lin-card.doc-data { border-left-color: var(--lineage-notebook); }
+.wb-lin-card.doc-script { border-left-color: var(--lineage-script); }
+.wb-lin-card.target { background: var(--accent-soft); }
+.wb-lin-card.picked { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wb-lin-card.broke { border-color: var(--error); }
+.wb-lin-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wb-lin-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wb-lin-label { min-width: 0; overflow: hidden; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+.wb-lin-page { flex: none; padding: 0 6px; border: 1px solid var(--lineage-app); border-radius: 999px; color: var(--lineage-app); font-size: 11.5px; }
+.wb-lin-where { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wb-lin-item { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; min-width: 0; }
+.wb-lin-size { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.wb-lin-name { color: var(--muted); }
+.wb-lin-value { max-height: 6.5em; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wb-lin-change { padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 999px; font-size: 11.5px; }
+.wb-lin-head { max-width: 100%; overflow-x: auto; }
+.wb-lin-table { border-collapse: collapse; font-family: "Cascadia Code", Consolas, "Courier New", monospace; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.wb-lin-table :is(th, td) { max-width: 12em; padding: 1px 6px; overflow: hidden; border-bottom: 1px solid var(--border); white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.wb-lin-table th { color: var(--muted); font-weight: 600; }
+.wb-lin-picture { align-self: flex-start; max-width: 100%; max-height: 96px; object-fit: contain; }
+.wb-lin-error { margin-top: 4px; overflow-wrap: anywhere; }
+.wb-lin-notes:empty { display: none; }
+.wb-lineage { inset: 8px; }
+.wb-lin-card { position: static; margin-bottom: 8px; }
+.wb-lin-values { position: static; }
+.wb-explorer { display: flex; flex-direction: column; flex: 0 0 280px; min-width: 200px; overflow: auto; border-right: 1px solid var(--border); background: var(--surface); padding: 6px 8px; gap: 6px; order: -1; }
+.wb-explorer-head, .wb-explorer-row { display: flex; align-items: center; gap: 4px; }
+.wb-explorer-head .spacer, .wb-explorer-row .spacer { flex: 1; }
+.wb-explorer-results h3 { font-size: 0.85em; margin: 8px 0 2px; }
+.wb-explorer-files { display: flex; flex-direction: column; border-top: 1px solid var(--border); padding-top: 6px; }
+.wb-explorer-flyout { position: relative; flex: 0 0 300px; overflow: auto; border-right: 1px solid var(--border); order: -1; }
+.wb-flyout-close { position: absolute; top: 4px; right: 4px; z-index: 1; }
+.wb-help-card { position: fixed; right: 24px; bottom: 56px; width: min(460px, calc(100vw - 48px)); max-height: 50vh; overflow: auto; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow); z-index: 40; }
+.wb-help-close { position: absolute; top: 6px; right: 6px; }

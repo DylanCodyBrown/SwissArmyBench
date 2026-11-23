@@ -5,6 +5,7 @@
 @using SwissArmyBench.Web.Api.Analyze
 
 <div class="board-bar" role="toolbar" aria-label="The board">
+    <button type="button" class="btn small" @onclick="OnAddChart"><Icon Name="profile" /> Add chart</button>
     <button type="button" class="btn small" @onclick="OnAddNote"><Icon Name="edit" /> Add note</button>
     <span class="toolbar-gap"></span>
     <button type="button" class="btn small" aria-pressed="@(PageView ? "true" : "false")" @onclick="() => OnPageView.InvokeAsync(!PageView)">
