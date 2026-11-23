@@ -6,6 +6,7 @@ frame."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from playwright.sync_api import Browser, expect
@@ -226,4 +227,28 @@ def test_a_file_changed_elsewhere_is_followed_or_asked_about(
     bar.locator("button:has-text('Keep mine')").click()
     expect(bar).to_have_count(0)
     expect(lines).to_contain_text("# mine")
+    page.close()
+
+
+def test_the_files_pane_finds_outlines_and_duplicates(browser: Browser, server: dict[str, Any]) -> None:
+    made = call(server, "POST", "/project/new", {"name": "made_up_files"})
+    folder = Path(made["project"]["path"])
+    (folder / "scripts").mkdir(exist_ok=True)
+    text = "def helper():\n    return 1\n\n\nclass MadeUpThing:\n    def go(self):\n        pass\n"
+    call(server, "POST", "/workbench/save", {"path": str(folder / "scripts" / "tools.py"), "text": text})
+    page = open_page(browser, server, "scripts")
+    pane = page.locator(".files-pane")
+    pane.locator("input[aria-label=Find]").fill("MadeUpThing")
+    row = pane.locator(".wb-codex-file-row", has_text="tools")
+    expect(row).to_have_count(1)
+    expect(pane.locator(".wb-codex-symbol[data-symbol=MadeUpThing]")).to_be_visible()
+    pane.locator(".wb-codex-symbol[data-symbol=MadeUpThing]").click()
+    expect(page.locator(".wb-tab.active")).to_contain_text("tools.py")
+    expect(page.locator(".monaco-editor .line-numbers.active-line-number")).to_have_text("5", timeout=15_000)
+
+    pane.locator("input[aria-label=Find]").fill("")
+    pane.locator(".files-item", has_text="tools").click(button="right")
+    page.locator(".context-menu [role=menuitem]:has-text('Duplicate')").click()
+    expect(page.locator(".wb-tab.active")).to_contain_text("tools_copy", timeout=15_000)
+    call(server, "POST", "/project/close", {"discard": True})
     page.close()

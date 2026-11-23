@@ -165,3 +165,11 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .wb-debug-in { color: var(--muted, inherit); }
 .wb-script > .wb-debug { flex: 0 0 auto; max-height: 40%; overflow: auto; }
 .wb-elsewhere { display: flex; flex: none; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--warn); background: var(--warn-soft, var(--surface-2)); }
+/* The Files pane's Find, outlines and marks (the classic .wb-codex measures). */
+.wb-codex-search { margin: 6px 10px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; }
+.wb-codex-file-row { display: flex; align-items: center; gap: 2px; }
+.wb-codex-file-row > .files-item { flex: 1 1 auto; min-width: 0; }
+.wb-codex-fold { display: inline-flex; flex: none; width: 18px; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.wb-codex-symbol { display: flex; align-items: center; gap: 6px; width: 100%; padding: 2px 8px; border: 0; background: none; color: var(--fg); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.wb-codex-symbol:hover { background: var(--surface-2); }
+.wb-codex-mark { color: var(--muted); }

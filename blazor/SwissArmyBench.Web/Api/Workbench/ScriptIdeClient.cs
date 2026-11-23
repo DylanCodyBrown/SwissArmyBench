@@ -37,4 +37,15 @@ public sealed class ScriptIdeClient
 
     public Task<IdeWritten> ReplaceAsync(string query, bool regex, bool matchCase, bool word, string to) =>
         _api.PostAsync<IdeWritten>("/scripts/replace", new { query, regex, @case = matchCase, word, to, apply = true });
+
+    public Task<FileMove> MovePlanAsync(string path, string to) => _api.PostAsync<FileMove>("/scripts/files/move", new { path, to });
+
+    public Task<FileMove> MoveAsync(string path, string to) => _api.PostAsync<FileMove>("/scripts/files/move", new { path, to, apply = true });
+
+    public Task<FilePlace> DuplicateAsync(string path) => _api.PostAsync<FilePlace>("/scripts/files/duplicate", new { path });
+
+    /// <summary>To the system's trash (the user's own).</summary>
+    public Task<FilePlace> DeleteAsync(string path) => _api.PostAsync<FilePlace>("/scripts/files/delete", new { path });
+
+    public Task<FilePlace> NewPackageAsync(string name, string? parent) => _api.PostAsync<FilePlace>("/scripts/files/package", new { name, parent });
 }

@@ -22,6 +22,9 @@ public partial class CodeEditor
     // Focus asked for before Monaco was made (a cell just added): given once it is.
     private bool _focusWhenMade;
 
+    // A line to show asked for before Monaco was made (a file just opened at a definition): shown once it is.
+    private int? _revealWhenMade;
+
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
@@ -101,6 +104,10 @@ public partial class CodeEditor
             {
                 await _editor.InvokeVoidAsync("focus");
             }
+            if (_revealWhenMade is { } line)
+            {
+                await _editor.InvokeVoidAsync("revealLine", line);
+            }
             return;
         }
         if (_editor is null)
@@ -142,6 +149,7 @@ public partial class CodeEditor
     /// <summary>The cursor to a line, scrolled into view, with the focus (an error's In your code, a definition).</summary>
     public async Task RevealLineAsync(int line)
     {
+        _revealWhenMade = _editor is null ? line : null;
         if (_editor is not null)
         {
             await _editor.InvokeVoidAsync("revealLine", line);

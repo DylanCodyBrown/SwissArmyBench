@@ -53,7 +53,7 @@
         </div>
         @if (_showFiles)
         {
-            <FilesPane Page="@Page" Tree="_tree" Current="@Front?.Path" OnRefresh="LoadTreeAsync" />
+            <FilesPane Page="@Page" Tree="_tree" Current="@Front?.Path" OnRefresh="LoadTreeAsync" OnNew="NewAsync" OnOpenAt="OpenAtAsync" OnAction="FileActionAsync" />
         }
         @if (_showBlades)
         {
@@ -117,6 +117,10 @@
                 }
             </Foot>
         </AppDialog>
+    }
+    @if (_renamingFile is { } renamingPath)
+    {
+        <SwissArmyBench.Web.Pages.Workbench.Ide.RenameFileDialog Path="@renamingPath" OnClose="() => _renamingFile = null" OnRenamed="RenamedAsync" />
     }
     @if (_searching)
     {

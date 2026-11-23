@@ -1,0 +1,108 @@
+@* Rename a module or a package (the classic workbenchIde.ts renameFile): its new name, then its imports' preview
+   across the project as typing settles, then Rename (Enter too). *@
+@using SwissArmyBench.Web.Api.Workbench
+@inject ScriptIdeClient Ide
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<AppDialog Title="@($"Rename {System.IO.Path.GetFileName(Path)}")" OnClose="OnClose">
+    <ChildContent>
+        <label class="field"><span>@(IsPackage ? "Package name" : "Module name")</span>
+            <input type="text" aria-label="New name" spellcheck="false" data-no-variables @bind="_to" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
+        </label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <div class="ide-results-host">
+            @if (_plan is { } plan)
+            {
+                <p class="hint">@plan.Module becomes @plan.NewModule@(plan.Preview?.Count > 0 ? $": its imports in {plan.Preview.Count} file{(plan.Preview.Count == 1 ? string.Empty : "s")} follow." : ".")</p>
+                <IdePreview Plan="new IdePlan(plan.Preview ?? [], plan.Skipped ?? [])" />
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="ApplyAsync">Rename</button>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    // The plan waits for typing to settle this long.
+    private const int SettleMs = 300;
+
+    private string _to = string.Empty;
+    private string? _planned;
+    private FileMove? _plan;
+    private Exception? _error;
+    private CancellationTokenSource? _later;
+
+    /// <summary>The module's file, or a package's folder.</summary>
+    [Parameter, EditorRequired]
+    public string Path { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>Renamed: its new path.</summary>
+    [Parameter]
+    public EventCallback<string> OnRenamed { get; set; }
+
+    private bool IsPackage => !Path.EndsWith(".py", StringComparison.Ordinal);
+
+    private string Current => System.IO.Path.GetFileName(Path) is var name && name.EndsWith(".py", StringComparison.Ordinal) ? name[..^3] : System.IO.Path.GetFileName(Path);
+
+    protected override void OnInitialized() => _to = Current;
+
+    private async Task LaterAsync()
+    {
+        _later?.Cancel();
+        _later = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(SettleMs, _later.Token);
+            await PlanAsync();
+        }
+        catch (TaskCanceledException)
+        {
+            // typing went on
+        }
+    }
+
+    private async Task<bool> PlanAsync()
+    {
+        var to = _to.Trim();
+        if (to.Length == 0 || to == Current)
+        {
+            return false;
+        }
+        try
+        {
+            _plan = await Ide.MovePlanAsync(Path, to);
+            (_planned, _error) = (to, null);
+            return true;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            return false;
+        }
+    }
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? ApplyAsync() : Task.CompletedTask;
+
+    private async Task ApplyAsync()
+    {
+        if (_planned != _to.Trim() && !await PlanAsync())
+        {
+            return;
+        }
+        try
+        {
+            var done = await Ide.MoveAsync(Path, _planned!);
+            await Notes.SayAsync($"Renamed to {System.IO.Path.GetFileName(done.To)}.");
+            await OnRenamed.InvokeAsync(done.To ?? Path);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}
