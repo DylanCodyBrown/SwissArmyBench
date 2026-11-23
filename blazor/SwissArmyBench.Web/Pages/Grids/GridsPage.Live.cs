@@ -11,7 +11,16 @@ public partial class GridsPage
     private void OnNotice(Notice notice)
     {
         var mine = notice.Text("grid") is { } grid && _infos.ContainsKey(grid);
-        if (notice.Type.StartsWith("dataset_", StringComparison.Ordinal) || notice.Type is "grid_closed" or "grid_shown" or "table_connection")
+        if (notice.Type == "grid_shown" && notice.Text("grid") is { } arrived)
+        {
+            // A push, a file opened, a paste or the agent: the new grid arrives as a tab and comes to the front.
+            _ = InvokeAsync(async () =>
+            {
+                _tabs = await Grids.ListAsync();
+                Nav.NavigateTo(Address(arrived, null));
+            });
+        }
+        else if (notice.Type.StartsWith("dataset_", StringComparison.Ordinal) || notice.Type is "grid_closed" or "table_connection")
         {
             _ = InvokeAsync(async () =>
             {

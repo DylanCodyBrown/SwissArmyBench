@@ -135,3 +135,13 @@ button.sab-header-sort.active { color: var(--accent); font-weight: 700; }
 .header-card-top { margin: 6px 0 0; padding: 0; list-style: none; }
 .header-card-top li { display: flex; justify-content: space-between; gap: 8px; }
 .header-card-top li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== tables coming in (openMenu.ts, openFile.ts, renameTable.ts) ===== */
+.open-session { display: grid; gap: 6px; margin-top: 10px; }
+.open-session > header { display: flex; align-items: center; gap: 8px; }
+.sheet-list { display: grid; gap: 4px; }
+.paste-box { width: 100%; font-family: "Cascadia Code", Consolas, monospace; }
+.pasted-corner { bottom: 80px; }
+.toast-naming { display: flex; align-items: center; gap: 8px; }
+.toast-name { width: 16ch; min-width: 0; padding: 1px 4px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; }
+body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offset: -6px; }

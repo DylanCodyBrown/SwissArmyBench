@@ -207,7 +207,7 @@ public partial class Home : IDisposable
     /// <summary>Open a file as a table (CSV, Parquet, Excel, JSON): it opens on the Grids page.</summary>
     private async Task OpenFileAsync()
     {
-        var path = await Files.ChooseAsync("open", "Open a file", null, "table");
+        var path = await Files.ChooseAsync("file", "Open a file", null, "table");
         if (path is null)
         {
             return;

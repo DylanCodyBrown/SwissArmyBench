@@ -100,6 +100,7 @@ public partial class GridsPage : IDisposable
         Live.NoticeArrived += OnNotice;
         var kept = await Js.InvokeAsync<string?>("sab.recall", OrderKey);
         _order = kept is { Length: > 0 } ? kept.Split(',', StringSplitOptions.RemoveEmptyEntries) : [];
+        await ListenForDropsAsync();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -288,6 +289,8 @@ public partial class GridsPage : IDisposable
         Status.Set(null);
         Status.SetRows(null);
         _scrollLock?.InvokeVoidAsync("release");
+        _drop?.Dispose();
+        _pasteListener?.InvokeVoidAsync("stop");
         GC.SuppressFinalize(this);
     }
 }

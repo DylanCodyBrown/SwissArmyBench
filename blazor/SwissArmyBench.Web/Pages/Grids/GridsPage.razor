@@ -9,7 +9,12 @@
 <section class="area-page grids-page" @onkeydown="PageKeyAsync">
     <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Active="@_active" Split="_split" IsNewQuery="IsNewQuery"
               OnActivate="ActivateAsync" OnClose="CloseGridAsync" OnMenu="TabMenu" OnSplit="SplitWithAsync" OnOrder="SetOrderAsync"
-              OnDragging="d => _dragging = d" OnRename="RenameAsync" />
+              OnDragging="d => _dragging = d" OnRename="RenameAsync">
+        <Extra>
+            <button type="button" class="btn ghost icon tab-new" aria-label="Open file…" title="Open file…" @onclick="OpenFileAsync"><Icon Name="folder" /></button>
+            <button type="button" class="btn ghost icon tab-new" aria-label="Tables" title="Tables" @onclick="() => _dialog = TablesList"><Icon Name="rows" /></button>
+        </Extra>
+    </GridTabs>
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
     @if (IsNewQuery || (_tabs.Count == 0 && _loaded))
     {
@@ -111,6 +116,25 @@
         default:
             break;
     }
+}
+@switch (_dialog)
+{
+    case TablesList:
+        <TablesDialog OnClose="CloseDialog" />
+        break;
+    case PasteData:
+        <PasteDataDialog OnClose="CloseDialog" />
+        break;
+    default:
+        break;
+}
+@if (_sheets is { } asking)
+{
+    <SheetsDialog File="@asking.File" Sheets="asking.Sheets" OnPicked="SheetsPicked" />
+}
+@if (_pasted is { } pasted)
+{
+    <PastedNote Name="@pasted" OnRename="to => RenameAsync((pasted, to))" OnClose="() => _pasted = null" />
 }
 @if (_menu is { } menu)
 {

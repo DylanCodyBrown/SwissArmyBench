@@ -2,6 +2,16 @@
 // Nothing here holds data or a secret: the token is read from the address once, traded for the page's cookie and
 // dropped (the same as the classic front end's api.ts openSession).
 
+/** A refusal's one sentence (domain/refusals.py's shape), else the answer's text. */
+async function refusalWords(answer) {
+  const text = await answer.text();
+  try {
+    return JSON.parse(text).error ?? text;
+  } catch {
+    return text;
+  }
+}
+
 window.sab = {
   /** The page's session: the #token in the address (never sent to the server by the browser) bought once for the
    *  page's cookie, then the address cleaned; or the cookie this browser already holds. True when it worked. */
@@ -68,6 +78,80 @@ window.sab = {
 
   focus(selector) {
     document.querySelector(selector)?.focus();
+  },
+
+  /** A box that opens a pasted table at once: a paste of more than one line goes to the C# listener. */
+  onTablePaste(box, listener) {
+    box.addEventListener("paste", (event) => {
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      if (!text.includes("\n")) return;
+      event.preventDefault();
+      box.value = text;
+      listener.invokeMethodAsync("Pasted", text);
+    });
+  },
+
+  /** Ctrl+V of a table (tab-separated lines) anywhere but a text box or an editor: told to the C# listener, which
+   *  opens it as a new table. Returns what stops listening. */
+  pagePaste(listener) {
+    const heard = (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, .monaco-editor")) return;
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      if (!(text.includes("\t") && text.includes("\n"))) return;
+      event.preventDefault();
+      listener.invokeMethodAsync("PastedTable", text);
+    };
+    document.addEventListener("paste", heard);
+    return { stop: () => document.removeEventListener("paste", heard) };
+  },
+
+  /** Text sent as a request's body (a pasted table); a refusal is thrown with its words. */
+  async postText(url, text) {
+    const answer = await fetch(url, { method: "POST", body: text });
+    if (!answer.ok) throw new Error(await refusalWords(answer));
+  },
+
+  /** Files dropped anywhere on the page: each kept here by a number and told to the C# listener, which asks for
+   *  a workbook's sheets (droppedSheets) and sends each table (dropAs). A tab dragged between tabs is not a file. */
+  fileDrop(listener) {
+    const dropped = new Map();
+    let next = 0;
+    const hasFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+    document.addEventListener("dragover", (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      document.body.classList.add("dropping-file");
+    });
+    document.addEventListener("dragleave", (event) => {
+      if (!event.relatedTarget) document.body.classList.remove("dropping-file");
+    });
+    document.addEventListener("drop", (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      document.body.classList.remove("dropping-file");
+      for (const file of Array.from(event.dataTransfer?.files ?? [])) {
+        next += 1;
+        dropped.set(next, file);
+        listener.invokeMethodAsync("Dropped", next, file.name);
+      }
+    });
+    const send = async (url, file) => {
+      const answer = await fetch(url, { method: "POST", body: await file.arrayBuffer() });
+      if (!answer.ok) throw new Error(await refusalWords(answer));
+      return answer;
+    };
+    window.sab.droppedSheets = async (id) => {
+      const file = dropped.get(id);
+      return (await (await send(`/files/dropped-sheets?filename=${encodeURIComponent(file.name)}`, file)).json()).sheets;
+    };
+    window.sab.dropAs = async (id, name, sheet) => {
+      const file = dropped.get(id);
+      const part = sheet ? `&sheet=${encodeURIComponent(sheet)}` : "";
+      await send(`/datasets/${encodeURIComponent(name)}/drop?filename=${encodeURIComponent(file.name)}${part}`, file);
+    };
+    window.sab.forgetDropped = (id) => dropped.delete(id);
   },
 
   /** Whether the keys are going to a text box or an editor (the page's own shortcuts leave them alone). */
