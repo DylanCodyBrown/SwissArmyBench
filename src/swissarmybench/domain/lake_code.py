@@ -744,6 +744,8 @@ class Lake(LakeWrites):
         conn.cursor()                 that DuckDB, for %%sql
     """
 
+    sab_source = "lake"  # what the adapter reads it as (adapter.SAB_SOURCES)
+
     def __init__(self, store, kind_words="lake"):
         self.store, self.words = store, kind_words
         self.found, self._duck, self._logs, self.how = None, None, {}, ""

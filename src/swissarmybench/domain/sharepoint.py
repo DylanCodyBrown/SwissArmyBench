@@ -383,6 +383,8 @@ class SharePointLists(Site):
         conn.delete("Tasks", ids)            items deleted by id
     """
 
+    sab_source = "list"  # what the adapter reads it as (adapter.SAB_SOURCES)
+
     def tables(self):
         if self.found is None:
             self.found = []
@@ -546,6 +548,8 @@ class SharePointDocuments(Site):
         conn.text("Documents/Policies/Travel.docx")               a Word or PDF document's text
         conn.upload("Documents/Finance/out.csv", data)            bytes (or a DataFrame) uploaded
     """
+
+    sab_source = "rows"  # what the adapter reads it as (adapter.SAB_SOURCES): it reads, it takes no writes
 
     def __init__(self, site_url, token, header_row=1):
         super().__init__(site_url, token)

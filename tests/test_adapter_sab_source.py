@@ -5,12 +5,14 @@ connection's code) is told by its methods as before. Made-up data only."""
 
 from __future__ import annotations
 
+import ast
 from typing import Any
 
 import pyarrow as pa
 import pytest
 
 from swissarmybench.adapters import adapter as sab
+from swissarmybench.domain import dataverse, lakes, sharepoint
 
 
 class Reads:
@@ -85,3 +87,24 @@ def test_rows_writes_by_what_the_client_says() -> None:
     assert counts.inserted == 1 and listed.made == [{"Title": "a made-up task"}]
     with pytest.raises(sab.AdapterError, match="read only"):
         sab.Rows(SaysRows(), "Docs").write("Documents", pa.table({"a": [1]}).to_reader(), (), "insert")
+
+
+def _says(code: str, cls: str) -> str | None:
+    for node in ast.walk(ast.parse(code)):
+        if isinstance(node, ast.ClassDef) and node.name == cls:
+            for item in node.body:
+                if (
+                    isinstance(item, ast.Assign)
+                    and [getattr(t, "id", "") for t in item.targets] == ["sab_source"]
+                    and isinstance(item.value, ast.Constant)
+                ):
+                    return str(item.value.value)
+    return None
+
+
+def test_the_generated_clients_say_what_they_are() -> None:
+    assert _says(dataverse.MANAGED, "Dataverse") == "odata"
+    assert _says(lakes.DATALAKE_SIGN_INS[0][2], "Lake") == "lake"
+    assert _says(sharepoint.LISTS, "SharePointLists") == "list"
+    assert _says(sharepoint.DOCS, "SharePointDocuments") == "rows"
+    assert {"odata", "lake", "list", "rows"} == set(sab.SAB_SOURCES)

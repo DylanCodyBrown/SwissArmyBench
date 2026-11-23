@@ -419,6 +419,7 @@ class Dataverse:
         conn.url, conn.access_token()     for any other Web API request (conn.api is its root)
     """
 
+    sab_source = "odata"  # what the adapter reads it as (adapter.SAB_SOURCES)
     API = "/api/data/v9.2"
     LABEL = "@OData.Community.Display.V1.FormattedValue"
     LABELS = 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
