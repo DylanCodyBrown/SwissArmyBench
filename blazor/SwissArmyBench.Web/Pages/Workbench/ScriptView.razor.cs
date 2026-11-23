@@ -72,6 +72,50 @@ public partial class ScriptView
     private Task GutterAsync(GutterClick click) => _debug?.GutterAsync(click) ?? Task.CompletedTask;
 
     /// <summary>The cursor to a line, with the focus (a definition, a reference, a search result).</summary>
+    /// <summary>Lineage of the cell the line is in (a numbered `# %%` cell).</summary>
+    [Parameter]
+    public EventCallback<int> OnLineage { get; set; }
+
+    private static readonly IReadOnlyList<SwissArmyBench.Web.Components.EditorMenuAction> _lineageMenu = [new("lineage", "Lineage")];
+
+    private string DocumentName => Path is null ? "the script" : System.IO.Path.GetFileName(Path);
+
+    private async Task MenuActionAsync(SwissArmyBench.Web.Components.EditorMenuPick pick)
+    {
+        if (pick.Id != "lineage")
+        {
+            return;
+        }
+        if (ScriptCells.CellAt(Text, pick.Line) is { } number)
+        {
+            await OnLineage.InvokeAsync(number);
+        }
+        else
+        {
+            _error = new InvalidOperationException("Lineage starts from a numbered cell (a `# %%` cell).");
+        }
+    }
+
+    /// <summary>The line a numbered cell's marker is on (`# %% [7]`), for going to it.</summary>
+    public Task RevealCellAsync(int number) => ScriptCells.LineOf(Text, number) is { } line ? RevealLineAsync(line) : Task.CompletedTask;
+
+    /// <summary>F1: help on the name at the cursor.</summary>
+    /// <summary>The console shown or hidden (the status bar's Console, the palette's view.toggleConsole).</summary>
+    public bool ConsoleHidden { get; private set; }
+
+    /// <summary>The script's editor (the status bar's Problems list reads its lint).</summary>
+    public CodeEditor? Editor => _editor;
+
+    public void ToggleConsole()
+    {
+        ConsoleHidden = !ConsoleHidden;
+        StateHasChanged();
+    }
+
+    public Task<int> CursorLineAsync() => _editor?.CursorLineAsync() ?? Task.FromResult(0);
+
+    public Task<string?> HelpAsync() => _editor?.HelpAtCursorAsync() ?? Task.FromResult<string?>(null);
+
     public Task RevealLineAsync(int line) => _editor?.RevealLineAsync(line) ?? Task.CompletedTask;
 
     /// <summary>The lint's problems at warning or worse, as they change (the status bar's count).</summary>

@@ -33,6 +33,7 @@ public partial class WorkbenchPage
         MenuEntry.Separator,
         new("Layout: source only", "max", () => LayoutAsync(false), Keys: "Ctrl+Shift+1"),
         new("Layout: standard", "restore", () => LayoutAsync(true)),
+        new(_showExplorer ? "Close the Data Explorer" : "Data Explorer", "data", ToggleExplorerAsync, Keys: "Ctrl+Shift+E"),
         MenuEntry.Separator,
         new("Commands…", "steps", () => Toggle(() => _palette = true), Keys: "Ctrl+Shift+P"),
         new("Settings…", "cog", () => Go("settings")),

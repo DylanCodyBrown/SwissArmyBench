@@ -8,7 +8,37 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 
 public partial class NotebookCellView
 {
+    private static readonly IReadOnlyList<EditorMenuAction> _lineageMenu = [new("lineage", "Lineage")];
+
     private CodeEditor? _editor;
+    private int _nameKey;
+    private string? _typedName;
+
+    /// <summary>The editor's right-click Lineage: this cell back to the data.</summary>
+    [Parameter]
+    public EventCallback<CellModel> OnLineage { get; set; }
+
+    public CodeEditor? Editor => _editor;
+
+    /// <summary>F1: help on the name at the cursor in this cell's editor.</summary>
+    public Task<string?> HelpAsync() => _editor?.HelpAtCursorAsync() ?? Task.FromResult<string?>(null);
+
+    private Task MenuActionAsync(EditorMenuPick pick) => pick.Id == "lineage" ? OnLineage.InvokeAsync(Cell) : Task.CompletedTask;
+
+    /// <summary>The name box: Enter keeps the name, Escape puts the saved one back; either leaves the box.</summary>
+    private async Task NameKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("Enter" or "Escape"))
+        {
+            return;
+        }
+        if (e.Key == "Enter" && _typedName is { } typed)
+        {
+            await NameChangedAsync(new ChangeEventArgs { Value = typed });
+        }
+        _typedName = null;
+        _nameKey++; // the box made again: it shows the name kept and leaves the focus
+    }
 
     [Parameter, EditorRequired]
     public CellModel Cell { get; set; } = default!;

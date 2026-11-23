@@ -9,7 +9,7 @@
         <span class="wb-number" title="@($"Cell {Cell.Number}: this number never changes. @cell{Cell.Number} in a comment links here.")">#@Cell.Number</span>
         @if (!Cell.IsAppCell)
         {
-            <input type="text" class="wb-cell-name" maxlength="@MaxName" placeholder="Name" aria-label="Cell name" spellcheck="false" value="@Cell.Name" @onchange="NameChangedAsync" />
+            <input type="text" class="wb-cell-name" maxlength="@MaxName" placeholder="Name" aria-label="Cell name" spellcheck="false" value="@Cell.Name" @onchange="NameChangedAsync" @key="_nameKey" @oninput="e => _typedName = e.Value?.ToString()" @onkeydown="NameKeyAsync" @onkeydown:stopPropagation="true" />
         }
         <span class="wb-cell-number" title="Its run's number">[@(Cell.ExecutionCount?.ToString() ?? " ")]</span>
         @if (Cell.IsAppCell)
@@ -78,7 +78,8 @@
     {
         <CodeEditor @ref="_editor" Value="@Cell.Source" Language="@EditorLanguage" ReadOnly="Cell.IsAppCell" Grow="true" MinLines="2"
                     Label="@Label" Intel="EditorIntel"
-                    OnChange="TextChangedAsync" OnKey="KeyAsync" Inline="Inline" InlineDocument="InlineDocument" />
+                    OnChange="TextChangedAsync" OnKey="KeyAsync" Inline="Inline" InlineDocument="InlineDocument"
+                    AgentWhere="@($"cell {Cell.Number} of {Document}")" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
     }
     @if (Cell.OutputHidden)
     {

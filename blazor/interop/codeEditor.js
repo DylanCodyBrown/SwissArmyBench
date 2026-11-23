@@ -232,6 +232,7 @@ async function lint(model, language) {
   }));
   monaco.editor.setModelMarkers(model, "sab-lint", markers);
   const owner = owners.get(model);
+  if (owner) owner.ruffMissing = !!(found.ruff && !found.ruff.used && found.ruff.missing);
   owner?.dotnet.invokeMethodAsync("Linted", markers.filter((m) => m.severity >= monaco.MarkerSeverity.Warning).length).catch(() => {});
 }
 
@@ -244,6 +245,36 @@ export function setTheme(theme) {
  * An editor in `host`. options: value, language (python, sql, dax, markdown, html, json...), readOnly, grow (a
  * notebook cell: as tall as its text, no scrollbar of its own), minLines, intel (ask the server), theme.
  */
+// `${` in a SQL editor lists this computer's variables (the classic variableBox.ts list: each name and its source in
+// words, never a value), asked of GET /variables when it is typed.
+let variablesListed = false;
+function variableCompletion() {
+  if (variablesListed) return;
+  variablesListed = true;
+  monaco.languages.registerCompletionItemProvider("sql", {
+    triggerCharacters: ["{"],
+    async provideCompletionItems(model, position) {
+      const before = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+      const typed = /\$\{([A-Za-z0-9_]*)$/.exec(before);
+      if (!typed) return { suggestions: [] };
+      const range = new monaco.Range(position.lineNumber, position.column - typed[1].length, position.lineNumber, position.column);
+      const answer = await fetch("/variables", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : { variables: [] }), () => ({ variables: [] }));
+      return {
+        incomplete: false,
+        suggestions: (answer.variables ?? []).map((v) => ({
+          label: v.name,
+          kind: monaco.languages.CompletionItemKind.Variable,
+          insertText: `${v.name}}`,
+          filterText: v.name,
+          range,
+          detail: v.vault ? `${v.words} · ${v.vault}` : v.words,
+          sortText: `0${v.name}`,
+        })),
+      };
+    },
+  });
+}
+
 export function create(host, dotnet, options) {
   registerIntel();
   const language = LANGUAGES[options.language] ?? options.language ?? "plaintext";
@@ -366,6 +397,41 @@ export function create(host, dotnet, options) {
     }
   }
 
+  // The editor's own right-click menu (the classic lazy/codeEditor.ts): Send to the agent (and with a question…), the
+  // page's actions for this editor (a cell's Lineage), Insert variable… in SQL, and beta mode's Leave a note…; each
+  // told to C# by its id with the selection (or the cursor's line).
+  const menu = options.menu ?? {};
+  const picked = (id) => () => {
+    const chosen = editor.getSelection();
+    const line = chosen?.startLineNumber ?? editor.getPosition()?.lineNumber ?? 1;
+    const end = chosen && !chosen.isEmpty() ? chosen.endLineNumber : line;
+    const text = chosen && !chosen.isEmpty() ? model.getValueInRange(chosen) : model.getLineContent(line);
+    dotnet.invokeMethodAsync("Menu", id, line, end, text).catch(() => {});
+  };
+  if (menu.agent) {
+    editor.addAction({ id: "sab.sendToAgent", label: "Send to the agent", contextMenuGroupId: "0_agent", contextMenuOrder: 1, run: picked("sendToAgent") });
+    editor.addAction({ id: "sab.sendToAgentAsk", label: "Send to the agent with a question…", contextMenuGroupId: "0_agent", contextMenuOrder: 2, run: picked("sendToAgentAsk") });
+  }
+  for (const action of menu.actions ?? []) {
+    editor.addAction({ id: `sab.page.${action.id}`, label: action.label, contextMenuGroupId: "1_cell", contextMenuOrder: 1, run: picked(action.id) });
+  }
+  if (language === "sql") {
+    variableCompletion();
+    editor.addAction({
+      id: "sab.insertVariable",
+      label: "Insert variable…",
+      contextMenuGroupId: "9_cutcopypaste",
+      contextMenuOrder: 9,
+      run: () => {
+        editor.trigger("sab", "type", { text: "${" });
+        editor.trigger("sab", "editor.action.triggerSuggest", {});
+      },
+    });
+  }
+  if (menu.beta) {
+    editor.addAction({ id: "sab.leaveNote", label: "Leave a note…", contextMenuGroupId: "9_beta", contextMenuOrder: 1, run: picked("leaveNote") });
+  }
+
   // The debugger's gutter (the classic workbenchDebug.ts): a click in the glyph margin toggles a breakpoint, a right
   // click there or on a line number opens its menu; both told to C# by the line.
   const breakpointDecorations = editor.createDecorationsCollection([]);
@@ -418,6 +484,24 @@ export function create(host, dotnet, options) {
       editor.revealLineInCenterIfOutsideViewport(line);
     },
     cursorLine: () => editor.getPosition()?.lineNumber ?? 0,
+    /** The lint's problems as drawn (the status bar's Problems list), and whether Ruff could check it too. */
+    problems: () => monaco.editor.getModelMarkers({ resource: model.uri, owner: "sab-lint" })
+      .filter((m) => m.severity >= monaco.MarkerSeverity.Warning)
+      .map((m) => ({ line: m.startLineNumber, col: m.startColumn, message: m.message })),
+    ruffMissing: () => owners.get(model)?.ruffMissing === true,
+    /** A place in the code shown, the cursor there. */
+    reveal: (line, col) => {
+      editor.revealLineInCenter(line);
+      editor.setPosition({ lineNumber: line, column: col });
+      editor.focus();
+    },
+    /** F1: the server's help on the name at the cursor (its hover's words), or null. */
+    helpAtCursor: async () => {
+      const position = editor.getPosition();
+      if (!position) return null;
+      const found = await ask("hover", model, { offset: model.getOffsetAt(position) });
+      return found?.hover ?? null;
+    },
     setFontSize: (px) => editor.updateOptions({ fontSize: px }),
     getValue: () => editor.getValue(),
     /** Text from C#: the cursor kept where it was, and no Changed told back. */

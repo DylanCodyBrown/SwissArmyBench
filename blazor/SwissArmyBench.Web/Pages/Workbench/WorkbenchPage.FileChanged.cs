@@ -27,6 +27,11 @@ public partial class WorkbenchPage
 
     private async Task FileChangedAsync(OpenDocument doc, string? hash)
     {
+        if (doc.StructureDoc is { } structure)
+        {
+            await structure.ChangedOnDiskAsync(hash);
+            return;
+        }
         if (hash is not null && hash == doc.Hash)
         {
             return; // this page's own save, or the same text

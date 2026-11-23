@@ -51,7 +51,7 @@ public sealed class PythonSession : IDisposable
         Changed?.Invoke();
         try
         {
-            var started = await _workbench.StartAsync(path);
+            var started = await _workbench.StartAsync(path, path is not null ? _chosen.GetValueOrDefault(path) : _chosenUnsaved);
             Kernel = started.Kernel;
             Python = started.Python;
             Shared = started.Session;
@@ -64,6 +64,32 @@ public sealed class PythonSession : IDisposable
             Starting = false;
             Changed?.Invoke();
         }
+    }
+
+    // The Python chosen for a loose document (the status bar's Environment), by its path; an unsaved one's apart.
+    private readonly Dictionary<string, string> _chosen = [];
+    private string? _chosenUnsaved;
+
+    /// <summary>The Python a loose document's kernel runs in from its next start (null: this app's own).</summary>
+    public string? ChosenFor(string? path) => path is null ? _chosenUnsaved : _chosen.GetValueOrDefault(path);
+
+    /// <summary>A loose document's Python chosen: its kernel stopped when it ran in another (true: one was).</summary>
+    public async Task<bool> ChooseAsync(string? path, string python)
+    {
+        if (path is null)
+        {
+            _chosenUnsaved = python;
+        }
+        else
+        {
+            _chosen[path] = python;
+        }
+        if (Kernel is not null && Shared is null && _forPath == path)
+        {
+            await StopAsync();
+            return true;
+        }
+        return false;
     }
 
     /// <summary>A run began (true) or ended (false): the status bar says Running… while any runs.</summary>

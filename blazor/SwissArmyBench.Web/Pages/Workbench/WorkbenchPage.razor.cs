@@ -58,6 +58,9 @@ public partial class WorkbenchPage
     private ConnectionsClient ConnectionsApi { get; set; } = default!;
 
     [Inject]
+    private SwissArmyBench.Web.Api.Environment.EnvironmentClient EnvironmentApi { get; set; } = default!;
+
+    [Inject]
     private FileChooser Files { get; set; } = default!;
 
     [Inject]
@@ -88,6 +91,13 @@ public partial class WorkbenchPage
     [Parameter]
     public bool New { get; set; }
 
+    /// <summary>The script's line to reveal (its cursor there), or the notebook's cell to select (the classic file.openCell).</summary>
+    [Parameter]
+    public int? Line { get; set; }
+
+    [Parameter]
+    public int? Cell { get; set; }
+
     private bool IsNotebooks => Page == "notebooks";
 
     private string Kind => IsNotebooks ? "notebook" : "script";
@@ -105,9 +115,11 @@ public partial class WorkbenchPage
         Project.Changed += Redraw;
         _showFiles = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.files") != "0";
         _showBlades = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.blades") == "1";
+        _showExplorer = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.explorer") == "1";
         Live.NoticeArrived += OnInlineNotice;
         Live.NoticeArrived += OnFileNotice;
-        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync());
+        Live.NoticeArrived += OnPythonNotice;
+        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync());
     }
 
     private async Task LoadBetaAsync()
@@ -135,7 +147,7 @@ public partial class WorkbenchPage
 
     protected override async Task OnParametersSetAsync()
     {
-        var wanted = $"{Path}|{New}|{Blade}";
+        var wanted = $"{Path}|{New}|{Blade}|{Line}|{Cell}";
         if (wanted == _shownFor)
         {
             return;
@@ -149,6 +161,7 @@ public partial class WorkbenchPage
         else if (Path is { Length: > 0 } path)
         {
             await OpenPathAsync(path);
+            RevealAfterOpen(path);
         }
         else if (New)
         {
@@ -183,7 +196,14 @@ public partial class WorkbenchPage
         "files" => ToggleFilesAsync(),
         "debug" when Front is { IsNotebook: false } doc => DebugAsync(doc),
         "searchScripts" when !IsNotebooks => Toggle(() => _searching = true),
+        "escape" when _helpCard is not null => Toggle(() => _helpCard = null),
+        "escape" when _lineage is not null => Toggle(() => _lineage = null),
         "escape" when _full => FullScreenAsync(),
+        "help" => HelpAtCursorAsync(),
+        "nextPane" => CyclePaneAsync(1),
+        "previousPane" => CyclePaneAsync(-1),
+        "source" => FocusSourceAsync(),
+        "explorer" => ToggleExplorerAsync(),
         _ => Task.CompletedTask,
     };
 
@@ -324,6 +344,7 @@ public partial class WorkbenchPage
         Project.Changed -= Redraw;
         Live.NoticeArrived -= OnInlineNotice;
         Live.NoticeArrived -= OnFileNotice;
+        Live.NoticeArrived -= OnPythonNotice;
         try
         {
             if (_keys is not null)

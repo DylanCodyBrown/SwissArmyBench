@@ -50,7 +50,7 @@ def test_documents_are_tabs_that_split_and_close(browser: Browser, server: dict[
     expect(split).to_be_disabled()
     expect(split).to_have_attribute("title", "its group has only this tab: open another first")
     page.keyboard.press("Escape")
-    page.locator(".menu-shade").click()
+    expect(page.locator(".context-menu")).to_have_count(0)  # Escape is the menu's, not the page's
 
     # An unsaved document asks before it closes; closing its group's last tab takes the group away.
     page.click(".wb-group.focused button[aria-label='Add cell']")

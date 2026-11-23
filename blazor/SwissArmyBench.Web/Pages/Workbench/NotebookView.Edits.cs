@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
+using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
 
@@ -86,8 +87,7 @@ public partial class NotebookView
     {
         if (_selected is { IsAppCell: false } cell)
         {
-            await DeleteAsync(cell);
-            await Notes.SayAsync("Cell deleted.");
+            await DeleteCellAsync(cell);
         }
     }
 
@@ -195,8 +195,30 @@ public partial class NotebookView
 
     private async Task DeleteCellAsync(CellModel cell)
     {
+        // A table's read-only cell goes only once the table is closed in the grid (an open table keeps its cell).
+        if (cell.Role == "transformations" && cell.Table is { } table && await OpenInGridAsync(table))
+        {
+            await Notes.SayAsync($"{table} is open in the grid, so it keeps its cell. Close the table there first.");
+            return;
+        }
         await DeleteAsync(cell);
-        await Notes.SayAsync("Cell deleted.");
+        await Notes.SayAsync("Cell deleted.", "Undo", () => InvokeAsync(async () =>
+        {
+            await UndoAsync();
+            StateHasChanged();
+        }));
+    }
+
+    private async Task<bool> OpenInGridAsync(string table)
+    {
+        try
+        {
+            return (await Workbench.TablesAsync()).Tables.Any(t => t.Name == table);
+        }
+        catch (ApiException)
+        {
+            return false;
+        }
     }
 
     private Task RunToAsync(CellModel cell)
@@ -243,6 +265,8 @@ public partial class NotebookView
             MenuEntry.Separator,
             line("Clear the output", "clean", () => now(ClearSelected)),
             line(asked.Cell.OutputHidden ? "Show the output" : "Hide the output", "eye", () => now(ToggleSelectedOutput)),
+            MenuEntry.Separator,
+            line("Lineage", "lineage", () => OnLineage.InvokeAsync(asked.Cell.Number)),
         ];
         _menu = new ShownMenu($"Cell {asked.Cell.Number}", entries, asked.At.ClientX, asked.At.ClientY + 4);
     }

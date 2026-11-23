@@ -16,6 +16,12 @@ public sealed class WorkbenchClient
         _api = api;
     }
 
+    /// <summary>The last closed table opened again (404: none to reopen).</summary>
+    public Task ReopenTableAsync() => _api.PostAsync("/grids/reopen");
+
+    /// <summary>Open a file as a table (its name from the file's).</summary>
+    public Task LoadFileAsync(string name, string path) => _api.PostAsync($"/datasets/{ApiClient.Part(name)}/load", new { path });
+
     public Task<WorkbenchHome> HomeAsync() => _api.GetAsync<WorkbenchHome>("/workbench/home");
 
     public Task<OpenedNotebook> OpenNotebookAsync(string path) => _api.PostAsync<OpenedNotebook>("/workbench/open", new { path });
@@ -32,7 +38,8 @@ public sealed class WorkbenchClient
 
     /// <summary>The kernel a document runs in: the open project's one Python session for its documents, else one of
     /// its own (in the folder the document is in).</summary>
-    public Task<StartedKernel> StartAsync(string? path) => _api.PostAsync<StartedKernel>("/workbench/kernels", new { path, window = ApiClient.ClientId });
+    public Task<StartedKernel> StartAsync(string? path, string? python = null) =>
+        _api.PostAsync<StartedKernel>("/workbench/kernels", new { path, python, window = ApiClient.ClientId });
 
     /// <summary>A run's outputs as they arrive (nbformat's records, an input request, the error taken apart), then
     /// {"done": ...}.</summary>

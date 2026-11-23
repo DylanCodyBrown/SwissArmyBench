@@ -58,6 +58,9 @@ public static class Program
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
+        services.AddScoped<LineageClient>();
+        services.AddScoped<PythonsClient>();
+        services.AddScoped<StructureTabClient>();
         services.AddScoped<ExportsClient>();
         services.AddScoped<AgentInboxClient>();
         services.AddScoped<ScriptIdeClient>();

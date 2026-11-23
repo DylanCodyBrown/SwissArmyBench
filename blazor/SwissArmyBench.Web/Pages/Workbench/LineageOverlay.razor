@@ -1,0 +1,174 @@
+@* A cell's lineage with its values (the classic workbenchLineage.ts): the flow back to the data drawn by Mermaid, and
+   a card per step in flow order beside it (a table's rows and columns, its first rows and its change from the step
+   before; a value; a picture; a chart; "not run yet"; where the flow broke). A click on a card marks it, a
+   double-click or Enter goes to its cell; Close or Escape closes it. While it is open its values follow (asked again
+   every few seconds, drawn again only when a value changed). Inline: the Data mode's Lineage view, drawn in place. *@
+@implements IAsyncDisposable
+
+<div class="@(Inline ? "wb-lineage in-place lineage" : "wb-lineage-shade lineage")" @onkeydown="KeyAsync" @onclick="ShadeClick">
+    <div class="wb-lineage @(Inline ? "in-place" : string.Empty)" role="@(Inline ? "region" : "dialog")" aria-modal="@(Inline ? null : "true")" aria-label="Lineage" tabindex="-1" @onclick:stopPropagation="true" @ref="_panel">
+        <div class="wb-lin-top">
+            <h2>Lineage</h2>
+            <span class="wb-lin-target">@_graph?.Target</span>
+            <span class="spacer"></span>
+            @if (!Inline)
+            {
+                <button type="button" class="btn ghost icon" aria-label="Close" title="Close (Escape)" @onclick="OnClose"><Icon Name="close" /></button>
+            }
+        </div>
+        <ErrorNote Error="_error" />
+        @if (_graph is { } graph)
+        {
+            <div class="wb-lin-body">
+                <div class="wb-lin-flow">
+                    <div class="wb-lin-values" role="list" aria-label="Values">
+                        @foreach (var node in graph.Nodes)
+                        {
+                            var shown = node;
+                            var value = graph.Values?.GetValueOrDefault(node.Id);
+                            var items = value?.Items ?? [];
+                            <article class="wb-lin-card kind-@node.Kind @(node.DocKind is { } k ? $"doc-{k}" : string.Empty) @(node.Target ? "target" : string.Empty) @(value?.Error is not null ? "broke" : string.Empty) @(_picked == node.Id ? "picked" : string.Empty)"
+                                     role="listitem" tabindex="0" aria-label="@($"{node.Label}, {Where(node)}")" data-node="@node.Id"
+                                     @onclick="() => _picked = shown.Id" @ondblclick="() => GoAsync(shown)" @onkeydown="e => CardKeyAsync(e, shown)">
+                                <div class="wb-lin-card-head"><span class="wb-lin-label">@node.Label</span></div>
+                                <div class="hint wb-lin-where">@Where(node)</div>
+                                @if (value?.Error is { } broke)
+                                {
+                                    <div class="wb-lin-error"><ErrorNote Words="@broke" /></div>
+                                }
+                                @foreach (var item in items)
+                                {
+                                    <LineageItemView Item="item" Many="items.Count > 1" />
+                                }
+                                @if (value?.Busy == true)
+                                {
+                                    <div class="hint">busy</div>
+                                }
+                            </article>
+                        }
+                    </div>
+                    <div class="wb-lin-chart" aria-label="Flow"><MermaidDiagram Text="@graph.Mermaid" /></div>
+                </div>
+                @if (graph.Notes.Count > 0)
+                {
+                    <div class="hint wb-lin-notes">@string.Join(" ", graph.Notes)</div>
+                }
+            </div>
+        }
+        else if (_error is null)
+        {
+            <div class="loading-block">Tracing the lineage…</div>
+        }
+    </div>
+</div>
+
+@code {
+    private const int PollMs = 3000;
+
+    private static readonly Dictionary<string, string> _kinds = new()
+    {
+        ["cell"] = "Cell",
+        ["controller"] = "Controller",
+        ["text"] = "Text",
+        ["table"] = "Table",
+        ["step"] = "Grid step",
+        ["source"] = "Source",
+    };
+
+    private ElementReference _panel;
+    private LineageGraph? _graph;
+    private Exception? _error;
+    private string? _picked;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>What it traces: the request's document, its cell, its cells or text, the kernel.</summary>
+    [Parameter, EditorRequired]
+    public Func<Task<LineageGraph>> Ask { get; set; } = default!;
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>A node's cell to go to (the overlay closes first).</summary>
+    [Parameter]
+    public EventCallback<LineageNode> OnGo { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AskAsync();
+        _stop = new CancellationTokenSource();
+        _ = FollowAsync(_stop.Token);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !Inline)
+        {
+            await _panel.FocusAsync();
+        }
+    }
+
+    private async Task AskAsync()
+    {
+        try
+        {
+            var graph = await Ask();
+            // Drawn again only when a value changed (its mark).
+            if (_graph is null || graph.Mark != _graph.Mark || graph.Mermaid != _graph.Mermaid)
+            {
+                _graph = graph;
+            }
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task FollowAsync(CancellationToken stop)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollMs));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stop))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await AskAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // closed
+        }
+    }
+
+    private static string Where(LineageNode node) => node.Where.Length > 0 ? node.Where : _kinds.GetValueOrDefault(node.Kind, node.Kind);
+
+    private Task GoAsync(LineageNode node) => node.Cell is null ? Task.CompletedTask : OnGo.InvokeAsync(node);
+
+    private Task CardKeyAsync(KeyboardEventArgs e, LineageNode node)
+    {
+        if (e.Key == " ")
+        {
+            _picked = node.Id;
+        }
+        return e.Key == "Enter" ? GoAsync(node) : Task.CompletedTask;
+    }
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Escape" && !Inline ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    private Task ShadeClick() => Inline ? Task.CompletedTask : OnClose.InvokeAsync();
+
+    public ValueTask DisposeAsync()
+    {
+        _stop?.Cancel();
+        _stop?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

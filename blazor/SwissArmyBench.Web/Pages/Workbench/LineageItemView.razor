@@ -1,0 +1,74 @@
+@* One value on a lineage card (the classic workbenchLineage.ts itemView): a table's rows × columns, its change from
+   the step before and its first rows; a picture; a chart; a value; or "not run yet". *@
+@using System.Globalization
+
+<div class="wb-lin-item">
+    @if (Many || Item.Kind == "table")
+    {
+        <span class="wb-lin-name mono">@Item.Name</span>
+    }
+    @switch (Item.Kind)
+    {
+        case "missing":
+            <span class="hint">not run yet</span>
+            break;
+        case "picture" when Item.Png is { } png:
+            <img class="wb-lin-picture" alt="@Item.Name" src="data:image/png;base64,@png" />
+            break;
+        case "chart":
+            <span class="hint">@(Item.Text ?? "a chart")</span>
+            break;
+        case "table":
+            <div class="wb-lin-size">
+                <span>@Plural(Item.Rows ?? 0, "row") × @Plural(Item.Columns ?? 0, "column")</span>
+                @if (Item.Change is { } change and not 0)
+                {
+                    <span class="wb-lin-change @(change < 0 ? "down" : "up")" title="Rows from the step before">@Signed(change) rows</span>
+                }
+            </div>
+            @if (Item.Names is { Count: > 0 } names)
+            {
+                <div class="wb-lin-head">
+                    <table class="wb-lin-table">
+                        <thead><tr>@foreach (var name in names)
+                        {
+                            <th>@name</th>
+                        }</tr></thead>
+                        <tbody>
+                            @foreach (var row in Item.Head ?? [])
+                            {
+                                <tr>@foreach (var value in row)
+                                {
+                                    <td>@Cell(value)</td>
+                                }</tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            break;
+        default:
+            <span class="wb-lin-value mono">@Item.Text</span>
+            break;
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public LineageItem Item { get; set; } = default!;
+
+    /// <summary>More than one value on the card: each says its name.</summary>
+    [Parameter]
+    public bool Many { get; set; }
+
+    private static string Plural(long n, string word) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {word}{(n == 1 ? string.Empty : "s")}";
+
+    private static string Signed(long n) => n > 0 ? $"+{n:N0}" : $"−{-n:N0}";
+
+    private static string Cell(System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined => string.Empty,
+        System.Text.Json.JsonValueKind.String => value.GetString() ?? string.Empty,
+        _ => value.GetRawText(),
+    };
+}

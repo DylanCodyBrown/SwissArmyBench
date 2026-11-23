@@ -14,6 +14,11 @@ public partial class WorkbenchPage
 
     private async Task OpenPathAsync(string path)
     {
+        if (StructureFiles.IsStructure(path))
+        {
+            OpenStructure(path, null);
+            return;
+        }
         var notebook = path.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase);
         if (notebook != IsNotebooks)
         {
@@ -167,10 +172,16 @@ public partial class WorkbenchPage
         await Notes.SayAsync("Saved");
     }
 
-    private Task SaveAsync(OpenDocument? doc) => doc is null ? Task.CompletedTask : doc.Path is null ? SaveAsAsync(doc) : SaveToAsync(doc, doc.Path);
+    private Task SaveAsync(OpenDocument? doc) => doc is { StructureDoc: { } structure } ? structure.SaveAsync()
+        : doc is null ? Task.CompletedTask : doc.Path is null ? SaveAsAsync(doc) : SaveToAsync(doc, doc.Path);
 
     private async Task SaveAsAsync(OpenDocument? doc)
     {
+        if (doc is { StructureDoc: { } structure })
+        {
+            await structure.SaveAsAsync();
+            return;
+        }
         if (doc is null)
         {
             return;

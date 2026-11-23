@@ -1,0 +1,54 @@
+@* The structure tab's one small form (the classic structureDocMenus.ts askFields): a box or a choice per field; its
+   button is the title less its "…"; Enter goes, Cancel and Escape close it. *@
+
+<AppDialog Title="@Title" OnClose="OnClose">
+    <ChildContent>
+        <div class="form-grid" @onkeydown="KeyAsync">
+            @foreach (var field in Fields)
+            {
+                var name = field.Name;
+                <label class="field structures-field"><span>@field.Label</span>
+                    @if (field.Options is { } options)
+                    {
+                        <select aria-label="@field.Label" value="@_values[name]" @onchange="e => _values[name] = e.Value?.ToString() ?? string.Empty">
+                            @foreach (var option in options)
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <input aria-label="@field.Label" spellcheck="false" value="@_values[name]" @oninput="e => _values[name] = e.Value?.ToString() ?? string.Empty" />
+                    }
+                </label>
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="GoAsync">@Title.TrimEnd('…')</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private Dictionary<string, string> _values = [];
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<StructureField> Fields { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<IReadOnlyDictionary<string, string>> OnGo { get; set; }
+
+    protected override void OnInitialized() => _values = Fields.ToDictionary(f => f.Name, f => f.Value);
+
+    private Task GoAsync() => OnGo.InvokeAsync(_values);
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? GoAsync() : Task.CompletedTask;
+}

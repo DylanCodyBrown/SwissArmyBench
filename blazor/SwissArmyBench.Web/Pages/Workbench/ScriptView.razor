@@ -7,10 +7,10 @@
 <div class="wb-script">
     <div class="wb-script-editor">
         <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" OnIde="OnIde" OnGutter="GutterAsync"
-                    Inline="Inline" InlineDocument="InlineDocument" />
+                    Inline="Inline" InlineDocument="InlineDocument" AgentWhere="@DocumentName" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
     </div>
     <DebugPanel @ref="_debug" Editor="_editor" Path="@Path" />
-    <section class="wb-console" aria-label="Console">
+    <section class="wb-console" aria-label="Console" hidden="@ConsoleHidden">
         <div class="wb-console-head">
             <strong>Console</strong>
             <button type="button" class="btn small ghost" @onclick="Clear">Clear</button>

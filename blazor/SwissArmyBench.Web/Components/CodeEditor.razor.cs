@@ -102,7 +102,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline, menu = await MenuOptionsAsync() };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
@@ -221,6 +221,23 @@ public partial class CodeEditor
             await _editor.InvokeVoidAsync("setFontSize", px);
         }
     }
+
+    /// <summary>The problems the lint draws now (the status bar's Problems list).</summary>
+    public async Task<IReadOnlyList<EditorProblem>> ProblemsAsync() => _editor is null ? [] : await _editor.InvokeAsync<List<EditorProblem>>("problems");
+
+    /// <summary>Ruff is not in the document's Python: the Problems list offers to install it.</summary>
+    public async Task<bool> RuffMissingAsync() => _editor is not null && await _editor.InvokeAsync<bool>("ruffMissing");
+
+    public async Task RevealAsync(int line, int col)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("reveal", line, col);
+        }
+    }
+
+    /// <summary>Help on the name at the cursor (the server's hover words), or null when it has none.</summary>
+    public async Task<string?> HelpAtCursorAsync() => _editor is null ? null : await _editor.InvokeAsync<string?>("helpAtCursor");
 
     public async Task<int> CursorLineAsync() => _editor is null ? 0 : await _editor.InvokeAsync<int>("cursorLine");
 

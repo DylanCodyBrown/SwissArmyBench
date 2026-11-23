@@ -121,6 +121,31 @@ public partial class WorkbenchPage
             _revealAfter = null;
             await view.RevealLineAsync(reveal.Line);
         }
+        if (_cellAfter is { } cell && _byKey.TryGetValue(cell.Key, out var opened) && opened.NotebookView is { } notebook
+            && await notebook.GoToCellNumberAsync(cell.Number))
+        {
+            _cellAfter = null;
+        }
+    }
+
+    // A notebook's cell to select once its view is drawn (?cell=).
+    private (int Key, int Number)? _cellAfter;
+
+    /// <summary>The address's line or cell, once its document is open.</summary>
+    private void RevealAfterOpen(string path)
+    {
+        if (_documents.FirstOrDefault(d => SamePath(d.Path, path)) is not { } doc)
+        {
+            return;
+        }
+        if (Line is { } line && !doc.IsNotebook)
+        {
+            _revealAfter = (doc.Key, line);
+        }
+        if (Cell is { } number && doc.IsNotebook)
+        {
+            _cellAfter = (doc.Key, number);
+        }
     }
 
     private void CloseIde() => (_ideTitle, _idePlaces, _idePlan, _renaming) = (null, null, null, null);

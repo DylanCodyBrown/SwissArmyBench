@@ -25,6 +25,14 @@ public sealed class OpenDocument
 
     public bool IsBlade => Blade is not null;
 
+    /// <summary>A structure's tab beside the code (a JSON, YAML, XML or TOML file).</summary>
+    public bool IsStructure { get; init; }
+
+    /// <summary>A structure tab's node to select as it opens ($.orders[3]).</summary>
+    public string? StructureAt { get; init; }
+
+    public StructureDoc? StructureDoc { get; set; }
+
     /// <summary>Opened just made (New blade): its Properties open.</summary>
     public bool Fresh { get; init; }
 
@@ -65,12 +73,12 @@ public sealed class OpenDocument
 
     public ScriptView? ScriptView { get; set; }
 
-    public string KindWord => IsNotebook ? "notebook" : "script";
+    public string KindWord => IsStructure ? "structure" : IsNotebook ? "notebook" : "script";
 
     public string Title => Blade ?? (Path is { } path
         ? System.IO.Path.GetFileName(path)
         : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsBlade ? "Blade" : IsNotebook ? "Notebook" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : "Script";
 }

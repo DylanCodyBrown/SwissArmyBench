@@ -18,6 +18,10 @@ const KEYS = [
   { name: "saveAs", ctrl: true, shift: true, key: "s" },
   { name: "run", key: "F5" },
   { name: "escape", key: "Escape" },
+  { name: "nextPane", key: "F6", always: true },
+  { name: "previousPane", shift: true, key: "F6", always: true },
+  { name: "source", ctrl: true, key: "1", always: true },
+  { name: "explorer", ctrl: true, shift: true, key: "e", always: true },
 ];
 
 function named(event) {
@@ -35,9 +39,13 @@ export function keys(dotnet) {
     const inField = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName) && !inEditor;
     if (!found.always && (inEditor || (inField && found.name !== "save" && found.name !== "saveAs"))) return;
     if (found.name === "escape" && inField) return;
+    // Escape in a dialog, an overlay or a pane is theirs (Close, a lineage, the help card, the explorer's flyout).
+    if (found.name === "escape" && event.target.closest?.("[role=dialog], [role=menu], .wb-explorer, .structure-doc, .wb-lineage-shade")) return;
     event.preventDefault();
     event.stopPropagation();
-    dotnet.invokeMethodAsync("PageKey", found.name).catch(() => {});
+    // F1 in an editor is help on the name at the cursor; elsewhere every command (the classic keys).
+    const name = found.name === "palette" && found.key === "F1" && inEditor ? "help" : found.name;
+    dotnet.invokeMethodAsync("PageKey", name).catch(() => {});
   };
   window.addEventListener("keydown", listener, true);
   return { stop: () => window.removeEventListener("keydown", listener, true) };
@@ -154,4 +162,15 @@ export function grip(element, dotnet) {
     element.addEventListener("pointermove", move);
     element.addEventListener("pointerup", up);
   });
+}
+
+/** F6 and Shift+F6: the focus to the next or previous pane of the page (the code, the side panes, the status bar). */
+export function cyclePane(by) {
+  const panes = [...document.querySelectorAll(".wb-group.focused .wb-gbody, .wb-explorer, .side-pane, .wb-status")]
+    .filter((p) => p.getClientRects().length);
+  if (!panes.length) return;
+  const now = panes.findIndex((p) => p.contains(document.activeElement));
+  const next = panes[(now + by + panes.length) % panes.length];
+  const target = next.querySelector(".monaco-editor textarea, button, input, [tabindex]") ?? next;
+  target.focus?.();
 }
