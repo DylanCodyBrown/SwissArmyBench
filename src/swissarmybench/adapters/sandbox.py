@@ -20,7 +20,7 @@ import copy
 import hashlib
 import shutil
 import threading
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -559,71 +559,3 @@ class SandboxFiles:
         with self._gate.exclusive():
             self._open()
             self._copy(self.db, target)
-
-
-class ExportFolder:
-    """A local sandbox API's export folder: its files written only when their bytes change, a stale one
-    removed,
-    the sandbox's copy (only on the user's tick)."""
-
-    SKIP = ("data/", "__pycache__/", ".venv/", ".aws-sam/")
-
-    def __init__(self, copy_sandbox: Callable[[Path], None]) -> None:
-        self._copy = copy_sandbox
-
-    def write(self, folder: str, files: dict[str, str]) -> dict[str, list[str]]:
-        root = Path(folder)
-        written: list[str] = []
-        unchanged: list[str] = []
-        for name, text in sorted(files.items()):
-            (written if write_atomic(root / name, text, if_changed=True) else unchanged).append(name)
-        return {"written": written, "unchanged": unchanged}
-
-    def existing(self, folder: str) -> dict[str, str]:
-        root = Path(folder)
-        out: dict[str, str] = {}
-        if not root.is_dir():
-            return out
-        for path in root.rglob("*"):
-            relative = path.relative_to(root).as_posix()
-            if not path.is_file() or relative.startswith(self.SKIP):
-                continue
-            try:
-                out[relative] = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-        return out
-
-    def remove(self, folder: str, names: list[str]) -> None:
-        for name in names:
-            (Path(folder) / name).unlink(missing_ok=True)
-
-    def copy_sandbox(self, folder: str) -> None:
-        self._copy(Path(folder) / "data" / "sandbox.duckdb")
-
-
-class LocalApiFiles:
-    """API.py: read, written atomically (the user's own file: only on their action), its stamp."""
-
-    @staticmethod
-    def read(path: str) -> str | None:
-        try:
-            return Path(path).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return None
-
-    @staticmethod
-    def write(path: str, text: str) -> None:
-        write_atomic(path, text, if_changed=True)
-
-    @staticmethod
-    def stamp(path: str) -> float | None:
-        try:
-            found = Path(path).stat()
-        except OSError:
-            return None
-        return found.st_mtime_ns / 1e9 + found.st_size
-
-    @staticmethod
-    def join(folder: str, name: str) -> str:
-        return str(Path(folder) / name)

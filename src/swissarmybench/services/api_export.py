@@ -26,7 +26,7 @@ from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
 class Folder(Protocol):
-    """The export's folder (adapters/sandbox.py ExportFolder)."""
+    """The export's folder (adapters/api_export.py ExportFolder)."""
 
     def write(self, folder: str, files: dict[str, str]) -> dict[str, list[str]]: ...
 

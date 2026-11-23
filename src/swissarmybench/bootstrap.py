@@ -32,6 +32,8 @@ from swissarmybench.adapters import code_files as code_file_disk
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import environment as environment_files
 from swissarmybench.adapters import export as export_writer
+from swissarmybench.adapters import sandbox as sandbox_disk
+from swissarmybench.adapters.api_export import ExportFolder
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
 from swissarmybench.adapters.app_registrations import MicrosoftProbe, RegistrationFiles
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
@@ -55,11 +57,10 @@ from swissarmybench.adapters.found_connections import ConnectionFinder
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
 from swissarmybench.adapters.library import LibraryFolder
 from swissarmybench.adapters.live_updates import LiveUpdates
+from swissarmybench.adapters.local_api import LocalApiFiles
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
-from swissarmybench.adapters.sandbox import ExportFolder, LocalApiFiles, SandboxFiles
-from swissarmybench.adapters.sandbox import gitignore as sandbox_gitignore
 from swissarmybench.adapters.scaffold import ScaffoldFiles
 from swissarmybench.adapters.script_ide import ScriptCode
 from swissarmybench.adapters.shared_catalog import CatalogFiles
@@ -1799,12 +1800,12 @@ def _sandbox_part(b: Built) -> None:
 
     def sandbox_ignore(folder: str) -> None:
         b.archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
-        sandbox_gitignore(folder)  # the rows' folder, sandbox/ at the project's top
+        sandbox_disk.gitignore(folder)  # the rows' folder, sandbox/ at the project's top
 
     b.sandbox = sandbox = Sandbox(
         ws,
         lambda: b.sab_projects.current.folder if b.sab_projects.current is not None else None,
-        SandboxFiles,
+        sandbox_disk.SandboxFiles,
         SourcesFrom(
             sandbox_grid_view,
             sandbox_connection_table,

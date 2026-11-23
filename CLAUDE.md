@@ -1153,8 +1153,10 @@ src/swissarmybench/
                          DuckDB with external access off, one lock, the baseline and the
                          checkpoints as whole-file copies (Reset is one copy; one table from the baseline read
                          alone), sandbox.json; a read's rest as Arrow (query_paged), keys (set_key: the file and
-                         its baseline), definitions (define, kind_of); API.py's file (LocalApiFiles); an export's
-                         folder (ExportFolder); the adapter's source (source(), arrow, read, write_arrow)
+                         its baseline), definitions (define, kind_of); the adapter's source (source(), arrow, read, write_arrow)
+    api_export.py        a local sandbox API's export folder (ExportFolder): written only when bytes change, read
+                         back, a stale file removed, the sandbox's copy
+    local_api.py         API.py's file (LocalApiFiles): read, written atomically, its stamp
     tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
                          Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
                          (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)
