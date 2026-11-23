@@ -1,5 +1,5 @@
 @* The Connections page (the classic connectionsWindow.ts): the cards, a card's detail (?name=), Add connection's
-   types (?add=1) and a type's form (?kind=, or ?edit= a saved one), the Sandbox's own page (?sandbox=1), the Queries
+   types (?add=1) and a type's form (?kind=, or ?edit= a saved one), the Sandbox's own page (?sandbox=1), the key vaults under the cards, the Queries
    window (?queries=<name>, a window of its own). Find connections on this computer (?find=1) and Import… are
    dialogs over the cards. Each view is in the address, so Back and Forward move between them. *@
 @page "/connections"
@@ -50,7 +50,10 @@ else
                     <SandboxPanel />
                     break;
                 default:
-                    <ConnectionCards @key="_listDrawn" />
+                    <div class="connections-list" @key="_listDrawn">
+                        <ConnectionCards />
+                        <KeyVaultsSection />
+                    </div>
                     break;
             }
         </div>

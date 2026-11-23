@@ -1,7 +1,7 @@
 @* Add connection's types (the classic connectionsWindow.ts showTypes): every type the backend offers by its group
-   (Databases, Lakes and SharePoint, Files, Your own code), each its own icon over its name, the ones opened last
-   first (this browser's memory). Typing filters them; Enter opens the first one left. Key vaults are added on the
-   Environment's Settings and secrets tab, not here. *@
+   (Databases, Lakes and SharePoint, Files, Your own code, Key vaults), each its own icon over its name, the ones opened last
+   first (this browser's memory). Typing filters them; Enter opens the first one left. Key vaults are their own group,
+   last. *@
 @inject ConnectionsClient Connections
 @inject NavigationManager Nav
 @inject IJSRuntime Js
@@ -91,6 +91,7 @@
                 (ConnectionWords.LakeGroup, f => f.Group == ConnectionWords.LakeGroup),
                 ("Files", f => f.Connection == "file" && f.Group != ConnectionWords.LakeGroup),
                 ("Your own code", f => f.Connection == "python"),
+                ("Key vaults", f => f.Connection == "vault"),
             };
             return groups
                 .Select(g => (g.Title, (IReadOnlyList<ConnectionForm>)(_forms ?? [])

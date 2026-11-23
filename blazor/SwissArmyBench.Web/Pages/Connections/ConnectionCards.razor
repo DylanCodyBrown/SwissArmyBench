@@ -1,7 +1,7 @@
 @* The connections as cards (the classic connectionsWindow.ts showList), grouped: Databases, Lakes and SharePoint,
    Files, Your own code, and the project's Sandbox. Each its type's icon, name, type, status in a word, calls this
    session, what the server said it is, the amber Only works on your machine, the live slot line; its colour its
-   border and tint. Key vaults (the Environment's) and APIs (the APIs page's) are not here. Live: drawn again on a
+   border and tint. Key vaults are their own section under these (KeyVaultsSection); APIs are the APIs page's. Live: drawn again on a
    connection's change and as catalogs load. *@
 @implements IDisposable
 @inject ConnectionsClient Connections
@@ -14,7 +14,7 @@
     {
         <div class="empty-state">
             <Icon Name="plug" />
-            <p>A connection lists a database's or a folder's tables, so DuckDB SQL can read them by name.</p>
+            <p>A connection lists a database's or a folder's tables, so DuckDB SQL can read them by name. A key vault gives your connections their secrets.</p>
             <a class="btn primary" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
         </div>
     }
@@ -90,7 +90,7 @@
     {
         try
         {
-            // Key vaults are the Environment's; APIs the APIs page's (the owner, 2026-11-17).
+            // Key vaults are KeyVaultsSection's, below; APIs the APIs page's (the owner, 2026-11-17).
             _cards = (await Connections.CardsAsync()).Where(c => c.Connection != "vault" && c.TablesKind != "api").ToList();
             _error = null;
         }

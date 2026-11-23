@@ -52,7 +52,6 @@ public partial class EnvironmentView : IDisposable
     private bool _pythonToo;
     private int _asked;
     private ElementReference _searchBox;
-    private KeyVaultsSection? _vaults;
     private HashSet<string> _hidden = [];
 
     [Inject]
@@ -149,10 +148,6 @@ public partial class EnvironmentView : IDisposable
             }
             _answer = got;
             _error = null;
-            if (_tab == Setting && _vaults is not null)
-            {
-                await _vaults.RefreshAsync(); // a vault saved, renamed or read again: its card follows
-            }
         }
         catch (ApiException error)
         {

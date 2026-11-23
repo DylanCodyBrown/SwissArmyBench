@@ -1,8 +1,8 @@
 """The Blazor Environment page against the classic one's elements, on made-up data: the tabs and their
 counts, the one search over every tab with its hint, the Columns menu, a row's menu and the viewer's
 actions (Copy name, Rename by F2, Remove asked first), Clear…, Install a library…, the Settings and
-secrets tab's key vaults and Add a setting…; and the Structures page a structure's row opens into: its
-steps (Filter…, Undo), the node's actions, Lineage, Save as…."""
+secrets tab's pointer to the key vaults (on the Connections page) and Add a setting…; and the Structures
+page a structure's row opens into: its steps (Filter…, Undo), the node's actions, Lineage, Save as…."""
 
 from __future__ import annotations
 
@@ -66,11 +66,9 @@ def test_the_environments_tabs_search_and_rows(browser: Browser, server: dict[st
     ).to_have_attribute("placeholder", "polars")
     page.locator(".dialog[aria-label='Install a library'] button:has-text('Cancel')").click()
     page.locator(".env-tab[data-kind=setting]").click()
-    page.click("button:has-text('Add key vault')")
-    kinds = page.locator(".variables-vault-types")
-    expect(kinds).to_contain_text("Azure Key Vault")
-    kinds.locator("button:has-text('Cancel')").click()
-    expect(kinds).to_have_count(0)
+    # Key vaults live on the Connections page now (the owner, 2026-11-23): here only the pointer.
+    expect(page.locator("button:has-text('Add key vault')")).to_have_count(0)
+    expect(page.locator(".env-vaults-moved a[href='connections']")).to_have_text("Connections page")
     page.close()
 
 

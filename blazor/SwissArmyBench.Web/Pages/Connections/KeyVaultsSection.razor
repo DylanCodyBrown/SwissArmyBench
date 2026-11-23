@@ -1,22 +1,12 @@
-@* The key vaults on the Settings and secrets tab (the classic keyVaults.ts): a card per vault (its name, kind, the
-   variables it gives; a click opens its detail on the Connections page), a vault whose names are from an earlier read
-   with Read again; Add key vault's kinds, each opening its form, and Cancel. *@
+@* The key vaults on the Connections page (the owner, 2026-11-23: "Vault connections should be on the connections
+   page"), under the connections' cards: a card per vault (its name, kind, the variables it gives; a click opens its
+   detail), a vault whose names are from an earlier read with Read again. A vault is added from Add connection's Key
+   vaults group. Live: drawn again on a connection's change. *@
 @inject EnvironmentClient Environment
-@inject ConnectionsClient Connections
+@implements IDisposable
+@inject LiveUpdates Live
 
 <div class="env-vaults">
-    <div class="variables-form-slot">
-        @if (_kinds is { } kinds)
-        {
-            <div class="variables-form variables-vault-types" role="group" aria-label="Add key vault">
-                @foreach (var kind in kinds)
-                {
-                    <a class="btn connection-type fam-vault" href="@($"connections?kind={Uri.EscapeDataString(kind.Id)}")"><Icon Name="@kind.Id" /> @kind.Label</a>
-                }
-                <button type="button" class="btn ghost" @onclick="() => _kinds = null">Cancel</button>
-            </div>
-        }
-    </div>
     <ErrorNote Error="_error" OnClose="() => _error = null" />
     @if (_vaults is { Count: > 0 } vaults)
     {
@@ -56,14 +46,17 @@
 
 @code {
     private IReadOnlyList<KeyVault>? _vaults;
-    private IReadOnlyList<ConnectionForm>? _kinds;
     private string? _reading;
     private Exception? _error;
 
-    protected override Task OnInitializedAsync() => RefreshAsync();
+    protected override Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        return RefreshAsync();
+    }
 
     /// <summary>Read the vaults again (a vault saved, renamed or read again).</summary>
-    public async Task RefreshAsync()
+    private async Task RefreshAsync()
     {
         try
         {
@@ -72,20 +65,6 @@
         catch (ApiException)
         {
             // an older server: no cards
-        }
-        await InvokeAsync(StateHasChanged);
-    }
-
-    /// <summary>Add key vault: the vault kinds, each opening its form on the Connections page.</summary>
-    public async Task AddAsync()
-    {
-        try
-        {
-            _kinds = (await Connections.FormsAsync()).Where(f => f.Connection == "vault").ToList();
-        }
-        catch (ApiException error)
-        {
-            _error = error;
         }
         await InvokeAsync(StateHasChanged);
     }
@@ -104,4 +83,15 @@
         _reading = null;
         await RefreshAsync();
     }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type.StartsWith("connection", StringComparison.Ordinal) && notice.Type != "connection_slots"
+            || notice.Type is "blades_changed")
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
 }

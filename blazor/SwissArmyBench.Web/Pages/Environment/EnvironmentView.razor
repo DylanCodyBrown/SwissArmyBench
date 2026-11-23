@@ -171,7 +171,6 @@ else
                         }
                         @if (_tab == Setting)
                         {
-                            <button type="button" class="btn variables-add-vault" @onclick="() => _vaults?.AddAsync() ?? Task.CompletedTask"><Icon Name="key" /> Add key vault</button>
                             <button type="button" class="btn primary env-add-setting" @onclick="() => AddSetting(string.Empty)"><Icon Name="plus" /> Add a setting…</button>
                         }
                     </span>
@@ -205,7 +204,7 @@ else
                 </div>
                 @if (_tab == Setting)
                 {
-                    <KeyVaultsSection @ref="_vaults" />
+                    <p class="hint env-vaults-moved"><Icon Name="key" /> Key vaults are on the <a href="connections">Connections page</a>; the variables they give are listed here.</p>
                 }
                 <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
                 <div class="env-list" role="tree" aria-label="Everything the project holds" tabindex="-1" style="@ListColumns">

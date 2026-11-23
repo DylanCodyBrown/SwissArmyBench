@@ -232,3 +232,30 @@ def test_queries_window_and_the_sandbox(browser: Browser, server: dict[str, Any]
     note(page, "notes is out of the sandbox.")
     call(server, "POST", "/project/close", {})
     page.close()
+
+
+def test_key_vaults_are_on_the_connections_page(browser: Browser, server: dict[str, Any]) -> None:
+    """The owner, 2026-11-23: "Vault connections should be on the connections page". A vault's card sits
+    under the connections' cards and opens its detail; Add connection offers the key vault kinds as their
+    own group."""
+    vault = {
+        "name": "Made-up vault",
+        "kind": "vault",
+        "code": "def get(name):\n    return 'made-up'",
+        "variable": "get",
+        "vault_mapping": [{"env": "MADE_UP_PASSWORD", "secret": "made-up-pw"}],
+    }
+    if not any(c["name"] == vault["name"] for c in call(server, "GET", "/connections")["connections"]):
+        call(server, "POST", "/blades", vault)
+    page = open_page(browser, server, "connections")
+    section = page.locator("section.variables-vaults[aria-label='Key vaults']")
+    expect(section.locator("h2")).to_contain_text("Key vaults")
+    card = section.locator(".variables-vault-card[data-vault='Made-up vault']")
+    expect(card).to_contain_text("1 variable")
+    card.click()
+    expect(page.locator("h1")).to_contain_text("Made-up vault")
+    page.close()
+    page = open_page(browser, server, "connections?add=1")
+    expect(page.locator(".connection-types").last.locator("[data-kind=azure_key_vault]")).to_be_visible()
+    expect(page.locator("h3").last).to_have_text("Key vaults")
+    page.close()

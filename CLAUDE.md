@@ -54,7 +54,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17): the **library** folder, below. An
   API lives in its `apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json, source.json);
   an API's tables are its web calls with Return as table on, and it is not on the Connections page. Key vaults
-  are added and listed on the Environment's Settings and secrets tab, not the Connections page.
+  are on the Connections page (the owner, 2026-11-23: "Vault connections should be on the connections page"): their
+  cards under the connections', added from Add connection's Key vaults group; the Environment's Settings and secrets
+  tab lists the variables they give and points there.
 - **Connections scale beyond this computer (the owner, 2026-11-17: "we want to advise against any connectors that
   only work locally for the user, this is meant to scale to a function app or up to a hosted streamlit application" /
   "any connector that does not scale to a function app needs to carry a warning that it will only work on your

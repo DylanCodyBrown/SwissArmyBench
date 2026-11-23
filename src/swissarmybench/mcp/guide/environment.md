@@ -58,8 +58,8 @@ by code; there is no add here. Interrupt and Restart are the Notebooks and Scrip
 
 ## Settings and secrets, and key vaults
 - The `${NAME}` settings are this tab (`variables_list`, `variables_set`, `variables_rename`,
-  `variables_remove`); a key vault that gives settings is listed above them and added there
-  (`connections_create` with a vault type from `connections_types`). The old Variables page is this tab (`app_navigate variables` goes here).
+  `variables_remove`); the key vaults that give settings are on the Connections page (their cards under the
+  connections'; added with `connections_create` and a vault type from `connections_types`). The old Variables page is this tab (`app_navigate variables` goes here).
 
 ## Libraries
 - `environment(action="libraries")`: the project's Python (`own`: its `.venv`) and each library: `version`,
