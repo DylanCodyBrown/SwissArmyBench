@@ -22,7 +22,7 @@ import sqlglot
 from sqlglot import exp
 
 from swissarmybench.domain.codegen import variable_name
-from swissarmybench.domain.connection_tables import quote_brackets
+from swissarmybench.domain.connection_sql import quote_brackets
 from swissarmybench.domain.context_md import RelationshipFacts, code
 from swissarmybench.domain.lineage import mermaid_text
 

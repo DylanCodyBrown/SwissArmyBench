@@ -33,8 +33,6 @@ Pure rules and text: no I/O.
 
 from __future__ import annotations
 
-import re
-
 from swissarmybench.domain import connection_kinds, entra
 from swissarmybench.domain import lake_code as code
 from swissarmybench.domain.sql_server import TOKEN_CODE
@@ -54,8 +52,6 @@ LABELS: dict[str, str] = connection_kinds.labels(KINDS)
 # its rows (Arrow) and how many there are, the columns and filters the query sends.
 READ: str = "conn.rows(table, schema=schema, limit=limit, columns=columns, filters=filters, frame=frame)"
 CATALOG: str = "catalog = conn.catalog()"
-# A Delta table's version or time, after its name: orders@v12, orders@2026-11-01, orders@2026-11-01T09:30.
-AT = re.compile(r"@(?:[vV]\d+|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?)$")
 
 
 def is_kind(dialect: str | None) -> bool:
@@ -78,18 +74,6 @@ def cell_words(dialect: str) -> str:
             "a Fabric lakehouse or warehouse: T-SQL on its SQL endpoint, else DuckDB SQL (every table a view)"
         )
     return f"{LABELS.get(dialect, dialect)}: DuckDB SQL here, every table a view (sales.orders)"
-
-
-def path_parts(database: str, schema: str, table: str) -> list[str]:
-    """A table's place as the parts its SQL name is made of: its folders, then its name (a workbook's
-    sheet after its file)."""
-    return [p for p in (database, *schema.split("/"), *table.split("/")) if p]
-
-
-def split_at(name: str) -> tuple[str, str]:
-    """A table's name and its @version or @time (empty when none): orders@v12 -> (orders, @v12)."""
-    found = AT.search(name)
-    return (name[: found.start()], found.group(0)) if found else (name, "")
 
 
 # ===== each setting from an environment variable (the owner, 2026-11-17: "All should be mapable to env

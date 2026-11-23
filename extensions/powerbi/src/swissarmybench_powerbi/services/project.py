@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain.blade_templates import Template
 from swissarmybench.domain.blades import detect_settings
-from swissarmybench.domain.connection_tables import Pushed
+from swissarmybench.domain.connection_sql import Pushed
 from swissarmybench.domain.relationships import Model
 from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused

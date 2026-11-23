@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.domain import connection_sql as cs
 from swissarmybench.domain import connection_tables as ct
 from swissarmybench.domain import entra, lakes, sharepoint
 from swissarmybench.domain.connection_swap import Place
@@ -352,13 +353,13 @@ def test_path_names_resolve_by_their_last_parts_and_keep_an_at() -> None:
     assert ct.copy_name(
         "Docs", Place("", "Documents/Finance", "Budget 2026.xlsx/Summary"), "sharepoint_docs"
     ) == ('[Docs].Documents.Finance."Budget 2026.xlsx".Summary')
-    assert ct.quote_brackets("SELECT * FROM [Lake].sales.orders@v12", ["Lake"]) == (
+    assert cs.quote_brackets("SELECT * FROM [Lake].sales.orders@v12", ["Lake"]) == (
         'SELECT * FROM "Lake".sales."orders@v12"'
     )
-    assert ct.quote_brackets("SELECT * FROM [Lake].orders@2026-11-01 o", ["Lake"]) == (
+    assert cs.quote_brackets("SELECT * FROM [Lake].orders@2026-11-01 o", ["Lake"]) == (
         'SELECT * FROM "Lake"."orders@2026-11-01" o'
     )
-    assert ct.quote_brackets("SELECT 'a@v1' FROM x", ["Lake"]) == "SELECT 'a@v1' FROM x"
+    assert cs.quote_brackets("SELECT 'a@v1' FROM x", ["Lake"]) == "SELECT 'a@v1' FROM x"
 
 
 def test_filters_go_to_a_lake_as_column_op_value() -> None:
@@ -366,8 +367,8 @@ def test_filters_go_to_a_lake_as_column_op_value() -> None:
         "SELECT a, b FROM \"Lake\".orders WHERE region IN ('North', 'South') AND amount >= 10 "
         "AND day BETWEEN DATE '2026-11-01' AND DATE '2026-11-30' AND note IS NULL AND 5 < qty"
     )
-    ref = ct.Reference("Lake", ("orders",))
-    pushed = ct.pushdown(sql, ["Lake"], ref, ["a", "b", "region", "amount", "day", "note", "qty"], "delta")
+    ref = cs.Reference("Lake", ("orders",))
+    pushed = cs.pushdown(sql, ["Lake"], ref, ["a", "b", "region", "amount", "day", "note", "qty"], "delta")
     assert pushed.filters == (
         ("region", "in", ["North", "South"]),
         ("amount", ">=", 10),

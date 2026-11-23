@@ -85,6 +85,16 @@ def test_a_kind_that_writes_as_another_needs_that_one_decided() -> None:
     )
 
 
+def test_an_older_face_is_a_tables_kind_of_the_same_dialect() -> None:
+    """Dataverse's record says the tables kind a saved connection listed by its Web API is (connection_tables
+    tables_kind asks it: the kind module is not imported for it)."""
+    assert kinds.KINDS["dataverse"].unless_sql == "dataverse_web"
+    odd = dataclasses.replace(kinds.KINDS["dataverse"], unless_sql="postgres")
+    assert any(
+        "unless_sql names 'postgres'" in line for line in kinds.problems(kinds.KINDS | {"dataverse": odd})
+    )
+
+
 def test_a_dialect_is_found_by_any_of_its_names() -> None:
     assert kinds.engine(" TSQL ") is kinds.KINDS["sqlserver"]
     assert kinds.engine("azuresql") is kinds.KINDS["sqlserver"]
@@ -180,7 +190,7 @@ TABLES = (
     ("connection_tables", "TABLE_KINDS", "tables_contract"),
     ("connection_tables", "PATH_KINDS", "path_kinds"),
     ("connection_tables", "VERSIONED", "versioned"),
-    ("connection_tables", "_STRUCTURED", "structured_filters"),
+    ("connection_sql", "_STRUCTURED", "structured_filters"),
     ("catalogs", "DIALECTS", "dialects"),
     ("catalogs", "_DIALECT_ALIASES", "aliases"),
     ("catalogs", "_SQLGLOT_NAMES", "sqlglot_names"),

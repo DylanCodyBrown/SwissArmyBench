@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import connection_kinds, lakes
+from swissarmybench.domain import connection_sql as sql_rules
 from swissarmybench.domain import connection_tables as rules
 from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain.blades import BladeError
@@ -65,7 +66,7 @@ class Kept:
     place: Place
     read: TableRead
     read_at: float
-    pushed: rules.Pushed = field(default_factory=rules.Pushed)
+    pushed: sql_rules.Pushed = field(default_factory=sql_rules.Pushed)
 
     def to_json(self, cached: bool) -> dict[str, Any]:
         return {
@@ -154,7 +155,7 @@ class ConnectionTables:
         )
         if found is None:
             reason = rules.no_tables_reason(blade.kind, blade.template)
-            raise rules.ConnectionSqlError(f"{blade.name} has no tables: {reason}.")
+            raise sql_rules.ConnectionSqlError(f"{blade.name} has no tables: {reason}.")
         return blade.name, found
 
     # ===== the contract: list, read =====
@@ -172,7 +173,7 @@ class ConnectionTables:
         if found is None:
             state = self._loading.state(saved) or {}
             why = f": {state['error']}" if state.get("error") else ""
-            raise rules.ConnectionSqlError(
+            raise sql_rules.ConnectionSqlError(
                 f"{saved}'s tables could not be listed (its catalog did not load{why})."
             )
         return [Place(*p) for p in found]
@@ -196,20 +197,22 @@ class ConnectionTables:
         """One table named as DuckDB SQL names it (`[Conn].table`) read whole, through the same read as a
         query's (so through that connection's query limit and its line): its Arrow table."""
         if not re.fullmatch(r"\[[^\[\];]{1,120}\]\.[^;]{1,300}", reference or ""):
-            raise rules.ConnectionSqlError("Name a connection's table as [Connection].table.")
+            raise sql_rules.ConnectionSqlError("Name a connection's table as [Connection].table.")
         # One reference, checked above (no statement of its own), read as a query names it.
         prepared = await self.prepare(f"SELECT * FROM {reference}")  # noqa: S608
         if len(prepared.tables) != 1:
-            raise rules.ConnectionSqlError(f"{reference[:120]} names no connection's table.")
+            raise sql_rules.ConnectionSqlError(f"{reference[:120]} names no connection's table.")
         return next(iter(prepared.tables.values()))
 
-    async def read(self, name: str, place: Place, pushed: rules.Pushed | None = None) -> tuple[Kept, bool]:
+    async def read(
+        self, name: str, place: Place, pushed: sql_rules.Pushed | None = None
+    ) -> tuple[Kept, bool]:
         """One table read for a query: every row it needs, with what was sent to the source (`pushed`: its
         columns, filters, a safe LIMIT), or the session's read of it by the same request to the source:
         the read, and whether it was kept from before. Never the connection's first rows only: past the
         query limit (settings) it is refused, with how to narrow it."""
         saved, kind = self.kind(name)
-        sent = pushed or rules.Pushed()
+        sent = pushed or sql_rules.Pushed()
         alias = self.alias(saved) if kind in ALIASED else None
         key = (
             (saved + (" · " + str(alias[1].words()) if alias else "")).casefold(),
@@ -228,7 +231,7 @@ class ConnectionTables:
             table = await alias[1].read(place.table)
             shown = int(table.num_rows)
             if shown > most:
-                raise BladeError(rules.too_many(saved, place.table, shown, most, False))
+                raise BladeError(sql_rules.too_many(saved, place.table, shown, most, False))
             read = TableRead(place.table, table, None, shown, shown, saved, dax=True)
         else:
             read = await self._connections.read_for_query(saved, place.to_json(), sent, most)
@@ -279,10 +282,10 @@ class ConnectionTables:
         """Each connection's table the query names read (or kept from before), and the query pointed at
         them. A query naming none comes back as it was."""
         names = self.names()
-        if not names or not rules.might_name(text, names):
+        if not names or not sql_rules.might_name(text, names):
             return Prepared(text)
-        quoted = rules.quote_brackets(text, names)
-        found = rules.references(quoted, names)
+        quoted = sql_rules.quote_brackets(text, names)
+        found = sql_rules.references(quoted, names)
         if not found:
             return Prepared(text)
         targets: dict[tuple[str, ...], str] = {}
@@ -296,19 +299,19 @@ class ConnectionTables:
             how = connection_kinds.get(kind)  # its record: read in its own SQL, or filters its own read takes
             sql_source = how is not None and (how.reads_with == "sql" or how.filters == "structured")
             pushed = (
-                rules.pushdown(quoted, names, ref, known, self._dialect(ref.connection))
+                sql_rules.pushdown(quoted, names, ref, known, self._dialect(ref.connection))
                 if sql_source
-                else rules.Pushed()
+                else sql_rules.Pushed()
             )
             kept, cached = await self.read(ref.connection, place, pushed)
-            target = rules.target_name(number)
+            target = sql_rules.target_name(number)
             targets[ref.key] = target
             prepared.tables[target] = kept.read.table
             prepared.reads.append(
                 kept.to_json(cached)
                 | {"name": target, "as": "[" + ref.connection + "]." + ".".join(ref.parts)}
             )
-        prepared.sql = rules.rewrite(quoted, names, targets)
+        prepared.sql = sql_rules.rewrite(quoted, names, targets)
         return prepared
 
     async def _known(self, name: str, place: Place) -> list[str]:
@@ -411,9 +414,9 @@ class ConnectionTables:
             raise ValueError("Name the dataset (or schema) whose tables to open.")
         tables = [p for p in await self.places(saved) if p.schema.casefold() == dataset.strip().casefold()]
         if not tables:
-            raise rules.ConnectionSqlError(f"{saved} has no dataset or schema {dataset!r} with tables.")
+            raise sql_rules.ConnectionSqlError(f"{saved} has no dataset or schema {dataset!r} with tables.")
         if len(tables) > MAX_OPEN_ALL:
-            raise rules.ConnectionSqlError(
+            raise sql_rules.ConnectionSqlError(
                 f"{dataset} has {len(tables)} tables: Open all opens at most {MAX_OPEN_ALL} at once."
             )
         opened: list[dict[str, Any]] = []

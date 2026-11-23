@@ -725,10 +725,12 @@ src/swissarmybench/
     variables.py         the settings and secrets (the Environment's tab; the Variables page went 2026-11-22): this computer's variables (plain, this computer only, keyring), the
                          shareable and local halves, each variable's source (vault, value, keyring, env,
                          missing) and uses (connections, cells by ast, Run settings), which values show, rename
-    connection_tables.py what a connection is: the tables contract (each kind's way to list and read; NO_TABLES and
-                         why), a table named in DuckDB SQL by its connection ([Finance Captive].Sales: brackets,
-                         references in sqlglot's tree, resolved in any case, a shared Power BI name asking for its
-                         dataset), the work sent to the source (columns, plain filters, a safe LIMIT), the limit's words
+    connection_tables.py what a connection is: the tables contract (each kind's way to list and read, from its record;
+                         NO_TABLES and why), a table named by its connection ([Finance Captive].Sales: a path's
+                         parts and @version, resolved in any case, a shared Power BI name asking for its dataset)
+    connection_sql.py    DuckDB SQL naming a connection's tables (split from connection_tables.py, 2026-11-23):
+                         brackets, references in sqlglot's tree and rewritten, the work sent to the source
+                         (columns, plain filters, a safe LIMIT), a source's SELECT with its WHERE, the limit's words
     connection_slots.py  how many queries run at once on a connection (the owner, 2026-11-21): limits (8 at once,
                          4 the agent's, a 2-minute wait; the file's [queries] table), a Board of lines (FIFO within
                          a priority: the user's before background loads; the agent's share), places, leases, words

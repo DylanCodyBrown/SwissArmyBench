@@ -29,7 +29,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from swissarmybench.domain import connection_tables as sql_names
+from swissarmybench.domain import connection_sql as sql_names
 from swissarmybench.domain import intellisense as lint_rules
 from swissarmybench.domain import lineage as lineage_rules
 from swissarmybench.domain import local_api as local_api_rules

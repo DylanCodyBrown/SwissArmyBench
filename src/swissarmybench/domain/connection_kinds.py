@@ -68,6 +68,7 @@ class Kind:
     versions: bool = False  # a table takes a version or a time after @
     query_tab: bool = False  # a query tab runs on it (Query from, the New query page)
     names_schema: bool = True  # sab.read names its schema (Dataverse's Web API has one: no)
+    unless_sql: str = ""  # the tables kind its dialect is when a saved connection's catalog is not SQL's
     own_page: bool = False  # it has a page of its own (an API: the APIs page), not a Connections card
     datasets: bool = False  # its tables are grouped by dataset (a Power BI workspace)
     grouped_by: str = ""  # what its tree calls a group of tables ("": a folder for paths, else a schema)
@@ -346,6 +347,7 @@ _RECORDS: tuple[Kind, ...] = (
         naming="single",
         query_tab=True,
         dialect="dataverse",  # its SQL endpoint's T-SQL, every table in one schema (dbo)
+        unless_sql="dataverse_web",  # a connection saved before the SQL endpoint lists by the Web API
         sqlglot="tsql",
         filters="sql",
         count="query",
@@ -685,6 +687,10 @@ def problems(records: Mapping[str, Kind] | None = None) -> list[str]:
                 say(f"naming is one of {', '.join(NAMINGS)}")
         elif kind.reads_with or kind.naming or kind.versions or kind.query_tab or kind.datasets:
             say("has a tables kind's fields but does not say how it lists and reads")
+        if kind.unless_sql:
+            other = kinds.get(kind.unless_sql)
+            if other is None or not other.tables or other.dialect != kind.dialect:
+                say(f"unless_sql names {kind.unless_sql!r}, not a tables kind of its own dialect")
         if kind.versions and not kind.paths:
             say("has versions, so its tables are paths")
         decided = [bool(kind.writes), bool(kind.read_only), bool(kind.writes_as)]

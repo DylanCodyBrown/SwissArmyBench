@@ -12,7 +12,7 @@ import sqlglot
 from swissarmybench.domain import (
     api_pattern_code,
     catalogs,
-    connection_tables,
+    connection_sql,
     intellisense,
     lakes,
     query_text,
@@ -61,19 +61,19 @@ def test_every_reader_reads_a_named_dialect(word: str) -> None:
     assert query_text.format_sql(text, word) != text
     assert intellisense.sql_problems(BROKEN, word), word
     assert intellisense.sql_problems("SELECT a FROM t", word) == []
-    assert connection_tables._filter_dialect(word) in (catalogs.sqlglot_name(word), "structured")
+    assert connection_sql._filter_dialect(word) in (catalogs.sqlglot_name(word), "structured")
 
 
 @pytest.mark.parametrize("word", catalogs.NO_SQLGLOT)
 def test_a_dialect_sqlglot_never_reads_is_left_alone(word: str) -> None:
     assert query_text.format_sql(BROKEN, word) == BROKEN
     assert intellisense.sql_problems(BROKEN, word) == []
-    assert connection_tables._filter_dialect(word) in (None, "structured")
+    assert connection_sql._filter_dialect(word) in (None, "structured")
 
 
 def test_structured_filters_are_the_lake_and_sharepoint_kinds() -> None:
-    assert set(connection_tables._STRUCTURED) == set(lakes.KINDS)
-    assert set(connection_tables._STRUCTURED) <= set(catalogs.DIALECTS)
+    assert set(connection_sql._STRUCTURED) == set(lakes.KINDS)
+    assert set(connection_sql._STRUCTURED) <= set(catalogs.DIALECTS)
 
 
 def test_the_mock_reads_dialects_that_have_a_name() -> None:

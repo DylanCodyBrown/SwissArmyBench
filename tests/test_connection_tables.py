@@ -15,6 +15,7 @@ import pyarrow.ipc as ipc
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.domain import connection_sql as cs
 from swissarmybench.domain import connection_tables as ct
 from swissarmybench.domain import web_calls
 from swissarmybench.domain.connection_swap import Place
@@ -100,17 +101,17 @@ def rows(client: TestClient, grid: str) -> list[list[Any]]:
 def test_brackets_quote_a_connections_name_only() -> None:
     names = ["Finance Captive", "Shop"]
     text = "SELECT a[1], '[Finance Captive].x' FROM [Finance Captive].[Sales model].Date JOIN [y].z ON 1=1"
-    assert ct.quote_brackets(text, names) == (
+    assert cs.quote_brackets(text, names) == (
         'SELECT a[1], \'[Finance Captive].x\' FROM "Finance Captive"."Sales model".Date JOIN [y].z ON 1=1'
     )
 
 
 def test_references_resolve_by_name_in_any_case_and_a_shared_one_names_its_dataset() -> None:
-    sql = ct.quote_brackets(
+    sql = cs.quote_brackets(
         'SELECT * FROM [finance captive].sales s JOIN "Shop".main.segments g ON 1=1',
         ["Finance Captive", "Shop"],
     )
-    found = ct.references(sql, ["Finance Captive", "Shop"])
+    found = cs.references(sql, ["Finance Captive", "Shop"])
     assert [(r.connection, r.parts) for r in found] == [
         ("Finance Captive", ("sales",)),
         ("Shop", ("main", "segments")),
@@ -131,8 +132,8 @@ def test_references_resolve_by_name_in_any_case_and_a_shared_one_names_its_datas
     assert ct.resolve("W", "database", ["w", "dbo", "ITEMS"], db) == db[2]
     with pytest.raises(ct.ConnectionSqlError, match=r"could be main\.orders, sales\.orders"):
         ct.resolve("W", "database", ["orders"], db)
-    rewritten = ct.rewrite(
-        sql, ["Finance Captive", "Shop"], {r.key: ct.target_name(i) for i, r in enumerate(found)}
+    rewritten = cs.rewrite(
+        sql, ["Finance Captive", "Shop"], {r.key: cs.target_name(i) for i, r in enumerate(found)}
     )
     assert rewritten == 'SELECT * FROM "__sab_conn_0" AS s JOIN "__sab_conn_1" AS g ON 1 = 1'
 

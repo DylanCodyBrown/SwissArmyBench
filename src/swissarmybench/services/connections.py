@@ -20,6 +20,7 @@ from swissarmybench.domain import (
     sql_server,
     write_capability,
 )
+from swissarmybench.domain import connection_sql as sql_rules
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import connections as rules
@@ -549,7 +550,7 @@ class ConnectionService:
         return {"name": saved["name"], "changed": True, "driver": "mssql-python"}
 
     async def read_for_query(
-        self, name: str, place: dict[str, str], pushed: table_rules.Pushed, most: int
+        self, name: str, place: dict[str, str], pushed: sql_rules.Pushed, most: int
     ) -> TableRead:
         """A connection's table read for a DuckDB query (services/connection_tables.py): every row the
         query needs, never the connection's Rows to open. The columns and filters `pushed` are sent to a
@@ -573,9 +574,7 @@ class ConnectionService:
             table, total = answer["table"], answer.get("total")
             seen = max(int(table.num_rows), total if isinstance(total, int) else 0)
             if pushed.limit is None and seen > most:
-                raise BladeError(
-                    table_rules.too_many(blade.name, table_name, seen, most, bool(pushed.filters))
-                )
+                raise BladeError(sql_rules.too_many(blade.name, table_name, seen, most, bool(pushed.filters)))
             again = python_connections.read_call(
                 blade.name, full["schema"] if how.names_schema else "", table_name
             )
@@ -590,20 +589,20 @@ class ConnectionService:
             count: str | None = count_sql(blade.dialect, *where)
         else:
             picked = list(pushed.columns)
-            select = table_rules.with_filter(
+            select = sql_rules.with_filter(
                 select_sql(blade.dialect, *where, picked, pushed.limit), pushed.where
             )
             count = (
                 None
                 if pushed.limit is not None
-                else table_rules.with_filter(count_sql(blade.dialect, *where), pushed.where)
+                else sql_rules.with_filter(count_sql(blade.dialect, *where), pushed.where)
             )
         if count is not None:
             counted = (await self._blades.rows(blade, count, None, {}, within))["table"]
             values = counted.to_pylist()
             n = int(next(iter(values[0].values()))) if values and values[0] else 0
             if n > most:
-                raise BladeError(table_rules.too_many(blade.name, table_name, n, most, bool(pushed.where)))
+                raise BladeError(sql_rules.too_many(blade.name, table_name, n, most, bool(pushed.where)))
         parts = (("filters", pushed.where), ("columns", pushed.columns), ("limit", pushed.limit is not None))
         folded = [] if dax else [part for part, on in parts if on]  # what the SELECT sent to the source
         read = await self._blades.rows(blade, select, None, {}, within, target=table_name, folded=folded)
