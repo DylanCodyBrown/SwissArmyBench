@@ -82,6 +82,7 @@ def test_a_classic_address_lands_on_its_blazor_page(browser: Browser, server: di
     page = browser.new_page(viewport={"width": 1360, "height": 860})
     page.goto(f"{base}/workspace?open=connections#token={token}")
     page.wait_for_url("**/blazor/connections**", timeout=60_000)
+    page.wait_for_selector(".nav-rail", timeout=60_000)  # the token traded for the page's cookie first
     page.goto(f"{base}/g/{grid}")
     page.wait_for_url(f"**/blazor/grids?grid={grid}")
     expect(page.locator(".ag-row").first).to_be_visible(timeout=60_000)
