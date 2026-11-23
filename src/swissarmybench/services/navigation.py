@@ -42,9 +42,11 @@ class Navigation:
         # The rail's names on or off: this computer's choice (rail.json), shared by every window.
         self._kept: Kept = kept or _Memory()
         self._labels = rules.rail_labels(self._kept.read())
-        # Which front end the app opens (frontend.json): classic or blazor.
+        # Which front end the app opens (frontend.json): blazor (the default since the swap) or classic;
+        # SWISSARMYBENCH_FRONTEND wins (the classic pages' tests).
         self._frontend_file: Kept = frontend or _Memory()
-        self._frontend = rules.frontend(self._frontend_file.read())
+        override = ws.settings.frontend_override
+        self._frontend = rules.frontend({"frontend": override} if override else self._frontend_file.read())
 
     def frontend(self) -> dict[str, Any]:
         return {"frontend": self._frontend, "home": rules.HOME_PAGES[self._frontend]}

@@ -58,16 +58,33 @@ def test_a_page_not_built_yet_links_to_the_classic_one(browser: Browser, server:
     # Every rail area has a page now; an extension's area with no panel is one line and its classic place.
     page = open_page(browser, server, "x-stockroom")
     expect(page.locator(".not-yet")).to_contain_text("not in the Blazor front end yet")
-    expect(page.locator(".not-yet a")).to_have_attribute("href", "/workspace?open=stockroom")
+    expect(page.locator(".not-yet a")).to_have_attribute("href", "/workspace?open=stockroom&classic=1")
     page.close()
 
 
 def test_the_front_end_switch_in_settings(browser: Browser, server: dict[str, Any]) -> None:
     page = open_page(browser, server, "settings")
-    page.check("input[name=frontend][value=blazor]")
-    expect(page.locator("input[name=frontend][value=blazor]")).to_be_checked()
-    assert call(server, "GET", "/app/frontend")["frontend"] == "blazor"
+    expect(page.locator("input[name=frontend][value=blazor]")).to_be_checked()  # the default since the swap
     page.check("input[name=frontend][value=classic]")
     expect(page.locator("input[name=frontend][value=classic]")).to_be_checked()
     assert call(server, "GET", "/app/frontend")["frontend"] == "classic"
+    page.check("input[name=frontend][value=blazor]")
+    expect(page.locator("input[name=frontend][value=blazor]")).to_be_checked()
+    assert call(server, "GET", "/app/frontend")["frontend"] == "blazor"
+    page.close()
+
+
+def test_a_classic_address_lands_on_its_blazor_page(browser: Browser, server: dict[str, Any]) -> None:
+    """The swap: /workspace?open=connections, /g/<grid> and a pushed grid's #grid= open their Blazor pages."""
+    made = call(server, "POST", "/samples/store", {})
+    grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
+    base, token = f"http://127.0.0.1:{server['port']}", server["token"]
+    page = browser.new_page(viewport={"width": 1360, "height": 860})
+    page.goto(f"{base}/workspace?open=connections#token={token}")
+    page.wait_for_url("**/blazor/connections**", timeout=60_000)
+    page.goto(f"{base}/g/{grid}")
+    page.wait_for_url(f"**/blazor/grids?grid={grid}")
+    expect(page.locator(".ag-row").first).to_be_visible(timeout=60_000)
+    page.goto(f"{base}/workspace#grid={grid}")
+    page.wait_for_url(f"**/blazor/grids?grid={grid}", timeout=60_000)
     page.close()

@@ -30,6 +30,16 @@ LOAD_MS = 30_000
 expect.set_options(timeout=WAIT_MS)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def classic_pages() -> Iterator[None]:
+    """The classic pages' tests see the classic pages: Blazor is the default since the swap (the owner,
+    2026-11-23), and the classic pages stay one release. Every server a module starts inherits it; the Blazor
+    tests' own server sets it back (tests/e2e/blazor/conftest.py)."""
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("SWISSARMYBENCH_FRONTEND", "classic")
+        yield
+
+
 class _Shared:
     """The one browser of the run: started when a test first asks for it, stopped once the run leaves
     tests/e2e (Playwright's sync API holds an event loop on this thread, which asyncio.run in the other

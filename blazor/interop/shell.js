@@ -16,8 +16,12 @@ window.sab = {
   /** The page's session: the #token in the address (never sent to the server by the browser) bought once for the
    *  page's cookie, then the address cleaned; or the cookie this browser already holds. True when it worked. */
   async openSession() {
-    const token = new URLSearchParams(location.hash.slice(1)).get("token");
-    if (token) history.replaceState(null, "", location.pathname + location.search);
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    const token = fragment.get("token");
+    // A classic address's grid (/workspace#token=...&grid=3: a pushed table, the desktop app): kept for
+    // takeStartGrid, which opens it on the Grids page.
+    this.startGrid = fragment.get("grid") ?? "";
+    if (token || this.startGrid) history.replaceState(null, "", location.pathname + location.search);
     try {
       if (token) {
         const minted = await fetch("/session", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
@@ -27,6 +31,13 @@ window.sab = {
     } catch {
       return false;
     }
+  },
+
+  /** The grid the address's fragment named at start (#grid=3), once; "" when none. */
+  takeStartGrid() {
+    const grid = this.startGrid ?? "";
+    this.startGrid = "";
+    return grid;
   },
 
   /** The theme the system prefers right now ("light" or "dark"), and every change after (to the C# listener). */

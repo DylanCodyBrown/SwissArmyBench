@@ -1,10 +1,11 @@
 @* A page this front end does not have yet: one plain line and the same place in the classic front end (never a fake
-   page). The classic pages share this browser's session cookie, so the link opens there at once. *@
+   page). The classic pages share this browser's session cookie, so the link opens there at once; classic=1 takes it
+   past the swap's redirect (the classic pages stay one release). *@
 <section class="area-page not-yet">
     <h1>@Title</h1>
     <p>
         @Title is not in the Blazor front end yet.
-        <a href="@Classic">Open in the classic front end</a>
+        <a href="@PastTheSwap">Open in the classic front end</a>
     </p>
 </section>
 
@@ -15,4 +16,6 @@
     /// <summary>The classic front end's address for the same place.</summary>
     [Parameter, EditorRequired]
     public string Classic { get; set; } = string.Empty;
+
+    private string PastTheSwap => Classic + (Classic.Contains('?', StringComparison.Ordinal) ? "&classic=1" : "?classic=1");
 }

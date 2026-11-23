@@ -20,7 +20,7 @@
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
- *          [FRONT END]            Classic / Blazor (preview): the front end the app opens (GET/PUT /app/frontend;
+ *          [FRONT END]            Blazor / Classic (the old pages): the front end the app opens (GET/PUT /app/frontend;
  *                                 frontend.json; the agent's app_frontend), and Open it now
  * */
 import { api } from "./api";
@@ -67,12 +67,12 @@ registerLayer("settings", {
   },
 });
 
-/** Front end (the owner, 2026-11-23: the Blazor front end, side by side): the one the app opens, this computer's
- *  choice; the Blazor one at /blazor/, a preview. */
+/** Front end (the owner, 2026-11-23: "do the swap"): the one the app opens, this computer's choice; the Blazor
+ *  one at /blazor/ the default, these classic pages until the next release. */
 function frontendSection(): HTMLElement {
   const choices: [string, string][] = [
-    ["classic", "Classic"],
-    ["blazor", "Blazor (preview)"],
+    ["blazor", "Blazor"],
+    ["classic", "Classic (the old pages, until the next release)"],
   ];
   const open = h("a", { href: "/blazor/", class: "frontend-open" }, "Open it now");
   const radios = choices.map(([value, label]) =>
@@ -105,7 +105,7 @@ function frontendSection(): HTMLElement {
     { class: "fieldset" },
     h("legend", {}, icon("desktop"), "Front end"),
     h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Front end" }, ...radios),
-    h("p", { class: "muted" }, "The one the app opens. The Blazor front end is a preview: a page it does not have yet links back here. ", open),
+    h("p", { class: "muted" }, "The one the app opens. The classic pages go in the next release. ", open),
   );
 }
 

@@ -39,6 +39,7 @@ and does nothing but read the request, call the use case and shape the answer:
   (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
+  frontend_pages.py        the swap: a classic page's address answers with its Blazor page (ClassicToBlazor)
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
@@ -155,6 +156,7 @@ from swissarmybench.server import (
     routes_workbench,
 )
 from swissarmybench.server.beta_requests import BetaRequests
+from swissarmybench.server.frontend_pages import ClassicToBlazor, chosen_by
 from swissarmybench.server.http import guarded
 from swissarmybench.server.routes_connection_slots import CallerAtTheDoor
 from swissarmybench.server.security import (
@@ -518,6 +520,12 @@ def create_app(
                 session=session_secret,
                 secret_paths=secret_paths,
                 activity=ctx.lifecycle.request,
+            ),
+            # The swap: a classic page's address answers with its Blazor page while Blazor is the one opened.
+            Middleware(
+                ClassicToBlazor,
+                chosen=chosen_by(ctx.navigation.frontend),
+                built=(settings.blazor_root / "index.html").is_file(),
             ),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
             Middleware(CallerAtTheDoor),  # who each request's connection calls are for (their slots)

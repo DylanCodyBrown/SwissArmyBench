@@ -69,6 +69,17 @@ def _web_root() -> Path:
     return _PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB
 
 
+def blazor_built() -> bool:
+    """Whether the Blazor front end is here (the wheel's, or a checkout's `python blazor/publish.py`)."""
+    return ((_PACKAGED_BLAZOR if _PACKAGED_BLAZOR.is_dir() else _REPO_BLAZOR) / "index.html").is_file()
+
+
+def frontend_override() -> str:
+    """SWISSARMYBENCH_FRONTEND=classic or blazor: the front end whatever frontend.json says (the classic
+    pages' browser tests, while those pages last: one release after the swap, the owner 2026-11-23)."""
+    return os.environ.get("SWISSARMYBENCH_FRONTEND", "")
+
+
 def state_folder() -> Path:
     """The state folder (~/.swissarmybench; SWISSARMYBENCH_STATE for tests): the launcher reads its small
     files (frontend.json) before any server runs."""
@@ -264,6 +275,8 @@ class Settings:
     web_root: Path = field(default_factory=_web_root)
     # The Blazor front end's files (served at /blazor/, side by side with the classic pages).
     blazor_root: Path = field(default=_PACKAGED_BLAZOR if _PACKAGED_BLAZOR.is_dir() else _REPO_BLAZOR)
+    # The front end whatever this computer chose (SWISSARMYBENCH_FRONTEND; empty: frontend.json's choice).
+    frontend_override: str = field(default_factory=frontend_override)
     # Where the audit log and the other state files live (plan section 18, question 5: user folder for now).
     state_dir: Path = field(default_factory=_state_dir)
     # Exports requested by an agent (MCP) land only here, never as a browser download.

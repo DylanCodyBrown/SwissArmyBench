@@ -14,6 +14,13 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
 "<wheel>[server]"`, the installers add a Start menu / Applications / applications-menu launcher), opened by
 `swissarmybench`.
 
+- **The Blazor front end is the app's (the owner, 2026-11-23: "blazor has my approval, do the swap"; "Swap now,
+  delete next release"):** `blazor/` (C#, Blazor WebAssembly, Fluent UI; blazor/README.md) is the front end the app
+  opens; every classic page's address answers with its Blazor page (server/frontend_pages.py). The classic pages
+  (`web/`'s pages) stay one release as the fallback (Settings' Front end: Classic; `open --classic`; `?classic=1`;
+  `SWISSARMYBENCH_FRONTEND` pins one, the classic browser tests' classic), then go; `web/`'s npm packages stay (the
+  Blazor interop bundles AG Grid, Monaco, Plotly, Vega and Mermaid from them). C# follows
+  .claude/skills/csharp-clean-code/SKILL.md.
 - **The server's life follows the app (the owner, 2026-11-18: "I wanted the server to simply run while the app
   is active and shutdown when it's not"; the tray and start at sign-in removed "entirely"):** it stops 30 s after
   the last window closes (at once when the desktop app closes), or 10 minutes after the last request of the

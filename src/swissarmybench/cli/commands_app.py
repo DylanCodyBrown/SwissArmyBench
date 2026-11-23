@@ -254,8 +254,8 @@ def app_rail(a: dict[str, Any]) -> Any:
 
 @command(
     "app_frontend",
-    "The front end the app opens: classic (default) or blazor (the preview); frontend sets it",
-    opt("frontend", "classic or blazor."),
+    "The front end the app opens: blazor (default) or classic (the old pages, one release); frontend sets it",
+    opt("frontend", "blazor or classic."),
 )
 def app_frontend(a: dict[str, Any]) -> Any:
     if a.get("frontend") is not None:

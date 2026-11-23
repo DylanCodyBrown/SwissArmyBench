@@ -29,19 +29,19 @@
                 <legend><Icon Name="desktop" /> Front end</legend>
                 <div class="form-grid" role="radiogroup" aria-label="Front end">
                     <label class="check">
-                        <input type="radio" name="frontend" value="classic" checked="@(_frontend == Classic)" @onchange="() => SetFrontendAsync(Classic)" />
-                        Classic
+                        <input type="radio" name="frontend" value="blazor" checked="@(_frontend == Blazor)" @onchange="() => SetFrontendAsync(Blazor)" />
+                        Blazor
                     </label>
                     <label class="check">
-                        <input type="radio" name="frontend" value="blazor" checked="@(_frontend == Blazor)" @onchange="() => SetFrontendAsync(Blazor)" />
-                        Blazor (preview)
+                        <input type="radio" name="frontend" value="classic" checked="@(_frontend == Classic)" @onchange="() => SetFrontendAsync(Classic)" />
+                        Classic (the old pages, until the next release)
                     </label>
                 </div>
                 <p class="muted">
-                    The one the app opens. The Blazor front end is a preview: a page it does not have yet links back here.
+                    The one the app opens. The classic pages go in the next release.
                     @if (_frontend == Classic)
                     {
-                        <a class="frontend-open" href="/workspace?open=settings">Open the classic front end</a>
+                        <a class="frontend-open" href="/workspace?open=settings&amp;classic=1">Open the classic front end</a>
                     }
                 </p>
             </fieldset>

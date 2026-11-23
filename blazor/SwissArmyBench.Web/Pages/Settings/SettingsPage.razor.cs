@@ -23,7 +23,7 @@ public partial class SettingsPage
         + "3. Call its guide tool first; it explains the app and its tools.";
 
     private Exception? _error;
-    private string _frontend = Classic;
+    private string _frontend = Blazor;
     private GatesAnswer? _gates;
     private bool _follow = true;
 

@@ -1,13 +1,17 @@
-# Swiss Army Bench: the Blazor front end (preview)
+# Swiss Army Bench: the Blazor front end
 
-The same app's front end rebuilt in **Blazor WebAssembly** (.NET 10), side by side with the classic one in `web/`
-(the owner, 2026-11-23). The Python server is not rewritten: this app calls the same HTTP routes
-(`src/swissarmybench/server/routes_*.py`) and listens on the same live-updates websocket (`/ws`). The classic front
-end stays the default; Settings' **Front end** row (in both front ends) or the agent's `app_frontend` picks the one
-the app opens, and `swissarmybench open --blazor` opens this one once.
+The app's front end rebuilt in **Blazor WebAssembly** (.NET 10) (the owner, 2026-11-23). The Python server is not
+rewritten: this app calls the same HTTP routes (`src/swissarmybench/server/routes_*.py`) and listens on the same
+live-updates websocket (`/ws`). **It is the front end the app opens** (the owner, 2026-11-23: "blazor has my approval,
+do the swap"): every classic page's address (`/workspace`, `/g/<grid>`, `/notebooks`, `/scripts`, the Canvas, the
+Widgets window, the analyzer) answers with its Blazor page, its words kept (`server/frontend_pages.py`,
+`domain/navigation.py` `blazor_address`), and a classic address's `#grid=` opens that grid. The classic pages in
+`web/` stay **one release** as the fallback (Settings' **Front end**: Classic; `swissarmybench open --classic`;
+`?classic=1` on an address), then go ("Swap now, delete next release"). A checkout without this build opens the
+classic pages. The classic pages' browser tests pin classic with `SWISSARMYBENCH_FRONTEND=classic`.
 
 A page this front end does not have yet says so in one line, with **Open in the classic front end** to the same
-place: the classic pages share the browser's session cookie, so the link opens at once.
+place (past the redirect, `classic=1`): the classic pages share the browser's session cookie.
 
 ## Build and run
 

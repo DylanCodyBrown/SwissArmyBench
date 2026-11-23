@@ -21,6 +21,9 @@ public partial class MainLayout : IDisposable
     private IJSRuntime Js { get; set; } = default!;
 
     [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    [Inject]
     private ThemeState Theme { get; set; } = default!;
 
     [Inject]
@@ -51,7 +54,18 @@ public partial class MainLayout : IDisposable
         await Theme.StartAsync();
         await Live.StartAsync();
         _state = Ready;
+        await OpenStartGridAsync();
         await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync(), Beta.StartAsync(), Tour.StartAsync());
+    }
+
+    /// <summary>A classic address's #grid= (a pushed table, the desktop app's file): that grid on the Grids page.</summary>
+    private async Task OpenStartGridAsync()
+    {
+        var grid = await Js.InvokeAsync<string>("sab.takeStartGrid");
+        if (!string.IsNullOrEmpty(grid))
+        {
+            Navigation.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}", replace: true);
+        }
     }
 
     public void Dispose()

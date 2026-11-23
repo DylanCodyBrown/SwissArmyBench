@@ -164,16 +164,18 @@ def healthy(info: dict[str, Any], timeout: float = 2.0) -> bool:
 
 
 def home_path() -> str:
-    """The home page of the front end this computer chose (frontend.json: /workspace, the classic one, until
-    Settings' Front end picks the Blazor preview, /blazor/)."""
+    """The home page of the front end this computer chose (frontend.json; none: /blazor/, the Blazor one since
+    the swap; the classic /workspace where Settings' Front end chose it, or Blazor is not built here)."""
     from swissarmybench.domain import navigation
-    from swissarmybench.settings import state_folder
+    from swissarmybench.settings import blazor_built, frontend_override, state_folder
 
     try:
         saved = json.loads((state_folder() / "frontend.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         saved = None
-    return navigation.home_page(saved)
+    if frontend_override():
+        saved = {"frontend": frontend_override()}
+    return navigation.home_page(saved, blazor_built())
 
 
 def page_address(info: dict[str, Any], path: str | None = None) -> str:

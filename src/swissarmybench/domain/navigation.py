@@ -14,6 +14,7 @@ Pure rules, no I/O: a request read into the notice the window acts on.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 # The windows that move: the home page (/workspace), the Notebooks and Scripts pages. "catalog", the old
 # blades page's (it went 2026-11-21: the Scripts page's Blades pane), is read as "scripts" for one release.
@@ -155,28 +156,81 @@ def rail_change(sent: Any) -> bool:
     return bool(sent["labels"])
 
 
-# ===== the front end (the owner, 2026-11-23: the Blazor front end, side by side with the classic one) =====
-# Which front end the app opens: the classic one (web/, at /workspace) or the Blazor one (blazor/, /blazor/).
-# This computer's choice (frontend.json), the classic one until the user picks the other.
+# ===== the front end (the owner, 2026-11-23: "blazor has my approval, do the swap") =====
+# Which front end the app opens: the Blazor one (blazor/, at /blazor/), the default since the swap, or the
+# classic one (web/, at /workspace), kept one release as the fallback ("Swap now, delete next release").
+# This computer's choice is frontend.json; none kept: the Blazor one.
 
-FRONTENDS: tuple[str, ...] = ("classic", "blazor")
+FRONTENDS: tuple[str, ...] = ("blazor", "classic")
+DEFAULT_FRONTEND: str = "blazor"
 HOME_PAGES: dict[str, str] = {"classic": "/workspace", "blazor": "/blazor/"}
 
 
 def frontend(saved: Any) -> str:
-    """The front end frontend.json kept, else the classic one."""
+    """The front end frontend.json kept, else the Blazor one."""
     if isinstance(saved, dict) and saved.get("frontend") in FRONTENDS:
         return str(saved["frontend"])
-    return "classic"
+    return DEFAULT_FRONTEND
 
 
 def frontend_change(sent: Any) -> str:
-    """The switch as sent: {"frontend": "classic"} or {"frontend": "blazor"}."""
+    """The switch as sent: {"frontend": "blazor"} or {"frontend": "classic"}."""
     if not isinstance(sent, dict) or sent.get("frontend") not in FRONTENDS:
-        raise NavigationError('Send {"frontend": "classic"} or {"frontend": "blazor"} (the Blazor preview).')
+        raise NavigationError('Send {"frontend": "blazor"} or {"frontend": "classic"} (the old pages).')
     return str(sent["frontend"])
 
 
-def home_page(saved: Any) -> str:
-    """The home page of the front end frontend.json names."""
-    return HOME_PAGES[frontend(saved)]
+def home_page(saved: Any, blazor_built: bool = True) -> str:
+    """The home page of the front end frontend.json names; the classic one where the Blazor one is not built
+    (a checkout without `python blazor/publish.py`)."""
+    chosen = frontend(saved)
+    return HOME_PAGES["classic" if chosen == "blazor" and not blazor_built else chosen]
+
+
+# A classic page's address, and the Blazor page that shows the same thing (the swap: every way in that names a
+# classic page, a bookmark, the desktop app, a pushed grid, an agent's window, lands on the Blazor page). The
+# address's own words go with it: the Blazor pages read the same ones (?path=, ?grid=, ?name=, ?at=...).
+# The classic pages the server serves (their shells), each with the Blazor page it is now.
+CLASSIC_PAGES: dict[str, str] = {
+    "/workspace": "",
+    "/notebooks": "notebooks",
+    "/scripts": "scripts",
+    "/streamlit/canvas": "canvas",
+    "/streamlit/widget": "widgets",
+    "/streamlit/perf": "perf",
+}
+# The home page's ?open= layers and ?view= views, each a Blazor page (an extension's area, unnamed here,
+# is the Blazor page of its own name: its panel's page).
+OPEN_PAGES: dict[str, str] = {"projects": "", "data": "catalog", "variables": "environment", "scm": "x-scm"}
+VIEW_PAGES: dict[str, str] = {
+    "erd": "erd",
+    "analyze": "analyze",
+    "grids": "grids",
+    "new": "grids",
+    "start": "",
+}
+# The words the classic page reads and the Blazor page does not (said by the path now).
+CLASSIC_ONLY: frozenset[str] = frozenset({"open", "view", "kind"})
+
+
+def is_classic_page(path: str) -> bool:
+    """A classic page's shell (/workspace, /g/<grid>, /notebooks...): the swap sends it to its Blazor page."""
+    return path in CLASSIC_PAGES or (path.startswith("/g/") and len(path) > 3)
+
+
+def blazor_address(path: str, query: dict[str, str]) -> str:
+    """The Blazor page for a classic page's address: /workspace?open=connections is /blazor/connections,
+    /g/<id> is /blazor/grids?grid=<id>, /notebooks?path=x is /blazor/notebooks?path=x. The rest of the
+    address's words kept; ?panel= (a grid's pop-out panel) is the Blazor panel page."""
+    words = {k: v for k, v in query.items() if k not in CLASSIC_ONLY}
+    if path.startswith("/g/"):
+        page, words = "grids", {"grid": path[3:]} | words
+    elif path == "/workspace":
+        opened, view = query.get("open", ""), query.get("view", "")
+        page = OPEN_PAGES.get(opened, opened) if opened else VIEW_PAGES.get(view, "")
+    else:
+        page = CLASSIC_PAGES.get(path, "")
+    if "panel" in words:
+        page = "panel"
+    text = "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in words.items())
+    return f"/blazor/{page}" + (f"?{text}" if text else "")
