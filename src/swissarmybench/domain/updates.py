@@ -19,7 +19,7 @@ REPOSITORY: str = "DylanCodyBrown/SwissArmyBench"
 PYPI_URL: str = f"https://pypi.org/pypi/{PACKAGE}/json"
 GITHUB_URL: str = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 FEEDS: tuple[str, ...] = (PYPI_URL, GITHUB_URL)
-CHECK_EVERY_SECONDS: float = 6 * 3600
+CHECK_EVERY_SECONDS: float = 30 * 60  # every 30 minutes (the owner, 2026-11-23; it was six hours)
 
 
 class UpdateError(ValueError):

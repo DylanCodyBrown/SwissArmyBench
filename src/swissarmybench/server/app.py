@@ -365,7 +365,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
         pruner = asyncio.create_task(drop_silent_sessions())
-        # The update check: at start, then every six hours (nothing with the switch off or no feeds).
+        # The update check: at start, then every 30 minutes (nothing with the switch off or no feeds).
         checker = asyncio.create_task(ctx.updates.run_forever())
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
         ctx.variables.apply()  # the Variables page's values, in this server's environment

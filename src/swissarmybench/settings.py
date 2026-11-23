@@ -192,7 +192,7 @@ class Settings:
     # background as it opens. SWISSARMYBENCH_PROJECT_VENV=off: never by itself (tests; the user's Make it).
     project_venv: bool = field(default_factory=lambda: os.environ.get("SWISSARMYBENCH_PROJECT_VENV") != "off")
     # The update check (services/updates.py): the one request that leaves the computer, at start and every
-    # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
+    # 30 minutes, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
     update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)
     # The server's life follows the app's windows (services/lifecycle.py; the owner, 2026-11-18): it stops
     # this long after the last window closed (a reload must not end it), this long after its start when no

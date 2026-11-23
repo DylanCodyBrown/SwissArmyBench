@@ -790,7 +790,7 @@ sign-in any more:** `swissarmybench tray`, `autostart` and `--no-tray` say so fo
 start of this version removes an older version's sign-in entry and ends its tray (the page says so once).
 
 **Updates:** the server asks PyPI (`https://pypi.org/pypi/swissarmybench/json`, then GitHub's latest
-release if PyPI cannot be read) at start and every six hours. That one request is the only thing that
+release if PyPI cannot be read) at start and every 30 minutes. That one request is the only thing that
 leaves the computer, and it carries nothing but itself. A pre-release is offered only to someone on one.
 When a newer version exists, the grid page's and the Workbench's status bars say **Update available** (with
 **Update to X** and **What's new**). Update to

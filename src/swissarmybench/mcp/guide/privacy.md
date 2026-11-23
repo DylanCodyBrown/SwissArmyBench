@@ -66,7 +66,7 @@ password.
 
 ## Updates, and the server's life
 - The one request that leaves the computer, by the owner's call: the update check (PyPI's JSON, then
-  GitHub's latest release), at start and every six hours, carrying nothing but itself.
+  GitHub's latest release), at start and every 30 minutes, carrying nothing but itself.
 - `app_update_check` reads the version running, the latest and whether an update is available; `now`
   asks again; `on` sets the hidden switch for the six-hourly check (off: nothing is sent; Settings no longer shows it).
 - `app_update` updates to the offered version: it waits for the user's Allow (the prompt names unsaved

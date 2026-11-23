@@ -1,7 +1,7 @@
 """Updates: is there a newer release, the Settings switch "Check for updates", and "Update to X".
 
 The check is the one request that leaves the computer, by the owner's call (2026-11-16): at start and
-every six hours, PyPI's JSON for `swissarmybench`, then GitHub's latest release if PyPI cannot be read.
+every 30 minutes, PyPI's JSON for `swissarmybench`, then GitHub's latest release if PyPI cannot be read.
 Nothing is sent but that request. With the switch off, nothing is sent at all.
 
 "Update to X" (a page's status bar, the agent): it asks first only when something would be
@@ -207,7 +207,7 @@ class Updates:
         return self.state()
 
     async def run_forever(self) -> None:
-        """At start, then every six hours (the server's lifespan runs it; nothing when there are no feeds)."""
+        """At start, then every 30 minutes (the server's lifespan runs it; nothing with no feeds)."""
         if not self.feeds:
             return
         while True:

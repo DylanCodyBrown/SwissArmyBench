@@ -218,7 +218,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   or the user asks, and installs with uv or pip on the user's Install or Update (the agent's on Allow); it writes
   the open project's requirements.txt (Pin, Unpin, Install, Remove), only when its bytes change.**
   **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
-  `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
+  `swissarmybench` (then GitHub's latest release), at start and every 30 minutes, carrying nothing but
   itself; its on/off is a hidden setting (`update.json`, the agent's `app_update_check on`), and Settings shows only
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
   files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
@@ -1001,7 +1001,7 @@ src/swissarmybench/
     script_runs.py       a script's run settings (run_settings.json): Run file's arguments, the Environment's variables
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
-    updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
+    updates.py           the update check (start, every 30 minutes; the switch), Update to X (asks only when
                          work would be lost; the agent's waits for Allow)
     lifecycle.py         the server's life: the windows counted, the clients' requests (from the guard), the stop
                          (an open project saved first, or held), the desktop app's closed
