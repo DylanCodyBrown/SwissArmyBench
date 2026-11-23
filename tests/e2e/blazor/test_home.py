@@ -1,0 +1,42 @@
+"""The Blazor front end's Home (the Projects page): New project made through its dialog and opened, its
+card, Close project, Rename through the app's own dialog (an open project is refused, said in the one
+error note), the search."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from playwright.sync_api import Browser, expect
+
+from tests.e2e.blazor.conftest import call, open_page
+
+
+def test_new_project_from_the_dialog_then_its_card(browser: Browser, server: dict[str, Any]) -> None:
+    page = open_page(browser, server)
+    page.click("text=New project")
+    page.fill(".new-project-name", "Quarter review")
+    page.click(".dialog-foot >> text=Create")
+    card = page.locator(".explorer-card", has_text="Quarter review")
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("Local")
+    expect(page.locator(".status-project")).to_contain_text("Quarter review")
+    assert call(server, "GET", "/project")["project"]["name"] == "Quarter review"
+
+    # An open project cannot be renamed: the server's refusal in the one error note.
+    card.locator("button[aria-label^='More for']").click()
+    card.locator(".menu-item", has_text="Rename").click()
+    page.fill(".question-text", "Quarter review 2")
+    page.click(".dialog-foot >> text=Rename")
+    expect(page.locator(".error-note")).to_be_visible()
+
+    page.click("text=Close project")
+    expect(page.locator(".status-project")).to_contain_text("No project open")
+    card.locator("button[aria-label^='More for']").click()
+    card.locator(".menu-item", has_text="Rename").click()
+    page.fill(".question-text", "Quarter review 2")
+    page.click(".dialog-foot >> text=Rename")
+    expect(page.locator(".explorer-card", has_text="Quarter review 2")).to_be_visible()
+
+    page.fill(".explorer-search", "nothing like it")
+    expect(page.locator(".explorer-none")).to_have_text("No project matches.")
+    page.close()
