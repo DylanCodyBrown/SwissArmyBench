@@ -5,8 +5,8 @@ uvicorn + in-memory DuckDB) that lives while the app is open: tabular data in li
 profiling, SQL, export, verified code generation, charts and an MCP door for agents. The owner, 2026-11-18:
 "Change that to the primary install. It's not an extension it is the app framework now and it should have been
 since the start." The browser stays possible (`swissarmybench open --browser`), secondary. It runs only on the
-user's machine. This repository is the whole product: the Python package at the root and its page in `web/` (the VS Code
-extension went 2026-11-21, the simplicity pass).
+user's machine. This repository is the whole product: the Python package at the root and its front end in `blazor/` (the VS
+Code extension went 2026-11-21, the simplicity pass; the classic pages in `web/` went 2026-11-23).
 
 One package, two installs (`python build.py` builds the wheel, page inside): the plain wheel is a
 standard-library-only push client for any Python environment; the `[server]` extra is the app (the server and
@@ -14,12 +14,13 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
 "<wheel>[server]"`, the installers add a Start menu / Applications / applications-menu launcher), opened by
 `swissarmybench`.
 
-- **The Blazor front end is the app's (the owner, 2026-11-23: "blazor has my approval, do the swap"; "Swap now,
-  delete next release"):** `blazor/` (C#, Blazor WebAssembly, Fluent UI; blazor/README.md) is the front end the app
-  opens; every classic page's address answers with its Blazor page (server/frontend_pages.py). The classic pages
-  (`web/`'s pages) stay one release as the fallback (Settings' Front end: Classic; `open --classic`; `?classic=1`;
-  `SWISSARMYBENCH_FRONTEND` pins one, the classic browser tests' classic), then go; `web/`'s npm packages stay (the
-  Blazor interop bundles AG Grid, Monaco, Plotly, Vega and Mermaid from them). C# follows
+- **The front end is `blazor/` (the owner, 2026-11-23: "blazor has my approval, do the swap", then "we can swap
+  over to full Blazer do not keep both in sync in parallel"):** C#, Blazor WebAssembly, Fluent UI (blazor/README.md),
+  the only front end; the classic pages (`web/`) are deleted, with no switch left (no Front end setting, no
+  `open --classic`, no `SWISSARMYBENCH_FRONTEND`, no `app_frontend`). Every old page's address (/workspace, /g/<grid>,
+  /notebooks, /scripts, the Canvas, the Widgets window, the analyzer) answers with its Blazor page
+  (server/frontend_pages.py), so bookmarks, pushed grids and the desktop app still land. Its interop bundles AG Grid,
+  Monaco, Plotly, Vega and Mermaid from the npm packages `blazor/package.json` pins. C# follows
   .claude/skills/csharp-clean-code/SKILL.md.
 - **The server's life follows the app (the owner, 2026-11-18: "I wanted the server to simply run while the app
   is active and shutdown when it's not"; the tray and start at sign-in removed "entirely"):** it stops 30 s after
@@ -31,7 +32,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   Write only the new names; the old ones are no longer read (removed 2026-11-21, the simplicity pass; README
   "Renamed from SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
-  (`?view=erd`); both old names were removed 2026-11-21 (the simplicity pass). Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
+  (`?view=erd`); both old names were removed 2026-11-21 (the simplicity pass). Internal names (the `agent` view, CSS classes) kept the old word.
 - **Renamed (the owner, 2026-11-19): Visualizations is Analyze, and the analyses live there** ("Let's move the
   analyze from the table bar to the visualizations pane and then rename the visualizations pane Analyze" /
   "Every analysis should automatically push to the analysis visualization area" / "make it stupid simple";
@@ -45,7 +46,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `sab.analyze`, `?view=analyze` (the chart's code is `analyze_chart_code`). The old names (`visualizations_*`,
   `sandbox_*`, `sab.visualizations`, `sab.sandbox`, their addresses and project.json keys) were removed
   2026-11-21 (the simplicity pass). Files on disk and internal names kept the old word
-  (`.sab/visualizations.json`, client/visualizations_client.py, aiPanel.ts, sandbox*.ts).
+  (`.sab/visualizations.json`, client/visualizations_client.py).
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -70,13 +71,13 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   (the form, the card, the starters, an export), and the agent sees the same.
 - **The front end and the back end (the owner, 2026-11-17): "set a boundary on what is front end and what is back
   end ... a rule that we can never modify the front end of this app" / "including the edition right in this repo and
-  a separated install command".** **Editions never modify the front end.** The front end (`web/`) is one, shared
+  a separated install command".** **Editions never modify the front end.** The front end (`blazor/`) is one, shared
   by every edition: it draws what the backend's manifest (`GET /app/manifest`: rail areas, pages, commands,
   connection kinds and their forms as data, cell kinds, languages, Settings, starters, context.md's sections) and
   its OpenAPI routes say exists, and it never names an edition or asks which one it is. An edition is backend only:
   the shared core in `src/swissarmybench/` plus `src/swissarmybench/editions/<edition>/` (Python and its manifest,
   never a `.ts`, `.tsx`, `.css` or `.html`). A front-end change is its own change, made for every edition, only on
-  the owner's word, never as part of edition work. Tests enforce it (no edition names in `web/`; no front-end files
+  the owner's word, never as part of edition work. Tests enforce it (no folder extension named in `blazor/`; no front-end files
   under `editions/`; each edition's manifest and routes against the shared schema). **The base and its extensions
   (Plans/editions.plan.md, the owner 2026-11-17):** the base install is **Swiss Army Bench (BI Edition)**
   (`swissarmybench`: notebooks and analysis, a BI notebook as the deliverable); optional **extensions** plug into
@@ -94,7 +95,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   (Back, the name, the dirty dot, Save Ctrl+S, Save as…, Cancel, ▶ Run F5, Properties, "…": Show its file,
   Export, Remove, Copy as your own), Monaco with the Workbench's intelligence, Properties (name, description,
   tags, `table` checked live: GET /blades/table-name) closed until asked for, Output | Result | Problems folded
-  until something runs (design principle 8.14; web/src/codeIde.ts). **The code's bytes are the file's:** Save
+  until something runs (design principle 8.14; the Blazor CodeIde). **The code's bytes are the file's:** Save
   writes the code after the file's header (PUT /blades/{name} {code, stamp}; only when the bytes change; the
   header's variable follows a renamed function); an edit made outside is noticed (the stamp, looked at every
   2 s: taken at once with nothing unsaved, else Reload / Keep mine; a Save over it is 409), never silently
@@ -105,7 +106,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   blades page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its
   just tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
 - **Two things: the app and the project scaffold (the owner, 2026-11-22; design principle 12a).** The app is Swiss
-  Army Bench itself (`src/swissarmybench/`, `web/`, `extensions/`, the library); the project scaffold is what it writes
+  Army Bench itself (`src/swissarmybench/`, `blazor/`, `extensions/`, the library); the project scaffold is what it writes
   into a project folder and an export carries (`adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`,
   `requirements.txt`, the type's deliverable, the sandbox mirror) and must run without the app. Say which one a change
   is about. **adapter.py and api_adapter.py are the most valuable files** (the owner: "the single most valuable piece of
@@ -126,12 +127,12 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the same page they are seperate things"): /notebooks (the window sab-notebooks: notebooks, and an app's canvas
   beside them) and /scripts (sab-scripts: every .py, never a notebook), each its own Files pane on the right
   (2026-11-22), tabs, session and layout; a file opens on its kind's page from anywhere, a wrong-kind take is refused in one line
-  (domain/workbench_pages.py, web/src/workbenchPages.ts); /workbench redirects. **The Scripts page is a Python
+  (domain/workbench_pages.py); /workbench redirects. **The Scripts page is a Python
   IDE** ("this is meant to expose the high level code of everything in the app for fine tuning"): Files (the
   project's scripts by module with outlines, Project code, the library's Connections, APIs, Key vaults, Widgets;
   Generated, read-only, with Fine-tune as a script) beside Blades (a blade opens as a tab: bladeDoc, the blade
   IDE's seam): two columns on the right of the code, each shown or hidden by its status bar button and resized by
-  its edge, as the Canvas's Properties and Widgets (the owner, 2026-11-22; web/src/sidePanes.ts); F12, Shift+F12, F2, Shift+Alt+F, Ctrl+Shift+F, F11 full screen, Ctrl+B; every code file
+  its edge, as the Canvas's Properties and Widgets (the owner, 2026-11-22); F12, Shift+F12, F2, Shift+Alt+F, Ctrl+Shift+F, F11 full screen, Ctrl+B; every code file
   follows a change anywhere (the file_changed notice); a made file saved by hand is kept from a regenerate; saved workspaces; the desktop app (PySide6 windows,
   its pages in Qt WebEngine; built 2026-11-18, the browser secondary); and a Power BI style relationships view
   with autodetection. VS Code is optional.
@@ -233,7 +234,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   each computer, never stored resolved; a connection field is written into its code as `os.environ["NAME"]`, SQL
   binds it as a parameter, `$${NAME}` is the text; each connection's own saved password became a keyring
   variable once at start (`backup/before-variables-<date>/`), and `variable_refs.json` marks the one-time list
-  of saved text that now names a variable. Every form's box is one box (web/src/variableBox.ts: `${` lists the
+  of saved text that now names a variable. Every form's box is one box (the Blazor VariableBox: `${` lists the
   variables, `{x}`, the line under it; no source, vault or entry pickers beside a field).
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
@@ -390,7 +391,7 @@ src/swissarmybench/
                          sandbox_dialects, api_pattern_code and intellisense ask it; tests/test_dialect_names.py);
                          the dialects, their names and sqlglot names are the kind records' views; naming: how a
                          dialect quotes a name and whether a table is named alone (on every catalog's listing:
-                         catalogRail.ts quotes by it, naming no kind)
+                         the pages quote by it)
     dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
                          API's OData reads, paging, choice labels, the metadata as the catalog, FetchXML; SQL
                          on the read-only SQL endpoint, TDS port 5558, python-tds with the Entra token), its three
@@ -634,7 +635,7 @@ src/swissarmybench/
                          except) and its fixes, where an import goes, SQL's syntax by sqlglot, the ranking
     workbench_pages.py   Notebooks and Scripts, two pages (2026-11-21): which page a file or a kind opens on, the
                          one line a wrong-kind take is refused with, the old /workbench addresses, a command's page;
-                         rules(): the same tables as data for the pages (GET /app/rules; web/src/pageRules.ts
+                         rules(): the same tables as data for the pages (GET /app/rules: the pages
                          applies them and keeps no copy: 2026-11-22);
                          a structure's file (.json, .yaml, .yml, .xml, .toml; never a canvas, a .design.json nor
                          .sab/: is_structure_path) a tab on the page it was opened from, from outside the Scripts
@@ -1372,326 +1373,23 @@ src/swissarmybench/
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
   mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (363 in the base, 393 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
-web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid
-                         dom.ts is the page's shared parts (h, button, icons, openDialog, showMenu: the one
-                         menu; dragResize: the one drag-to-resize, each handle's keys its own; askYesNo and
-                         askText: every question on the app's own dialog, never the browser's confirm() or
-                         prompt(): 2026-11-22);
-                         and Plotly (each loads when first needed; svgSafe cleans drawings);
-                         lazyLoad.ts the one loader each for Monaco and the diagrams (loadEditors, loadDiagrams);
-                         lazyPages.ts the rail's pages that load when first opened (APIs, Structures, Code App,
-                         Source Control, Extensions: their names, whether a plug-in page is on, stand-in layers
-                         (nav.ts registerLazyLayer), the shared cards' sync, what is heard before a page opens);
-                         tourButton.ts the Projects page's Tour button (tour.ts loads on its first press);
-                         nav.ts is getting around on every page and window (design principle 8.11): the mark
-                         (the rail's first item: home, the Projects page; another window brings the home window,
-                         named sab-home, forward showing Projects; Alt+Home),
-                         views in the address (go: pushed for the user's moves, replaced for the app's; Back
-                         and Forward are the browser's), layers (a dialog with views of its own, open=<key>:
-                         Settings, Connections), every other dialog an entry Back closes, backButton (named
-                         for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
-                         rail.ts is the slim icon rail down the left of every page and window, in the order of
-                         the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; 24px icons so more
-                         fit, 2026-11-18; 2026-11-21: Home first, a house, "just call it home instead of projects";
-                         Structures beside APIs; Catalog; Git; 2026-11-22: no Blades icon, "remove blades rail
-                         icon": the Scripts page's Blades pane, ?pane=blades and app_navigate blades): Home,
-                         Connections, APIs,
-                         Environment (2026-11-22: it took the Structures and Variables places; the Structures page
-                         stays as the viewer a structure opens into, off the rail; the Variables page went:
-                         open=variables lands on the Settings and secrets tab), Catalog, Grids, ERD,
-                         Scripts, Notebooks, Canvas, Widgets, Analyze, Session, Settings at the
-                         bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
-                         dialog, no menu); the current area marked; Open in a new window on request; always
-                         there (no switch), and the top tabs and the Application row no longer repeat its
-                         areas (the owner, 2026-11-16); pageActions.ts the buttons an on extension adds to a
-                         base page (the mode's page_actions: label and icon as data; a click runs the plug-in of
-                         that id); extensionsPage.ts the Extensions page (open=extensions,
-                         above Settings: a card per extension, Install's progress through the restart; a folder
-                         extension's card from its data: Installed (folder), its path, Remove, Show its folder,
-                         its error with Load again, its packages through the missing-package prompt; New
-                         extension… in its heading);
-                         library.ts Settings' Team box (Join a team…, Start a team…: one dialog of steps; the
-                         Joined row: Pull, Push, …; Advanced: the two folders; Set up this computer) and the
-                         notices said once (the move, a team library, a pull's catalog change; a kept step
-                         opens Settings on the flow); areaPage.ts is a page of the rail's over any page
-                         (Settings, Connections, Session: open=settings, open=connections, open=session; Projects
-                         over the home page only, open=projects); projectsPage.ts the Projects page (the rail's
-                         mark, 2026-11-18: the Project Explorer and the tour; the app opens on it with no table and
-                         no project; /workspace?view=start lands on it; it makes way for a project opened there or
-                         a table that arrives); keyVaults.ts the key vaults on the Environment's Settings and
-                         secrets tab (a card each, Read again, Add key vault: moved from the Variables page, which
-                         went 2026-11-22); dataPage.ts the Catalog page (open=data, the rail's Catalog, after the Environment on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
-                         (this session's log, live, each entry a link; The agent / Me / Both; Changes, each change's words under it; Follow the agent: main.ts brings
-                         the grids, Analyze and the ERD to the front, workbenchPage.ts a cell; never while the user
-                         types; the rail's count); findConnections.ts the Connections page's Find connections on this computer… (the scan gated
-                         with Cancel, the list: search, Select all, Already added, no connection yet, the amber mark;
-                         Import); connectionsWindow.ts the
-                         Connections page (cards, a card's detail: references, configuration, calls; no APIs);
-                         callFigures.ts a connection's or an endpoint's running figures, small and out of the way
-                         (the card's "usually 140 ms", the detail's Calls, the APIs page's What it answers line);
-                         connectionSlots.ts a card's live "Running 3 of 8 · 1 waiting", the detail's limits and
-                         Queries in progress…; queriesWindow.ts the Queries window (?panel=queries&connection=:
-                         running and waiting queries, the SQL highlighted, Cancel, Finished); slotWait.ts a
-                         page's query waiting in a connection's line, for loading.ts's words and Cancel;
-                         connectionAccess.ts a card's Access section (what its app registrations reach, when and
-                         where checked, Check again);
-                         connectionTree.ts a connection's tables as a tree in its detail (search, Open, Preview,
-                         Copy name, Open all, Import its relationships, Query in a notebook); connectionSql.ts the
-                         connections a DuckDB query names (a SQL cell's head) and their completion;
-                         workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
-                         its documents as cards in one list (every notebook a notebook, the owner 2026-11-22: "we
-                         just have notebooks"); New and Open… in the top bar);
-                         aiPanel.ts is the Analyze board (a 12-column dashboard of resizable cards; an
-                         analysis's cards land at its top and are marked; a result's actions under its card);
-                         analyzePage.ts the Analyze toolbar (every analysis, grouped, everyday words first) and
-                         its one form beside the board (the table line with Change, the columns as chips, Make
-                         it fit with Apply, one sentence, Run gated with Cancel, More options, What your data
-                         should look like with Try it on this sample; What can I do with a column?; Check this
-                         table; Run again; no rule of its own: all from POST /analyze/plan);
-                         analyzeMenu.ts sendCards (a profile, a value, a row sent to the board by hand);
-                         analysisCards.ts those cards (a column's profile, the table's, a value, a row);
-                         sandboxDashboards.ts saving and opening the board as named dashboards;
-                         sandboxThemes.ts the board's own theme (tokens on its element only);
-                         sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
-                         markdown export; cellMenu.ts the right-click menus on cells and headers
-                         (Copy, Copy with headers, Copy as Markdown); headerCard.ts a column's numbers on
-                         resting over its header (its profile: range, blanks, distinct, a histogram);
-                         tour.ts is the first-time tour (on the Projects page only: a card per
-                         place in the rail's order that goes there and lights up the real control,
-                         two made-up tables staged and closed again, back to where it started;
-                         nav.ts returnTo; loaded when first opened);
-                         catalogRail.ts (the blades list, its "…": import, export, blade folders; the
-                         catalog tree only where a page gives it a place: the Workbench's "+ Table") is the
-                         Scripts page's Blades pane, on the right beside Files (the blades page went
-                         2026-11-21: /catalog redirects there, the pane shown; ?blade=<name> that blade's tab); bladeEditor.ts is the
-                         blade screen, an IDE on codeIde.ts, and New blade; its pieces mount on their own in
-                         another page's tab (bladeProperties: the header and the live table-name check;
-                         runBladeCode into codeIde.ts's runPanel; watchOutsideEdits: Reload / Keep mine;
-                         bladeEditorIntel; saveBladeAs; newBladeDialog: a name and a kind); codeIde.ts a page that is an IDE for one piece of
-                         code (the slim bar, Monaco with the host's intelligence, Properties, runPanel: Output
-                         | Result | Problems, resizable, folded until something runs; design principle 8.14);
-                         bladeLibrary.ts is import (review first), export and the blade folders dialog.
-                         connectionsWindow.ts's forms (a form per type) open in the Connections page;
-                         addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the
-                         APIs page; apisPage.ts the APIs page (open=apis: cards, search, the explorer, Author a
-                         call, Refresh's diff); apiLearned.ts each operation's What it answers (api_adapter's learned
-                         shape, maps to, drift marks, rename offers, Run, Build: a cell into data.ipynb, a
-                         function into a picked script, opened there) and Discover (its Allow said, Take it
-                         back); actionPicker.ts the one action picker for any API (the canvas's endpoint
-                         property, In source and Event call: grouped by API); structuresPage.ts the Structures page (open=structures: tabs, the
-                         tree and the text, steps, Open as grid, Save, Run again, Lineage; off the rail, where an API's
-                         answer and a kernel's value open) and structureTree.ts its tree and text view (shared with
-                         the APIs page, the Structures page and a structure's tab: folding, Show more, search marks,
-                         the found match, right-click and a list's drag for the tab); structurePaths.ts its pure parts
-                         (a path's words and Python code, the search's matches, which files are a structure's tab);
-                         structureDoc.ts a structure's tab in the code pages' groups, beside the code (2026-11-22, the
-                         owner: "I want it beside the ide so you can search and explore"): an IDE on codeIde.ts (Save,
-                         Save as…, Cancel, Tree | Text | Both, Format; the text editable at all times, the server's
-                         parse its realtime linter; the tree and the text in step both ways; search with Next and
-                         Previous, the path with Copy path and Copy as code; Transform: steps as a view, Open as grid;
-                         Reload / Keep mine on a change on disk); structureDocMenus.ts its menus, its small form, the
-                         steps' chips and notes (no tab state); structurePaths.ts's partsOf, parseProblem, parseValue;
-                         pythonConnectionForm.ts is its form for Python (your own code): three code
-                         boxes and the environment variables they read;
-                         starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
-                         its form and the Insert a snippet… picker;
-                         variableBox.ts `${NAME}` in any box (12.7): typing `${` lists the variables (names and
-                         sources in words), `{x}` the same, the line under the box (previewLine: the value, a secret
-                         masked, or the one error with Set it); variableLinks.ts Set it's and New variable…'s Add
-                         variable form, over the page; variableAnywhere.ts the same list in any text box of the
-                         app (typing `${`; right-click: Cut, Copy, Paste, Insert variable…; search boxes and
-                         `[data-no-variables]` left alone) and `globalThis.sabVariables` for SQL editors;
-                         fileChooser.ts picks real paths: the system's own dialog first (GET /dialogs, POST
-                         /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
-                         recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys).
-                         shareApp.ts Share… for any running app (openShareDialog(app), shareMark(app);
-                         globalThis.sabShare): the sentence, Install now, Sign in with your work account (or a code),
-                         Share, the link with Copy and Open, Your organization, the amber note, Stop sharing; the
-                         Shared mark beside an app's Launch / Stop. missingPackages.ts is the one missing-package
-                         prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
-                         Not now, no nagging this session), used by every place that finds one;
-                         emptyState.ts an empty page that leads somewhere (one sentence, the primary button, Try
-                         it with sample data: Connections, Session, the Workbench's landing pages);
-                         loading.ts the one loading state (design principles 8.12, 2026-11-18): busy(host, words,
-                         work, {abort, onCancel, errorIn}) gates an element (inert, aria-busy, a cover over its box
-                         after 150 ms with a spinner, the words at the body's size, the time after 3 s, Cancel, the
-                         error in place), loadingBlock(words) an empty area's placeholder, busyButton/busyClick a
-                         button busy until its work ends, markBusy a button drawn busy from a view's own state; no
-                         page has loading text of its own; errorNote.ts the one error component (9.5): the word
-                         and icon, what happened, where, the fixes as buttons, Details folded with Copy, Send to the
-                         agent; showError/clearError in place; errorHere (in place where the last action was: the control's row in its
-                         card, panel, form or dialog, a floating note under a page bar, a menu item's opener;
-                         pressed again, it goes); errorToast the same note in a toast with Show (background work
-                         only); errorMark its inline form for one-line rows; problemsHere several as one; toast()
-                         is info only; ApiError carries the refusal (`said`, saidOf); The Workbench (static/workbench.html, its own
-                         window): workbenchPage.ts (composition: the top row, each group's controls, the
-                         status bar; split along its own headings 2026-11-22, each part given the page's
-                         names as a host: workbenchCommandList.ts (every action of the window by one name: the
-                         list the palette, the keys and the agent's workbench_window run), workbenchView.ts
-                         (the code's own zoom, full screen), workbenchFileChanged.ts (a document whose file
-                         changed anywhere: followed in place, or its bar: Reload, Keep mine, Compare),
-                         workbenchRestore.ts (the documents kept over a reload), 2026-11-23: workbenchKeys.ts
-                         (F5, Ctrl+S, the debugger's keys), workbenchTableOwners.ts (which document holds each
-                         table's cell, Run tables), workbenchDocPanels.ts (each mode's own panels and toggles),
-                         workbenchDocLineage.ts, workbenchMove.ts (a document handed to another window),
-                         workbenchExport.ts (Export data.py, as one script or notebook), workbenchBars.ts (the top
-                         bar, a group's row, the session's entries), workbenchStatusBar.ts, workbenchFileTabs.ts (a
-                         structure's file, a library's source, a code app's file), workbenchSides.ts (Files and
-                         Blades); the page under 2,000 lines: tests/test_workbench_view.py), notebookCells.ts (a cell's
-                         rules that need no page: its kind, its role, a run's time, a cell as it is saved, command mode's
-                         keys, a SQL cell's line; scriptCells.ts a script's: its pieces, markers, safe runs; both tested
-                         in Node), workbenchLayout.ts (RStudio's panes: the groups, the console,
-                         Variables, both closed until the status bar opens them; splitters; F1 help as a
-                         card; pictures go to Analyze), workbenchGroups.ts (tab groups as VS Code's
-                         editor groups: drag to reorder or split with the five-way guide, splitters, the
-                         layout as data for the session restore; the tab kind registry, registerTabKind,
-                         where app pages are added; the canvases' New entries follow the mode),
-                         modes.ts (the open project's mode as the backend declares it: canvases offered,
-                         families shown first with Show all, New <type> project), canvasKit.ts (what the
-                         canvases share: Undo/Redo, the page tabs, the resize grip), sidePanes.ts (panes down the
-                         right of a page, side by side, each its own toggle for the bottom bar, resized by its left
-                         edge, kept per key: the Canvas's Properties and Widgets, the code pages' Files and Blades), excelCanvas.ts (the
-                         Accounting extension's Excel canvas: workbook.design.json, blocks on a grid of
-                         cells, Properties, Play, Download, Export workbook.py), excelPreview.ts (a built or
-                         imported workbook's sheet drawn, its charts), excelTemplates.ts (templates bound by
-                         clicking cells; statements: dry run, Build, register), workbenchExplorer.ts (the Data Explorer pane, which
-                         replaced the Data panel (2026-11-17): left, resizable, off until Ctrl+Shift+E, per
-                         window; a project's files at its foot (setFiles); "+ Table" and "+ Blade" open
-                         catalogRail.ts beside it; Pop out), dataExplorer.ts (the Data Explorer itself, one
-                         component for three hosts: the Data Catalog page (dataPage.ts, open=data: the one place to
-                         browse tables, its tree and detail side dataBrowse.ts; the pane's Pop out opens it; /workbench?panel=explorer redirects to it), the pane, the
-                         grid page's Find data dialog (Ctrl+K, gridCommands.ts): one search, chips, a
-                         connection picker, recent searches, each result's actions, its drag
-                         (EXPLORER_DRAG: lazy/codeEditor.ts drops the cell's language's code)),
-                         workbenchMenu.ts (its drop-
-                         down menus), workbenchAgent.ts (right-click, Send to the agent),
-                         workbenchPages.ts (Notebooks and Scripts, two pages: this window's, openOnPage and
-                         bringPage by the windows' names, the old session split once; loadPageRules: the
-                         server's tables taken once at a page's start); pageRules.ts (pure: the page of a file
-                         or a kind, a file's kind, the wrong-page line, a structure's file, all applied from
-                         the server's tables: tests/test_page_rules.py runs it in Node);
-                         codeExplorer.ts (each page's Files pane, on the right in a side pane: the server's groups,
-                         a module's outline as typed, marks, search, New; the status bar's Files and Ctrl+B show or
-                         hide it (view.files), Blades beside it on Scripts (view.blades); nothing open: the status
-                         bar keeps these buttons alone); workbenchIde.ts (the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F
-                         and Ctrl+Shift+F over /scripts/*; the tree's Rename with its imports' preview,
-                         Duplicate, Delete, New package; a library's file read-only on F12);
-                         workbenchDebug.ts (the debugger: gutter breakpoints, conditional and log points, the
-                         panel under the code while debugging: call stack, variables, watch, output, console);
-                         workbenchCommands.ts (every window action by one name: the palette (recent first), the keys (? lists
-                         them: the shortcuts sheet, the grid page's too), and
-                         the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command
-                         mode; the view only: its state one record, workbenchNotebookState.ts, handed to its parts
-                         …Text, …Tables, …Runs, …Edits, …Snippets, …Errors, …Cell, …Keys, …Mode: 2026-11-23),
-                         workbenchScript.ts (the same: …State, …Cells, …Runs, …Html, …Errors), workbenchConsole.ts (each document's console),
-                         workbenchKernel.ts (runs), workbenchOutputs.ts (outputs drawn as they arrive:
-                         colours, `\r`, caps, input boxes), workbenchErrors.ts (the error panel: Visual
-                         Studio's Exception Helper; squiggles, hover cards and Ctrl+. fixes in the editor),
-                         workbenchCompletion.ts, workbenchIntel.ts (the editors' intelligence: the member
-                         list with its documentation panel, parameter info, quick info, the lint as you type,
-                         the status bar's Problems count and list, the Ruff offer), workbenchEnvironment.ts,
-                         environmentPage.ts (the Environment: the rail's page, open=environment&at=<tab>&name=<row>,
-                         and the Workbench's right pane, environmentPane: tabs by kind with their own columns, one
-                         search over every tab, rows that unfold, the viewer beside the list (Ctrl+B), Used in
-                         links, Remove with the Python tick, Rename, Clear…, Keep, Libraries' Pin, Update and
-                         Install through missingPackages.ts; the Settings and secrets tab's key vaults and Add
-                         key vault; the Libraries tab's line about the project's Python; follows
-                         environment_changed, no Refresh; it replaced workbenchVariables.ts and the Variables
-                         page; in parts, 2026-11-23: environmentRules.ts (pure, tested in Node), …State (the record),
-                         …Moves (load, tabs, select), …Actions (a row's actions and dialogs), …Columns, …Draw),
-                         projectSession.ts (one Python per project as the pages say it: the project's
-                         Python's state and its one line, Make it now, a notebook's older environment offered;
-                         workbenchKernel.ts holds the project's one session for each of its documents: Python
-                         session in the status bar, Restart asked first, every window told), lazy/codeEditor.ts (Monaco: line edits that keep the
-                         cursor, cell links, a script's folds and marker notes),
-                         workbenchTables.ts (every table's read-only cell: its state against the text it
-                         last ran, the folded lines' words, the uses line); the Tables group, cell
-                         numbers and @cell links are drawn in workbenchNotebook.ts and workbenchScript.ts;
-                         workbenchHtml.ts (HTML cells: the design's pane that resizes, its sandboxed
-                         frame, the names filled by the server's rules, the out-of-date state);
-                         a DAX cell (its dataset picker, Monaco's DAX grammar) is drawn in
-                         workbenchNotebook.ts, its completion in workbenchCompletion.ts;
-                         workbenchLineage.ts (the Lineage overlay: Mermaid flow, a value card per step;
-                         window.openLineage);
-                         cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
-                         pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
-                         projects (New project, Open project, Export data.py) are in workbenchPage.ts;
-                         kindColours.ts the kind colours (fixed: grid.css's tokens) and each kind's
-                         icon (kindIcon: every notebook the notebook's, data.ipynb too, 2026-11-22);
-                         projectFile.ts a project as a folder, shared by the home page and the Workbench
-                         (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
-                         for the types explained, where; save, Keep its rows asked once; Copy project to…;
-                         close; a table's fix; the ● mark; Export outline: ARCHITECTURE.md, then Download);
-                         projectTypes.ts the types for
-                         beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
-                         the Project Explorer, drawn on the Projects page (cards marked Local or Shared, sort and dragged custom
-                         order, filters, the types strip, the empty state, a card's menu: Share, Make a local copy;
-                         the Team box's local projects row and Advanced's shared projects folder);
-                         projectImport.ts the import dialog (documents, connections, blades: from another
-                         project folder, a file, this computer);
-                         startView.ts the New query page (/workspace?view=grids, view=new over grids: the grid page with no table
-                         open, and the tab row's "+", Ctrl+T, Ctrl+N; the owner, 2026-11-20): Open tables (DuckDB)
-                         first while a grid is open, then each connection that runs SQL (queryTab.ts
-                         queryConnections, Query from's one list: its kind, colour, a password missing here); a
-                         click or Enter opens the draft with Query from set (panes.ts openQueryDraft; the agent's
-                         app_navigate query:<connection>); arrows move, a search past 8; no connection: the empty
-                         state; the project's tables to fix below; queryTab.ts the draft (the SQL tray over a
-                         blank grid) and a built table's tray; the project's group in the
-                         Application row (Save, Copy to…, Close, Autosave) and the strip of tables to fix;
-                         connectionColours.ts each connection's colour worn by whatever names it
-                         (data-connections): its own box (a card, the Data Catalog's row, a tab group's head) as
-                         its border and a light tint, what names it (tabs, cells, Session entries) as a stripe;
-                         the swatch and palette on its detail; dom.ts dateTime and plural, the pages' one date
-                         and one count; panes.ts groups the home page's tabs by connection;
-                         localApis.ts the APIs page's Local sandbox APIs (one slim bar: name, where it runs, the
-                         agent's session writes with Stop, Run / Stop, Open API.py, Properties folded: target, base
-                         path, description; "…": New endpoint…, Will this work for real?, Export (its target said,
-                         never asked); endpointsPane: API.py's Endpoints panel on the Scripts page (New endpoint…
-                         there too); each endpoint labelled by the pattern that made it;
-                         endpointWizard.ts New endpoint, the ONE wizard (a sandbox table, the patterns ranked by its
-                         shape with one sentence why, that pattern's own steps drawn from its data, the code kept
-                         current, Add to API.py; no rule of its own: POST /local-api/plan);
-                         each endpoint's data words and Try it (the server's made-up request; a refusal as the one
-                         error note with API.py's line; kept open over a redraw), problems with Go to line, the
-                         request log and Output); on the Scripts page API.py's main Run is Run API and it takes no
-                         Tables group (workbenchPage.ts isApiFile);
-                         dataSandbox.ts the project's sandbox (Make a sandbox variant… for the grid's Table row and
-                         the Structures page; the APIs page's panel, also the Connections page's Sandbox page: tables
-                         sorted by their headings, their mock clients and Mocked as, the variant's mark and origin,
-                         Open in Grids, Reset, Set as baseline, checkpoints, the log); sandboxGrid.ts a sandbox
-                         table's grid (the bar: designation, origin, Add row, Delete rows, Reset; a cell edited in
-                         place through gridView.ts's registerCellEditor, a LIST/STRUCT/MAP cell a JSON box; the tab's
-                         designation);
-                         swapConnection.ts the Table row's Connection: <name> (a table read from another
-                         connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
-                         ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
-                         Point these at <name> (the cells that named the old one, ticked);
-                         updates.ts the status bars' "Update available" (Update to X, What's new) and
-                         Settings' Click here to update (only while one is available); desktopApp.ts is the page in the desktop app (window.sabApp:
-                         the browser's keys are the app's there, Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+Shift+T;
-                         closeWindow); fileChanged.ts a table whose file changed on disk (its tab's dot, its
-                         pane's Changed on disk: Reload, Not now);
-                         claudeLaunch.ts the status bars' Launch Claude (one found: straight to it; both: a
-                         menu; none: the install help), Desktop's one question, Settings' Claude;
-                         the Workbench's modes: workbenchModes.ts (each document's own panels beside it
-                         in its group, the status bar's toggles), workbenchDocModes.ts (Notebook's Outline,
-                         Script's Run settings, Data's Dictionary and Lineage's place)
-                         The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
-                         strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
-web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, workbench,
-                         perf) split on its own (chunks/<page>-<hash>.js: what loads when first
-                         opened), lazy/* and the workers as before, grid.css minified into build/grid.css
-web/static/              index.html, grid.css (all theme tokens; the pages load build/grid.css), build/
-                         (gitignored); design.html is the
-                         page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
-                         over the network)
-tests/                   unit + HTTP tests, golden/ (shared cases), web_unit.py (the front end's unit tests: a
-                         pure module of web/src bundled by the page's esbuild, its functions called by Node:
-                         test_page_rules.py, test_workbench_view.py, test_notebook_cells.py), test_web_lines.py
-                         (no web/src line over 300 characters, wrapped by hand: no formatter),
-                         e2e/ (Edge via Playwright; e2e/asks.py: the app's own questions answered,
-                         accept_asks and answer_ask; e2e/conftest.py
-                         holds the one browser of the run and the waits' 15 s), live_server.py (a real server in
+blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
+                         and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/
+                         one record per server answer and each area's client, Generated/ by tools/generate_api.py;
+                         State/ the shared services, each one Changed event; Navigation/ the rail's areas; Layout/
+                         the shell, rail and status bar; Components/ the shared parts: ErrorNote, Busy, AppDialog,
+                         Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
+                         extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,
+                         css/ (tokens.css: every theme token), design.html: an HTML cell's walled-off frame);
+                         SwissArmyBench.Web.Tests/ (xUnit v3 and bUnit); interop/ (one JavaScript file per widget,
+                         bundled by interop/build.mjs into wwwroot/js/ from package.json's npm packages: AG Grid,
+                         Monaco, Plotly, Vega, Mermaid, html-to-image); publish.py (the interop bundles, then
+                         `dotnet publish`: blazor/publish/wwwroot, what /blazor/ serves in a checkout)
+tests/                   unit + HTTP tests, golden/ (shared cases), e2e/blazor/ (THE browser tests: the Blazor
+                         pages in Chromium via Playwright, a real server per module; e2e/blazor/conftest.py the
+                         server, the browser, the waits' 15 s, no project left open; the two test apps played on
+                         the Canvas), e2e/test_real_world.py (the owner's use cases by the agent's commands against
+                         the test bed), live_server.py (a real server in
                          a thread on a socket already bound, stopped within a second or two),
                          desktop_drive.py (the desktop app really run under Qt off screen: windows, downloads,
                          Print to PDF, outside links, the server stopping with it; test_desktop_shell.py runs it),
@@ -1727,8 +1425,8 @@ tools/                   architecture_map.py (standard library only: the compone
                          `python tools/architecture_map.py`, `--check`); screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
-                         tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity; 11: a widget on
-                         a canvas in both layouts, played, exported);
+                         tests/e2e/test_real_world.py (the use cases by the agent's commands: 1a, 4a and 11a; 2
+                         and 3 run its saved notebook headless and as an Azure Function would);
                          large_company.py, Larkfield Goods: a made-up retail business of 14 tables at three scales
                          (small 10k order lines, medium 1M, large 10M in about 30 s), DuckDB SQL over range() with
                          hash-based randomness, deterministic by seed, its deliberate problems in
@@ -1743,7 +1441,7 @@ examples/forms_recon/    the owner's first app POC as a test app, made by the ap
                          three canvas pages, widgets/api_bridge.widget.py (the project's own widget); its
                          pattern-shaped endpoints made by the wizard (a form picker's choices, a reconciliation's
                          runs, a run's counts by status, its results as a CSV file);
-                         tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
+                         tests/e2e/blazor/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes;
                          workbook.py (a month's reconciliations as a workbook beside the app, from the sandbox
                          through adapter.py and sab_excel.py: tests/test_workbook_deliverable.py)
@@ -1886,36 +1584,6 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          53 of them in eight starter packs (sales_, ops_, cs_, de_, admin_, input_, excel_, form_);
                          four, api_*, call the local sandbox API
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
-web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list (This project, Library, prebuilt),
-                         Copy to project / to library, Monaco with the Workbench's intelligence over a kernel of its
-                         own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code; a failure's error panel with Go
-                         to line; remembered per widget this session), Properties (Name checked live, Description,
-                         each property's mask); its panes fold (Ctrl+B)
-web/src/widgetPacks.ts   a widget's heading in the lists (its pack, else its group) and a pack's description line
-web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties; endpoint:
-                         a picker of API.py's endpoints; path_values: a box per {name} of its endpoint's path, a
-                         value, a variable or a page value each); a table's
-                         picker grouped: sample, open tables, data.ipynb's, each connection's [Conn].table (typed
-                         when its catalog is not listed yet)
-web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,
-                         nest, snap with guides, nudge, zoom); right-click Insert widget; the Properties and Widgets
-                         panes (hideable, resizable: sidePanes.ts; a card's hover preview; Show on, Hidden in the app: faded, eye-off); the top row's Play (F5; its ▾:
-                         Launch Ctrl+F5, Launch with the Performance Analyzer Ctrl+Shift+F5, Share… while launched,
-                         Builds…; Stop while running) and Export (Ctrl+Shift+E), also every right-click menu's last group; the
-                         bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the
-                         panes' toggles, zoom); the frame's right-edge width
-                         handle (px shown); versions and notices. Its parts, each given a small host (2026-11-23):
-                         canvasGallery.ts (the Widgets pane and the widgets' previews), canvasProps.ts (the Properties
-                         pane), canvasMenus.ts (the menus, the run group), canvasRun.ts (Play, Launch, Export)
-web/src/canvasWiring.ts  the Canvas's Inputs, Outputs and Events sections (a source picker: Sandbox first, this page's,
-                         another page's by its name, The app's viewer; readers; actions with a typed payload's fields),
-                         the board's marks (sources, readers, broken) and the Wiring view: port dots on each widget's
-                         edges, lines from the exact Out port to the In port, another page's wire a stub with its name
-web/src/canvasGrid.ts    the Canvas's placement maths: the step, the grid's lines, edges and centres, nudges, dots
-web/src/canvasBuilds.ts  the Canvas's Builds (newest first, what changed; Compare two or with now in Monaco's diff
-                         editor; Open; Relaunch; Restore) and the analyzer's window (analyzerAddress, openAnalyzer)
-web/src/perfPage.ts      the Performance Analyzer's window (static/perf.html, ?canvas=): Timeline, Calls, Cache, Web
-                         socket, Hints; Pause, Clear, Save into the build; a saved session read-only
 extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
                          project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
                          page, through GitHub's web API (no Git on the computer)
@@ -1940,18 +1608,6 @@ extensions/git/          the Git extension (swissarmybench-git; entry point git 
     services/scm.py      SourceControl: the page's repositories and groups, stage, discard, commit, sync, history, a
                          commit's files, the diff's two sides, branches, checkout and create
     server/routes.py     /git/*
-web/src/scmPage.ts       (a plug-in) the Source Control page: VS Code's view (repositories, the message box, Commit and
-                         its menu, the groups, inline actions, menus, list or tree), the graph, Monaco's diff editor
-                         and the files beside it, the welcome and GitHub sign-in, Clone and Connect's quick picks;
-                         the Team box's sign-in step (teamSignIn); a shared card's Pull, Push and words; Share's "Push it to GitHub
-                         now?". scmGraph.ts the graph's swimlanes (ported from VS Code's scmHistory.ts, MIT)
-web/src/extensionArea.ts an extension's rail area with a `panel` route (GET /app/areas), drawn as a page of the
-                         rail's from that data (the Power BI page), generic
-web/src/gates.ts         a project type's gates (GET /app/gates): a closed area hidden on the rail, one line with Open
-                         every feature on any other way in (the palette's commands and the Workbench's New entries
-                         by their area: gatedRun; an address on a closed area covered by it: a popover over the
-                         page), Settings' switch, the first-open pop-up once per project, the mode's own tour cards
-web/src/areaMarks.ts     the footer's marks an extension's area answers (GET /app/areas' mark route), generic
 extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
                          powerapps = swissarmybench_powerapps.extension; project type codeapp): Power Apps code
                          apps built with Microsoft's own command lines (pa for the app, pac for environments and
@@ -2036,9 +1692,6 @@ extensions/powerbi/       the Power BI extension (swissarmybench-powerbi; entry 
     services/export.py   plan (the ERD's tables, why one cannot go, Include its rows), export (the project's
                          powerbi/, or a zip; rows on the agent's Allow), open (the user's click)
     server/routes.py     /powerbi/plan, /powerbi/export, /powerbi/report (a dropped file's bytes), /powerbi/open
-web/src/powerbiExport.ts (a plug-in) the ERD's Export to Power BI… dialog: the tables with ticks, why one cannot go
-                         and Include its rows, the relationships, Use an existing report's pages (drop or Choose
-                         file…; its fields mapped, a picker or Leave it), Export, Open in Power BI Desktop
 extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; entry point copilot =
                          swissarmybench_copilot.extension; no project type): Copilot's ghost text in the Workbench's
                          editors through GitHub's Copilot Language Server (npm @github/copilot-language-server,
@@ -2059,29 +1712,16 @@ extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; e
     services/copilot.py  one server per app: start, sign in (device flow), the On switch, private projects,
                          complete, cancel, shown/accepted/partial, the panel as data
     server/routes.py     /copilot/*
-web/src/canvasSnap.ts    snapline maths over rectangles (guides, snapped, equalGaps, sameSize, inBand): pure,
-                         tested as the page runs it (tests/test_canvas_snap.py: esbuild and Node)
-web/src/inlineCompletion.ts ghost text from the provider the mode declares (`inline_completion`: its routes): the
-                         ask (cancelled with Monaco's token), the shown/accepted/partial report, the status bar's
-                         "Completions: <name> · on/off" (a click toggles); lazy/codeEditor.ts registers Monaco's
-                         inline completions provider for Python and SQL (an editor's `inline: inlineSource(...)`)
-web/src/extensionPanel.ts an extension's panel drawn from its data (lines, switches, actions with notes, choices,
-                         rows to work through, a code and a page to open, a dry run to review and Apply, a plug-in opened
-                         right there: pageActions.ts openPlugin): on its Extensions card and in Settings; projectFile.ts privateSwitch (the project
-                         group's Private: POST /project/private)
-web/src/codeAppPage.ts   (a plug-in) the rail's Code App page: tools, sign-in, project, connectors (the APIs
-                         explorer's look), Run live's pane, Push, custom connectors, runs; shown while on
-web/src/routedCells.ts   a cell another kernel runs, by the routes the mode declares (MODE cell_routes): a run's
-                         stream, a TSX cell's page, Open as grid of a table result, the editor's declarations
-web/src/workbenchCodeFile.ts (a plug-in) a code app's file in the Workbench's editor: Monaco's TypeScript
-                         service (ts.worker.js) over the project's files; New TypeScript file in the code app mode
 ```
 
 ## Commands
 
 See [README.md](README.md). Before a commit: `pytest -q --ignore=tests/e2e -n 4 --dist loadfile` and
-`pytest -q tests/e2e -n 2 --dist loadfile` (pytest-xdist; plain `pytest -q` runs it all in one process),
-`ruff check .`, `ruff format --check .`, `mypy`, and `npm run typecheck` in `web/`. Run
+`pytest -q tests/e2e -n 2 --dist loadfile` (after `python blazor/publish.py`; pytest-xdist: plain `pytest -q` runs
+it all in one process),
+`ruff check .`, `ruff format --check .`, `mypy`, and in `blazor/`: `dotnet build SwissArmyBench.Web
+-warnaserror`, `dotnet format SwissArmyBench.Web/SwissArmyBench.Web.csproj --verify-no-changes` and the bUnit tests
+(`dotnet test --project SwissArmyBench.Web.Tests`). Run
 Python as `.venv\Scripts\python -m ...`: `uv run` re-syncs first and fails while a server
 started from `swissarmybench.exe` is running.
 
@@ -2100,7 +1740,7 @@ the README (the owner, 2026-11-15).
 - In a notebook the app's own cells (a Tables heading's line, a table's read-only cell) are
   `.wb-tcell`; `.wb-cell` is a cell of the user's. A browser test that counts `.wb-cell` counts
   the user's cells only.
-- `npm run build` writes source maps (development); `build.py` uses `build:release`
-  without them, and the wheel bundles `web/static` as `swissarmybench/web_static`.
+- `build.py` runs `npm ci` in `blazor/` and `blazor/publish.py` (a Release build); the wheel carries
+  blazor/publish/wwwroot as `swissarmybench/web_blazor` (an artifact: Git ignores it).
 - DuckDB quirks the engine depends on are listed in docs/verified.md (LIKE escape, case
   mapping, date_trunc type, parameterized GROUP BY aliases).

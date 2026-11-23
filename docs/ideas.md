@@ -9429,3 +9429,33 @@ Left, and why:
   editable install starts the main checkout's server, which serves the main checkout's `web/static`, so the
   pages under test are not the worktree's. Measured with it: the whole browser suite in one process, 415
   passed, 15 skipped.
+
+## Blazor only: the classic pages go, 2026-11-23 (decisions and open notes)
+
+The owner, 2026-11-23: "we can swap over to full Blazer do not keep both in sync in parallel" (replacing
+"Swap now, delete next release").
+
+- Deleted: `web/src/` (the TypeScript pages), `web/build.mjs`, `web/static/` (index.html, workbench.html,
+  canvas.html, widget.html, perf.html, grid.css, catalog.css), the `/static/` mount, the page-shell routes
+  (/g/<grid>, /workspace, /notebooks, /scripts, the Streamlit extension's /streamlit/canvas, /streamlit/widget,
+  /streamlit/perf), the front end switch (Settings' Front end, `open --classic` and `--blazor`,
+  `SWISSARMYBENCH_FRONTEND`, `frontend.json` no longer read, GET/PUT /app/frontend, `app_frontend`: said gone in
+  one line), the classic browser tests and the Node unit tests of `web/src`.
+- Kept, moved: the npm packages the interop bundles (`web/package.json` and its lock are `blazor/package.json`,
+  `npm ci` in `blazor/`, TypeScript dropped); the HTML cells' design frame (`/blazor/design.html`, in the Blazor
+  wwwroot). Every old page's address still answers 302 with its Blazor page (server/frontend_pages.py
+  `OldAddresses`), whether or not the build is there; `?classic=1` and an old `?file=` are read as before.
+- The desktop app names Blazor's addresses (domain/desktop.py HOME_PAGE `/blazor/`, GRID_PAGE, PAGES); a window's
+  kind reads past `/blazor/`; an old address is the same page as its Blazor one. The Blazor shell names the first
+  window `sab-home` (the classic nav.ts did); the Notebooks and Scripts pages take the desktop app's F11
+  (`window.sabFullScreen`) and full-screen the window with the page. A file handed to the app with a home window
+  open brings it forward without loading it again.
+- Found while moving the checks: scm.css's last rule had no `}`, and workbench.css held a stray
+  `margin-left: 0 !important; }` from a merge that made the next rule (`.wb-elsewhere`, the bar over a document
+  whose file changed) unreadable to the browser; both fixed.
+- Open, for the owner: the Blazor pages copy rules the classic pages had been made to ask the server for
+  (tests/test_served_rules.py checked web/src): a connection's kind compared by name (ConnectionTables,
+  ConnectionDetail, ConnectionFormView, CatalogTreeNodes, QueryConnection), the Canvas's own `Fits`
+  (WiringRules.cs), a vault secret's variable name worked out (VaultRow.EnvFor). The checks that held web/src to
+  it are gone with it; holding blazor/ to it needs those pages changed first. The Blazor Projects page does not
+  make way for a table that arrives (the classic did): a pushed table shows on the Grids page.

@@ -1,7 +1,7 @@
 # The real-world test bed
 
 Real databases, made-up files and stand-ins for the cloud services, so the owner's real-world use cases
-run end to end in a real browser (`tests/e2e/test_real_world.py`). Made-up data only: a small company,
+run end to end (`tests/e2e/test_real_world.py`: by the agent's commands, then run as they run outside the app). Made-up data only: a small company,
 Quillmere Supply (`company.py`), with no real names or addresses.
 
 ## Run it
@@ -45,7 +45,10 @@ build the client wheel and a plain Python with `uv` (pandas, psycopg, nbconvert,
 | 10 | a story notebook: figures, a Markdown cell with live values, a table and a Mermaid diagram, an HTML cell | 20 |
 | 11 | a widget written in the Widgets window (its table PostgreSQL's invoices, open in the grid) and previewed, placed on a Streamlit project's canvas (Desktop and Phone), played, exported; the export run by AppTest in a plain Python | 33 |
 
-Use cases 1, 4 and 11 run again through the agent's MCP commands only (`test_1a`, `test_4a`, `test_11a`).
+The table is the use cases as they were clicked through the classic pages, their actions counted under a
+ceiling; those runs went with the classic pages (2026-11-23). Today use cases 1, 4 and 11 run through the
+agent's MCP commands only (`test_1a`, `test_4a`, `test_11a`), and 2 and 3 run the notebook 1a saved: headless on
+this computer, and as an Azure Function would (the connection's file from `GET /blades/{name}/export`).
 
 ## What is in it
 

@@ -256,7 +256,7 @@ sab.push(orders)  # a grid named "orders" opens; push again to refresh it in pla
 Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
 saved workspaces, a relationships view): [Plans/standalone-workspaces.plan.md](Plans/standalone-workspaces.plan.md).
 
-Grids open as tabs in one window, the workspace (`/workspace`): the first push opens it, and
+Grids open as tabs in one window, the Grids page (`/blazor/grids`): the first push opens it, and
 every later push adds its grid as a tab there (or brings its tab forward) instead of opening a new
 window. That holds for pushes made while the window is still loading, too: they wait for it (up to
 15 seconds) rather than each opening one. Close a tab with its ×, middle-click, or Delete; drag
@@ -269,11 +269,11 @@ already shows that grid.
 
 ```bash
 uv sync                      # Python environment in .venv
-cd web
-npm install                  # AG Grid, Monaco, Vega, esbuild, TypeScript (local, no CDN)
-npm run build                # bundles src/ into static/build/
-cd ..
+(cd blazor && npm ci)        # the front end's widgets: AG Grid, Monaco, Plotly, Vega, Mermaid (local, no CDN)
+python blazor/publish.py     # the front end (Blazor WebAssembly; needs the .NET SDK blazor/global.json names)
 ```
+
+The front end is `blazor/` (blazor/README.md); the classic pages (`web/`) went on 2026-11-23.
 
 Made-up test data: `python examples/sample_store.py --push` pushes a nine-table store with known
 relationships (and deliberate traps for autodetection) to the running server.
@@ -315,7 +315,7 @@ console and opens the app's window (`--no-window` not to) and prints the page's 
 `#token=` part. `swissarmybench open --browser` opens the app in the browser instead (in VS Code: Ctrl+Shift+P,
 **Simple Browser: Show**, then paste the address). Once open, a page clears the token from the address bar and
 keeps a cookie of its own (HttpOnly, SameSite=Strict, good until the server restarts), so a reload or a bookmark
-of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to open the app again.
+of `http://127.0.0.1:<port>/blazor/` works; with no cookie the page says to open the app again.
 
 ## Projects: a folder
 
@@ -840,21 +840,21 @@ the same redacted log with `app_beta_log` and `app_beta_notes`.
 ## Iterate on the page
 
 ```powershell
-cd web
-npm run watch        # rebuilds on save; reload the tab
-npm run typecheck
+python blazor/publish.py --debug   # a quicker Debug build of the front end; reload the tab
 ```
 
 ## Checks (run before a commit)
 
 ```powershell
 .venv\Scripts\python -m pytest -q --ignore=tests\e2e -n 4 --dist loadfile   # the unit tests, four at once
-.venv\Scripts\python -m pytest -q tests\e2e -n 2 --dist loadfile            # the browser tests (Edge, headless), two at once
+.venv\Scripts\python -m pytest -q tests\e2e -n 2 --dist loadfile            # the browser tests (Chromium, headless), two at once
 .venv\Scripts\python -m pytest -q                 # everything in one process (slower; what a failure is retried with)
 .venv\Scripts\python -m ruff check .
 .venv\Scripts\python -m ruff format --check .
 .venv\Scripts\python -m mypy
-cd web; npm run typecheck
+cd blazor; dotnet build SwissArmyBench.Web -warnaserror
+dotnet format SwissArmyBench.Web/SwissArmyBench.Web.csproj --verify-no-changes
+dotnet test --project SwissArmyBench.Web.Tests   # bUnit: the components and state services
 ```
 
 `-n` is pytest-xdist (a dev dependency): `--dist loadfile` keeps each test file in one process, so a
