@@ -256,29 +256,47 @@ def detect_settings(code: str) -> list[Setting]:
 
 @lru_cache(maxsize=1024)
 def _detect(code: str) -> tuple[_Found, ...]:
-    """Every setting with where it is. Kept by the text: read only (detect_settings hands out copies)."""
+    """Every setting with where it is. Kept by the text: read only (detect_settings hands out copies).
+    Two passes over the tree: the top-level names first (a name labels its own value), then every call's
+    keywords and path arguments and every connection string."""
+    finder = _Finder(code)
     tree = parse_code(code)
-    lines = _lines(code)
-    starts = _offsets(code)
-    found: dict[tuple[int, int], _Found] = {}
+    finder.names(tree)
+    finder.calls(tree)
+    return tuple(sorted(finder.found.values(), key=lambda f: f.start))
 
-    def add(node: ast.Constant, name: str, key: str, where: str) -> None:
+
+class _Finder:
+    """One code's settings as they are found, each by its place (start, end) in the text: the first to
+    claim a place keeps it."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        self.lines = _lines(code)
+        self.starts = _offsets(code)
+        self.found: dict[tuple[int, int], _Found] = {}
+
+    def span(self, node: ast.expr) -> tuple[int, int]:
+        """A node's place in the text (it has its end: the caller checked)."""
+        start = _char(self.lines, self.starts, node.lineno, node.col_offset)
+        return start, _char(self.lines, self.starts, node.end_lineno or 0, node.end_col_offset or 0)
+
+    def add(self, node: ast.Constant, name: str, key: str, where: str) -> None:
         none = key in certificate_files.VARIABLE_ONLY and node.value == ""  # a password's variable: none
         if (_SECRET_WORDS.search(key) and not none) or node.end_lineno is None or node.end_col_offset is None:
             return
-        start = _char(lines, starts, node.lineno, node.col_offset)
-        end = _char(lines, starts, node.end_lineno, node.end_col_offset)
-        source = code[start:end]
+        start, end = self.span(node)
+        source = self.code[start:end]
         if isinstance(node.value, str):
             if "\n" in node.value or len(node.value) > 500 or not _plain_string(source):
                 return  # an f-string piece, a multi-line text or a joined string: not a single value
             if where != "connection string" and _pairs(node.value):
-                _add_pairs(node, start, end)
+                self.add_pairs(node, start, end)
                 return
         value = node.value
-        if (start, end) in found or not isinstance(value, str | int | float):
+        if (start, end) in self.found or not isinstance(value, str | int | float):
             return
-        found[(start, end)] = _Found(
+        self.found[(start, end)] = _Found(
             Setting(f"{start}:{end}", name, key, value, node.lineno, where, is_placeholder(value)),
             start,
             end,
@@ -286,7 +304,7 @@ def _detect(code: str) -> tuple[_Found, ...]:
             False,
         )
 
-    def add_refs(node: ast.expr, name: str, key: str, where: str) -> bool:
+    def add_refs(self, node: ast.expr, name: str, key: str, where: str) -> bool:
         """A setting written as the variables it reads (12.7; variable_refs.setting_read): its value is
         the box's text. False when the expression is not one of those."""
         read = refs.setting_read(certificate_files.unwrapped(node))  # certificate_file(os.environ[...]) too
@@ -298,12 +316,11 @@ def _detect(code: str) -> tuple[_Found, ...]:
         ):
             return False
         text, number = read
-        start = _char(lines, starts, node.lineno, node.col_offset)
-        end = _char(lines, starts, node.end_lineno, node.end_col_offset)
-        if (start, end) in found or "\n" in text:
+        start, end = self.span(node)
+        if (start, end) in self.found or "\n" in text:
             return True
-        written = code[start:end]
-        found[(start, end)] = _Found(
+        written = self.code[start:end]
+        self.found[(start, end)] = _Found(
             Setting(f"{start}:{end}", name, key, text, node.lineno, where, False, text=text, number=number),
             start,
             end,
@@ -313,22 +330,17 @@ def _detect(code: str) -> tuple[_Found, ...]:
         return True
 
     def add_env(
-        call: ast.expr, variable: str, default: ast.Constant, name: str, key: str, where: str
+        self, call: ast.expr, variable: str, default: ast.Constant, name: str, key: str, where: str
     ) -> None:
         """A certificate or keystore file read from an environment variable, its path the default."""
         if call.end_lineno is None or call.end_col_offset is None or default.end_lineno is None:
             return
-        start = _char(lines, starts, call.lineno, call.col_offset)
-        end = _char(lines, starts, call.end_lineno, call.end_col_offset)
-        default_source = code[
-            _char(lines, starts, default.lineno, default.col_offset) : _char(
-                lines, starts, default.end_lineno, default.end_col_offset or 0
-            )
-        ]
+        start, end = self.span(call)
+        default_source = self.code[slice(*self.span(default))]
         value = str(default.value)
-        if (start, end) in found or "\n" in value or not _plain_string(default_source):
+        if (start, end) in self.found or "\n" in value or not _plain_string(default_source):
             return
-        found[(start, end)] = _Found(
+        self.found[(start, end)] = _Found(
             Setting(
                 f"{start}:{end}", name, key, value, call.lineno, where, is_placeholder(value), env=variable
             ),
@@ -338,35 +350,22 @@ def _detect(code: str) -> tuple[_Found, ...]:
             False,
         )
 
-    def _add_pairs(node: ast.Constant, start: int, end: int) -> None:
-        source = code[start:end]
+    def add_pairs(self, node: ast.Constant, start: int, end: int) -> None:
+        """A connection string's known parts, each a setting of its own at its value's place."""
+        source = self.code[start:end]
         for match in _PAIR.finditer(str(node.value)):
             key, value = match.group(1).strip(), match.group(2).strip()
             name = CONNECTION_KEYS.get(key.casefold())
             if name is None or not value or _SECRET_WORDS.search(key):
                 continue
-            # The value as written in the source, after "Key=": as parsed in a raw string, with each
-            # backslash doubled in a plain one (Server=db01\\SQLEXPRESS). Anything else is left alone.
-            spot, written, raw = None, value, False
-            for candidate in dict.fromkeys((value, value.replace("\\", "\\\\"))):
-                spot = re.search(
-                    rf"(?<![A-Za-z]){re.escape(key)}\s*=\s*{re.escape(candidate)}(?=\s*[;\"'])", source
-                )
-                if spot is None:
-                    continue
-                quote = max(source.rfind('"', 0, spot.start()), source.rfind("'", 0, spot.start()))
-                raw = quote > 0 and source[quote - 1] in "rR"
-                if "\\" not in value or raw == (candidate == value):
-                    written = candidate
-                    break
-                spot = None
+            spot, written, raw = _pair_written(source, key, value)
             if spot is None:
                 continue
             value_start = start + spot.end() - len(written)
             pair_key = (value_start, value_start + len(written))
-            if pair_key in found:
+            if pair_key in self.found:
                 continue
-            found[pair_key] = _Found(
+            self.found[pair_key] = _Found(
                 Setting(
                     f"{pair_key[0]}:{pair_key[1]}",
                     name,
@@ -382,71 +381,95 @@ def _detect(code: str) -> tuple[_Found, ...]:
                 True,
             )
 
-    for statement in tree.body:  # first: a top-level name labels its own value (path = Path(...))
-        if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-            target, value = statement.targets[0], statement.value
-        elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-            target, value = statement.target, statement.value
-        if not isinstance(statement, ast.Assign | ast.AnnAssign) or getattr(target, "id", "").startswith("_"):
-            continue  # not one value's assignment, or a private constant (the code's own, never a setting)
-        mapped = certificate_files.env_default(value)
-        if isinstance(target, ast.Name) and mapped is not None:
-            word = certificate_files.plain_name(target.id, KEYWORDS)
-            if certificate_files.mappable(word):
-                add_env(value, mapped[0], mapped[1], word, target.id, "name")
+    def add_pairs_of(self, node: ast.Constant) -> None:
+        """A string's connection string, where the string's end is known."""
+        if node.end_lineno is not None and node.end_col_offset is not None:
+            self.add_pairs(node, *self.span(node))
+
+    def names(self, tree: ast.Module) -> None:
+        """First: a top-level name labels its own value (path = Path(...))."""
+        for statement in tree.body:
+            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                target, value = statement.targets[0], statement.value
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                target, value = statement.target, statement.value
+            # Not one value's assignment, or a private constant (the code's own, never a setting).
+            if not isinstance(statement, ast.Assign | ast.AnnAssign) or getattr(target, "id", "").startswith(
+                "_"
+            ):
                 continue
-        if isinstance(target, ast.Name) and value is not None:
-            known = certificate_files.plain_name(target.id, KEYWORDS)
-            if add_refs(value, known or target.id, target.id, "name"):
+            mapped = certificate_files.env_default(value)
+            if isinstance(target, ast.Name) and mapped is not None:
+                word = certificate_files.plain_name(target.id, KEYWORDS)
+                if certificate_files.mappable(word):
+                    self.add_env(value, mapped[0], mapped[1], word, target.id, "name")
+                    continue
+            if isinstance(target, ast.Name) and value is not None:
+                known = certificate_files.plain_name(target.id, KEYWORDS)
+                if self.add_refs(value, known or target.id, target.id, "name"):
+                    continue
+            if mapped is not None:
                 continue
-        if mapped is not None:
-            continue
-        literal = _literal(value)
-        if isinstance(target, ast.Name):
-            literal = literal or _flag(value, KEYWORDS.get(target.id.casefold()))
-        if isinstance(target, ast.Name) and literal is not None:
-            # A known setting's own word first (verify = r"...pem" is a certificate file, not any path).
-            known = certificate_files.plain_name(target.id, KEYWORDS)
-            name = (
-                known
-                if known
-                else "path"
-                if isinstance(literal.value, str) and _LOOKS_LIKE_PATH.search(literal.value)
-                else target.id
-            )
-            add(literal, name, target.id, "name")
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            for keyword in node.keywords:
-                word = KEYWORDS.get(keyword.arg.casefold()) if keyword.arg else None
-                mapped = certificate_files.env_default(keyword.value)
-                if keyword.arg and certificate_files.mappable(word) and mapped is not None:
-                    add_env(keyword.value, mapped[0], mapped[1], word, keyword.arg, "keyword")
-                    continue
-                if word and keyword.arg and add_refs(keyword.value, word, keyword.arg, "keyword"):
-                    continue
-                literal = _literal(keyword.value) or _flag(keyword.value, word)
-                if keyword.arg and literal is not None and keyword.arg.casefold() in KEYWORDS:
-                    add(literal, KEYWORDS[keyword.arg.casefold()], keyword.arg, "keyword")
-            if node.args and _call_name(node) in _PATH_CALLS:
-                literal = _literal(node.args[0])
-                if literal is not None and isinstance(literal.value, str):
-                    if _LOOKS_LIKE_PATH.search(literal.value):
-                        add(literal, "path", _call_name(node), "argument")
-                    elif _pairs(literal.value, least=1) and literal.end_lineno and literal.end_col_offset:
-                        _add_pairs(
-                            literal,
-                            _char(lines, starts, literal.lineno, literal.col_offset),
-                            _char(lines, starts, literal.end_lineno, literal.end_col_offset),
-                        )
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and _pairs(node.value):
-            if node.end_lineno is not None and node.end_col_offset is not None:
-                _add_pairs(
-                    node,
-                    _char(lines, starts, node.lineno, node.col_offset),
-                    _char(lines, starts, node.end_lineno, node.end_col_offset),
+            literal = _literal(value)
+            if isinstance(target, ast.Name):
+                literal = literal or _flag(value, KEYWORDS.get(target.id.casefold()))
+            if isinstance(target, ast.Name) and literal is not None:
+                # A known setting's own word first (verify = r"...pem" is a certificate file, not any path).
+                known = certificate_files.plain_name(target.id, KEYWORDS)
+                name = (
+                    known
+                    if known
+                    else "path"
+                    if isinstance(literal.value, str) and _LOOKS_LIKE_PATH.search(literal.value)
+                    else target.id
                 )
-    return tuple(sorted(found.values(), key=lambda f: f.start))
+                self.add(literal, name, target.id, "name")
+
+    def calls(self, tree: ast.Module) -> None:
+        """Then every call's keywords and path argument, and every string that is a connection string."""
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                self.keywords(node)
+                if node.args and _call_name(node) in _PATH_CALLS:
+                    literal = _literal(node.args[0])
+                    if literal is not None and isinstance(literal.value, str):
+                        if _LOOKS_LIKE_PATH.search(literal.value):
+                            self.add(literal, "path", _call_name(node), "argument")
+                        elif _pairs(literal.value, least=1) and literal.end_lineno and literal.end_col_offset:
+                            self.add_pairs(literal, *self.span(literal))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and _pairs(node.value):
+                self.add_pairs_of(node)
+
+    def keywords(self, node: ast.Call) -> None:
+        for keyword in node.keywords:
+            word = KEYWORDS.get(keyword.arg.casefold()) if keyword.arg else None
+            mapped = certificate_files.env_default(keyword.value)
+            if keyword.arg and certificate_files.mappable(word) and mapped is not None:
+                self.add_env(keyword.value, mapped[0], mapped[1], word, keyword.arg, "keyword")
+                continue
+            if word and keyword.arg and self.add_refs(keyword.value, word, keyword.arg, "keyword"):
+                continue
+            literal = _literal(keyword.value) or _flag(keyword.value, word)
+            if keyword.arg and literal is not None and keyword.arg.casefold() in KEYWORDS:
+                self.add(literal, KEYWORDS[keyword.arg.casefold()], keyword.arg, "keyword")
+
+
+def _pair_written(source: str, key: str, value: str) -> tuple[re.Match[str] | None, str, bool]:
+    """Where a connection string's part's value is written in the source, after "Key=": as parsed in a raw
+    string, with each backslash doubled in a plain one (Server=db01\\\\SQLEXPRESS). (None, ...) when it is
+    written some other way: anything else is left alone."""
+    spot, written, raw = None, value, False
+    for candidate in dict.fromkeys((value, value.replace("\\", "\\\\"))):
+        spot = re.search(rf"(?<![A-Za-z]){re.escape(key)}\s*=\s*{re.escape(candidate)}(?=\s*[;\"'])", source)
+        if spot is None:
+            continue
+        quote = max(source.rfind('"', 0, spot.start()), source.rfind("'", 0, spot.start()))
+        raw = quote > 0 and source[quote - 1] in "rR"
+        if "\\" not in value or raw == (candidate == value):
+            written = candidate
+            break
+        spot = None
+    return spot, written, raw
 
 
 def _pairs(text: str, least: int = 2) -> bool:
