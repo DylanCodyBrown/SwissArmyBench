@@ -1,0 +1,17 @@
+@* Find data (Ctrl+K; the classic gridCommands.ts openFindData): the Data Explorer's search over the grids, so
+   finding data needs no other page; the keys said once at its foot; Open the Data page with this search. *@
+
+<AppDialog Title="Find data" Wide="true" OnClose="OnClose">
+    <ChildContent>
+        <DataExplorer InputId="find-data-search" OnOpened="OnClose" />
+    </ChildContent>
+    <Foot>
+        <span class="ex-keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>Enter</kbd> opens · <kbd>Esc</kbd> closes</span>
+        <a class="btn line" href="catalog" title="The Data page, with this search" @onclick="OnClose"><Icon Name="data" /> Open the Data page</a>
+    </Foot>
+</AppDialog>
+
+@code {
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}

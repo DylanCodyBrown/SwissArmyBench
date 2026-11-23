@@ -102,6 +102,7 @@ public partial class GridsPage : IDisposable
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
+        OfferCommands();
         var kept = await Js.InvokeAsync<string?>("sab.recall", OrderKey);
         _order = kept is { Length: > 0 } ? kept.Split(',', StringSplitOptions.RemoveEmptyEntries) : [];
         await ListenForDropsAsync();
@@ -283,6 +284,7 @@ public partial class GridsPage : IDisposable
     public void Dispose()
     {
         Live.NoticeArrived -= OnNotice;
+        WithdrawCommands();
         Status.Set(null);
         Status.SetRows(null);
         _scrollLock?.InvokeVoidAsync("release");

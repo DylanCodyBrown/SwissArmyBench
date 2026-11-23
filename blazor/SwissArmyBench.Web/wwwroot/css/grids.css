@@ -244,3 +244,40 @@ body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offs
 .sql-status { color: var(--muted); }
 .sql-status.error { color: var(--error); }
 .query-blank { display: grid; flex: 1; place-items: center; color: var(--muted); }
+
+/* ===== the command palette and the shortcuts sheet (workbenchCommands.ts), the Data Explorer (dataExplorer.ts) ===== */
+.wb-palette-shade { position: fixed; inset: 0; z-index: 90; display: flex; justify-content: center; padding-top: 12vh; background: color-mix(in srgb, #000 25%, transparent); }
+.wb-palette { display: flex; flex-direction: column; width: min(640px, calc(100vw - 32px)); max-height: 60vh; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow); }
+.wb-palette-input { margin: 10px; padding: 6px 10px; }
+.wb-palette-list { margin: 0; padding: 0 0 8px; overflow: auto; list-style: none; }
+.wb-palette-item { display: flex; align-items: center; gap: 10px; padding: 5px 14px; cursor: pointer; }
+.wb-palette-item.active { background: var(--selected); }
+.wb-palette-item.off { color: var(--muted); }
+.wb-palette-group { min-width: 90px; color: var(--muted); font-size: 0.85em; }
+.wb-palette-title { flex: 1; }
+.wb-palette-why { color: var(--muted); font-size: 0.85em; }
+.shortcuts-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 0; }
+.shortcuts-groups { padding: 0 14px 14px; overflow: auto; }
+.shortcuts-group dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; }
+kbd { padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface); font-size: 0.85em; }
+.ex { display: grid; gap: 8px; }
+.ex-head { display: grid; gap: 6px; }
+.ex-search-wrap { display: flex; align-items: center; gap: 6px; }
+.ex-search { flex: 1; }
+.ex-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ex-chips, .ex-recent { display: flex; flex-wrap: wrap; gap: 4px; }
+.ex-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.ex-column-chip, .ex-offer { display: flex; align-items: center; gap: 8px; }
+.ex-results { max-height: 60vh; overflow: auto; }
+.ex-group h3 { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; font-size: 1em; }
+.ex-count { color: var(--muted); font-weight: 400; }
+.ex-list { margin: 0; padding: 0; list-style: none; }
+.ex-result { padding: 4px 6px; border-radius: 6px; cursor: default; }
+.ex-result.selected, .ex-result:hover { background: var(--row-hover); }
+.ex-line { display: flex; align-items: center; gap: 6px; }
+.ex-name { font-weight: 600; }
+.ex-type { color: var(--muted); font-size: 0.85em; }
+.ex-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+.ex-where { color: var(--muted); font-size: 0.88em; }
+.ex-more { color: var(--muted); }
+.ex-keys { margin-right: auto; color: var(--muted); }

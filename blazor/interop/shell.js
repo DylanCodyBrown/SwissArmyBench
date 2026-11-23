@@ -167,6 +167,25 @@ window.sab = {
     all[at < 0 ? 0 : (at + by + all.length) % all.length].focus();
   },
 
+  /** The app's keys (the classic mountGridCommands and mountShortcutKeys): Ctrl+Shift+P the palette; ? (outside a
+   *  text box) and Ctrl+/ (outside an editor) the shortcuts; Ctrl+K Find data where a page offers it. */
+  commandKeys(listener) {
+    const typing = (t) => t instanceof Element && t.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), .monaco-editor") !== null;
+    const heard = (e) => {
+      if (e.defaultPrevented || e.altKey) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      let which = null;
+      if (ctrl && e.shiftKey && e.key.toLowerCase() === "p") which = "palette";
+      else if (ctrl && !e.shiftKey && e.key.toLowerCase() === "k") which = "find";
+      else if (!typing(e.target) && !document.querySelector(".dialog") && ((e.key === "?" && !ctrl) || (ctrl && (e.key === "/" || e.code === "Slash")))) which = "shortcuts";
+      if (!which) return;
+      e.preventDefault();
+      listener.invokeMethodAsync("Wanted", which);
+    };
+    document.addEventListener("keydown", heard);
+    return { stop: () => document.removeEventListener("keydown", heard) };
+  },
+
   /** A box takes the focus with its words selected (a name renamed in place). */
   focusSelect(selector) {
     const box = document.querySelector(selector);

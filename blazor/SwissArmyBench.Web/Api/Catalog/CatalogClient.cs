@@ -12,4 +12,34 @@ public sealed class CatalogClient
     }
 
     public Task<SearchAnswer> SearchAsync(string text) => _api.GetAsync<SearchAnswer>($"/explorer/search?q={ApiClient.Part(text)}");
+
+    /// <summary>The search narrowed: the kinds shown, one connection's results, the tables with a column.</summary>
+    public Task<SearchAnswer> SearchAsync(string text, IReadOnlyCollection<string> kinds, string connection, string column, int? limit = null)
+    {
+        var parts = new List<string>();
+        if (text.Trim().Length > 0)
+        {
+            parts.Add($"q={ApiClient.Part(text.Trim())}");
+        }
+        if (kinds.Count > 0)
+        {
+            parts.Add($"kinds={ApiClient.Part(string.Join(',', kinds))}");
+        }
+        if (connection.Length > 0)
+        {
+            parts.Add($"connection={ApiClient.Part(connection)}");
+        }
+        if (column.Length > 0)
+        {
+            parts.Add($"column={ApiClient.Part(column)}");
+        }
+        if (limit is { } most)
+        {
+            parts.Add($"limit={most}");
+        }
+        return _api.GetAsync<SearchAnswer>($"/explorer/search?{string.Join('&', parts)}");
+    }
+
+    /// <summary>A connection's catalog loaded in the background (its notice draws the search again).</summary>
+    public Task LoadCatalogAsync(string connection) => _api.PostAsync($"/connections/{ApiClient.Part(connection)}/catalog");
 }

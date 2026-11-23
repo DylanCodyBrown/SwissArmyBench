@@ -73,6 +73,7 @@ public static class Program
         services.AddScoped<RailState>();
         services.AddScoped<Notes>();
         services.AddScoped<Dialogs>();
+        services.AddScoped<Commands>();
         services.AddScoped<GridStatus>();
         services.AddScoped<PythonSession>();
     }

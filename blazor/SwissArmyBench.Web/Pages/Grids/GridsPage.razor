@@ -172,6 +172,10 @@
 {
     <CellEditor Table="editing.Table" At="editing.At" Value="editing.Value" OnClose="() => _editing = null" />
 }
+@if (Palette.Open == "find")
+{
+    <FindDataDialog OnClose="Palette.Close" />
+}
 @if (_pasted is { } pasted)
 {
     <PastedNote Name="@pasted" OnRename="to => RenameAsync((pasted, to))" OnClose="() => _pasted = null" />

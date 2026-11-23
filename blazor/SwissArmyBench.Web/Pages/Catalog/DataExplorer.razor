@@ -1,0 +1,118 @@
+@* The Data Explorer (the classic dataExplorer.ts), one component for the Catalog page and the grid page's Find data
+   (Ctrl+K): one search over everything that holds data, its kinds as chips, one connection, the tables with a
+   column, the recent searches; the results grouped by kind, each with its actions (on its row, its right-click menu,
+   a double-click runs the first); the arrows move, Enter runs; a connection's catalog not loaded yet offered. Logic
+   in DataExplorer.razor.cs. *@
+
+<div class="ex" @onkeydown="KeyAsync">
+    <div class="ex-head">
+        <span class="ex-search-wrap"><Icon Name="zoom" /><input type="search" class="ex-search catalog-search" placeholder="Find data" aria-label="Find data: tables, columns, connections" autocomplete="off" spellcheck="false"
+                                                              id="@InputId" value="@_text" @oninput="TypedAsync" @onblur="KeepRecentAsync" /></span>
+        <div class="ex-filters">
+            <div class="ex-chips" role="group" aria-label="Kinds">
+                @foreach (var (kind, label, _) in _kinds)
+                {
+                    <button type="button" class="btn small ex-chip" aria-pressed="@(_on.Contains(kind) ? "true" : "false")" @onclick="() => ChipAsync(kind)">@label</button>
+                }
+            </div>
+            <select class="ex-connection" aria-label="Connection" value="@_connection" @onchange="ConnectionAsync">
+                <option value="">All connections</option>
+                @foreach (var name in _connections)
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </div>
+        @if (_column.Length > 0)
+        {
+            <div class="ex-column-chip"><span><Icon Name="columns" /> Tables with @_column</span>
+                <button type="button" class="btn ghost icon small" aria-label="Show every result" title="Show every result" @onclick="EveryResultAsync"><Icon Name="close" /></button></div>
+        }
+        @if (_text.Length == 0 && _column.Length == 0 && _recent.Count > 0)
+        {
+            <div class="ex-recent" aria-label="Recent searches">
+                @foreach (var text in _recent)
+                {
+                    <button type="button" class="btn ghost small ex-recent-item" @onclick="() => RecentAsync(text)"><Icon Name="history" /> @text</button>
+                }
+            </div>
+        }
+    </div>
+    <div class="ex-offers">
+        @foreach (var offer in _answer?.Offers ?? [])
+        {
+            <div class="ex-offer" data-connections="@offer.Connection">
+                @if (offer.State == "loading")
+                {
+                    <span class="loading-block">Loading @offer.Connection's catalog…</span>
+                }
+                else
+                {
+                    <span><Icon Name="plug" /> @(offer.State == "failed" ? $"{offer.Connection}: its catalog did not load{(offer.Error is { } e ? $" ({e})" : string.Empty)}" : $"{offer.Connection}: its tables are not searched yet")</span>
+                    <button type="button" class="btn small line" @onclick="() => LoadCatalogAsync(offer.Connection)"><Icon Name="import" /> Load its catalog</button>
+                }
+            </div>
+        }
+    </div>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    <div class="ex-results" role="region" aria-label="Results">
+        @if (_answer is { } answer)
+        {
+            @foreach (var group in answer.Groups)
+            {
+                <section class="ex-group" data-kind="@group.Kind" aria-label="@group.Label">
+                    <h3><Icon Name="@KindIcon(group.Kind)" /><span>@group.Label</span><span class="ex-count">@group.Count.ToString("N0")</span></h3>
+                    <ul class="ex-list catalog-rows" aria-label="@group.Label">
+                        @foreach (var r in group.Results)
+                        {
+                            var own = Actions(r);
+                            var where = string.Join(" › ", r.Path);
+                            <li class="ex-result kind-@r.Kind @(r.Key == _selected ? "selected" : string.Empty)" tabindex="-1" data-key="@r.Key" data-connections="@r.Connection"
+                                aria-label="@(where.Length > 0 ? $"{r.Name}, {where}" : r.Name)" @onclick="() => _selected = r.Key" @ondblclick="() => RunFirstAsync(r)"
+                                @oncontextmenu="e => Menu(r, e)" @oncontextmenu:preventDefault="true">
+                                <div class="ex-line">
+                                    <span class="ex-icon" aria-hidden="true"><Icon Name="@(r.Source == "grid" && r.Kind == "tables" ? "table" : KindIcon(r.Kind))" /></span>
+                                    <span class="ex-name">@r.Name</span>
+                                    @if (r.Type is { } type)
+                                    {
+                                        <span class="ex-type">@type</span>
+                                    }
+                                    <span class="ex-actions">
+                                        @foreach (var a in own)
+                                        {
+                                            <button type="button" class="btn ghost icon small" aria-label="@a.Label" title="@(a.Title ?? a.Label)" @onclick="() => RunAsync(r, a)" @onclick:stopPropagation="true"><Icon Name="@a.Icon" /></button>
+                                        }
+                                    </span>
+                                </div>
+                                @if (where.Length > 0 || r.Detail.Length > 0)
+                                {
+                                    <div class="ex-where"><span class="ex-path">@where</span> <span class="ex-detail">@r.Detail</span></div>
+                                }
+                                @if (_previews.TryGetValue(r.Key, out var preview))
+                                {
+                                    <div class="ex-preview">@preview</div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                    @if (group.Count > group.Results.Count)
+                    {
+                        <p class="ex-more">@((group.Count - group.Results.Count).ToString("N0")) more: type more of the name</p>
+                    }
+                </section>
+            }
+            @if (answer.Groups.Count == 0)
+            {
+                <p class="empty-note">@(_text.Trim().Length > 0 || _column.Length > 0 ? "Nothing matches" : "No data yet")</p>
+            }
+        }
+        else if (_error is null)
+        {
+            <div class="loading-block">Looking…</div>
+        }
+    </div>
+</div>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
