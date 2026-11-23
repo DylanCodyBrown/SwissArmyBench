@@ -15,8 +15,8 @@ public sealed class Dialogs
     public Question? Open { get; private set; }
 
     /// <summary>A yes or no: true when the user pressed the yes button.</summary>
-    public async Task<bool> AskYesNoAsync(string title, string words, string yes, bool danger = false) =>
-        await AskAsync(new Question(title, words, yes, Danger: danger)) is not null;
+    public async Task<bool> AskYesNoAsync(string title, string words, string yes, bool danger = false, string no = "Cancel") =>
+        await AskAsync(new Question(title, words, yes, Danger: danger, No: no)) is not null;
 
     /// <summary>Words typed in a box, or null when the user cancelled.</summary>
     public Task<string?> AskTextAsync(string title, string words, string asks, string value = "", string yes = "OK") =>

@@ -31,6 +31,12 @@ public partial class BladeIde
     private Exception? _error;
     private Timer? _watch;
 
+    // The code's size in pixels (8 to 40), 13 its 100%.
+    private const int BaseFont = 13;
+    private const int SmallestFont = 8;
+    private const int LargestFont = 40;
+    private int _fontPx = BaseFont;
+
     [Inject]
     private BladesClient Blades { get; set; } = default!;
 
@@ -57,6 +63,10 @@ public partial class BladeIde
     /// <summary>Saved under another name (its name changed), or a copy made: the blade to show now.</summary>
     [Parameter]
     public EventCallback<string> OnRenamed { get; set; }
+
+    /// <summary>Close: its tab goes (asked first with unsaved changes).</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
 
     /// <summary>Removed: its tab goes.</summary>
     [Parameter]
@@ -115,8 +125,28 @@ public partial class BladeIde
             "save" => SaveAsync(),
             "saveAs" => SetSavingAs(),
             "runFile" when Runnable => RunAsync(),
+            "zoomIn" => ZoomAsync(_fontPx + 1),
+            "zoomOut" => ZoomAsync(_fontPx - 1),
+            "zoomReset" => ZoomAsync(BaseFont),
             _ => Task.CompletedTask,
         };
+    }
+
+    private async Task ZoomAsync(int px)
+    {
+        _fontPx = Math.Clamp(px, SmallestFont, LargestFont);
+        await (_editor?.SetFontSizeAsync(_fontPx) ?? Task.CompletedTask);
+        StateHasChanged();
+    }
+
+    /// <summary>Close: with unsaved changes it asks (Throw them away, Keep editing).</summary>
+    private async Task CloseAsync()
+    {
+        if (Dirty && !await Dialogs.AskYesNoAsync(Name, $"{Name} has changes that are not saved.", "Throw them away", danger: true, no: "Keep editing"))
+        {
+            return;
+        }
+        await OnClose.InvokeAsync();
     }
 
     private Task SetSavingAs()

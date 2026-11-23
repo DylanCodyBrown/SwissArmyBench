@@ -7,10 +7,12 @@ namespace SwissArmyBench.Web.State;
 /// <param name="Asks">A text box's label, when the question asks for words (null: a yes or no).</param>
 /// <param name="Value">The text box's first value.</param>
 /// <param name="Danger">The yes button in the error colour (a delete).</param>
+/// <param name="No">The no button's words ("Cancel", or "Keep editing").</param>
 public sealed record Question(
     string Title,
     string Words,
     string Yes,
     string? Asks = null,
     string Value = "",
-    bool Danger = false);
+    bool Danger = false,
+    string No = "Cancel");

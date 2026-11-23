@@ -6,6 +6,7 @@
 @using SwissArmyBench.Web.Api.Blades
 @inject WorkbenchClient Workbench
 @inject BladesClient Blades
+@inject SwissArmyBench.Web.Api.App.AppClient App
 
 @if (_form is { } form)
 {
@@ -35,6 +36,10 @@ else
         <ChildContent>
             <div class="snippet-head">
                 <input type="search" class="cat-search" placeholder="Search" aria-label="Search snippets" spellcheck="false" @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyAsync" />
+                @if (!_every)
+                {
+                    <button type="button" class="btn small ghost snippet-all" aria-pressed="false" @onclick="() => _every = true">Show all</button>
+                }
             </div>
             <ul class="snippet-list" role="listbox" aria-label="Snippets">
                 @foreach (var b in Shown)
@@ -83,7 +88,11 @@ else
         _ => "a Python snippet",
     };
 
+    private bool _every = true;
+    private IReadOnlyList<string> _families = [];
+
     private List<BladeSummary> Shown => (_found ?? [])
+        .Where(b => _every || string.IsNullOrEmpty(b.Family) || _families.Contains(b.Family))
         .Where(b => _search.Trim().Length == 0 || $"{b.Name} {b.Description} {string.Join(' ', b.Tags ?? [])}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
         .ToList();
 
@@ -104,6 +113,9 @@ else
             var mine = (await Workbench.BladesAsync()).Blades.Where(b => b.Kind == "snippet" && Fits(b));
             var pack = (await Workbench.StartersAsync()).Families.SelectMany(f => f.Blades).Where(Fits);
             _found = mine.Concat(pack).ToList();
+            // The open project's families first (Show all the rest), when it has some among these.
+            _families = (await App.ModeAsync()).Mode.Families ?? [];
+            _every = !_found.Any(b => b.Family is { Length: > 0 } f && _families.Contains(f));
         }
         catch (ApiException error)
         {

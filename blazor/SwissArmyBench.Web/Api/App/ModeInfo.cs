@@ -7,4 +7,5 @@ public sealed record ModeInfo(
     IReadOnlyList<string> Canvases,
     string Title = "",
     string Explain = "",
-    IReadOnlyList<InlineProvider>? InlineCompletion = null);
+    IReadOnlyList<InlineProvider>? InlineCompletion = null,
+    IReadOnlyList<string>? Families = null);

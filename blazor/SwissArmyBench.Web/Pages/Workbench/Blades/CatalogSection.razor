@@ -23,7 +23,7 @@
             <button type="button" class="btn small ghost icon" aria-label="Refresh" title="@($"Refresh {_current?.Name}")" @onclick="RefreshAsync"><Icon Name="play" /></button>
             <button type="button" class="btn small ghost icon" aria-label="Remove this catalog" title="Remove this catalog" @onclick="RemoveAsync"><Icon Name="trash" /></button>
         </div>
-        <input type="search" class="side-pane-search" placeholder="Search" aria-label="Search the catalog" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
+        <input type="search" class="side-pane-search" placeholder="Search" aria-label="Search the catalog" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" @onkeydown="SearchKeyAsync" />
         @if (_found is { } found)
         {
             @if (found.Tables.Count == 0 && found.Columns.Count == 0)
@@ -83,3 +83,4 @@
 {
     <ContextMenu Title="table" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
 }
+<BladeActionRunner @ref="_runner" />

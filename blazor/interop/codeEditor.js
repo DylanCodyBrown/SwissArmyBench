@@ -335,6 +335,19 @@ export function create(host, dotnet, options) {
   // The Scripts page's IDE moves (the classic workbenchIde.ts): Go to Definition (F12), Find All References
   // (Shift+F12), Rename Symbol (F2), Format Document (Shift+Alt+F), told to C# with the cursor's place and word;
   // the first and the third also in the editor's right-click menu, as the classic editor has them.
+  // The code's own zoom (the classic codeIde.ts): Ctrl+= and Ctrl+- (and Ctrl + wheel) over the code size the code
+  // alone, Ctrl+0 back to 100%; told to C# by name so the bar shows the size.
+  if (options.zoom) {
+    for (const [name, binding] of [["zoomIn", K.CtrlCmd | C.Equal], ["zoomOut", K.CtrlCmd | C.Minus], ["zoomReset", K.CtrlCmd | C.Digit0]]) {
+      editor.addAction({ id: `sab.${name}`, label: name, keybindings: [binding], run: key(name) });
+    }
+    host.addEventListener("wheel", (event) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      key(event.deltaY < 0 ? "zoomIn" : "zoomOut")();
+    }, { passive: false });
+  }
+
   if (options.ide) {
     const ide = (name) => () => {
       const at = editor.getPosition();
@@ -405,6 +418,7 @@ export function create(host, dotnet, options) {
       editor.revealLineInCenterIfOutsideViewport(line);
     },
     cursorLine: () => editor.getPosition()?.lineNumber ?? 0,
+    setFontSize: (px) => editor.updateOptions({ fontSize: px }),
     getValue: () => editor.getValue(),
     /** Text from C#: the cursor kept where it was, and no Changed told back. */
     setValue: (text) => {

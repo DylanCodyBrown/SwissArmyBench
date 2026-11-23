@@ -63,4 +63,10 @@ public sealed class BladesClient
 
     public Task<System.Text.Json.JsonElement> FillSnippetAsync(string name, IReadOnlyDictionary<string, string> values) =>
         _api.PostAsync<System.Text.Json.JsonElement>($"{At(name)}/snippet", new { values });
+
+    /// <summary>Refresh (its catalog loaded again) or Test, with values typed for this run only.</summary>
+    public Task RunActionAsync(string name, string action, IReadOnlyDictionary<string, string> env) => _api.PostAsync($"{At(name)}/{action}", new { env });
+
+    /// <summary>Packages installed into the app's own Python, on the user's click.</summary>
+    public Task InstallAsync(IReadOnlyList<string> packages) => _api.PostAsync("/blades/install", new { packages });
 }

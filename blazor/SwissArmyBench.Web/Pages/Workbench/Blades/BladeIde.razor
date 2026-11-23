@@ -18,6 +18,10 @@
             <span class="dirty-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes">●</span>
         }
         <span class="status-spacer"></span>
+        @if (_fontPx != BaseFont)
+        {
+            <button type="button" class="btn small ghost ide-zoom" title="Code size: click for 100% (Ctrl+0)" @onclick="() => ZoomAsync(BaseFont)">@(_fontPx * 100 / BaseFont)%</button>
+        }
         <button type="button" class="btn small" title="Save (Ctrl+S)" disabled="@(!Dirty)" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
         <button type="button" class="btn small" @onclick="() => _savingAs = true">Save as…</button>
         <button type="button" class="btn small ghost" disabled="@(!Dirty)" @onclick="CancelAsync">Cancel</button>
@@ -27,6 +31,7 @@
         }
         <button type="button" class="btn small ghost" aria-pressed="@(_properties ? "true" : "false")" @onclick="() => _properties = !_properties">Properties</button>
         <button type="button" class="btn small ghost icon" aria-label="More" title="More" aria-haspopup="menu" @onclick="ShowMenu"><Icon Name="more" /></button>
+        <button type="button" class="btn small ghost icon" aria-label="Close" title="Close" @onclick="CloseAsync"><Icon Name="close" /></button>
     </div>
     @if (_outside)
     {
@@ -49,7 +54,7 @@
             @if (_detail is { } detail)
             {
                 <CodeEditor @ref="_editor" Value="@_code" Language="@Language" Label="@($"{Name} code")" ReadOnly="@(detail.Kind == "secret")"
-                            Intel="IntelFor" OnChange="ChangedAsync" OnKey="KeyAsync" />
+                            Intel="IntelFor" OnChange="ChangedAsync" OnKey="KeyAsync" Zoom="true" />
             }
             else
             {

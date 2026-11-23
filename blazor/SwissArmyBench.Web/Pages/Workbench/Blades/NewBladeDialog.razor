@@ -19,6 +19,19 @@
                 </label>
             }
         </div>
+        @if (_templates.Count > 0)
+        {
+            <div class="new-blade-templates" role="group" aria-label="Templates">
+                @foreach (var group in _templates.GroupBy(t => t.Group))
+                {
+                    <strong class="hint">@group.Key</strong>
+                    @foreach (var choice in group)
+                    {
+                        <button type="button" class="btn small ghost" title="@choice.Hint" @onclick="() => FromTemplateAsync(choice.Id)">@choice.Label</button>
+                    }
+                }
+            </div>
+        }
         <ErrorNote Error="_error" OnClose="() => _error = null" />
     </ChildContent>
     <Foot>
@@ -52,6 +65,34 @@
     /// <summary>Made: its name.</summary>
     [Parameter]
     public EventCallback<string> OnMade { get; set; }
+
+    private IReadOnlyList<BladeChoice> _templates = [];
+
+    /// <summary>The templates beside the blank kinds (an analysis blade's: Summary, Pareto, Correlations...).</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _templates = (await Blades.ChoicesAsync()).Choices.Where(c => c.Group != "Blades").ToList();
+        }
+        catch (ApiException)
+        {
+            _templates = []; // the blank kinds still make a blade
+        }
+    }
+
+    private async Task FromTemplateAsync(string template)
+    {
+        try
+        {
+            var made = await Blades.NewAsync(null, null, template);
+            await OnMade.InvokeAsync(made.Name);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
 
     private async Task CheckAsync()
     {

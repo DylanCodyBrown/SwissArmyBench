@@ -19,6 +19,7 @@ def test_new_blade_run_save_as_and_remove(browser: Browser, server: dict[str, An
     dialog = page.locator(".dialog", has_text="New blade")
     dialog.locator("input[aria-label=Name]").fill("made_up_orders")
     expect(dialog.locator("input[type=radio][value=table]")).to_be_checked()
+    expect(dialog.locator(".new-blade-templates")).to_contain_text("Summary of every column")
     dialog.locator("button:has-text('Create')").click()
     ide = page.locator(".blade-ide")
     expect(ide.locator(".ide-name")).to_have_text("made_up_orders")
@@ -28,6 +29,12 @@ def test_new_blade_run_save_as_and_remove(browser: Browser, server: dict[str, An
     ide.locator(".ide-bar button:has-text('Run')").click()
     expect(ide.locator(".ide-run")).to_contain_text("It made a table: 3 rows", timeout=60_000)
     expect(ide.locator(".ide-run table")).to_contain_text("Ada Lane")
+    # The code's own zoom: Ctrl+= in the code, the bar's size, a click back to 100%.
+    ide.locator(".monaco-editor").click()
+    page.keyboard.press("Control+Equal")
+    expect(ide.locator(".ide-zoom")).to_have_text("107%")
+    ide.locator(".ide-zoom").click()
+    expect(ide.locator(".ide-zoom")).to_have_count(0)
 
     ide.locator("textarea[aria-label=Description]").fill("Made-up orders")
     ide.locator(".ide-bar button:has-text('Save')").first.click()

@@ -16,7 +16,7 @@
             }
         </ChildContent>
         <Foot>
-            <button type="button" class="btn ghost" @onclick="() => Dialogs.Answer(null)">Cancel</button>
+            <button type="button" class="btn ghost" @onclick="() => Dialogs.Answer(null)">@question.No</button>
             <button type="button" class="btn @(question.Danger ? "danger" : "primary")" @onclick="Agree">@question.Yes</button>
         </Foot>
     </AppDialog>

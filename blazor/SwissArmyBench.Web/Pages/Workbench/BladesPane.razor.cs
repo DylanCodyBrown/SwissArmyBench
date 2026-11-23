@@ -19,6 +19,14 @@ public partial class BladesPane
     private bool _folders;
     private ShownMenu? _menu;
     private BladeSummary? _snippet;
+    private SwissArmyBench.Web.Api.App.ModeInfo? _mode;
+    private bool _every;
+
+    [Inject]
+    private SwissArmyBench.Web.Api.App.AppClient App { get; set; } = default!;
+
+    /// <summary>The open project's families of starters shown first; Show all the rest too.</summary>
+    private IReadOnlyList<string> Families => _mode?.Families ?? [];
 
     /// <summary>Insert: a snippet's form first (its placeholders filled by the server's rules), else the blade's line.</summary>
     private Task InsertAsync(BladeSummary blade)
@@ -46,6 +54,10 @@ public partial class BladesPane
     [Inject]
     private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
 
+    /// <summary>The blade in front has unsaved changes.</summary>
+    [Parameter]
+    public bool Editing { get; set; }
+
     /// <summary>A blade's name clicked: its IDE as a tab.</summary>
     [Parameter]
     public EventCallback<string> OnOpen { get; set; }
@@ -69,7 +81,9 @@ public partial class BladesPane
     /// <summary>Your blades first, then each starter family; only the ones whose name or words hold the search.</summary>
     private IEnumerable<BladeGroup> Groups =>
         new[] { new BladeGroup("Your blades", Matching(_mine).OrderByDescending(b => b.Pinned).ToList(), true) }
-            .Concat(_starters.Select(f => new BladeGroup(f.Family, Matching(f.Blades), _search.Length > 0)))
+            .Concat(_starters
+                .Where(f => _every || Families.Count == 0 || Families.Contains(f.Family))
+                .Select(f => new BladeGroup(f.Family, Matching(f.Blades), _search.Length > 0)))
             .Where(g => g.Blades.Count > 0);
 
     [Inject]
@@ -103,6 +117,7 @@ public partial class BladesPane
             _mine = (await Workbench.BladesAsync()).Blades;
             _starters = (await Workbench.StartersAsync()).Families;
             (_error, _loaded) = (null, true);
+            _mode ??= (await App.ModeAsync()).Mode;
         }
         catch (ApiException error)
         {

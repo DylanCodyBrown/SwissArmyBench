@@ -20,12 +20,10 @@ public partial class CatalogSection
     private string _search = string.Empty;
     private ShownMenu? _menu;
     private Exception? _error;
+    private BladeActionRunner? _runner;
 
     [Inject]
     private SwissArmyBench.Web.Api.Blades.CatalogClient Catalogs { get; set; } = default!;
-
-    [Inject]
-    private SwissArmyBench.Web.Api.Connections.ConnectionsClient Connections { get; set; } = default!;
 
     [Inject]
     private Notes Notes { get; set; } = default!;
@@ -65,10 +63,31 @@ public partial class CatalogSection
         return Task.CompletedTask;
     }
 
-    private Task ShowAsync(CatalogTable table)
+    /// <summary>The blade in front has unsaved changes: the catalog waits (its details would cover it).</summary>
+    [Parameter]
+    public bool Editing { get; set; }
+
+    private async Task ShowAsync(CatalogTable table)
     {
+        if (Editing)
+        {
+            await Notes.SayAsync("Save or cancel the blade first.");
+            return;
+        }
         _shown = table;
-        return Task.CompletedTask;
+    }
+
+    /// <summary>Enter opens the first found table; Escape clears the search.</summary>
+    private async Task SearchKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && _found?.Tables.FirstOrDefault() is { } first)
+        {
+            await ShowAsync(first);
+        }
+        else if (e.Key == "Escape")
+        {
+            (_search, _found) = (string.Empty, null);
+        }
     }
 
     private Task MenuAsync(MouseEventArgs at, CatalogTable table)
@@ -98,7 +117,10 @@ public partial class CatalogSection
     {
         var name = _current.Name;
         await Notes.SayAsync($"Refreshing {name}...");
-        await Connections.RefreshAsync(name);
+        if (_runner is null || !await _runner.RunAsync(name, "refresh"))
+        {
+            return;
+        }
         _catalogs = (await Catalogs.ListAsync()).Catalogs;
         if (_catalogs.FirstOrDefault(c => c.Name == name) is { } now)
         {

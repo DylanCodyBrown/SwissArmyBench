@@ -13,6 +13,10 @@
         <button type="button" class="btn ghost icon small" aria-label="Blades menu" title="Blades menu" aria-haspopup="menu" @onclick="ShowMenu"><Icon Name="more" /></button>
     </div>
     <input type="search" class="side-pane-search" placeholder="Search blades" aria-label="Search blades" @bind="_search" @bind:event="oninput" />
+    @if (Families.Count > 0 && _starters.Any(f => !Families.Contains(f.Family)))
+    {
+        <button type="button" class="btn small ghost" aria-pressed="@(_every ? "true" : "false")" @onclick="() => _every = !_every">@(_every ? $"{_mode!.Name} only" : "Show all")</button>
+    }
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
     @if (_mine.Count == 0 && _starters.Count == 0 && _loaded)
     {
@@ -53,7 +57,7 @@
             </ul>
         </details>
     }
-    <SwissArmyBench.Web.Pages.Workbench.Blades.CatalogSection />
+    <SwissArmyBench.Web.Pages.Workbench.Blades.CatalogSection Editing="Editing" />
 </aside>
 @if (_menu is { } menu)
 {

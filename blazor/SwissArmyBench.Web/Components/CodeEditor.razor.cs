@@ -75,6 +75,10 @@ public partial class CodeEditor
     [Parameter]
     public EventCallback<GutterClick> OnGutter { get; set; }
 
+    /// <summary>The code's own zoom keys (Ctrl+=, Ctrl+-, Ctrl+0, Ctrl + wheel), told as zoomIn, zoomOut, zoomReset.</summary>
+    [Parameter]
+    public bool Zoom { get; set; }
+
     /// <summary>The ghost text providers the open project's mode declares (GitHub Copilot's), by language.</summary>
     [Parameter]
     public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
@@ -98,7 +102,7 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, inline = InlineDocument is null ? [] : Inline };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
             if (_focusWhenMade)
             {
@@ -207,6 +211,14 @@ public partial class CodeEditor
         if (_editor is not null)
         {
             await _editor.InvokeVoidAsync("setExecutionLine", line ?? 0);
+        }
+    }
+
+    public async Task SetFontSizeAsync(int px)
+    {
+        if (_editor is not null)
+        {
+            await _editor.InvokeVoidAsync("setFontSize", px);
         }
     }
 
