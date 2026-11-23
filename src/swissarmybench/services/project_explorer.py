@@ -23,6 +23,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import project_explorer as rules
+from swissarmybench.domain.project_paths import key
 from swissarmybench.domain.projects import check_folder_name
 from swissarmybench.services.ports import Approvals
 from swissarmybench.services.sab_projects import SabProjects
@@ -112,18 +113,24 @@ class ProjectExplorer:
 
     def _cards(self) -> list[dict[str, Any]]:
         settings = self._settings.read()
-        hidden = set(settings["hidden"])
+        # Folders compared by their key: one folder written two ways (case, either slash) is one card, and a
+        # Remove or Delete of either spelling takes it off (the owner, 2026-11-23: they "stick around").
+        hidden = {key(p) for p in settings["hidden"]}
         shared = self.shared_folder()
         scanned = [*self._files.scan(self.folder()), *(self._files.scan(shared) if shared else [])]
-        inside = [p for p in dict.fromkeys(scanned) if p not in hidden]
-        recent = {str(r["path"]): r for r in self._recent.all()}
-        paths = list(dict.fromkeys([*inside, *recent]))
+        inside = [p for p in dict.fromkeys(scanned) if key(p) not in hidden]
+        inside_keys = {key(p) for p in inside}
+        recent: dict[str, dict[str, Any]] = {}
+        for said in self._recent.all():  # the first of each folder's spellings: the latest the app wrote
+            recent.setdefault(key(str(said["path"])), said)
+        listed = [*inside, *(str(r["path"]) for r in recent.values())]
+        paths = list({key(p): p for p in reversed(listed)}.values())[::-1]
         kinds = {k["type"]: k for k in rules.kinds(self._modes(), self._streamlit)}
         off = self._off()
         current = self._projects.current.folder if self._projects.current is not None else None
         cards = []
         for path in paths:
-            said = recent.get(path)
+            said = recent.get(key(path))
             facts = self._files.facts(path) if self._files.is_folder(path) else None
             card = rules.card(
                 path,
@@ -132,7 +139,7 @@ class ProjectExplorer:
                 off,
                 float(said["opened"]) if said else None,
                 current,
-                path in inside,
+                key(path) in inside_keys,
                 rules.where_of(path, shared),
             )
             cards.append(card)
@@ -367,8 +374,11 @@ class ProjectExplorer:
         path = self._path(body)
         gone = self._recent.remove(path)
         settings = self._settings.read()
-        settings["order"] = [p for p in settings["order"] if p != path]
-        if path in await asyncio.to_thread(self._files.scan, self.folder()):
+        settings["order"] = [p for p in settings["order"] if key(p) != key(path)]
+        shared = self.shared_folder()
+        scanned = await asyncio.to_thread(self._files.scan, self.folder())
+        scanned += await asyncio.to_thread(self._files.scan, shared) if shared else []
+        if key(path) in {key(p) for p in scanned}:  # a projects folder's (local or shared): hidden
             settings["hidden"] = [*settings["hidden"], path]
             gone = True
         if not gone:
@@ -424,7 +434,7 @@ class ProjectExplorer:
             raise Conflict(f"{name} could not be moved to the trash: {error}") from None
         self._recent.remove(path)
         settings = self._settings.read()
-        settings["order"] = [p for p in settings["order"] if p != path]
+        settings["order"] = [p for p in settings["order"] if key(p) != key(path)]
         self._settings.write(settings)
         self.ws.audit.write(who, "project_delete", None)
         await self._changed()

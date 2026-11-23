@@ -25,6 +25,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from swissarmybench.adapters.atomic_files import write_atomic
+from swissarmybench.domain.project_paths import same
 from swissarmybench.domain.project_scope import APP_FOLDER, app_entry
 from swissarmybench.domain.sab_files import (
     APP_GITIGNORE,
@@ -374,17 +375,18 @@ class RecentProjects:
     def replace(self, old: str, new: str) -> bool:
         """A project moved or renamed: its entry follows (Locate…, Rename)."""
         listed = self._read()
-        if not any(r["path"] == old for r in listed):
+        if not any(same(r["path"], old) for r in listed):
             return False
-        moved = [r | {"path": new} if r["path"] == old else r for r in listed if r["path"] != new]
+        moved = [r | {"path": new} if same(r["path"], old) else r for r in listed if not same(r["path"], new)]
         self._write(moved)
         return True
 
     def add(self, path: str, when: float) -> None:
-        self._write([{"path": path, "opened": when}, *(r for r in self._read() if r["path"] != path)])
+        self._write([{"path": path, "opened": when}, *(r for r in self._read() if not same(r["path"], path))])
 
     def remove(self, path: str) -> bool:
         before = self._read()
-        after = [r for r in before if r["path"] != path]
+        # Every spelling of the folder goes (one opened as C:\... and as c:/... was listed twice).
+        after = [r for r in before if not same(r["path"], path)]
         self._write(after)
         return len(after) < len(before)

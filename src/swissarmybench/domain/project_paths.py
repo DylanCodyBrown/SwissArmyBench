@@ -54,3 +54,14 @@ def relative_in(path: Any, folder: Any, real: Callable[[str], str] | None = None
 def inside(path: Any, folder: Any, real: Callable[[str], str] | None = None) -> bool:
     """Whether `path` is inside `folder` (relative_in's rule)."""
     return relative_in(path, folder, real) is not None
+
+
+def key(path: str) -> str:
+    """A folder's key for comparing (the same rule: either separator, no trailing one, letters without case).
+    One project folder written two ways (C:\\Users\\me\\Sales, c:/users/me/sales/) has one key."""
+    return _slashed(path).rstrip("/").casefold()
+
+
+def same(a: str, b: str) -> bool:
+    """Whether two paths name the same folder (key's rule)."""
+    return key(a) == key(b)

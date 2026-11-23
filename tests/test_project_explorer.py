@@ -308,3 +308,40 @@ def test_the_agents_commands(tmp_path: Path, client: TestClient) -> None:
     } <= names
     assert "project_import_sab" not in names  # the .sab conversion removed (2026-11-17)
     assert not {n for n in names if "delete" in n and n.startswith("project")}  # Delete is the user's
+
+
+def test_one_folder_written_two_ways_is_one_card_and_remove_and_delete_take_it_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The owner, 2026-11-23: "deleted and remove projects stick around". On Windows one folder is written
+    several ways (C:\\Users\\me\\Sales, c:/users/me/sales/): the recent list kept each spelling apart, so a
+    Remove or a Delete took one off and the other stayed. Folders are now compared by one key
+    (domain/project_paths.py)."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+    folder = _projects_folder(tmp_path)
+    alpha = _project(folder / "Alpha")
+    beta = _project(tmp_path / "elsewhere" / "Beta")
+    with make_client(tmp_path) as client:
+        for project in (alpha, beta):
+            ok(client.post("/project/open", json={"path": str(project)}, headers=AUTH))
+            ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
+        recent = tmp_path / "state" / "recent_projects.json"
+        listed = json.loads(recent.read_text(encoding="utf-8"))
+        twice = [{"path": str(p).upper() + "/", "opened": 1.0} for p in (alpha, beta)]
+        recent.write_text(json.dumps([*listed, *twice]), encoding="utf-8")
+        names = sorted(c["name"] for c in ok(client.get("/projects/explorer", headers=AUTH))["projects"])
+        assert names == ["Alpha", "Beta"]  # one card each, not two
+        ok(client.post("/projects/remove", json={"path": str(beta)}, headers=AUTH))
+        ok(client.post("/projects/delete", json={"path": str(alpha), "confirm": "Alpha"}, headers=AUTH))
+        assert ok(client.get("/projects/explorer", headers=AUTH))["projects"] == []
+        assert json.loads(recent.read_text(encoding="utf-8")) == []
+    with make_client(tmp_path) as client:  # and after a restart
+        assert ok(client.get("/projects/explorer", headers=AUTH))["projects"] == []
+
+
+def test_a_folder_is_one_key_whatever_its_spelling() -> None:
+    from swissarmybench.domain.project_paths import key, same
+
+    assert same("C:\\Users\\Me\\Sales", "c:/users/me/sales/")
+    assert key("/home/me/Sales/") == key("/home/me/sales")
+    assert not same("C:\\Users\\Me\\Sales", "C:\\Users\\Me\\Sales2")
