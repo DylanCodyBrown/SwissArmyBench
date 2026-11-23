@@ -102,10 +102,10 @@ public partial class BucketForm
         try
         {
             var profile = await Grids.ProfileAsync(Grid, _column);
-            if (profile.Min.ValueKind == JsonValueKind.Number && profile.Max.ValueKind == JsonValueKind.Number)
+            if (profile.Min is { ValueKind: JsonValueKind.Number } min && profile.Max is { ValueKind: JsonValueKind.Number } max)
             {
-                var low = profile.Min.GetDouble();
-                var high = profile.Max.GetDouble();
+                var low = min.GetDouble();
+                var high = max.GetDouble();
                 _low = Math.Floor(low).ToString(CultureInfo.InvariantCulture);
                 _high = (Math.Ceiling(high) + (high == Math.Floor(high) ? 1 : 0)).ToString(CultureInfo.InvariantCulture);
                 if (_width.Length == 0)

@@ -23,6 +23,10 @@ public partial class Ribbon
     [Parameter]
     public RenderFragment? Steps { get; set; }
 
+    /// <summary>The Compare row, drawn only while two grids are side by side.</summary>
+    [Parameter]
+    public RenderFragment? Compare { get; set; }
+
     /// <summary>A tool was pressed: its id (the page runs it on the selected columns).</summary>
     [Parameter]
     public EventCallback<string> OnTool { get; set; }

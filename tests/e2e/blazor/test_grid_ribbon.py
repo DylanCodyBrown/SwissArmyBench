@@ -30,7 +30,7 @@ def test_table_tool_opens_its_step_editor_and_adds_the_step(browser: Browser, se
     page.fill("input[aria-label='Rows to keep']", "12")
     page.click(".dialog-foot .btn.primary")
     expect(page.locator(".steps-strip")).to_contain_text("Keep the first 12 rows")
-    expect(page.locator(".grid-title-row")).to_contain_text("12 rows")
+    expect(page.locator(".status-rows")).to_contain_text("of 12 (")
     assert call(server, "GET", f"/grids/{grid}")["steps"][-1]["params"] == {"n": 12}
 
     # The step's words open its editor again: the edit lands in its place.
@@ -38,7 +38,7 @@ def test_table_tool_opens_its_step_editor_and_adds_the_step(browser: Browser, se
     expect(page.locator(".dialog")).to_contain_text("Edit step: Keep first rows")
     page.fill("input[aria-label='Rows to keep']", "7")
     page.click(".dialog-foot .btn.primary")
-    expect(page.locator(".grid-title-row")).to_contain_text("7 rows")
+    expect(page.locator(".status-rows")).to_contain_text("of 7 (")
     steps = call(server, "GET", f"/grids/{grid}")["steps"]
     assert [s["params"] for s in steps if s["kind"] == "limit"] == [{"n": 7}]
     page.close()
@@ -103,7 +103,7 @@ def test_a_cells_copy_from_its_menu(browser: Browser, server: dict[str, Any]) ->
     cell.click(button="right")
     page.click(".context-menu .menu-item:has-text('Keep these')")
     expect(page.locator(".steps-strip")).to_contain_text("order_id equals")
-    expect(page.locator(".grid-title-row")).to_contain_text("1 rows")
+    expect(page.locator(".status-rows")).to_contain_text("Rows 1–1 of 1 (")
     page.close()
 
 

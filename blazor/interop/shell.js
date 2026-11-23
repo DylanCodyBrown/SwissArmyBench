@@ -70,6 +70,18 @@ window.sab = {
     document.querySelector(selector)?.focus();
   },
 
+  /** Whether the keys are going to a text box or an editor (the page's own shortcuts leave them alone). */
+  typing() {
+    return Boolean(document.activeElement?.closest("input, textarea, select, [contenteditable], .monaco-editor"));
+  },
+
+  /** A box takes the focus with its words selected (a name renamed in place). */
+  focusSelect(selector) {
+    const box = document.querySelector(selector);
+    box?.focus();
+    box?.select?.();
+  },
+
   /** A file the server answered with (an export), saved by the browser's own download. */
   download(url) {
     const a = document.createElement("a");

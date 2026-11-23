@@ -1,5 +1,5 @@
 @* The grid's toolbar (the classic ribbon.ts), rows labelled by what they act on: Table (the whole view),
-   Transformations (the steps strip), Column (the selected columns, named in its caption). A row too narrow for its
+   Transformations (the steps strip), Column (the selected columns, named in its caption), Compare (only while two grids are side by side). A row too narrow for its
    buttons folds their words away from the end, icons kept. Logic in Ribbon.razor.cs. *@
 
 <div class="ribbon" aria-label="Grid tools">
@@ -28,4 +28,5 @@
             }
         </div>
     </div>
+    @Compare
 </div>

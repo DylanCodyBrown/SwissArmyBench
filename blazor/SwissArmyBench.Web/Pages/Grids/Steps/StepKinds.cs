@@ -19,6 +19,6 @@ public static class StepKinds
         _ => kind,
     };
 
-    /// <summary>The kinds this page has a form for (a SQL step is edited in the classic page).</summary>
-    public static bool HasForm(string kind) => kind is "filter" or "sort" or "columns" or "rename" or "group_by" or "limit" or "transform" or "bucket" or "categorize";
+    /// <summary>The kinds this page has a form for .</summary>
+    public static bool HasForm(string kind) => kind is "filter" or "sort" or "columns" or "rename" or "group_by" or "limit" or "transform" or "bucket" or "categorize" or "sql";
 }

@@ -1,11 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 
-using Microsoft.JSInterop;
-
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Grids;
-using SwissArmyBench.Web.Components;
 
 namespace SwissArmyBench.Web.Pages.Grids;
 
@@ -122,8 +119,8 @@ public partial class GridsPage
             case "col-group":
                 OpenEditor("group_by", new { keys = target });
                 break;
-            case "col-profile":
-                _column = one;
+            case "col-profile" when one is not null:
+                OpenProfile(one);
                 break;
             default:
                 break;
@@ -144,7 +141,33 @@ public partial class GridsPage
         }
     }
 
+    private const string StepsPanel = "steps";
+
+    private int? _previewUpto;
+
     private void CloseDialog() => _dialog = null;
+
+    /// <summary>A step's data previewed in the grid (0: the source), or the full view again (null).</summary>
+    private Task PreviewAsync(int? upto)
+    {
+        _previewUpto = upto;
+        Status.SetPreview(upto);
+        return Task.CompletedTask;
+    }
+
+    private void EditFromPanel((string Kind, int? Index) edit)
+    {
+        if (edit.Index is { } index)
+        {
+            EditStep(index);
+        }
+        else
+        {
+            OpenEditor(edit.Kind, null);
+        }
+    }
+
+    private Task ReorderStepsAsync(IReadOnlyList<GridStep> steps) => ChangedAsync(() => Grids.SaveStepsAsync(_active!, steps));
 
     private IReadOnlyList<string> AllColumns() => _info?.Columns.Select(c => c.Name).ToList() ?? [];
 
@@ -287,106 +310,4 @@ public partial class GridsPage
     }
 
     private void Say(string words) => _ = Notes.SayAsync(words);
-
-    // ===== the right-click menus (the classic cellMenu.ts) =====
-
-    private void CellMenu(GridPoint at)
-    {
-        var where = $"{at.Column}, row {(at.Row + 1).ToString("N0", CultureInfo.InvariantCulture)}";
-        _menu = new OpenMenu(where,
-        [
-            new("Keep these", "filter", () => FilterByCellsAsync(at.Column, keep: true)),
-            new("Exclude these", "exclude", () => FilterByCellsAsync(at.Column, keep: false)),
-            new("Filter…", "filter", () => Open("filter", new { column = at.Column })),
-            MenuEntry.Separator,
-            new("Copy", "copy", () => CopyAsync("plain")),
-            new("Copy with headers", "copy", () => CopyAsync("headers")),
-            new("Copy as Markdown", "copy", () => CopyAsync("markdown")),
-            MenuEntry.Separator,
-            new("Sort A→Z", "sortup", () => SortAsync([at.Column], "asc")),
-            new("Sort Z→A", "sortdown", () => SortAsync([at.Column], "desc")),
-            new("Profile", "profile", () => ShowProfile(at.Column)),
-        ], at.X, at.Y);
-    }
-
-    private void HeaderMenu(GridPoint at)
-    {
-        var columns = Target.Contains(at.Column) ? Target : [at.Column];
-        _menu = new OpenMenu(at.Column,
-        [
-            new("Sort A→Z", "sortup", () => SortAsync(columns, "asc")),
-            new("Sort Z→A", "sortdown", () => SortAsync(columns, "desc")),
-            new("Filter…", "filter", () => Open("filter", new { column = at.Column })),
-            new("Rename…", "rename", () => Open("rename", new { only = columns })),
-            new("Remove", "trash", () => KeepColumnsAsync(AllColumns().Where(c => !columns.Contains(c)).ToList())),
-            new("Keep only", "columns", () => KeepColumnsAsync(columns)),
-            new("Group by…", "group", () => Open("group_by", new { keys = columns })),
-            MenuEntry.Separator,
-            new("Profile", "profile", () => ShowProfile(at.Column)),
-        ], at.X, at.Y);
-    }
-
-    private Task Open(string kind, object preset)
-    {
-        OpenEditor(kind, preset);
-        return Task.CompletedTask;
-    }
-
-    private Task ShowProfile(string column)
-    {
-        _column = column;
-        return Task.CompletedTask;
-    }
-
-    private async Task CopyAsync(string style)
-    {
-        if (_grid is null)
-        {
-            return;
-        }
-        try
-        {
-            if (await _grid.CopyAsync(style) is { } words)
-            {
-                _ = Notes.SayAsync(words);
-            }
-        }
-        catch (JSException error)
-        {
-            _ = Notes.SayAsync($"Could not copy: {error.Message}");
-        }
-    }
-
-    /// <summary>Keep (or exclude) the rows whose value in the column is one of the selected cells' values.</summary>
-    private async Task FilterByCellsAsync(string column, bool keep)
-    {
-        if (_grid is null)
-        {
-            return;
-        }
-        var values = (await _grid.ValuesAsync(column)).Take(MostValues).ToList();
-        var present = values.Where(v => v.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined).ToList();
-        object parameters;
-        if (present.Count == 0)
-        {
-            parameters = new { column, op = keep ? "blank" : "not_blank" };
-        }
-        else if (present.Count == 1 && present[0].ValueKind is JsonValueKind.True or JsonValueKind.False)
-        {
-            parameters = new { column, op = keep == present[0].GetBoolean() ? "true" : "false" };
-        }
-        else if (present.Count == 1)
-        {
-            parameters = new { column, op = keep ? "eq" : "ne", value = present[0] };
-        }
-        else
-        {
-            parameters = new { column, op = keep ? "in" : "not_in", values = present };
-        }
-        if (present.Count > 0 && present.Count < values.Count)
-        {
-            _ = Notes.SayAsync("Blank cells left out of the filter.");
-        }
-        await AddStepAsync(("filter", parameters));
-    }
 }

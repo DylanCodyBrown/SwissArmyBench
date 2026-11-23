@@ -57,6 +57,7 @@ public static class Program
         services.AddScoped<SettingsClient>();
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<GridsClient>();
+        services.AddScoped<ComparesClient>();
         services.AddScoped<WorkbenchClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();

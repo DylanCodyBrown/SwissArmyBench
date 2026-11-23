@@ -1,0 +1,86 @@
+@* The grid page's tab row (the classic panes.ts): a tab per open grid in the order dragged into, grouped under its
+   connection once any connection's table is open (a group's head folds it), "+" the New query page. A tab: a click
+   shows it, a double-click or F2 renames its table in place, the middle button or Delete closes it, a right-click
+   its menu, the arrows, Home and End move between tabs; dragged onto another tab's left quarter it moves there,
+   onto the rest of a tab (or the grid) the two go side by side. Logic in GridTabs.razor.cs. *@
+
+<div class="grid-tabs tabs-row @(_dragging is null ? string.Empty : "dragging")" role="tablist" aria-label="Open tables">
+    @foreach (var group in Groups)
+    {
+        if (group.Name is null)
+        {
+            @foreach (var tab in group.Tabs)
+            {
+                @TabFor(tab)
+            }
+        }
+        else
+        {
+            var collapsed = _collapsed.Contains(group.Key);
+            <div class="tab-group @(collapsed ? "collapsed" : string.Empty)" role="group" aria-label="@group.Name" data-group="@group.Key" data-connections="@group.Connection">
+                <button type="button" class="tab-group-head" draggable="true" aria-expanded="@(collapsed ? "false" : "true")"
+                        title="@(collapsed ? $"Show {group.Name}'s tables" : $"Fold {group.Name}'s tables")"
+                        @onclick="() => ToggleGroupAsync(group.Key)" @ondragstart="() => _draggingGroup = group.Key" @ondragend="DragEnded"
+                        @ondragover:preventDefault="true" @ondrop="() => DropOnGroupAsync(group)">
+                    <span class="tab-group-name">@group.Name</span>
+                    @if (collapsed)
+                    {
+                        <span class="tab-group-count">@group.Tabs.Count</span>
+                    }
+                </button>
+                @foreach (var tab in group.Tabs.Where(t => !collapsed || t.Grid == Active))
+                {
+                    @TabFor(tab)
+                }
+            </div>
+        }
+    }
+    @Extra
+    <a role="tab" class="grid-tab new-tab @(IsNewQuery ? "current active" : string.Empty)" aria-selected="@(IsNewQuery ? "true" : "false")" href="grids?new=1" aria-label="New query" title="New query"><Icon Name="plus" /></a>
+    <div class="tab-end" @ondragover:preventDefault="true" @ondrop="DropAtEndAsync"></div>
+</div>
+
+@code {
+    private RenderFragment TabFor(GridListItem tab) => __builder =>
+    {
+        var selected = tab.Grid == Active && !IsNewQuery;
+        var inSplit = Split?.Contains(tab.Grid) ?? false;
+        var label = TabOrder.Label(tab, Tabs, Order);
+        <div class="grid-tab tab-item @(selected ? "current active" : string.Empty) @(inSplit ? "in-split" : string.Empty) @(_dropSplit == tab.Grid ? "drop-split" : string.Empty)"
+             role="tab" tabindex="@(selected ? "0" : "-1")" aria-selected="@(selected ? "true" : "false")" draggable="true" title="@tab.Dataset"
+             data-grid="@tab.Grid" data-connections="@tab.Origin?.Connection"
+             @onclick="e => ClickAsync(e, tab)" @onmouseup="e => AuxAsync(e, tab)" @oncontextmenu="e => OnMenu.InvokeAsync((tab.Grid, e.ClientX, e.ClientY))" @oncontextmenu:preventDefault="true"
+             @onkeydown="e => KeyAsync(e, tab)" @ondragstart="() => DragStarted(tab.Grid)" @ondragend="DragEnded"
+             @ondragenter="() => _dropSplit = tab.Grid" @ondragover:preventDefault="true" @ondrop="() => DropOnTabAsync(tab.Grid)">
+            <span class="tab-drop-before" @ondragover:preventDefault="true" @ondragenter="() => _dropSplit = null" @ondrop="() => DropBeforeAsync(tab.Grid)" @ondrop:stopPropagation="true"></span>
+            @if (inSplit)
+            {
+                <span class="split-mark" aria-label="side by side">◫</span>
+            }
+            @if (tab.Dataset.StartsWith("sandbox_", StringComparison.Ordinal))
+            {
+                <span class="tab-sandbox" aria-label="Sandbox"><Icon Name="sandbox" /></span>
+            }
+            else
+            {
+                <Icon Name="table" />
+            }
+            @if (_renaming == tab.Grid)
+            {
+                <input class="tab-rename" value="@tab.Dataset" aria-label="@($"New name for {tab.Dataset}")" spellcheck="false"
+                       @onkeydown="e => RenameKeyAsync(e, tab)" @onkeydown:stopPropagation="true" @onclick:stopPropagation="true"
+                       @oninput="e => _renamed = e.Value?.ToString()" @onblur="() => FinishRenameAsync(tab, true)" />
+            }
+            else
+            {
+                <span class="tab-label" title="@($"{label}: double-click to rename")">@label</span>
+            }
+            @if (tab.Steps > 0)
+            {
+                <span class="chip">@tab.Steps</span>
+            }
+            <button type="button" class="btn ghost icon small tab-close" tabindex="@(selected ? "0" : "-1")" aria-label="@($"Close {label}")" title="@($"Close {label}")"
+                    @onclick="() => OnClose.InvokeAsync(tab.Grid)" @onclick:stopPropagation="true"><Icon Name="close" /></button>
+        </div>
+    };
+}

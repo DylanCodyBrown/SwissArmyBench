@@ -24,6 +24,16 @@ public sealed class Notes
         Dismiss(note);
     }
 
+    /// <summary>A short line with one action ("Closed orders" with Undo): it goes by itself unless pressed.</summary>
+    public async Task SayAsync(string words, string actionLabel, Func<Task> action)
+    {
+        var note = new Note(words, null, actionLabel, action);
+        _shown.Add(note);
+        Changed?.Invoke();
+        await Task.Delay(ShownMilliseconds * 2);
+        Dismiss(note);
+    }
+
     /// <summary>An error from work with no place on screen: it stays until closed.</summary>
     public void Error(Exception error)
     {

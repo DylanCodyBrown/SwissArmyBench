@@ -510,6 +510,9 @@ HAND_WRITTEN: dict[str, str] = {
     "Grids/StepError": "null unless a step fails (the made-up data has no failing step)",
     "Grids/ConnectionSwap": "one of four answers (swapped, pick, review, failed), each free-form",
     "Grids/MadeTable": "shared by the query and the sandbox variant, each answering different fields",
+    "Grids/GridCompare and its parts": "a compare's differ, first column and focus are null unless the two tables "
+    "differ or a row is picked (the made-up tables agree)",
+    "Grids/ColumnProfile": "its fields are the column's family's (number, text, date)",
     "Connections/*": "each connection kind's form is data drawn by the page (its fields are the kind's)",
     "Environment/*": "each tab's rows carry the kind's own fields",
     "Projects/*, Settings/*, SessionLog/*, Catalog/*, Relationships/*, App/*": "written before the "

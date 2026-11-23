@@ -29,6 +29,10 @@
         <span class="status-offline" role="status"><Icon Name="warning" /> Not connected to the app's server</span>
     }
     <span class="status-spacer"></span>
+    @if (Grid.Rows is { } rows)
+    {
+        <span class="status-rows" role="status" aria-label="Rows">@rows@(Grid.Preview is { } upto ? $" · previewing after step {upto}" : string.Empty)</span>
+    }
     @if (Grid.Words is { } selected)
     {
         <span class="status-selection" role="status" aria-label="Selection">@selected</span>

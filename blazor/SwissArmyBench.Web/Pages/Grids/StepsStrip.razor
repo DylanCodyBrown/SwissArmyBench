@@ -1,9 +1,14 @@
-@* The steps strip under the title (the classic stepsStrip.ts): each step in plain words, its switch and its ×; the
-   failing step marked with its reason. No steps: one quiet line. *@
-<div class="steps-strip" aria-label="Steps">
-    @if (Info.Steps.Count == 0)
+@* The ribbon's Transformations row (the classic stepsStrip.ts): a table opened from a connection with fewer rows
+   than it holds says so with Load all rows; each step in plain words (its switch, its words opening its editor, its
+   × with Undo after), the failing step marked with its reason; Undo (Ctrl+Z) and Redo (Ctrl+Y) of the last step
+   change, Clear the steps, View steps (the steps and their code in a panel of their own). *@
+<div class="steps-strip" role="group" aria-label="Steps">
+    @if (Opened is { } opened)
     {
-        <span class="muted">No steps yet: the tools above add them.</span>
+        <span class="opened-note" role="status">
+            First @opened.Shown.ToString("N0") of @opened.Total.ToString("N0") rows
+            <button type="button" class="btn small ghost" disabled="@_loadingAll" @onclick="LoadAllAsync"><Icon Name="import" /> @(_loadingAll ? "Loading…" : "Load all rows")</button>
+        </span>
     }
     @for (var at = 0; at < Info.Steps.Count; at++)
     {
@@ -11,7 +16,7 @@
         var step = Info.Steps[at];
         var failed = Info.StepError?.Index == index;
         <span class="step-chip @(step.Enabled ? string.Empty : "off") @(failed ? "failed" : string.Empty)" title="@(failed ? Info.StepError!.Message : step.Description)">
-            <input type="checkbox" aria-label="@($"Step {index + 1} on")" checked="@step.Enabled" @onchange="e => OnToggle.InvokeAsync((index, e.Value is true))" />
+            <input type="checkbox" aria-label="@($"Step {index + 1} on")" title="@(step.Enabled ? "Turn this step off" : "Turn this step on")" checked="@step.Enabled" @onchange="e => OnToggle.InvokeAsync((index, e.Value is true))" />
             @if (StepKinds.HasForm(step.Kind))
             {
                 <button type="button" class="link step-words" title="Edit this step" @onclick="() => OnEdit.InvokeAsync(index)">@(index + 1). @step.Description</button>
@@ -20,16 +25,25 @@
             {
                 <span>@(index + 1). @step.Description</span>
             }
-            <button type="button" class="btn ghost icon small" aria-label="@($"Remove step {index + 1}")" @onclick="() => OnDelete.InvokeAsync(index)"><Icon Name="close" /></button>
+            <button type="button" class="btn ghost icon small" aria-label="@($"Remove: {step.Description}")" title="@($"Remove: {step.Description}")" @onclick="() => OnDelete.InvokeAsync(index)"><Icon Name="close" /></button>
         </span>
     }
+    <button type="button" class="btn ghost icon small" data-tool="undo" aria-label="Undo" title="@(Info.CanUndo ? "Undo the last step change (Ctrl+Z)" : "Nothing to undo")" disabled="@(!Info.CanUndo)" @onclick="OnUndo"><Icon Name="back" /></button>
+    <button type="button" class="btn ghost icon small" data-tool="redo" aria-label="Redo" title="@(Info.CanRedo ? "Redo (Ctrl+Y)" : "Nothing to redo")" disabled="@(!Info.CanRedo)" @onclick="OnRedo"><Icon Name="forward" /></button>
+    <button type="button" class="btn ghost icon small" data-tool="clear-steps" aria-label="Clear the steps" title="Clear the steps" disabled="@(Info.Steps.Count == 0)" @onclick="OnClear"><Icon Name="trash" /></button>
+    <button type="button" class="btn ghost small" data-tool="view-steps" @onclick="OnViewSteps"><Icon Name="steps" /> View steps</button>
 </div>
 @if (Info.StepError is { } stepError)
 {
-    <ErrorNote Words="@($"Step {stepError.Index + 1} failed: {stepError.Message}")" />
+    <ErrorNote Words="@($"Step {stepError.Index + 1}: {stepError.Message}")" />
 }
 
 @code {
+    private bool _loadingAll;
+
+    [Inject]
+    private ApiClient Api { get; set; } = default!;
+
     [Parameter, EditorRequired]
     public GridInfo Info { get; set; } = default!;
 
@@ -42,4 +56,43 @@
     /// <summary>A step's words were clicked: its editor opens on it.</summary>
     [Parameter]
     public EventCallback<int> OnEdit { get; set; }
+
+    [Parameter]
+    public EventCallback OnUndo { get; set; }
+
+    [Parameter]
+    public EventCallback OnRedo { get; set; }
+
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    [Parameter]
+    public EventCallback OnViewSteps { get; set; }
+
+    /// <summary>A refusal of Load all rows, for the page's error note.</summary>
+    [Parameter]
+    public EventCallback<Exception> OnFailed { get; set; }
+
+    private OpenedPart? Opened => Info.Opened is { ValueKind: JsonValueKind.Object } opened
+        ? JsonSerializer.Deserialize<OpenedPart>(opened.GetRawText(), ApiClient.Json)
+        : null;
+
+    /// <summary>Every row of the connection's table (the grid is read again by the server's notice).</summary>
+    private async Task LoadAllAsync()
+    {
+        if (Opened is not { } opened)
+        {
+            return;
+        }
+        _loadingAll = true;
+        try
+        {
+            await Api.PostAsync($"/connections/{ApiClient.Part(opened.Connection)}/open", new { database = opened.Database, schema = opened.Schema, table = opened.Table, all = true });
+        }
+        catch (ApiException error)
+        {
+            await OnFailed.InvokeAsync(error);
+        }
+        _loadingAll = false;
+    }
 }

@@ -1,0 +1,81 @@
+@* How diff mode compares two cells (the classic ribbon.ts openDiffOptions): numbers equal within a tolerance (an
+   amount, or a percent of the left value), text trimmed or with letter case ignored, and the columns compared. *@
+
+<AppDialog Title="How values compare" OnClose="OnClose">
+    <ChildContent>
+        <div class="analysis-controls form-row">
+            <label class="analysis-field field"><span>Numbers are equal within</span>
+                <input type="number" min="0" step="any" size="8" aria-label="Numbers are equal within" @bind="_tolerance" />
+            </label>
+            <select aria-label="Tolerance as" @bind="_percent">
+                <option value="">(an amount)</option>
+                <option value="1">% of the left value</option>
+            </select>
+        </div>
+        <label class="check-row"><input type="checkbox" aria-label="Ignore spaces at either end" @bind="_trim" /> Text: ignore spaces at either end</label>
+        <label class="check-row"><input type="checkbox" aria-label="Ignore letter case" @bind="_ignoreCase" /> Text: ignore letter case</label>
+        @if (_compared.Count > 0)
+        {
+            <fieldset class="tie-out-pick">
+                <legend>Columns compared</legend>
+                @foreach (var name in _compared)
+                {
+                    <label><input type="checkbox" aria-label="@($"Compare {name}")" checked="@(!_skip.Contains(name))" @onchange="e => Keep(name, e.Value is true)" /> @name</label>
+                }
+            </fieldset>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="ApplyAsync">Apply</button>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private double _tolerance;
+    private string _percent = string.Empty;
+    private bool _trim;
+    private bool _ignoreCase;
+    private List<string> _compared = [];
+    private readonly HashSet<string> _skip = [];
+
+    [Parameter, EditorRequired]
+    public GridCompare Info { get; set; } = default!;
+
+    /// <summary>Apply: the new options (PATCH's diff).</summary>
+    [Parameter]
+    public EventCallback<CompareDiffOptions> OnApply { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var o = Info.Diff;
+        _tolerance = o.Tolerance;
+        _percent = o.Percent ? "1" : string.Empty;
+        _trim = o.Trim;
+        _ignoreCase = o.IgnoreCase;
+        _compared = (Info.Differ?.Compared ?? []).Concat(o.Skip).Distinct().ToList();
+        _skip.UnionWith(o.Skip);
+    }
+
+    private void Keep(string name, bool on)
+    {
+        if (on)
+        {
+            _skip.Remove(name);
+        }
+        else
+        {
+            _skip.Add(name);
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        var options = Info.Diff with { Tolerance = _tolerance, Percent = _percent == "1", Trim = _trim, IgnoreCase = _ignoreCase, Skip = _compared.Where(_skip.Contains).ToList() };
+        await OnApply.InvokeAsync(options);
+        await OnClose.InvokeAsync();
+    }
+}

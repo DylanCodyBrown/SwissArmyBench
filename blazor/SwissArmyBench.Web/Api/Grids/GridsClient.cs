@@ -16,10 +16,14 @@ public sealed class GridsClient
 
     public Task<GridInfo> InfoAsync(string grid) => _api.GetAsync<GridInfo>(Base(grid));
 
-    public Task<ColumnProfile> ProfileAsync(string grid, string column) =>
-        _api.GetAsync<ColumnProfile>($"{Base(grid)}/profile?column={ApiClient.Part(column)}");
+    /// <summary>A column's profile; `upto` profiles the data after that many steps (a step's preview).</summary>
+    public Task<ColumnProfile> ProfileAsync(string grid, string column, int? upto = null) =>
+        _api.GetAsync<ColumnProfile>($"{Base(grid)}/profile?column={ApiClient.Part(column)}{Upto(upto)}");
 
-    public Task<TableProfile> TableProfileAsync(string grid) => _api.GetAsync<TableProfile>($"{Base(grid)}/profile");
+    public Task<TableProfile> TableProfileAsync(string grid, int? upto = null) =>
+        _api.GetAsync<TableProfile>($"{Base(grid)}/profile{(upto is { } n ? $"?upto={n}" : string.Empty)}");
+
+    private static string Upto(int? upto) => upto is { } n ? $"&upto={n}" : string.Empty;
 
     /// <summary>A column's values with their counts (the filter's checklist), those holding `search` when given.</summary>
     public Task<ValueList> ValuesAsync(string grid, string column, string search, int? upto)
