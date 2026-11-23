@@ -5,7 +5,9 @@ using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
+using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Projects;
+using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Tests;
@@ -31,6 +33,9 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<Notes>();
         Services.AddScoped<Dialogs>();
         Services.AddScoped<GridStatus>();
+        Services.AddScoped<SettingsClient>();
+        Services.AddScoped<BetaState>();
+        Services.AddScoped<FileChooser>();
     }
 
     /// <summary>How many handlers an event of a service holds now (a field-like event's own delegate).</summary>

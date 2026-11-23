@@ -1,8 +1,8 @@
-"""The Blazor Environment page against the classic one's elements, on made-up data: the tabs and their counts, the
-one search over every tab with its hint, the Columns menu, a row's menu and the viewer's actions (Copy name, Rename
-by F2, Remove asked first), Clear…, Install a library…, the Settings and secrets tab's key vaults and Add a setting…;
-and the Structures page a structure's row opens into: its steps (Filter…, Undo), the node's actions, Lineage,
-Save as…."""
+"""The Blazor Environment page against the classic one's elements, on made-up data: the tabs and their
+counts, the one search over every tab with its hint, the Columns menu, a row's menu and the viewer's
+actions (Copy name, Rename by F2, Remove asked first), Clear…, Install a library…, the Settings and
+secrets tab's key vaults and Add a setting…; and the Structures page a structure's row opens into: its
+steps (Filter…, Undo), the node's actions, Lineage, Save as…."""
 
 from __future__ import annotations
 
@@ -55,11 +55,15 @@ def test_the_environments_tabs_search_and_rows(browser: Browser, server: dict[st
     expect(remove).to_contain_text("its source is not touched")
     remove.locator("button:has-text('Cancel')").click()
     page.click("button:has-text('Clear…')")
-    expect(page.locator(".dialog[aria-label='Clear the environment']")).to_contain_text("Kept tables, settings and libraries stay.")
+    expect(page.locator(".dialog[aria-label='Clear the environment']")).to_contain_text(
+        "Kept tables, settings and libraries stay."
+    )
     page.locator(".dialog[aria-label='Clear the environment'] button:has-text('Cancel')").click()
     page.locator(".env-tab[data-kind=library]").click()
     page.click("button:has-text('Install a library…')")
-    expect(page.locator(".dialog[aria-label='Install a library'] input[aria-label=Library]")).to_have_attribute("placeholder", "polars")
+    expect(
+        page.locator(".dialog[aria-label='Install a library'] input[aria-label=Library]")
+    ).to_have_attribute("placeholder", "polars")
     page.locator(".dialog[aria-label='Install a library'] button:has-text('Cancel')").click()
     page.locator(".env-tab[data-kind=setting]").click()
     page.click("button:has-text('Add key vault')")
@@ -71,7 +75,12 @@ def test_the_environments_tabs_search_and_rows(browser: Browser, server: dict[st
 
 
 def test_a_structures_steps_and_actions(browser: Browser, server: dict[str, Any]) -> None:
-    made = call(server, "POST", "/structures/paste", {"text": '{"orders": [{"id": 1, "total": 2.5}, {"id": 2, "total": 9}]}', "name": "made_up_orders"})
+    made = call(
+        server,
+        "POST",
+        "/structures/paste",
+        {"text": '{"orders": [{"id": 1, "total": 2.5}, {"id": 2, "total": 9}]}', "name": "made_up_orders"},
+    )
     page = open_page(browser, server, f"structures?id={made['id']}")
     tree = page.locator(".structure-tree")
     tree.locator(".structure-row[data-path='$.orders']").click()

@@ -1,0 +1,617 @@
+/* The APIs and Extensions pages' own styles (the classic grid.css's rules for the same classes and tokens). */
+/* ===== Structures (structuresPage.ts, structureTree.ts) and APIs (apisPage.ts), 2026-11-17 ===== */
+
+.structures-page,
+.apis-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.structures-toolbar,
+.structures-node-actions,
+.structures-origin,
+.api-op-actions,
+.api-author-actions,
+.api-card-actions,
+.api-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.structures-search,
+.apis-search {
+  min-width: 200px;
+}
+.structure-tree mark,
+.api-results mark {
+  background: var(--highlight);
+  color: inherit;
+}
+/* The Extensions page (extensionsPage.ts): a card per extension. */
+.extension-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.extension-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.extension-card.coming {
+  opacity: 0.75;
+}
+.extension-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.extension-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-right: auto;
+}
+.extension-status {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.extension-status.status-available {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.extension-description,
+.extension-stage,
+.extension-said {
+  margin: 0;
+}
+.extension-adds {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+.extension-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: auto;
+}
+.extension-progress {
+  width: 100%;
+}
+/* A folder extension's card: its path on one line, its actions side by side. */
+.extension-project,
+.extension-path {
+  margin: 0;
+  font-size: 0.92em;
+}
+.extension-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.extension-foot.folder {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.structures-cards,
+.apis-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.structures-card-name,
+.api-card-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.structures-empty,
+.apis-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+/* ----- APIs ----- */
+
+.api-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.api-card-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.api-card-base {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.api-card-facts {
+  font-size: 13px;
+  color: var(--muted);
+}
+.api-method {
+  display: inline-block;
+  min-width: 52px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--method-get-fg) 35%, transparent);
+  border-radius: 4px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  /* Its own calm colours (GET teal, POST blue, PUT and PATCH amber, DELETE red), never the accent. */
+  color: var(--method-get-fg);
+  background: var(--method-get);
+}
+.api-method.m-post {
+  border-color: color-mix(in srgb, var(--method-post-fg) 35%, transparent);
+  color: var(--method-post-fg);
+  background: var(--method-post);
+}
+.api-method.m-put,
+.api-method.m-patch {
+  border-color: color-mix(in srgb, var(--method-put-fg) 35%, transparent);
+  color: var(--method-put-fg);
+  background: var(--method-put);
+}
+.api-method.m-delete {
+  border-color: color-mix(in srgb, var(--method-delete-fg) 35%, transparent);
+  color: var(--method-delete-fg);
+  background: var(--method-delete);
+}
+.api-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  list-style: none;
+}
+.api-result {
+  display: grid;
+  grid-template-columns: minmax(80px, 160px) auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.api-result-api {
+  font-weight: 600;
+}
+.api-diff-added h3 {
+  color: var(--ok);
+}
+.api-diff-removed h3 {
+  color: var(--error);
+}
+.api-diff-notes {
+  color: var(--muted);
+  font-size: 13px;
+}
+/* ===== an extension's own panel (extensionPanel.ts): on its card and in Settings ===== */
+.extension-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.extension-panel-line {
+  margin: 0;
+}
+.extension-panel-line.tone-ok {
+  color: var(--ok);
+}
+.extension-panel-line.tone-warn {
+  color: var(--warn);
+}
+.extension-panel-line.tone-error {
+  color: var(--error);
+}
+.extension-panel-controls,
+.extension-panel-code,
+.extension-panel-busy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.extension-panel-usercode {
+  font-size: 18px;
+  letter-spacing: 2px;
+  user-select: all;
+}
+.extension-settings {
+  display: contents;
+}
+.extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
+.extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+.ide-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 2px 6px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.ide-bar-gap {
+  flex: 1;
+}
+/* the local sandbox API's slim bar (localApis.ts) and its folded Properties */
+.local-api-bar { border: 1px solid var(--border); border-radius: 6px; gap: 6px; }
+.local-api-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted, #888); flex: none; }
+.local-api-dot.on { background: var(--ok, #2e7d32); }
+.local-api-props { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; }
+.local-api-about input { min-width: 260px; }
+.local-api-agent { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px 0 8px; border-radius: 10px; background: var(--sandbox-soft, rgb(58 58 160 / 12%)); font-size: 0.86em; }
+.local-api-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.local-api-head > h2 { margin: 0; }
+.local-api-pane-bar { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.btn.ide-btn {
+  min-height: 24px;
+  padding: 1px 8px;
+  font-size: 0.86em;
+  gap: 4px;
+}
+.btn.ide-btn.icon {
+  padding: 1px 4px;
+}
+.btn.ide-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.btn.ide-btn.running {
+  color: var(--error);
+}
+.ide-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: 6px;
+  font-weight: 600;
+}
+.ide-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.local-apis {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.local-api-name {
+  font-weight: 600;
+}
+.local-api-status {
+  color: var(--muted);
+}
+.local-api-status.on {
+  color: var(--ok);
+  font-weight: 600;
+}
+.local-api-base {
+  width: 9em;
+}
+.local-api-endpoints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.local-api-endpoint {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.local-api-endpoint-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-data {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.local-api-try {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.local-api-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.local-api-said.bad,
+.sandbox-tables td.bad {
+  color: var(--error);
+}
+.local-api-log h3 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.local-api-try-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.local-api-log-error {
+  color: var(--muted);
+}
+.local-api-output {
+  margin-top: 8px;
+}
+.local-api-output pre {
+  max-height: 220px;
+  margin: 4px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.local-api-kept {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.local-api-compare pre {
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+}
+.local-api-pattern {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ===== Add API (the classic addApi.ts) ===== */
+.add-api {
+  max-width: 860px; /* a wide window: the fields stay a readable length */
+}
+
+.add-api .field-row {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.add-api .field-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-api .field-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The start: two choices, as the connection type picker's tiles; the chosen one marked. */
+.add-api-starts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 4px 0 12px;
+  --fam: var(--cat-6);
+}
+
+.add-api-start[aria-checked="true"] {
+  border-color: var(--fam);
+  background: color-mix(in srgb, var(--fam) 12%, var(--raised));
+  box-shadow: inset 0 0 0 1px var(--fam);
+}
+
+/* Each part of the form in the order you think in, calmly apart. */
+.add-api-rest {
+  display: grid;
+  gap: 14px;
+}
+
+.add-api-part {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.add-api-part > .connection-fields {
+  margin: 0;
+}
+
+.add-api-part h4 {
+  margin: 0;
+  font-size: 1em;
+}
+
+.add-api-auth {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.add-api-auth .connection-fields {
+  margin: 0;
+}
+
+/* An endpoint: a card of its own, every field labelled. */
+.add-api-endpoints {
+  display: grid;
+  gap: 10px;
+}
+
+.add-api-endpoint {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.add-api-endpoint-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-api-endpoint-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.add-api-endpoint-fields {
+  display: grid;
+  grid-template-columns: minmax(6.5em, 8em) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.add-api-endpoint .field-flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Each parameter's Needed tick, as a chip. */
+.add-api-needed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-api-needed-label {
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+.add-api-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+}
+
+.add-api-chip:has(input:checked) {
+  border-color: var(--cat-6);
+}
+
+.add-api-try:empty {
+  display: none;
+}
+
+.add-api-op-try {
+  margin-left: auto;
+}
+
+.add-api-values:empty {
+  display: none;
+}
+
+.add-api-operations {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.add-api-operations li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.add-api-operations li.removed {
+  text-decoration: line-through;
+}
+
+.add-api-method {
+  min-width: 4.5em;
+  font-weight: 600;
+}
+
+.add-api-file,
+.add-api-variables {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-api-preset-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  color: var(--cat-6);
+}
+
+.add-api-preset-icon .icon-svg {
+  width: 20px;
+  height: 20px;
+}

@@ -1,0 +1,60 @@
+@* New local sandbox API… (the classic localApis.ts newApi): its target asked once (Export never asks again), then
+   API.py made. *@
+@using SwissArmyBench.Web.Api.LocalApi
+@inject LocalApiClient LocalApi
+
+<AppDialog Title="New local sandbox API" OnClose="() => OnDone.InvokeAsync(false)">
+    <ChildContent>
+        <label class="field"><span>Its target (where it is deployed; Export makes it ready for this)</span>
+            <select aria-label="Its target" @bind="_target">
+                @foreach (var t in _targets)
+                {
+                    <option value="@t.Id">@t.Label</option>
+                }
+            </select>
+        </label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnDone.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_making" Words="Making API.py…"><button type="button" class="btn primary" @onclick="MakeAsync">Make API.py</button></Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private IReadOnlyList<LocalApiTarget> _targets = [];
+    private string _target = string.Empty;
+    private bool _making;
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback<bool> OnDone { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _targets = (await LocalApi.StateAsync()).Targets ?? [];
+            _target = _targets.FirstOrDefault()?.Id ?? string.Empty;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task MakeAsync()
+    {
+        _making = true;
+        try
+        {
+            await LocalApi.NewAsync(_target.Length > 0 ? _target : null);
+            await OnDone.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _making = false;
+    }
+}

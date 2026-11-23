@@ -59,6 +59,7 @@ public static class Program
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<QueriesClient>();
         services.AddScoped<SandboxClient>();
+        services.AddScoped<SwissArmyBench.Web.Api.LocalApi.LocalApiClient>();
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
         services.AddScoped<AnalyzeClient>();

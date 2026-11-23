@@ -1,0 +1,124 @@
+@* One endpoint of API.py (the classic localApis.ts endpointRow and drawTry): its method and path, the pattern that
+   made it, its words and the data it reads, Try it (its inputs from the server's made-up request, the body as JSON,
+   Send: the answer as a tree, a refusal as the one error note with Go to line) and Go to line. *@
+@using SwissArmyBench.Web.Api.LocalApi
+@using SwissArmyBench.Web.Pages.Structures
+@inject LocalApiClient LocalApi
+
+<article class="local-api-endpoint" role="listitem" data-endpoint="@Endpoint.Name">
+    <div class="local-api-endpoint-head">
+        <span class="api-method m-@Endpoint.Method.ToLowerInvariant()">@Endpoint.Method</span>
+        <code>@(BasePath + Endpoint.Path)</code>
+        @if (Endpoint.Pattern is { } pattern)
+        {
+            <span class="local-api-pattern" title="@($"Made by the {pattern.Label} pattern over {pattern.Of}; the code is yours to change")">@pattern.Label</span>
+        }
+        <span>@Endpoint.Summary</span>
+        @foreach (var d in Endpoint.Data)
+        {
+            <span class="local-api-data">@d</span>
+        }
+        <button type="button" class="btn small" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">Try it</button>
+        <a class="btn small icon" aria-label="Go to line" title="@($"{Endpoint.Name}: API.py line {Endpoint.Line}")" href="@($"scripts?path={Uri.EscapeDataString(File)}&line={Endpoint.Line}")"><Icon Name="code" /></a>
+    </div>
+    @if (_open)
+    {
+        <div class="local-api-try">
+            <div class="local-api-fields">
+                @foreach (var p in Endpoint.Params.Where(p => p.Where != "body"))
+                {
+                    <label class="field-inline"><span class="muted">@p.Name (@p.Where)</span><input aria-label="@p.Name" spellcheck="false" value="@ValueOf(p)" @oninput="e => _values[p.Name] = e.Value?.ToString() ?? string.Empty" /></label>
+                }
+            </div>
+            @if (Endpoint.Params.FirstOrDefault(p => p.Where == "body") is { } bodyParam)
+            {
+                <label class="field"><span>@bodyParam.Name (the body, JSON)</span><textarea aria-label="Body" rows="6" class="mono" spellcheck="false" data-no-variables @bind="_body"></textarea></label>
+            }
+            <div class="local-api-try-actions">
+                <Busy IsBusy="_sending" Words="Sending…"><button type="button" class="btn primary" @onclick="SendAsync">Send</button></Busy>
+            </div>
+            <div class="local-api-answer">
+                <ErrorNote Error="_error" />
+                @if (_answer is { } answer)
+                {
+                    <div class="local-api-said @(answer.Status >= 400 ? "bad" : null)" role="status">@answer.Status · @answer.Ms ms@(answer.Rows is { } rows ? $" · {rows} {(rows == 1 ? "row" : "rows")}" : string.Empty)</div>
+                    @if (answer.Status < 400 && answer.Body.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+                    {
+                        <StructureTree Value="answer.Body" />
+                    }
+                }
+            </div>
+        </div>
+    }
+</article>
+
+@code {
+    private readonly Dictionary<string, string> _values = [];
+    private bool _open;
+    private bool _sending;
+    private string _body = string.Empty;
+    private LocalApiAnswer? _answer;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public LocalEndpoint Endpoint { get; set; } = default!;
+
+    [Parameter]
+    public string BasePath { get; set; } = string.Empty;
+
+    [Parameter]
+    public string File { get; set; } = "API.py";
+
+    protected override void OnInitialized()
+    {
+        // The form starts from the endpoint's learned shape (the server's made-up values by type).
+        _body = Endpoint.Try?.Body is { } body ? JsonSerializer.Serialize(body, new JsonSerializerOptions { WriteIndented = true }) : "null";
+    }
+
+    private string ValueOf(EndpointParam p)
+    {
+        if (_values.TryGetValue(p.Name, out var typed))
+        {
+            return typed;
+        }
+        var start = (p.Where == "path" ? Endpoint.Try?.Path : Endpoint.Try?.Query)?.GetValueOrDefault(p.Name) ?? p.Default;
+        var text = start is { ValueKind: JsonValueKind.String } s ? s.GetString() ?? string.Empty : start is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } v ? v.GetRawText() : string.Empty;
+        _values[p.Name] = text;
+        return text;
+    }
+
+    private async Task SendAsync()
+    {
+        var path = Endpoint.Params.Where(p => p.Where == "path").Aggregate(Endpoint.Path, (at, p) => at.Replace($"{{{p.Name}}}", Uri.EscapeDataString(ValueOf(p)), StringComparison.Ordinal));
+        var query = Endpoint.Params.Where(p => p.Where == "query" && ValueOf(p).Length > 0).ToDictionary(p => p.Name, ValueOf);
+        object? sent = null;
+        if (Endpoint.Params.Any(p => p.Where == "body"))
+        {
+            try
+            {
+                sent = JsonDocument.Parse(_body.Length > 0 ? _body : "null").RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                _error = new ApiException(0, new Refusal("The body is not JSON."), string.Empty);
+                return;
+            }
+        }
+        _sending = true;
+        _error = null;
+        try
+        {
+            _answer = await LocalApi.CallAsync(Endpoint.Method, BasePath + path, query, sent);
+            if (_answer.Status >= 400)
+            {
+                var line = _answer.Line ?? Endpoint.Line;
+                _error = new ApiException(0, new Refusal(_answer.Error ?? $"{Endpoint.Method} {path} answered {_answer.Status}.", _answer.Where ?? $"{Endpoint.Name}: API.py line {line}", Details: _answer.Body.GetRawText()), string.Empty);
+            }
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _sending = false;
+    }
+}

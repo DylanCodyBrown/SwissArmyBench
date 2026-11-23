@@ -1,5 +1,6 @@
 @* One API explored (the classic apisPage.ts explorer): its operations on the left (method and path), the one picked
-   on the right: its inputs and body as a form, its answers' shapes, Try it, and the answer as a structure. Logic in
+   on the right: its inputs and body as a form, its answers' shapes, Try it, the answer as a structure, and
+   Author a call's Return as table, Rows at, The DuckDB query, Save as web call and Copy name for SQL. Logic in
    ApiExplorerView.razor.cs. *@
 
 <div class="api-explorer">
@@ -51,11 +52,30 @@
                     <label class="field"><span>Body (JSON)</span></label>
                     <div class="api-body"><CodeEditor Value="@BodyExample(body)" Language="json" Label="Body" Grow="true" MinLines="4" OnChange="t => _body = t" /></div>
                 }
+                <div class="form-row api-author-actions">
+                    <button type="button" class="btn primary api-send" disabled="@_sending" @onclick="SendAsync"><Icon Name="play" /> Send</button>
+                    <label class="autosave-switch"><input type="checkbox" role="switch" class="switch-input" aria-label="Return as table" checked="@_asTable" @onchange="e => _asTable = e.Value is true" /> <span>Return as table</span></label>
+                    <label class="api-records"><span>Rows at</span><input class="mono" aria-label="Records path" placeholder="$.items" value="@_records" @oninput="e => _records = e.Value?.ToString() ?? string.Empty" /></label>
+                    <Busy IsBusy="_saving" Words="Saving…"><button type="button" class="btn" @onclick="SaveAsync"><Icon Name="save" /> Save as web call</button></Busy>
+                    @if ((_sqlName ?? op.SqlName) is { } sqlName)
+                    {
+                        <button type="button" class="btn ghost" title="@sqlName" @onclick="() => CopySqlNameAsync(sqlName)"><Icon Name="copy" /> Copy name for SQL</button>
+                    }
+                </div>
+                @if (_asTable)
+                {
+                    <details class="api-conversion"><summary>The DuckDB query</summary>
+                        <textarea class="mono api-conversion-sql" aria-label="The DuckDB query" rows="5" spellcheck="false" placeholder="Made from the rows path when saved" value="@_query" @oninput="QueryTyped"></textarea>
+                    </details>
+                }
                 <div class="form-row">
-                    <button type="button" class="btn primary" disabled="@_sending" @onclick="SendAsync"><Icon Name="play" /> Send</button>
                     @if (_answer is { } answer)
                     {
                         <span role="status" class="@(answer.Status < 400 ? "status-ok" : "muted")">@answer.Status · @answer.Ms.ToString("N0") ms</span>
+                        @if (answer.SuggestTable is { } suggest && !_asTable)
+                        {
+                            <span class="muted api-suggest">It answers rows at @suggest.Records: Return as table can make it a table.</span>
+                        }
                         @if (answer.Structure is { } id)
                         {
                             <a href="@($"structures?id={Uri.EscapeDataString(id)}")">Open in Structures</a>

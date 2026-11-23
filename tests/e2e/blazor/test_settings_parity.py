@@ -1,6 +1,7 @@
-"""The Blazor Settings page against the classic one's elements, on made-up data: the Team box's Join a team… flow (its
-steps, GitHub sync's Install step), Advanced's Set up this computer, Claude's lists and Look again, Beta (the switch,
-the status bar's Beta mark and its menu, Leave a note, Clear the beta log asked first), and the order of the boxes."""
+"""The Blazor Settings page against the classic one's elements, on made-up data: the Team box's Join a team…
+flow (its steps, GitHub sync's Install step), Advanced's Set up this computer, Claude's lists and Look
+again, Beta (the switch, the status bar's Beta mark and its menu, Leave a note, Clear the beta log asked
+first), and the order of the boxes."""
 
 from __future__ import annotations
 

@@ -1,0 +1,284 @@
+@* Add API (the classic addApi.ts): two choices (I have an OpenAPI document / I'll list the endpoints myself); the
+   document's address, a file or pasted; the name, Hosted on and the base address (Find its OpenAPI); Sign in, its
+   settings and a box per variable; the endpoints (Method, Path, Parameters with Needed, Read as a table, Columns to
+   keep, Try it, Remove endpoint; Add an endpoint); the preview (the file, each operation as its method, Try it on a
+   document's table, the variables); Add. Logic in AddApiForm.razor.cs and AddApiForm.Preview.cs. *@
+@using SwissArmyBench.Web.Api.Apis
+
+<h3>Add API</h3>
+@if (_choices is null)
+{
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_error is null)
+    {
+        <div class="loading-block">Loading the form…</div>
+    }
+}
+else
+{
+    <div class="add-api">
+        <div class="add-api-starts" role="radiogroup" aria-label="Start from">
+            <button type="button" class="btn connection-type add-api-start" role="radio" aria-checked="@(_mode == "document" ? "true" : "false")" @onclick='() => Pick("document")'><Icon Name="api-openapi" /> I have an OpenAPI document</button>
+            <button type="button" class="btn connection-type add-api-start" role="radio" aria-checked="@(_mode == "form" ? "true" : "false")" @onclick='() => Pick("form")'><Icon Name="api-form" /> I'll list the endpoints myself</button>
+        </div>
+        @if (_mode is not null)
+        {
+            <div class="add-api-rest">
+                @if (_mode == "document")
+                {
+                    <section class="add-api-part">
+                        <label class="field"><span>OpenAPI document's address</span>
+                            <span class="field-row">
+                                <input type="url" class="mono" aria-label="OpenAPI document's address" placeholder="https://…/openapi.json" spellcheck="false" value="@_url" @oninput="e => _url = e.Value?.ToString() ?? string.Empty" @onchange="UseUrl" />
+                                <button type="button" class="btn" @onclick="UseUrl"><Icon Name="import" /> Read</button>
+                                <button type="button" class="btn" @onclick="BrowseAsync"><Icon Name="folder" /> File…</button>
+                            </span>
+                        </label>
+                        @if (_file.Length > 0)
+                        {
+                            <span class="hint mono">@_file</span>
+                        }
+                        <details class="connection-code-box"><summary>Paste it instead</summary>
+                            <label class="field"><span>OpenAPI document</span><textarea class="mono connection-code" rows="6" spellcheck="false" aria-label="OpenAPI document" value="@_pasted" @oninput="Pasted"></textarea></label>
+                        </details>
+                    </section>
+                }
+                <section class="add-api-part">
+                    <div class="connection-fields">
+                        <label class="field"><span>Name</span><input type="text" aria-label="Name" placeholder="Orders" maxlength="64" spellcheck="false" value="@_name" @oninput="Named" /></label>
+                        <label class="field"><span>Hosted on</span>
+                            <span class="field-row">
+                                <span class="add-api-preset-icon" aria-hidden="true"><Icon Name="@(_preset.Length > 0 && IconSet.Paths.ContainsKey($"api-{_preset}") ? $"api-{_preset}" : "api-openapi")" /></span>
+                                <select aria-label="Hosted on" @onchange="e => PresetChosen(e.Value?.ToString())">
+                                    <option value="" selected="@(_preset.Length == 0)">Anywhere</option>
+                                    @foreach (var p in _choices.Presets)
+                                    {
+                                        <option value="@p.Id" selected="@(p.Id == _preset)">@p.Label</option>
+                                    }
+                                </select>
+                            </span>
+                        </label>
+                    </div>
+                    <label class="field"><span>Base address</span>
+                        <span class="field-row">
+                            <input type="text" inputmode="url" class="mono" aria-label="Base address" placeholder="@(_plan?.Spec.BaseUrl is { Length: > 0 } b ? b : "https://api.example.com/v1")" spellcheck="false" value="@_baseUrl" @oninput="BaseTyped" />
+                            @if (CanFind)
+                            {
+                                <button type="button" class="btn" @onclick="FindAsync"><Icon Name="zoom" /> Find its OpenAPI</button>
+                            }
+                        </span>
+                    </label>
+                </section>
+                <section class="add-api-part add-api-auth">
+                    <div class="connection-fields">
+                        <label class="field"><span>Sign in</span>
+                            <select aria-label="Sign in" @onchange="e => ChooseAuth(e.Value?.ToString() ?? string.Empty)">
+                                @if (_documentAuth is { } documentAuth && _mode == "document")
+                                {
+                                    <optgroup label="The document's"><option value="doc:" selected="@(_authValue == "doc:")">@(_choices.AuthTypes.FirstOrDefault(t => t.Id == documentAuth.GetValueOrDefault("type"))?.Label ?? documentAuth.GetValueOrDefault("type"))</option></optgroup>
+                                }
+                                @if (Preset is { } preset)
+                                {
+                                    <optgroup label="@preset.Label">
+                                        @for (var i = 0; i < preset.Auths.Count; i++)
+                                        {
+                                            var value = $"preset:{i}";
+                                            <option value="@value" selected="@(_authValue == value)">@(preset.Auths[i].TryGetValue("label", out var label) ? label.GetString() : value)</option>
+                                        }
+                                    </optgroup>
+                                }
+                                <optgroup label="Every type">
+                                    @foreach (var t in _choices.AuthTypes)
+                                    {
+                                        <option value="@($"type:{t.Id}")" selected="@(_authValue == $"type:{t.Id}")">@t.Label</option>
+                                    }
+                                </optgroup>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="connection-fields">
+                        @foreach (var s in (AuthType?.Settings ?? []).Where(Shown))
+                        {
+                            var id = s.Id;
+                            <label class="field"><span>@s.Label</span>
+                                @if (s.Choices.Count > 0)
+                                {
+                                    <select aria-label="@s.Label" @onchange="e => SetSetting(id, e.Value?.ToString())">
+                                        @foreach (var c in s.Choices)
+                                        {
+                                            <option value="@c.Value" selected="@(_auth.GetValueOrDefault(id, s.Default) == c.Value)">@c.Label</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input type="text" class="mono" aria-label="@s.Label" spellcheck="false" value="@_auth.GetValueOrDefault(id, s.Default)" @oninput="e => SetSetting(id, e.Value?.ToString())" />
+                                }
+                            </label>
+                        }
+                    </div>
+                    <div class="connection-fields add-api-values">
+                        @foreach (var v in Asked)
+                        {
+                            var name = v.Name;
+                            <label class="field"><span>@name</span><input type="@(v.Secret ? "password" : "text")" class="mono" autocomplete="off" spellcheck="false" aria-label="@name" placeholder="This computer's environment" value="@_values.GetValueOrDefault(name)" @oninput="e => _values[name] = e.Value?.ToString() ?? string.Empty" /></label>
+                        }
+                    </div>
+                </section>
+                @if (_mode == "form")
+                {
+                    <section class="add-api-part">
+                        <h4>Endpoints</h4>
+                        <div class="add-api-endpoints">
+                            @for (var i = 0; i < _cards.Count; i++)
+                            {
+                                var card = _cards[i];
+                                var title = $"Endpoint {i + 1}";
+                                var key = $"card:{i}";
+                                <section class="add-api-endpoint" role="group" aria-label="@title">
+                                    <div class="add-api-endpoint-head">
+                                        <span class="add-api-endpoint-title">@title</span>
+                                        <Busy IsBusy="_trying == key" Words="Trying…"><button type="button" class="btn" disabled="@(card.TryReason.Length > 0)" title="@(card.TryReason.Length > 0 ? card.TryReason : "Try it")" @onclick="() => TryCardAsync(card)"><Icon Name="play" /> Try it</button></Busy>
+                                        <button type="button" class="btn ghost icon" aria-label="Remove endpoint" title="Remove endpoint" @onclick="() => RemoveCard(card)"><Icon Name="trash" /></button>
+                                    </div>
+                                    <div class="add-api-endpoint-fields">
+                                        <label class="field add-api-method-field"><span>Method</span>
+                                            <select aria-label="Method" @onchange="e => Set(card, nameof(card.Method), e)">
+                                                @foreach (var m in _choices.Methods)
+                                                {
+                                                    <option value="@m" selected="@(m == card.Method)">@m</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label class="field"><span>Path</span><input type="text" class="mono" aria-label="Path" placeholder="/orders/{id}" spellcheck="false" value="@card.Path" @oninput="e => Set(card, nameof(card.Path), e)" /></label>
+                                    </div>
+                                    <label class="field"><span>Parameters</span><input type="text" class="mono" aria-label="Parameters" placeholder="status, limit" spellcheck="false" value="@card.Parameters" @oninput="e => Set(card, nameof(card.Parameters), e)" /></label>
+                                    @if (card.AllParameters.Count > 0)
+                                    {
+                                        <div class="add-api-needed" role="group" aria-label="Needed">
+                                            <span class="add-api-needed-label">Needed</span>
+                                            @foreach (var p in card.AllParameters)
+                                            {
+                                                var always = card.InPath.Contains(p);
+                                                <label class="add-api-chip" title="@(always ? $"{p} is in the path" : null)"><input type="checkbox" checked="@card.IsNeeded(p)" disabled="@always" @onchange="e => ToggleNeeded(card, p, e.Value is true)" /><span class="mono">@p</span></label>
+                                            }
+                                        </div>
+                                    }
+                                    <label class="field-flag"><input type="checkbox" checked="@card.Table" @onchange="e => Set(card, nameof(card.Table), e)" /><span>Read as a table</span></label>
+                                    @if (card.Table)
+                                    {
+                                        <label class="field"><span>Columns to keep</span><input type="text" class="mono" aria-label="Columns to keep" placeholder="All" spellcheck="false" value="@card.Columns" @oninput="e => Set(card, nameof(card.Columns), e)" /></label>
+                                    }
+                                    <div class="add-api-try" role="status">@Tried(key)</div>
+                                </section>
+                            }
+                        </div>
+                        <button type="button" class="btn" @onclick="() => _cards.Add(new())"><Icon Name="plus" /> Add an endpoint</button>
+                    </section>
+                }
+                <div class="connection-result add-api-preview" role="status">
+                    <ErrorNote Error="_error" Words="@_said" OnClose="() => { _error = null; _said = null; }" />
+                    @if (_previewing && _plan is null)
+                    {
+                        <div class="loading-block">Reading the API…</div>
+                    }
+                    @if (_plan is { } plan)
+                    {
+                        <p class="hint add-api-file"><code>@plan.Path</code>@if (plan.Exists) { <span class="badge">Replaces</span> }</p>
+                        @if (plan.Taken is { } taken)
+                        {
+                            <ErrorNote Words="@taken" />
+                        }
+                        @if (Summary(plan) is { Length: > 0 } summary)
+                        {
+                            <p class="hint">@summary</p>
+                        }
+                        <p class="hint">@plan.Spec.Title · @plan.Spec.Source · @Count(plan.Spec.Operations.Count, "operation") · @Count(plan.Spec.Tables.Count, "table")</p>
+                        <ul class="add-api-operations" aria-label="What it makes">
+                            @foreach (var o in plan.Spec.Operations)
+                            {
+                                var added = plan.Changes?.Added.Contains(o.Name) == true;
+                                var changed = plan.Changes?.Changed.Contains(o.Name) == true;
+                                var key = $"op:{o.Name}";
+                                <li class="@(added || changed ? "changed" : null)">
+                                    <code class="add-api-method">@o.Method</code><code>@o.Path</code><span class="hint">@(o.Name)()</span>
+                                    @if (o.Readable)
+                                    {
+                                        <span class="badge">Table</span>
+                                    }
+                                    @if (added)
+                                    {
+                                        <span class="badge">New</span>
+                                    }
+                                    else if (changed)
+                                    {
+                                        <span class="badge">Changed</span>
+                                    }
+                                    @if (o.Readable && _mode == "document")
+                                    {
+                                        <Busy IsBusy="_trying == key" Words="Trying…"><button type="button" class="btn ghost icon add-api-op-try" aria-label="@($"Try {o.Name}")" title="Try it" @onclick="() => TryAsync(key, null, o.Name)"><Icon Name="play" /></button></Busy>
+                                    }
+                                </li>
+                            }
+                            @foreach (var n in plan.Changes?.Removed ?? [])
+                            {
+                                <li class="removed"><span class="hint">@(n)()</span><span class="badge">Removed</span></li>
+                            }
+                        </ul>
+                        @if (_mode == "document" && _tried is { Key: var triedKey } && triedKey.StartsWith("op:", StringComparison.Ordinal))
+                        {
+                            <div class="add-api-try" role="status">@Tried(triedKey)</div>
+                        }
+                        @if (plan.Variables.Count > 1)
+                        {
+                            <p class="hint add-api-variables">
+                                @foreach (var v in plan.Variables.Skip(1))
+                                {
+                                    <code title="@(v.Required ? "Needed" : "Optional")">@v.Name</code>
+                                }
+                            </p>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+    <div class="dialog-foot add-api-foot">
+        <Busy IsBusy="_adding" Words="@($"Adding {(_name.Trim().Length > 0 ? _name.Trim() : "the API")}…")">
+            <button type="button" class="btn primary" disabled="@(_plan is null || _plan.Taken is not null || _adding)" @onclick="AddAsync"><Icon Name="plus" /> Add</button>
+        </Busy>
+    </div>
+}
+
+@code {
+    private static string Count(int n, string word) => $"{n:N0} {word}{(n == 1 ? string.Empty : "s")}";
+
+    private static string Summary(AddApiPlan plan) => plan.Changes switch
+    {
+        null => string.Empty,
+        { Any: false } => "No changes",
+        var c => string.Join(" · ", new[] { c.Auth ? "Sign-in changed" : string.Empty, c.BaseUrl ? "Address changed" : string.Empty }.Where(w => w.Length > 0)),
+    };
+
+    private static string Shown(System.Text.Json.JsonElement v) => v.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined => string.Empty,
+        System.Text.Json.JsonValueKind.String => v.GetString() ?? string.Empty,
+        _ => v.GetRawText(),
+    };
+
+    /// <summary>Try it's answer for one card or operation: its first rows, or why not.</summary>
+    private RenderFragment? Tried(string key) => _tried is { } tried && tried.Key == key
+        ? tried.Rows is { } got
+            ? @<div>
+                <p class="status-ok">It works: @got.Table, the first @Count(got.Rows.Count, "row").</p>
+                <div class="connection-preview" tabindex="0" role="region" aria-label="@($"{got.Table}'s first rows")">
+                    <table class="small">
+                        <thead><tr>@foreach (var c in got.Columns) { <th>@c</th> }</tr></thead>
+                        <tbody>@foreach (var row in got.Rows) { <tr>@foreach (var v in row) { <td class="@(v.ValueKind == System.Text.Json.JsonValueKind.Number ? "num" : null)">@Shown(v)</td> }</tr> }</tbody>
+                    </table>
+                </div>
+            </div>
+            : @<ErrorNote Error="tried.Error" />
+        : null;
+}

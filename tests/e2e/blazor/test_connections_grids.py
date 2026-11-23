@@ -40,7 +40,9 @@ def test_add_a_connection_then_open_its_table_as_a_grid(browser: Browser, server
     expect(page.locator(".status-ok")).to_contain_text("It works")
     page.click("button:has-text('Save')")
     expect(page.locator("h1")).to_contain_text("Shop")
-    expect(page.locator(".conn-tree-table[data-table=orders] button:has-text('Copy name')")).to_have_attribute("title", "[Shop].orders")
+    expect(
+        page.locator(".conn-tree-table[data-table=orders] button:has-text('Copy name')")
+    ).to_have_attribute("title", "[Shop].orders")
 
     page.locator(".conn-tree-table[data-table=orders]").locator("button:has-text('Open')").click()
     expect(page.locator(".grid-title")).to_contain_text("orders")

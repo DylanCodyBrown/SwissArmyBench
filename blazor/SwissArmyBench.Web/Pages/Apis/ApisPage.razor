@@ -1,44 +1,181 @@
-@* The APIs page (the classic apisPage.ts): the library's APIs as cards (their operations, sign-in, where their
-   document came from); ?name= an API's explorer: its operations by method and path, one operation's inputs, body
-   and answers, Try it (the call sent, its answer opened as a structure right here), its named schemas. Adding an API
-   is the classic page's for now. Logic in ApisPage.razor.cs. *@
+@* The APIs page (the classic apisPage.ts): Search every API and Add API in its heading; the project's sandbox, its
+   Local sandbox APIs, the library's APIs as cards (its name, title and version, base address, operations, tables,
+   sign-in, calls this session, where its document came from; Refresh with what changed, Check for changes, Rename,
+   Copy folder, Delete asked first), the older API connections (Make into blades); ?name= an API's explorer. Adding an
+   API (?add=: AddApiForm); authoring a call, writing rows, the learned shapes and the endpoint wizard are the
+   classic page's for now.
+   Logic in ApisPage.razor.cs. *@
 @page "/apis"
+@implements IDisposable
+@using SwissArmyBench.Web.Pages.Connections.Sandbox
 
 <section class="area-page apis-page">
     <header class="area-page-head">
-        <h1 class="area-page-title"><Icon Name="apis" /> APIs</h1>
+        <h1 class="area-page-title">APIs@(AddParameter is not null ? " › Add API" : NameParameter is { } named ? $" › {named}" : string.Empty)</h1>
         <div class="area-page-actions">
-            @if (NameParameter is not null)
-            {
-                <a class="btn small" href="apis"><Icon Name="back" /> All APIs</a>
-            }
-            <a class="btn small" href="/workspace?open=apis">Add API in the classic front end</a>
+            <input type="search" class="apis-search" placeholder="Search every API" aria-label="Search every API" spellcheck="false" value="@_query" @oninput="SearchTyped" />
+            <a class="btn primary apis-add" href="apis?add=1"><Icon Name="plus" /> Add API</a>
         </div>
     </header>
     <div class="area-page-body">
         <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-        @if (NameParameter is null)
+        @if (AddParameter is not null)
         {
-            @if (_cards is { Apis.Count: 0 })
+            <AddApiForm OnAdded="AddedAsync" />
+            <div class="api-foot"><a class="btn ghost" href="apis">← APIs</a></div>
+        }
+        else if (_hits is { } hits)
+        {
+            @if (hits.Count == 0)
             {
-                <div class="empty-state">
-                    <p>No API yet: add one from its OpenAPI document or a form (the classic front end), and its operations show here.</p>
-                </div>
+                <p class="empty-note">No match.</p>
             }
-            <div class="card-grid">
-                @foreach (var card in _cards?.Apis ?? [])
+            else
+            {
+                <ol class="api-results" aria-label="Results">
+                    @foreach (var r in hits)
+                    {
+                        <li><a class="api-result" href="@($"apis?name={Uri.EscapeDataString(r.Api)}&operation={Uri.EscapeDataString(r.Operation)}")">
+                            <span class="api-result-api">@r.Api</span>
+                            <span class="api-method m-@r.Method.ToLowerInvariant()">@r.Method</span>
+                            <code class="api-result-path">@r.Path</code>
+                            <span class="api-result-name">@r.Name</span>
+                            <span class="muted api-result-where">@string.Join(", ", (r.Matched?.Keys ?? []).Where(k => k is not "api" and not "name" and not "path"))</span>
+                        </a></li>
+                    }
+                </ol>
+            }
+        }
+        else if (NameParameter is null)
+        {
+            <SandboxPanel />
+            <LocalApiSection />
+            @if (_cards is { Apis.Count: 0, Older.Count: 0 })
+            {
+                <div class="apis-empty"><p class="empty-note">No imported APIs yet.</p></div>
+            }
+            <div class="apis-cards" role="list">
+                @foreach (var c in _cards?.Apis ?? [])
                 {
-                    <a class="card api-card" href="@($"apis?name={Uri.EscapeDataString(card.Name)}")" data-name="@card.Name">
-                        <span class="card-title"><Icon Name="apis" /> @card.Title</span>
-                        <span class="card-meta">@card.Operations operations · sign-in: @card.Auth · @card.Source.Kind</span>
-                        <span class="card-meta muted">@card.BaseUrl</span>
-                    </a>
+                    <article class="api-card" role="listitem" data-api="@c.Name" data-name="@c.Name">
+                        <a class="api-card-open" href="@($"apis?name={Uri.EscapeDataString(c.Name)}")">
+                            <span class="api-card-name"><Icon Name="apis" /> @c.Name</span>
+                            <span class="muted">@string.Join(" · ", new[] { c.Title != c.Name ? c.Title : string.Empty, c.Version ?? string.Empty }.Where(w => w.Length > 0))</span>
+                        </a>
+                        <div class="api-card-base mono" title="Its base address">@c.BaseUrl</div>
+                        <div class="api-card-facts">
+                            <span>@Count(c.Operations, "operation")</span>
+                            <span>@(c.Tables is { Count: > 0 } t ? Count(t.Count, "table") : "no tables")</span>
+                            <span>sign-in: @c.Auth</span>
+                            <span>@Count(c.Calls?.Total ?? 0, "call") this session</span>
+                        </div>
+                        <div class="api-card-source muted">@SourceWords(c)</div>
+                        @if (c.Problem is { } problem)
+                        {
+                            <ErrorNote Words="@problem" />
+                        }
+                        <div class="api-card-actions">
+                            <Busy IsBusy="_refreshing == c.Name" Words="@($"Reading {c.Name} again…")"><button type="button" class="btn" @onclick="() => RefreshAsync(c.Name, false)"><Icon Name="reset" /> Refresh</button></Busy>
+                            @if (c.Source.Kind == "address")
+                            {
+                                <label class="autosave-switch"><input type="checkbox" role="switch" class="switch-input" aria-label="@($"Check {c.Name} for changes")" checked="@c.Source.Check" @onchange="e => CheckAsync(c.Name, e.Value is true)" /> <span>Check for changes</span></label>
+                            }
+                            <button type="button" class="btn" @onclick="() => _renaming = (c.Name, c.Name)"><Icon Name="rename" /> Rename</button>
+                            <button type="button" class="btn" @onclick="() => CopyFolderAsync(c)"><Icon Name="folder" /> Copy folder</button>
+                            <button type="button" class="btn" @onclick="() => AskDeleteAsync(c.Name)"><Icon Name="trash" /> Delete</button>
+                        </div>
+                    </article>
                 }
             </div>
+            @if (_cards is { Older.Count: > 0 } withOlder)
+            {
+                <section class="apis-older">
+                    <h2>Older API connections</h2>
+                    <p class="muted">Made before APIs were blades; they keep working.</p>
+                    <ul>
+                        @foreach (var o in withOlder.Older)
+                        {
+                            <li><Icon Name="plug" /> <span>@o.Name</span> <button type="button" class="btn ghost api-make-blades" @onclick="() => MakeIntoBladesAsync(o.Name)">Make into blades</button></li>
+                        }
+                    </ul>
+                </section>
+            }
         }
         else if (_explorer is { } explorer)
         {
             <ApiExplorerView Explorer="explorer" Operation="@OperationParameter" />
+            <div class="api-foot"><a class="btn ghost" href="apis">← APIs</a></div>
         }
     </div>
 </section>
+@if (_diff is { } diff)
+{
+    <AppDialog Title="@($"{diff.Name}: what changed")" OnClose="() => _diff = null">
+        <ChildContent>
+            <div class="api-diff">
+                @foreach (var (title, rows, kind) in new[] { ("Added", diff.Diff.Added, "added"), ("Removed", diff.Diff.Removed, "removed"), ("Changed", diff.Diff.Changed, "changed") }.Where(g => g.Item2.Count > 0))
+                {
+                    <section class="api-diff-@kind"><h3>@title (@rows.Count)</h3>
+                        <ul>
+                            @foreach (var r in rows)
+                            {
+                                <li><span class="api-method m-@r.Method.ToLowerInvariant()">@r.Method</span> <code>@r.Path</code><span class="muted"> @r.Id</span>
+                                    @if (r.Changes is { Count: > 0 } changes)
+                                    {
+                                        <ul class="api-diff-notes">@foreach (var change in changes)
+                                        {
+                                            <li>@change</li>
+                                        }</ul>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                }
+                @if (diff.Diff.BaseUrl)
+                {
+                    <p>Its base address changed.</p>
+                }
+            </div>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _diff = null">Not now</button>
+            <Busy IsBusy="_applying" Words="Applying…"><button type="button" class="btn primary" @onclick="() => ApplyAsync(diff.Name)">Apply</button></Busy>
+        </Foot>
+    </AppDialog>
+}
+@if (_renaming is { } renaming)
+{
+    <AppDialog Title="@($"Rename {renaming.Name}")" OnClose="() => _renaming = null">
+        <ChildContent><input aria-label="New name" value="@renaming.To" @oninput="e => _renaming = (renaming.Name, e.Value?.ToString() ?? string.Empty)" /></ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _renaming = null">Cancel</button>
+            <button type="button" class="btn primary" @onclick="RenameAsync">Rename</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_deleting is { } deleting)
+{
+    <AppDialog Title="@($"Delete {deleting.Name}?")" OnClose="() => _deleting = null">
+        <ChildContent>
+            <p>Its API blade, its web call blades and its folder go.</p>
+            @if (deleting.References.Count > 0)
+            {
+                <div><p>Code that uses it:</p>
+                    <ul class="api-references">@foreach (var r in deleting.References)
+                    {
+                        <li><strong>@r.Title</strong> <code>@r.Line</code></li>
+                    }</ul>
+                </div>
+            }
+            else
+            {
+                <p class="muted">No code uses it.</p>
+            }
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _deleting = null">Cancel</button>
+            <button type="button" class="btn danger" @onclick="DeleteAsync">Delete</button>
+        </Foot>
+    </AppDialog>
+}

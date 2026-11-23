@@ -25,8 +25,8 @@ def test_the_extension_cards(browser: Browser, server: dict[str, Any]) -> None:
 
 
 def test_a_new_folder_extension(browser: Browser, server: dict[str, Any]) -> None:
-    """New extension… makes a made-up folder extension, loaded at once: its card says Installed (folder), its path,
-    Remove and Show its folder; Remove takes it away (a folder's goes at once, no restart)."""
+    """New extension… makes a made-up folder extension, loaded at once: its card says Installed (folder), its
+    path, Remove and Show its folder; Remove takes it away (a folder's goes at once, no restart)."""
     page = open_page(browser, server, "extensions")
     page.click("button:has-text('New extension…')")
     dialog = page.locator(".dialog[aria-label='New extension']")

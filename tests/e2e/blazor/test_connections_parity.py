@@ -1,7 +1,8 @@
-"""The Blazor Connections page against the classic one's elements, on made-up data: the cards' groups and their
-colour (the palette), a card's detail (its tools, the tables' tree, Used in, the configuration, Queries' limits),
-Add connection's types (the search, Enter), a kind's form (Sign in, Options, the flags, a password's one box), Find
-connections on this computer over a made-up Windows home, Import…, the Queries window and the project's sandbox."""
+"""The Blazor Connections page against the classic one's elements, on made-up data: the cards' groups and
+their colour (the palette), a card's detail (its tools, the tables' tree, Used in, the configuration,
+Queries' limits), Add connection's types (the search, Enter), a kind's form (Sign in, Options, the flags,
+a password's one box), Find connections on this computer over a made-up Windows home, Import…, the Queries
+window and the project's sandbox."""
 
 from __future__ import annotations
 
@@ -21,7 +22,8 @@ from tests.e2e.blazor.conftest import call, open_page
 
 @pytest.fixture(scope="module", autouse=True)
 def made_up_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
-    """Find connections looks only in a made-up Windows home folder (set before this module's server starts)."""
+    """Find connections looks only in a made-up Windows home folder (set before this module's server
+    starts)."""
     home = fx.windows_home(tmp_path_factory.mktemp("findhome") / "fakehome")
     kept = {k: os.environ.get(k) for k in ("SWISSARMYBENCH_FIND_HOME", "SWISSARMYBENCH_FIND_SYSTEM")}
     os.environ["SWISSARMYBENCH_FIND_HOME"] = str(home)
@@ -39,11 +41,34 @@ def saved_shop(server: dict[str, Any]) -> str:
     path = Path(server["tmp"]) / "shop.duckdb"
     if not path.exists():
         with duckdb.connect(str(path)) as db:
-            db.execute("CREATE TABLE orders AS SELECT i AS order_id, 1 + i % 7 AS customer_id FROM range(1, 51) t(i)")
-            db.execute("CREATE TABLE customers AS SELECT i AS customer_id, 'C' || i AS name FROM range(1, 8) t(i)")
+            db.execute(
+                "CREATE TABLE orders AS SELECT i AS order_id, 1 + i % 7 AS customer_id FROM range(1, 51) t(i)"
+            )
+            db.execute(
+                "CREATE TABLE customers AS SELECT i AS customer_id, 'C' || i AS name FROM range(1, 8) t(i)"
+            )
     kind = next(t for t in call(server, "GET", "/connections/types")["types"] if t["id"] == "duckdb")
-    filled = call(server, "POST", "/blades/fill", {"code": kind["code"], "values": {kind["fields"][0]["id"]: {"text": str(path)}}, "template": "duckdb", "name": None})
-    body = {"name": "Shop", "description": "made up", "kind": kind["kind"], "template": "duckdb", "dialect": "duckdb", "variable": "conn", "code": filled["code"], "catalog": kind["catalog"]}
+    filled = call(
+        server,
+        "POST",
+        "/blades/fill",
+        {
+            "code": kind["code"],
+            "values": {kind["fields"][0]["id"]: {"text": str(path)}},
+            "template": "duckdb",
+            "name": None,
+        },
+    )
+    body = {
+        "name": "Shop",
+        "description": "made up",
+        "kind": kind["kind"],
+        "template": "duckdb",
+        "dialect": "duckdb",
+        "variable": "conn",
+        "code": filled["code"],
+        "catalog": kind["catalog"],
+    }
     if not any(c["name"] == "Shop" for c in call(server, "GET", "/connections")["connections"]):
         call(server, "POST", "/connections", body)
     call(server, "POST", "/blades/Shop/refresh")
@@ -64,13 +89,18 @@ def test_cards_and_a_cards_colour(browser: Browser, server: dict[str, Any]) -> N
     card.click()
     expect(page.locator("h1")).to_contain_text("Shop")
     expect(page.locator(".back-btn")).to_have_attribute("aria-label", "Back to Connections")
-    page.click("button[aria-label=\"Shop's colour\"]")
+    page.click('button[aria-label="Shop\'s colour"]')
     palette = page.locator(".conn-palette")
     expect(palette).to_be_visible()
     palette.locator(".conn-palette-swatch[aria-label=Magenta]").click()
     expect(palette).to_be_hidden()
-    assert next(c for c in call(server, "GET", "/connection-colours")["connections"] if c["name"] == "Shop")["chosen"] == "#b3307f"
-    page.click("button[aria-label=\"Shop's colour\"]")
+    assert (
+        next(c for c in call(server, "GET", "/connection-colours")["connections"] if c["name"] == "Shop")[
+            "chosen"
+        ]
+        == "#b3307f"
+    )
+    page.click('button[aria-label="Shop\'s colour"]')
     page.keyboard.press("Escape")
     expect(palette).to_be_hidden()
     page.close()
@@ -130,7 +160,9 @@ def test_add_connections_types_and_a_form(browser: Browser, server: dict[str, An
     form = page.locator(".connection-form")
     expect(form.locator("select[aria-label='Sign in']")).to_be_visible()
     form.locator("details.connection-options summary").click()
-    expect(form.locator(".connection-options-fields input[aria-label='Trust server certificate']")).to_be_visible()
+    expect(
+        form.locator(".connection-options-fields input[aria-label='Trust server certificate']")
+    ).to_be_visible()
     expect(form.locator("select[aria-label=Encryption]")).to_have_value("mandatory")
     # A password is one box: a variable on its own, never part of one.
     password = form.locator("input[aria-label=Password]")
@@ -144,7 +176,9 @@ def test_add_connections_types_and_a_form(browser: Browser, server: dict[str, An
     form.locator("input[aria-label=Server]").fill("made-up-server")
     form.locator("input[aria-label=Server]").blur()
     expect(form.locator(".connection-code-text")).to_have_value(re.compile("made-up-server"))
-    form.locator("select[aria-label='Sign in']").select_option(label="Microsoft Entra: managed identity (in Azure)")
+    form.locator("select[aria-label='Sign in']").select_option(
+        label="Microsoft Entra: managed identity (in Azure)"
+    )
     expect(form.locator(".connection-code-text")).to_have_value(re.compile("made-up-server"))
     expect(form.locator("input[aria-label=Password]")).to_have_count(0)
     expect(page.locator(".back-btn")).to_have_attribute("aria-label", "Back to Add connection")
