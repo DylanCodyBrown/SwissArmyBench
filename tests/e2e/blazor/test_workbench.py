@@ -99,7 +99,7 @@ def test_the_blades_pane_inserts_a_line(browser: Browser, server: dict[str, Any]
     first = pane.locator(".blade-item").first
     expect(first).to_be_visible()
     name = first.locator(".blade-name").inner_text()
-    first.locator("button").click()
+    first.locator("button[aria-label^=Insert]").click()
     expect(page.locator(".wb-script-editor .view-lines")).to_contain_text(name.split(" ")[0])
     expect(page.locator(".files-pane")).to_be_visible()
     page.close()
