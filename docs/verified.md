@@ -6337,3 +6337,19 @@ Windows (the preview photographer's hidden-window way, the update's restart on t
   front end the default, and /blazor/ serving the Blazor app. tools/smoke_install.py's checks pass (pages, the
   kernel, Send to the agent) up to the Streamlit check, which here started the throwaway client environment's own
   `swissarmybench` script (first on its PATH) instead of the installed one; the release machine's run passes it.
+
+## 2026-11-23: the swap (Blazor the app's front end) and the Widgets page's panes; 0.0.34
+
+- The swap (e3e07c2, 0809d7e): with no choice kept the app opens /blazor/ (the classic pages where Blazor is not
+  built); each classic page's address answers 302 with its Blazor page; a classic address's #grid= opens that grid.
+  The test suite pins SWISSARMYBENCH_FRONTEND=classic; the swap's and Blazor's own tests unset it.
+- The Widgets page's panes (2492016, merged 77f078f): a missing package pops up the install prompt (Widgets
+  Preview, Canvas previews, Play, Launch), the library by title, PaneDock on the Widgets page and the Canvas.
+- C#: build with no warnings, format clean, bUnit 147 of 147. Python: the touched files 374 passed; ruff clean.
+- Blazor browser suite: 138 passed, 2 skipped, 1 failed (the new swap test moved on before the page's session
+  existed; it waits now: test_shell 6 of 6). Classic browser suite: 411 passed, 4 failed, each passing alone.
+- Found: build.py's copy of the Blazor build in src/swissarmybench/web_blazor (ignored) outlived the 0.0.33 wheel
+  build, and the server prefers it, so the browser tests ran 0.0.33's Blazor pages; deleted (the next wheel build
+  makes it again).
+- Not settled here: with Streamlit installed in this .venv, four data.py export tests and the drivers check fail
+  (they assume no Streamlit; the release machine has none and passed them in 0.0.33).
