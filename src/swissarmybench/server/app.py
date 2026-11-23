@@ -367,7 +367,7 @@ def create_app(
         for extension in ctx.switched_on:  # nor an extension's processes (a code app's dev server)
             stop = getattr(extension, "stop", None)
             if callable(stop):
-                await stop(ctx)
+                await stop(ctx.seams)
         ctx.variables.release()  # the environment as it was
         workers.close()
         ctx.beta.stopped()
@@ -420,13 +420,14 @@ def create_app(
                 *routes_project_outline.routes(ctx.project_outline),
                 *routes_script_export.routes(ctx.script_exports),
                 *routes_modes.routes(ctx.modes),
-                # Each extension that is on: its routes, given the services (its own are built from them).
+                # Each extension that is on: its routes, given the base's seams (services/hooks.py Seams,
+                # never the whole Services record); its own services are built from them.
                 # (a folder extension's are mounted below, so Remove and New extension change them at once).
                 *(
                     route
                     for extension in ctx.switched_on
                     if not manifest(extension).FOLDER
-                    for route in extension.routes(ctx)
+                    for route in extension.routes(ctx.seams)
                 ),
                 # Each catalog extension that is not on here: its door answers which extension it is.
                 *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
@@ -513,9 +514,8 @@ def _mount_folder_extensions(app: Starlette, ctx: Any) -> None:
         if found is None or found.module is None:
             return ""
         try:
-            made = guarded(
-                list(found.module.routes(ctx)) if callable(getattr(found.module, "routes", None)) else []
-            )
+            its_routes = getattr(found.module, "routes", None)
+            made = guarded(list(its_routes(ctx.seams)) if callable(its_routes) else [])
         except Exception as error:  # its own code: said on its card, never the app's stop
             found.error, found.module = folder_rules.load_error(error, str(found.path)), None
             return found.error

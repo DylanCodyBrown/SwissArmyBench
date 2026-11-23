@@ -203,7 +203,7 @@ It is laid out in the order the app reads it:
   the manifest   ID, NAME, VERSION, DESCRIPTION, ADDS (its card on the Extensions page), REQUIRES (the
                  packages it needs in the app's Python: a missing one is offered with Install now, never
                  installed by itself), AREAS (its commands' prefix)
-  routes         its routes under /__ID__/, given the base's services (its composition root)
+  routes         its routes under /__ID__/, given the base's seams (its composition root)
   commands       its agent commands, in commands.py (the golden rule: every action is the agent's too)
 Its project type, when it adds one, is contract.json's: New project writes the files it lists.
 The back end is Python only: never a .ts, .tsx, .css or .html file here (the front end draws what this says).
@@ -237,8 +237,9 @@ def describe() -> dict[str, Any]:
 # ===== routes: the composition root =====
 
 
-def routes(services: Any) -> list[BaseRoute]:
-    """Its routes, under /__ID__/. Take what it needs from `services` (settings, ws.audit, connections...)."""
+def routes(seams: Any) -> list[BaseRoute]:
+    """Its routes, under /__ID__/. Take what it needs from `seams` (settings, ws.audit, connections...): what
+    the base offers an extension (swissarmybench.services.hooks Seams)."""
 
     async def status(request: Request) -> JSONResponse:
         return JSONResponse({"id": ID, "name": NAME, "ok": True})
@@ -278,7 +279,7 @@ _README = """# __NAME__
 A folder extension of Swiss Army Bench: this folder is the library's `extensions/__ID__/`, found when the app
 starts.
 
-- `extension.py`: the manifest (ID, NAME, ADDS, REQUIRES, AREAS), `routes(services)` and `commands()`.
+- `extension.py`: the manifest (ID, NAME, ADDS, REQUIRES, AREAS), `routes(seams)` and `commands()`.
 - `commands.py`: its agent commands, each named `__ID___<verb>`.
 - `contract.json` (when it adds a project type): its project type, deliverable files and IDE languages.
 

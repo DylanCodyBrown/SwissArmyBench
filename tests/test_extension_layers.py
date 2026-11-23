@@ -123,3 +123,86 @@ def test_an_extension_imports_no_other_extension() -> None:
         for path in package(extension).rglob("*.py"):
             found += [f"{extension}/{path.name} imports {m}" for m in _imports(path) if m.startswith(others)]
     assert found == []
+
+
+# ===== an extension is given the base's seams, never the whole Services record =====
+
+
+def _whole_record(path: Path) -> list[str]:
+    """Where a module names the whole Services record: an import of the composition root, a `Services`
+    name, or a value called `services` or `ctx` (what the record was handed over as)."""
+    import ast
+
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    found = [f"imports {m}" for m in _imports(path) if m.startswith("swissarmybench.bootstrap")]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in ("Services", "services", "ctx"):
+            found.append(f"line {node.lineno}: {node.id}")
+        if isinstance(node, ast.arg) and node.arg in ("services", "ctx"):
+            found.append(f"line {node.lineno}: an argument named {node.arg}")
+    return found
+
+
+@pytest.mark.parametrize("extension", EXTENSIONS)
+def test_no_module_of_an_extension_reads_the_whole_services_record(extension: str) -> None:
+    found = {
+        str(path.relative_to(package(extension))): said
+        for path in sorted(package(extension).rglob("*.py"))
+        if "widgets" not in path.parts and (said := _whole_record(path))
+    }
+    assert found == {}
+
+
+@pytest.mark.parametrize("extension", EXTENSIONS)
+def test_an_extensions_root_takes_seams_and_reads_only_what_they_declare(extension: str) -> None:
+    import ast
+    from dataclasses import fields
+
+    from swissarmybench.services.hooks import Seams
+
+    declared = {f.name for f in fields(Seams)}
+    tree = ast.parse((package(extension) / "extension.py").read_text(encoding="utf-8"))
+    doors = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in ("routes", "stop")
+    ]
+    assert "routes" in {door.name for door in doors}
+    for door in doors:
+        first = door.args.args[0]
+        assert first.arg == "seams" and ast.unparse(first.annotation or ast.Constant(None)) == "Seams"
+    read = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "seams"
+    }
+    assert read and read - declared == set()
+
+
+def test_the_whole_record_is_caught_where_it_is_named(tmp_path: Path) -> None:
+    """The check is not vacuous: each way of naming the record is found, and the seams are not it."""
+    bad = tmp_path / "bad.py"
+    bad.write_text(
+        "from swissarmybench.bootstrap import Services\n"
+        "def routes(services):\n    return services.grids\n"
+        "def stop(ctx: Services):\n    return ctx\n",
+        encoding="utf-8",
+    )
+    said = _whole_record(bad)
+    assert any(s.startswith("imports swissarmybench.bootstrap") for s in said)
+    assert any("an argument named services" in s for s in said)
+    assert any("an argument named ctx" in s for s in said)
+    assert any(s.endswith(": Services") for s in said)
+    good = tmp_path / "good.py"
+    good.write_text("def routes(seams):\n    return seams.ws\n", encoding="utf-8")
+    assert _whole_record(good) == []
+
+
+def test_the_starter_and_the_example_folder_extension_take_seams(tmp_path: Path) -> None:
+    from swissarmybench.domain import extension_folders
+
+    example = ROOT / "tests" / "folder_extension_example" / "stockroom" / "extension.py"
+    assert _whole_record(example) == []
+    starter = tmp_path / "extension.py"
+    starter.write_text(extension_folders.scaffold("shelves", "Shelves")["extension.py"], encoding="utf-8")
+    assert _whole_record(starter) == []

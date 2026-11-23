@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol
 
+from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.sharing import Opened
 from swissarmybench.services.workspace import Conflict
 
@@ -74,16 +75,16 @@ class StreamlitShare:
         return process.port if process is not None and process.alive() else None
 
 
-def wire(services: Any, runs: Runs, runner: SharedRunner, title_of: Callable[[str], str]) -> StreamlitShare:
+def wire(hooks: Hooks, runs: Runs, runner: SharedRunner, title_of: Callable[[str], str]) -> StreamlitShare:
     """The composition root's part: the target registered, and a launch's end ending its share."""
     target = StreamlitShare(runs, runner, title_of)
-    services.hooks.share_targets[KIND] = target
+    hooks.share_targets[KIND] = target
 
     async def ended(key: str) -> None:
         if not key.startswith(LAUNCH):
             return
         app = key[len(LAUNCH) :]
-        sharing = services.hooks.sharing
+        sharing = hooks.sharing
         if sharing is not None:
             await sharing.app_stopped(KIND, app)
         await target.close(app)

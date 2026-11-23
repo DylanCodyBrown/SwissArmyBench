@@ -120,6 +120,9 @@ class Structures:
         documents: Callable[[], Iterable[str]],
         read_document: Callable[[str], tuple[str, str, float]],
         grid_steps: Callable[[str], list[str]] = lambda table: [],
+        variables: Any = None,
+        hash_of: Callable[[str], Awaitable[str | None]] | None = None,
+        touched: Callable[[str, str], Awaitable[str | None]] | None = None,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -137,11 +140,11 @@ class Structures:
         self.grid_steps: Callable[[str], list[str]] = grid_steps
         self._project: str | None = None  # the project folder last told (project_changed)
         self._lock = asyncio.Lock()
-        # The Variables page (services/variables.py, set once built): a path's ${NAME} (12.7).
-        self.variables: Any = None
-        # A file's hash now, and a write said to every window (services/code_files.py, set once built).
-        self.hash_of: Callable[[str], Awaitable[str | None]] | None = None
-        self.touched: Callable[[str, str], Awaitable[str | None]] | None = None
+        # The Variables page (services/variables.py): a path's ${NAME} (12.7).
+        self.variables: Any = variables
+        # A file's hash now, and a write said to every window (services/code_files.py).
+        self.hash_of: Callable[[str], Awaitable[str | None]] | None = hash_of
+        self.touched: Callable[[str, str], Awaitable[str | None]] | None = touched
 
     # ===== what is open =====
 

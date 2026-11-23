@@ -33,8 +33,8 @@ from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.table_cells import Origin
+from swissarmybench.services.hooks import ModelsSeam
 from swissarmybench.services.ports import BACKGROUND, Approvals, SqlSession
-from swissarmybench.services.relationships import Models
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 from swissarmybench_powerbi.domain import export as rules
 from swissarmybench_powerbi.domain import pbix_import as import_rules
@@ -172,7 +172,7 @@ class PowerBIExport:
     def __init__(
         self,
         ws: Workspace,
-        models: Models,
+        models: ModelsSeam,
         origins: Callable[[str], Origin],
         connection: Callable[[str], Blade],
         shareable: Callable[[], Mapping[str, str]],

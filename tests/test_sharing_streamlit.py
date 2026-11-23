@@ -5,7 +5,6 @@ names."""
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -79,7 +78,7 @@ def test_a_launchs_end_ends_its_share() -> None:
         hooks = Hooks()
         hooks.sharing = Sharing()
         runs, runner = FakeRuns(), FakeRunner()
-        target = sharing_target.wire(SimpleNamespace(hooks=hooks), runs, runner, lambda app: app)
+        target = sharing_target.wire(hooks, runs, runner, lambda app: app)
         assert hooks.share_targets["streamlit"] is target
         runs.running["launch-sales"] = ("f", "p")
         await target.open("sales")

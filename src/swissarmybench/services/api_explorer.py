@@ -75,6 +75,7 @@ class Explorer:
         now: Callable[[], str],
         to_thread: Callable[..., Awaitable[Any]],
         reader: Any = None,  # adapters/datasets.py: query_table(cursor, sql), an open table's rows
+        variables: Any = None,  # services/variables.py Variables: resolve_all
     ) -> None:
         self._reader = reader
         self.ws = ws
@@ -90,8 +91,8 @@ class Explorer:
         self._thread = to_thread
         self._refreshed: dict[str, dict[str, Any]] = {}  # an API's re-read document, until applied
         self._answers: dict[tuple[str, str], Any] = {}  # (api, operation) -> the last answer's schema
-        # The Variables page (services/variables.py, set once built): a typed input's variable (12.7).
-        self.variables: Any = None
+        # The Variables page (services/variables.py): a typed input's variable (12.7).
+        self.variables: Any = variables
 
     # ===== the library =====
 

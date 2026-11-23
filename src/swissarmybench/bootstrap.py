@@ -16,7 +16,7 @@ import sys
 import sysconfig
 import tempfile
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, fields
 from datetime import UTC, datetime
 from functools import partial
@@ -90,7 +90,7 @@ from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import api_patterns as api_pattern_rules
 from swissarmybench.domain import api_targets as api_target_rules
-from swissarmybench.domain import blade_tables, project_paths, python_connections
+from swissarmybench.domain import blade_tables, project_paths
 from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import connection_tables as connection_table_rules
 from swissarmybench.domain import connections as connection_rules
@@ -103,15 +103,12 @@ from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import scaffold as scaffold_rules
 from swissarmybench.domain import variables as variable_rules
-from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.codegen import variable_name
-from swissarmybench.domain.connection_swap import Place
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
-from swissarmybench.domain.table_cells import Origin as TableOrigin
 from swissarmybench.extensions import manifest
 from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
 from swissarmybench.server.blade_templates import TEMPLATES
@@ -135,6 +132,7 @@ from swissarmybench.services.api_export import ApiExport
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.app_registrations import AppRegistrations
 from swissarmybench.services.beta_log import BetaLog
+from swissarmybench.services.blade_runs import BladeRuns
 from swissarmybench.services.blades import BladeService
 from swissarmybench.services.call_stats import CallStats
 from swissarmybench.services.catalog_loading import CatalogLoading
@@ -145,7 +143,7 @@ from swissarmybench.services.claude import Claude
 from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connection_colours import ConnectionColours
-from swissarmybench.services.connection_slots import Caller, ConnectionSlots
+from swissarmybench.services.connection_slots import ConnectionSlots
 from swissarmybench.services.connection_swap import ConnectionSwap
 from swissarmybench.services.connection_tables import ConnectionTables as ConnectionTablesService
 from swissarmybench.services.connection_usage import ConnectionUsage
@@ -178,7 +176,7 @@ from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
-from swissarmybench.services.project_outline import BothTables, CardPortability, ProjectOutline
+from swissarmybench.services.project_outline import CardPortability, ProjectOutline
 from swissarmybench.services.project_python import ProjectPython
 from swissarmybench.services.project_scope import ProjectScope, ProjectUse, UseSources
 from swissarmybench.services.projects import Projects
@@ -186,7 +184,8 @@ from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
-from swissarmybench.services.sandbox import Sandbox, SandboxAlias, SourcesFrom
+from swissarmybench.services.sandbox import Sandbox, SandboxAlias
+from swissarmybench.services.sandbox_sources import AppSources
 from swissarmybench.services.scaffold import Scaffold
 from swissarmybench.services.scaffold import Sources as ScaffoldSources
 from swissarmybench.services.script_export import ScriptExports
@@ -369,57 +368,6 @@ def _blade_store(settings: Settings, library_folder: LibraryFolder, on_extension
     )
 
 
-def _given_out(kept_vault_names: KeptVaultNames, blade_store: BladeStore, job: dict[str, Any]) -> None:
-    """A vault that loads every secret: its names as given out here (no variable twice, a taken one
-    prefixed), the ones it lists now given out the same way (`yours`, `kept`: a kernel's load)."""
-    job["yours"] = sorted(kept_vault_names.defined())
-    for vault in job.get("vaults") or []:
-        if isinstance(vault, dict) and vault.get("every"):
-            label = str(vault.get("label") or "")
-            vault["kept"] = kept_vault_names.kept_of(label)
-            try:
-                vault["mapping"] = kept_vault_names.mapping(blade_store.get(label)) | dict(vault["mapping"])
-            except KeyError:
-                pass
-
-
-async def _vault_values(
-    blade_store: BladeStore, seconds: float, wanted: dict[str, dict[str, str]]
-) -> tuple[dict[str, str], list[str]]:
-    """A scheduled script's variables from key vaults (vault -> variable -> secret), and what failed."""
-    sources = {
-        variable: {"from": "vault", "vault": vault, "secret": secret}
-        for vault, mapping in wanted.items()
-        for variable, secret in mapping.items()
-    }
-    try:
-        jobs = python_connections.vault_jobs(sources, blade_store.get, blade_store.saved_secrets)
-        answer = await blade_runner.run(
-            {"mode": "load", "label": "the vaults", "kind": "load", "vaults": jobs},
-            seconds,
-        )
-    except (python_connections.PythonConnectionError, blade_runner.RefreshError) as error:
-        return {}, [str(error)]
-    values = {str(k): str(v) for k, v in dict(answer.get("values") or {}).items()}
-    return values, [str(p) for p in answer.get("problems") or []]
-
-
-def _secrets_of(blade_store: BladeStore, name: str) -> list[str] | None:
-    """A connection's or blade's passwords by the names its code asks secret() for (None: none here)."""
-    try:
-        return blade_store.get(name).secrets
-    except KeyError:
-        return None
-
-
-def _files_of(blade_store: BladeStore, name: str) -> list[str]:
-    """A connection's certificate and keystore files read from a variable: those variables."""
-    try:
-        return [m["variable"] for m in env_settings(blade_store.get(name).code)]
-    except KeyError:
-        return []
-
-
 def _workspace(
     settings: Settings,
     port: int,
@@ -430,6 +378,7 @@ def _workspace(
     workers: PriorityWorkers,
     session_log: SessionLog,
     state_file: Callable[[str], Path | None],
+    changes: ChangeLog,
 ) -> Workspace:
     """The workspace: the ports every use case shares."""
     return Workspace(
@@ -442,7 +391,8 @@ def _workspace(
         live=live,
         workers=workers,
         # The audit log, heard by the Session page's log (this session's entries, each naming its object).
-        audit=Heard(AuditLog(state_file("audit.log")), session_log),
+        # and by the change log: each change a service raises on its entry (Plans/changes.plan.md).
+        audit=Heard(AuditLog(state_file("audit.log")), session_log, changes),
         grammar=grammar_later(),  # read from DuckDB on the first query, not at start
         interrupted=duckdb.InterruptException,
         engine_error=duckdb.Error,
@@ -764,13 +714,7 @@ class Built:
     beta: BetaLog
     # ----- a connection's runs (each through its slots) -----
     process_event: Callable[..., None]
-    run_blade: Callable[..., Any]
-    stream_blade: Callable[..., Any]
-    vault_environment: Callable[[], Any]
-    given_out: Callable[[dict[str, Any]], None]
-    vault_values: Callable[..., Any]
-    secrets_of: Callable[[str], list[str] | None]
-    files_of: Callable[[str], list[str]]
+    blade_runs: BladeRuns
     # ----- the services, in the order they are made -----
     processes: ProcessRegistry
     tickets: ExportTickets
@@ -826,6 +770,7 @@ class Built:
     explorer: Explorer
     sandbox: Sandbox
     sandbox_alias: SandboxAlias
+    api_targets: api_target_rules.Registry
     local_api: LocalApi
     sessions: Sessions
     environment: Environment
@@ -912,11 +857,12 @@ def bootstrap(
         _data,
         _models_and_cells,
         _workbench_part,
+        _variables_part,
         _connections,
         _projects,
         _structures_and_apis,
         _shared_catalog_part,
-        _variables_part,
+        _found_and_setup,
         _setup_and_explorer,
         _sandbox_part,
         _app_life,
@@ -930,44 +876,26 @@ def bootstrap(
     return _services(b)
 
 
-# What a part sets on a service once a later one is built (a true cycle, or a service made after it): each
-# checked at the end of bootstrap(), so a part moved before what it needs fails at start, not on a click.
+# What a part sets on a service once a later one is built: only true cycles (each names its cycle; what had
+# none is its service's constructor argument). Each is checked at the end of bootstrap(), so a part moved
+# before what it needs fails at start, not on a click.
 LATE_BOUND = (
-    "update_helper.kept",
-    "hooks.sharing",
-    "ws.audit.changes",
-    "datasets.changed_on_disk",
-    "datasets.not_now",
-    "datasets.origins.document_of",
-    "datasets.connection_sql",
-    "datasets.variables",
-    "blades.lint",
-    "connection_slots.kernel_caller",
-    "connection_slots.interrupt_kernel",
-    "sab_projects.shared_folder",
-    "structures.rerun",
-    "structures.hash_of",
-    "structures.touched",
-    "structures.variables",
-    "api_explorer.variables",
-    "library.catalog_info",
-    "project_tables.shared",
-    "kept_vault_names.vaults",
-    "kept_vault_names.defined",
-    "connections.variable_check",
-    "project_python.end_session",
-    "project_python.session_kernel",
-    "project_python.forget_environment",
-    "project_python.type_requirements",
-    "workbench.project",
-    "workbench.moved_environment",
-    "connection_usage.extra_cards",
-    "connection_colours.fixed",
-    "local_api.learned",
-    "local_api.target_ids",
-    "local_api.targets",
-    "project_outline.used_tables",
-    "project_outline.portability",
+    "update_helper.kept",  # UpdateHelper <-> Extensions: an update keeps the wheels Extensions installed
+    "hooks.sharing",  # Hooks <-> Sharing: Sharing reads the hooks' share targets, a target's stop tells it
+    "datasets.changed_on_disk",  # DatasetService <-> FileWatch: the watch reads the tables' origins
+    "datasets.not_now",  # the same cycle
+    "datasets.origins.document_of",  # DatasetService -> Workbench -> BladeService (Open as grid) -> it
+    "datasets.connection_sql",  # DatasetService -> ConnectionTables -> ConnectionService (open) -> it
+    "datasets.variables",  # DatasetService -> Variables -> BladeService (a vault's save) -> it
+    "blades.lint",  # BladeService <-> Intellisense: the lint names the blades, the blade IDE asks the lint
+    "sab_projects.shared_folder",  # SabProjects <-> ProjectExplorer: the Explorer opens and lists projects
+    "structures.rerun",  # Structures <-> ApiExplorer: an API's answer opens in Structures, Run again asks it
+    "library.catalog_info",  # Library -> SharedCatalog -> ProjectUse -> SabProjects (adopt) -> Library
+    "kept_vault_names.defined",  # KeptVaultNames -> Variables -> BladeService (kept names) -> it
+    "workbench.project",  # Workbench <-> ProjectPython: the session's Python; the project's session ended
+    "workbench.moved_environment",  # the same cycle
+    "connection_colours.fixed",  # ConnectionColours -> Sandbox -> ConnectionService (a new colour) -> it
+    "local_api.learned",  # LocalApi <-> Actions: Try it's form from the shape Actions learned of its calls
 )
 
 
@@ -1010,11 +938,12 @@ def _adapters(b: Built) -> None:
     library_folder = b.library_folder
     # A key vault's secret names as last read here (the library's local/vault-names/: names only, never a
     # value): a vault that loads every secret gives its variables from the first second after a start.
+    b.blade_store = _blade_store(settings, library_folder, b.on_extensions)
     b.kept_vault_names = KeptVaultNames(
         VaultNameFiles(b.library_files(), library_folder.ensure),
         lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+        vaults=b.blade_store.all,
     )
-    b.blade_store = _blade_store(settings, library_folder, b.on_extensions)
     b.verifier = Verifier(settings.duckdb_memory_limit)
 
 
@@ -1022,92 +951,31 @@ def _adapters(b: Built) -> None:
 
 
 def _connection_runs(b: Built) -> None:
+    """A blade's runs (services/blade_runs.py): each in a child process (server/blade_runner.py), a
+    connection's through its slots and counted; the vaults read for a kernel and a scheduled script."""
     settings, blade_store = b.settings, b.blade_store
 
-    def process_event(
-        kind: str, event: str, code: int | None, seconds: float | None, reason: str = ""
-    ) -> None:
-        b.beta.process(kind, event, code, seconds, reason)
+    def process_event(kind: str, *event: Any) -> None:
+        b.beta.process(kind, *event)
 
-    async def run_blade(
-        blade: Blade, mode: str, typed: dict[str, str], extra: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        job = blade_runner.payload(blade_store, blade, mode, typed, extra)
-        given_out(job)
-        kind = "catalog" if mode == "catalog" else "blade"
-
-        async def work() -> dict[str, Any]:
-            return await blade_runner.run(
-                job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
-            )
-
-        # A connection's run through the app (a catalog load, a table read, a query, a test) is a call
-        # the Connections page counts (services/connection_usage.py; memory only); each waits for one of the
-        # connection's slots first (services/connection_slots.py), and gives it back however it ends.
-        try:
-            answer = await b.connection_slots.run_blade(
-                blade.name, blade.kind, blade.dialect, mode, extra, work
-            )
-        except Exception as error:
-            b.connection_usage.record(blade.name, mode, ok=False, error=str(error))
-            raise
-        about = answer.get("about") if isinstance(answer, dict) else None
-        b.connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
-        return answer
-
-    async def stream_blade(
-        blade: Blade,
-        typed: dict[str, str],
-        filename: str,
-        on_output: Callable[[str, str], None],
-        started: Callable[[Callable[[], None]], None],
-    ) -> dict[str, Any]:
-        """The blade IDE's Run: the blade (its code the editor's) in a child process, its output streamed."""
-        job = blade_runner.payload(blade_store, blade, "run", typed)
-        given_out(job)
-        # The code's own lines under a name the error panel reads as your file (never the .blade.py itself,
-        # whose lines start after its header).
-        job["filename"] = os.path.join(tempfile.gettempdir(), "swissarmybench-blades", filename)
-        answer = await blade_runner.run_streaming(
-            job,
-            settings.blade_timeout_seconds,
-            on_output,
-            started,
-            report=lambda *e: process_event("blade", *e),
-        )
-        b.connection_usage.record(
-            blade.name, "test", ok=bool(answer.get("ok")), error=str(answer.get("failed") or "")
-        )
-        return answer
-
-    given_out = partial(_given_out, b.kept_vault_names, blade_store)
-
-    async def vault_environment() -> tuple[dict[str, str], list[str]]:
-        """Every vault's entries for a Workbench kernel about to start, and the vaults that failed."""
-        job = blade_runner.load_payload(blade_store)
-        if job is None:
-            return {}, []
-        given_out(job)
-        try:
-            answer = await blade_runner.run(job, settings.vault_timeout_seconds)
-        except blade_runner.RefreshError as error:
-            why = str(error)
-            if "did not finish" in why:
-                seconds = settings.vault_timeout_seconds
-                why = f"Reading the vaults took over {seconds:.0f} seconds: this kernel started without them."
-            return {}, [why]
-        values = {str(k): str(v) for k, v in dict(answer.get("values") or {}).items()}
-        # A vault that loads every secret: the names it listed, kept (names only).
-        for vault, listed in dict(answer.get("names") or {}).items():
-            if isinstance(listed, list):
-                await b.blades.keep_names(str(vault), connection_rules.vault_names(listed))
-        return values, [str(p) for p in answer.get("problems") or []]
-
-    b.process_event, b.run_blade, b.stream_blade = process_event, run_blade, stream_blade
-    b.given_out, b.vault_environment = given_out, vault_environment
-    b.vault_values = partial(_vault_values, blade_store, settings.vault_timeout_seconds)
-    b.secrets_of = partial(_secrets_of, blade_store)
-    b.files_of = partial(_files_of, blade_store)
+    b.process_event = process_event
+    b.blade_runs = BladeRuns(
+        blade_store,
+        b.kept_vault_names,
+        payload=partial(blade_runner.payload, blade_store),
+        load_payload=partial(blade_runner.load_payload, blade_store),
+        run=blade_runner.run,
+        run_streaming=blade_runner.run_streaming,
+        failed=blade_runner.RefreshError,
+        # Built later, and each runs a blade through this: read when a run starts.
+        gate=lambda *a: b.connection_slots.run_blade(*a),
+        record=lambda *a, **k: b.connection_usage.record(*a, **k),
+        keep_names=lambda vault, names: b.blades.keep_names(vault, names),
+        report=process_event,
+        run_file=lambda name: os.path.join(tempfile.gettempdir(), "swissarmybench-blades", name),
+        blade_seconds=settings.blade_timeout_seconds,
+        vault_seconds=settings.vault_timeout_seconds,
+    )
 
 
 def _workspace_and_beta(b: Built) -> None:
@@ -1115,24 +983,6 @@ def _workspace_and_beta(b: Built) -> None:
     page errors and notes, redacted; written only where the audit log is; beta mode on or off is beta.json,
     SWISSARMYBENCH_BETA wins; read each time: the Variables page's values join the environment as added)."""
     b.session_log = SessionLog(b.live, JsonFile(b.state_file("follow.json")))
-    b.ws = _workspace(
-        b.settings, b.port, b.token, b.store, b.connection, b.live, b.workers, b.session_log, b.state_file
-    )
-    b.beta = _beta_log(b.ws, b.settings, b.store, b.token, b.state_file)
-
-
-# ----- the data: the open tables, the catalogs, the blades -----
-
-
-def _data(b: Built) -> None:
-    ws, settings, state_dir, blade_store = b.ws, b.settings, b.state_dir, b.blade_store
-    b.processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
-    b.tickets = ExportTickets()  # the agent exports the user approved, not yet written
-    # The questions for the user that the agent's requests wait on (the page's approval prompt): one
-    # for every use case that writes the user's rows to disk for the agent.
-    b.approvals = Approvals(b.live)
-    # How many queries run at once on each connection, the agent's share and the line (the owner,
-    # 2026-11-21): the one gate run_blade passes through; a kernel's slot is leased by its routes.
 
     # Every call's statistics (Plans/stats.plan.md): the slots' finished calls, the adapter's and the API
     # adapter's facts in this process; the running figures in the open project's .sab/stats.json. No value.
@@ -1146,16 +996,23 @@ def _data(b: Built) -> None:
     # The change log (Plans/changes.plan.md): each change a service raises on its audit entry, heard with
     # the Session page's and written as it happens to the open project's .sab/changes.jsonl.
     b.changes = ChangeLog(ChangeFiles(), project, stamp)
-    if isinstance(ws.audit, Heard):
-        ws.audit.changes = b.changes
-    b.connection_slots = ConnectionSlots(
-        b.live,
-        ws.audit,
-        limits_of=lambda name: slot_rules.limits_of_header(blade_store.get(name).queries),
-        save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
-        approvals=b.approvals,
-        on_finished=b.call_stats.finished,
-    )
+    b.ws = _workspace(
+        b.settings, b.port, b.token, b.store, b.connection, b.live, b.workers, b.session_log, b.state_file,
+        b.changes,
+    )  # fmt: skip
+    b.beta = _beta_log(b.ws, b.settings, b.store, b.token, b.state_file)
+
+
+# ----- the data: the open tables, the catalogs, the blades -----
+
+
+def _data(b: Built) -> None:
+    ws, settings, state_dir, blade_store = b.ws, b.settings, b.state_dir, b.blade_store
+    b.processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
+    b.tickets = ExportTickets()  # the agent exports the user approved, not yet written
+    # The questions for the user that the agent's requests wait on (the page's approval prompt): one
+    # for every use case that writes the user's rows to disk for the agent.
+    b.approvals = Approvals(b.live)
     adapter.observe(b.call_stats.adapter)
     api_adapter.observe(b.call_stats.api_observed)
     b.datasets = datasets = DatasetService(
@@ -1178,13 +1035,13 @@ def _data(b: Built) -> None:
         b.catalogs,
         TEMPLATES,
         blade_run.needed,
-        b.run_blade,
+        b.blade_runs.run_blade,
         blade_runner.install_packages,
         python=sys.executable,
         environ=os.environ,
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
         kept_names=b.kept_vault_names,
-        stream_blade=b.stream_blade,
+        stream_blade=b.blade_runs.stream_blade,
         # The blade IDE's Open as grid: a run's table in a tab of its own.
         open_table=lambda name, table, who: datasets.store_table(
             datasets.free_name(name), table, "blade", True, who
@@ -1226,8 +1083,8 @@ def _models_and_cells(b: Built) -> None:
         ws,
         JsonFile(b.state_file("run_settings.json")),
         b.documents,
-        secrets_of=b.secrets_of,
-        files_of=b.files_of,
+        secrets_of=b.blade_runs.secrets_of,
+        files_of=b.blade_runs.files_of,
     )
     b.table_cells = TableCells(
         ws,
@@ -1257,23 +1114,43 @@ def _workbench_part(b: Built) -> None:
         now=time.time,
         folder_of=lambda path: str(Path(path).expanduser().parent),
         secret_names=b.blades.environment_names,
-        vault_environment=b.vault_environment,
+        vault_environment=b.blade_runs.vault_environment,
         hooks=b.hooks,
     )
 
-    def kernel_caller(kernel: str) -> Caller:
-        role, words = workbench.runner_of(kernel)
-        document = workbench.document_of(kernel)  # Open its source: the document in the Workbench
-        source = {"document": document} if document else {}
-        return Caller(role, "The agent" if role == "agent" else words, kernel=kernel, source=source)
+    # How many queries run at once on each connection, the agent's share and the line (the owner,
+    # 2026-11-21): the one gate run_blade passes through; a kernel's slot is leased by its routes, counted
+    # as its caller's (the user's or the agent's cell) and interrupted by Cancel.
+    blade_store = b.blade_store
+    b.connection_slots = slots = ConnectionSlots(
+        b.live,
+        b.ws.audit,
+        limits_of=lambda name: slot_rules.limits_of_header(blade_store.get(name).queries),
+        save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
+        approvals=b.approvals,
+        on_finished=b.call_stats.finished,
+        kernels=workbench,
+    )
 
     async def kernel_ended(kernel: str) -> None:
-        b.connection_slots.kernel_stopped(kernel)  # its slots go back at once
+        slots.kernel_stopped(kernel)  # its slots go back at once
 
     b.datasets.origins.document_of = workbench.document_of  # a table a kernel sends: the document it ran for
-    b.connection_slots.kernel_caller = kernel_caller
-    b.connection_slots.interrupt_kernel = workbench.interrupt
     workbench.set_kernel_stopped(kernel_ended)
+    # One Python per project (the owner, 2026-11-21): the project's own .venv, made in the background, and
+    # the one session every document of the project runs in (the Workbench's; ended when the project changes).
+    b.project_python = project_python = ProjectPython(
+        b.ws,
+        environment_files,
+        make_venv,
+        b.settings.project_venv,
+        end_session=workbench.end_session,
+        session_kernel=workbench.session_kernel,
+        forget_environment=b.documents.forget_environment,
+        type_requirements=lambda f: extension_modules.requirements_of(b.projects.type_of(f)),
+    )
+    workbench.project = project_python.session
+    workbench.moved_environment = project_python.moved
 
 
 # ----- connections, APIs, cards and projects -----
@@ -1303,6 +1180,7 @@ def _connections(b: Built) -> None:
         # sab.write for the agent (connections_write): its Allow, and an open table's grid view as rows.
         approvals=b.approvals,
         open_view=b.table_cells.view,
+        variable_check=b.variables,  # a Test's ${NAME} checked first (12.7)
     )
     # The Connections page: each connection's references, configuration and calls this session.
     b.connection_usage = ConnectionUsage(
@@ -1315,6 +1193,7 @@ def _connections(b: Built) -> None:
         environ=os.environ,
         now=time.time,
         figures_of=lambda name: b.call_stats.figures_of("connection", [name]).get(name),
+        extra_cards=lambda: b.sandbox.cards(),  # the Sandbox as a connection (the owner, 2026-11-21)
     )
     # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
     b.api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
@@ -1380,9 +1259,7 @@ async def _library_moved(b: Built) -> None:
 def _projects(b: Built) -> None:
     """The library, a project as a folder, and the Project Explorer (the home page)."""
     ws, settings = b.ws, b.settings
-    b.library = library = Library(
-        ws, b.library_folder, b.blade_store, b.approvals, partial(_library_moved, b)
-    )
+    library = b.library
     b.recent_projects = RecentProjects(b.state_file("recent_projects.json"))
     b.sab_projects = sab_projects = SabProjects(
         ws,
@@ -1430,6 +1307,24 @@ def _structures_and_apis(b: Built) -> None:
     """Structures, the APIs page, what a connection's tables are, a table's connection swapped, and the
     tables the open project uses."""
     ws, datasets, documents, hooks, sab_projects = b.ws, b.datasets, b.documents, b.hooks, b.sab_projects
+    library_folder = b.library_folder
+    # Code files that update themselves everywhere (services/code_files.py): the open project's and the
+    # library's.
+    b.code_files = CodeFiles(
+        ws,
+        lambda: (
+            sab_projects.current.folder if sab_projects.current else None,
+            str(library_folder.root) if b.persist else None,
+        ),
+        code_file_disk.stamp,
+        code_file_disk.file_hash,
+        # The open project's structure files too (a structure's tab follows its file), never the library's.
+        lambda folder: code_file_disk.code_files_in(
+            folder, structures=bool(sab_projects.current and folder == sab_projects.current.folder)
+        ),
+        code_file_disk.resolve,
+        b.settings.file_watch_seconds,
+    )
     # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
     b.structures = structures = Structures(
         ws,
@@ -1444,6 +1339,10 @@ def _structures_and_apis(b: Built) -> None:
         grid_steps=lambda table: (
             describe_steps(grid.steps) if (grid := ws.grids.first_for(table)) is not None else []
         ),
+        variables=b.variables,
+        # A structure's tab follows its file as a script does (its hash; its Save said to every window).
+        hash_of=b.code_files.hash_now,
+        touched=b.code_files.touched,
     )
     # The APIs page: the library's APIs explored; a call sent opens in Structures, its origin the call.
     b.api_explorer = api_explorer = ApiExplorer(
@@ -1459,6 +1358,7 @@ def _structures_and_apis(b: Built) -> None:
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
         to_thread=asyncio.to_thread,
         reader=table_reader,
+        variables=b.variables,
     )
     structures.rerun = api_explorer.run_again
     b.blades.web_call_saved.append(api_explorer.tables_changed)
@@ -1508,7 +1408,6 @@ def _structures_and_apis(b: Built) -> None:
         )
     )
     b.project_documents = b.project_use.documents
-    b.project_tables = ProjectTables(b.models, b.project_documents)
     # A connection deleted: the relationships its tables held go from the ones in use (saved sets stay).
     b.blades.connection_removed.append(
         lambda name, who: b.models.forget_connection(name, set(b.connection_swap.tables_of(name)), who)
@@ -1549,7 +1448,8 @@ def _shared_catalog_part(b: Built) -> None:
     )
     shared_catalog.load()
     b.library.catalog_info = shared_catalog.info
-    b.project_tables.shared = shared_catalog.model
+    # The ERD's tables: the open project's by default; All tables draws a teammate's too (the catalog's).
+    b.project_tables = ProjectTables(models, b.project_documents, shared=shared_catalog.model)
 
     async def connection_saved(blade: Any) -> None:
         await shared_catalog.saved(blade.name)
@@ -1564,30 +1464,10 @@ def _shared_catalog_part(b: Built) -> None:
         await shared_catalog.project_used(folder)
 
     sab_projects.opened.append(project_opened)
-    # Code files that update themselves everywhere (services/code_files.py): the open project's and the
-    # library's.
-    b.code_files = CodeFiles(
-        b.ws,
-        lambda: (
-            sab_projects.current.folder if sab_projects.current else None,
-            str(library_folder.root) if b.persist else None,
-        ),
-        code_file_disk.stamp,
-        code_file_disk.file_hash,
-        # The open project's structure files too (a structure's tab follows its file), never the library's.
-        lambda folder: code_file_disk.code_files_in(
-            folder, structures=bool(sab_projects.current and folder == sab_projects.current.folder)
-        ),
-        code_file_disk.resolve,
-        b.settings.file_watch_seconds,
-    )
     b.project_scope = ProjectScope(
         sab_projects, b.archive, b.library, b.connections, on_saved=b.catalog_loading.saved
     )
     b.code_files.listeners.append(b.project_scope.saw)  # a made file saved by hand is marked so
-    # A structure's tab follows its file as a script does (its hash; its Save said to every window).
-    b.structures.hash_of = b.code_files.hash_now
-    b.structures.touched = b.code_files.touched
 
 
 # ----- the variables, Find connections, app registrations, Set up this computer -----
@@ -1603,6 +1483,7 @@ def _variables_part(b: Built) -> None:
         b.blade_store,
         b.blades,
     )
+    b.library = Library(ws, library_folder, blade_store, b.approvals, partial(_library_moved, b))
     variables_file = VariableFiles(b.library_files(), library_folder.ensure)
     if b.persist:
         # Once: this computer's stores from before the library, written as library files (said on the page).
@@ -1630,14 +1511,25 @@ def _variables_part(b: Built) -> None:
         read=b.documents.read,
         run_settings=b.script_runs,
         kernels=b.workbench.kernel_count,
-        vault_values=b.vault_values,
+        vault_values=b.blade_runs.vault_values,
         remembered=blades.remembered,
         renamed_notes=b.kept_vault_names.notes,
     )
     # One name, one variable: the vaults' names given out around the user's own variables.
-    b.kept_vault_names.vaults = blade_store.all
     b.kept_vault_names.defined = variables.defined_names
-    b.connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
+    b.datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
+
+
+def _found_and_setup(b: Built) -> None:
+    """Find connections on this computer, the app registrations, the Environment, Set up this computer."""
+    ws, state_dir, library_folder, blade_store, blades, variables = (
+        b.ws,
+        b.state_dir,
+        b.library_folder,
+        b.blade_store,
+        b.blades,
+        b.variables,
+    )
     # Find connections on this computer (the owner, 2026-11-20): the known tools' files and the hint scan of
     # the app settings folders, read-only, on the user's click; never this app's own state folder or library.
     b.found_connections = FoundConnections(
@@ -1662,24 +1554,10 @@ def _variables_part(b: Built) -> None:
         b.catalogs.places,
         lambda: b.hooks.query_hints(),
     )
-    b.datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
-    b.structures.variables = variables
-    b.api_explorer.variables = variables
     if b.persist:
         _variables_once(state_dir, b.library, variables)
     # The Environment (the owner, 2026-11-21/22): everything the project holds (services/environment.py).
     b.sessions = Sessions(b.processes, b.store, b.live)
-    # One Python per project (the owner, 2026-11-21): the project's own .venv, made in the background, and
-    # the one session every document of the project runs in (the Workbench's; ended when the project changes).
-    b.project_python = project_python = ProjectPython(
-        ws, environment_files, make_venv, b.settings.project_venv
-    )
-    project_python.end_session = b.workbench.end_session
-    project_python.session_kernel = b.workbench.session_kernel
-    project_python.forget_environment = b.documents.forget_environment
-    project_python.type_requirements = lambda f: extension_modules.requirements_of(b.projects.type_of(f))
-    b.workbench.project = project_python.session
-    b.workbench.moved_environment = project_python.moved
     b.environment = Environment(
         ws,
         sources_from(
@@ -1691,7 +1569,7 @@ def _variables_part(b: Built) -> None:
         ),
         ProjectLibraries(environment_files),
         b.approvals,
-        project_python,
+        b.project_python,
     )  # fmt: skip
     b.live.listeners.append(b.environment.heard)
     # Shared projects: each one's connections that do not work here, and one opened that only works here.
@@ -1744,59 +1622,6 @@ def _sandbox_part(b: Built) -> None:
     client of the connection each table came from; [Sandbox].orders in DuckDB SQL; a Catalog section."""
     ws, datasets, connections, connection_tables = b.ws, b.datasets, b.connections, b.connection_tables
 
-    def sandbox_client(table: str | None, connection: str | None) -> dict[str, Any]:
-        name = connection
-        if name is None and table is not None:
-            name = datasets.origins.get(table).connection
-        if not name:
-            return {"kind": sandbox_rules.PLAIN}
-        try:
-            blade, _ = connections.blade(name)
-            saved, tables_kind = connection_tables.kind(name)
-        except Exception:
-            return {"kind": sandbox_rules.PLAIN, "connection": name}
-        return {
-            "kind": tables_kind,
-            "connection": saved,
-            "template": blade.template or "",
-            "dialect": blade.dialect or "",
-        }
-
-    async def sandbox_grid_view(name: str) -> Any:
-        body = await b.table_cells.view(name)
-        return table_reader.arrow_stream_to_table(body, b.settings.max_dataset_bytes)
-
-    async def sandbox_connection_table(name: str, place: Place) -> Any:
-        kept, _ = await connection_tables.read(name, place)
-        return kept.read.table
-
-    async def sandbox_show(name: str, table: Any, follow: bool, words: str) -> dict[str, Any]:
-        # Its origin: the sandbox table (its lineage and its read-only cell's load name [Sandbox].<table>).
-        table_name = name.removeprefix(sandbox_rules.GRID_PREFIX)
-        sql = f"SELECT * FROM [{sandbox_rules.NAME}].{table_name}"  # noqa: S608 (a checked table name)
-        origin = TableOrigin("sandbox", connection=sandbox_rules.NAME, sql=sql, filename=words)
-        return await datasets.store_table(name, table, "sandbox", False, "user", follow=follow, origin=origin)
-
-    def sandbox_connections() -> list[str]:
-        """Mocked as's choices: the saved connections that have tables."""
-        out = []
-        for c in connections.listing()["connections"]:
-            try:
-                connection_tables.kind(str(c["name"]))
-            except Exception:  # noqa: S112 (no tables: not a connection to mock)
-                continue
-            out.append(str(c["name"]))
-        return sorted(out, key=str.casefold)
-
-    def sandbox_key(connection: str, place: Place) -> list[str]:
-        """A connection's table's primary key as the shared catalog knows it ([]: not known)."""
-        for name in (".".join(p for p in (place.schema, place.table) if p), place.table):
-            try:
-                return [str(c) for c in b.shared_catalog.table(connection, name).get("primary_key") or []]
-            except (LookupError, ValueError):
-                continue
-        return []
-
     def sandbox_ignore(folder: str) -> None:
         b.archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
         sandbox_gitignore(folder)  # the rows' folder, sandbox/ at the project's top
@@ -1805,16 +1630,15 @@ def _sandbox_part(b: Built) -> None:
         ws,
         lambda: b.sab_projects.current.folder if b.sab_projects.current is not None else None,
         SandboxFiles,
-        SourcesFrom(
-            sandbox_grid_view,
-            sandbox_connection_table,
-            datasets.read_file,
-            sandbox_show,
-            sandbox_client,
-            structure_fn=b.structures.records_table,
-            view_rows_fn=partial(grid_view_rows, ws),
-            connections_fn=sandbox_connections,
-            key_fn=sandbox_key,
+        AppSources(
+            datasets,
+            connections,
+            connection_tables,
+            view=b.table_cells.view,
+            to_table=lambda body: table_reader.arrow_stream_to_table(body, b.settings.max_dataset_bytes),
+            structure_table=b.structures.records_table,
+            view_rows=partial(grid_view_rows, ws),
+            catalog_table=lambda connection, name: b.shared_catalog.table(connection, name),
         ),
         b.approvals,
         lambda sql: duckdb_grammar().parse(sql),
@@ -1822,18 +1646,14 @@ def _sandbox_part(b: Built) -> None:
     )
     b.sandbox_alias = SandboxAlias(sandbox)
 
-    def sandbox_released(message: Mapping[str, Any]) -> None:
-        """A project closed: its sandbox's file let go (one process at a time holds a DuckDB file, so
-        sandbox_connections.py can run on it outside the app)."""
-        if message.get("type") == "project_changed" and sandbox.folder() is None:
-            sandbox.close()
-
-    b.live.listeners.append(sandbox_released)
-    # The Sandbox as a connection (the owner, 2026-11-21): its card on the Connections page and its colour.
-    b.connection_usage.extra_cards = lambda: [c for c in [sandbox.card()] if c is not None]
-    b.connection_colours.fixed = lambda: (
-        [(sandbox_rules.NAME, sandbox_rules.COLOUR)] if sandbox.folder() else []
-    )
+    b.live.listeners.append(sandbox.heard)  # a project closed: its sandbox's file let go
+    b.connection_colours.fixed = sandbox.colours  # the Sandbox as a connection: its own colour
+    # The local sandbox API's framework targets: the base's three, then each extension's that is on.
+    b.api_targets = api_targets = api_target_rules.Registry()
+    for extension in b.on_extensions:
+        declared = extension_modules.manifest(extension)
+        for raw in declared.API_TARGETS:
+            api_targets.add(api_target_rules.from_extension(raw, declared.ID))
     # The project's local sandbox API (API.py): hosted in a process of its own that gets only the sandbox.
     b.local_api = LocalApi(
         ws,
@@ -1846,7 +1666,13 @@ def _sandbox_part(b: Built) -> None:
         catalog=b.catalogs,
         publish=publish_api,
         api_uses=lambda: b.hooks.api_uses(),  # the canvases' (an extension's), through the hooks
+        target_ids=api_targets.ids,
+        targets=api_targets.listing,
     )
+    for extension in b.on_extensions:  # the endpoint wizard's patterns an extension adds
+        declared = extension_modules.manifest(extension)
+        for raw in declared.API_PATTERNS:
+            b.local_api.patterns.add(api_pattern_rules.from_extension(raw, declared.ID))
     b.explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
     # Every API's actions through api_adapter (Plans/api-adapter.plan.md): the library's and the local one's.
     b.actions = Actions(
@@ -2056,7 +1882,7 @@ def _outline_dialogs_and_life(b: Built) -> None:
     ws, settings, sab_projects = b.ws, b.settings, b.sab_projects
     # The project's outline, ARCHITECTURE.md: its two seams wired to the ERD's tables in the project
     # (services/relationship_scope.py) and the connection cards' portability (domain/portability.py).
-    b.project_outline = project_outline = ProjectOutline(
+    b.project_outline = ProjectOutline(
         ws,
         b.archive,
         project=lambda: sab_projects.state().get("project"),
@@ -2070,9 +1896,9 @@ def _outline_dialogs_and_life(b: Built) -> None:
         dashboards=partial(_saved_dashboards, b),
         run_settings=b.script_runs.settings,
         app_pages=lambda path, text: b.hooks.app_pages(path, text),
+        scope_tables=b.project_tables.used,
+        portability=CardPortability(lambda: b.connection_usage.overview()["connections"]),
     )
-    project_outline.used_tables = BothTables(b.project_tables.used, project_outline.used_tables)
-    project_outline.portability = CardPortability(lambda: b.connection_usage.overview()["connections"])
     # The system's own file dialog on the user's click (server/dialog_runner.py), and the page's own picker's
     # quick places and recent folders per kind of pick (dialogs.json: paths only).
     b.file_dialogs = FileDialogs(
@@ -2111,7 +1937,7 @@ def _carried_file(module: str) -> str | None:
 
 
 def _exports(b: Built) -> None:
-    ws, local_api, sandbox = b.ws, b.local_api, b.sandbox
+    ws, sandbox = b.ws, b.sandbox
     # Export as one Python script: the document's cells, its connections' own code, ruff's check.
     b.script_exports = ScriptExports(
         ws,
@@ -2126,7 +1952,7 @@ def _exports(b: Built) -> None:
         carried=_carried_file,  # sab_excel.py or adapter.py, for a blade that imports it by that name
     )
     # A local sandbox API exported for its framework target: the real connections' own code.
-    b.api_export = api_export = ApiExport(
+    b.api_export = ApiExport(
         ws,
         sandbox.folder,
         lambda folder: LocalApiFiles.read(str(Path(folder) / local_api_rules.FILE)),
@@ -2137,16 +1963,9 @@ def _exports(b: Built) -> None:
         b.approvals,
         adapter_text=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
         api_adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
+        registry=b.api_targets,
     )
-    for extension in b.on_extensions:
-        declared = extension_modules.manifest(extension)
-        for raw in declared.API_TARGETS:
-            api_export.registry.add(api_target_rules.from_extension(raw, declared.ID))
-        for raw in declared.API_PATTERNS:  # the endpoint wizard's patterns
-            local_api.patterns.add(api_pattern_rules.from_extension(raw, declared.ID))
     b.scaffold = _scaffold(b)
-    local_api.target_ids = api_export.registry.ids
-    local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]
 
 
 # ----- what the doors are given -----
@@ -2280,8 +2099,8 @@ def _doors(b: Built) -> None:
     b.export_writer = export_writer
     b.navigation = Navigation(ws, JsonFile(b.state_file("rail.json")))
     b.desktop = Desktop(SystemShell(info_file_path()), ws.audit, qt_version())
-    b.seams = _seams(b)
     b.extension = {}  # each extension's own services, by its id (server/app.py mounts them)
+    b.seams = _seams(b)
     b.lineage = Lineage(
         ws,
         b.hooks,
@@ -2323,6 +2142,28 @@ def _seams(b: Built) -> Seams:
         connection_tables=b.connection_tables,
         local_api=b.local_api,
         actions=b.actions,
+        ws=b.ws,
+        settings=b.settings,
+        approvals=b.agent.approvals,
+        hooks=b.hooks,
+        extension=b.extension,
+        process_event=b.process_event,
+        export_writer=b.export_writer,
+        datasets=b.datasets,
+        blades=b.blades,
+        connections=b.connections,
+        variables=b.variables,
+        library=b.library,
+        project_explorer=b.project_explorer,
+        shared_catalog=b.shared_catalog,
+        models=b.models,
+        compares=b.compares,
+        sab_projects=sab_projects,
+        app_registrations=b.app_registrations,
+        api_document=b.api_explorer.document_of,
+        used_tables=b.project_tables.used,
+        document_python=b.documents.environment,
+        core_files=b.scaffold.export_core,
     )
 
 

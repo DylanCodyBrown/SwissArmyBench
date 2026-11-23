@@ -26,7 +26,8 @@ import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from functools import partial
+from typing import Any, Protocol, TypeVar
 
 from swissarmybench.domain import connection_slots as rules
 from swissarmybench.domain.connection_slots import Board, Limits, Ticket
@@ -69,6 +70,25 @@ def calling_as(caller: Caller) -> Iterator[None]:
         CURRENT.reset(token)
 
 
+class Kernels(Protocol):
+    """The Workbench's kernels (services/workbench.py): who runs one's code now, its document, interrupt."""
+
+    def runner_of(self, kernel_id: str) -> tuple[str, str]: ...
+
+    def document_of(self, kernel_id: str | None) -> str | None: ...
+
+    async def interrupt(self, kernel_id: str) -> None: ...
+
+
+def kernel_caller(kernels: Kernels, kernel: str) -> Caller:
+    """A kernel's caller now: the user's or the agent's cell, in its document's words, with the document
+    its source opens (Open its source: the document in the Workbench)."""
+    role, words = kernels.runner_of(kernel)
+    document = kernels.document_of(kernel)
+    source = {"document": document} if document else {}
+    return Caller(role, "The agent" if role == "agent" else words, kernel=kernel, source=source)
+
+
 class ConnectionSlots:
     def __init__(
         self,
@@ -79,6 +99,7 @@ class ConnectionSlots:
         approvals: Approvals | None = None,
         clock: Callable[[], float] = time.time,
         on_finished: Callable[[dict[str, Any], list[Any]], None] | None = None,
+        kernels: Kernels | None = None,
     ) -> None:
         self._live = live
         self._audit = audit
@@ -91,8 +112,12 @@ class ConnectionSlots:
         self._tasks: dict[str, asyncio.Future[Any]] = {}
         self._cancelled: set[str] = set()
         # A kernel's caller now (services/workbench.py: the user's or the agent's cell), its interrupt.
-        self.kernel_caller: Callable[[str], Caller] = lambda kernel: Caller(kernel=kernel)
-        self.interrupt_kernel: Callable[[str], Awaitable[None]] | None = None
+        self.kernel_caller: Callable[[str], Caller] = (
+            partial(kernel_caller, kernels) if kernels is not None else lambda kernel: Caller(kernel=kernel)
+        )
+        self.interrupt_kernel: Callable[[str], Awaitable[None]] | None = (
+            kernels.interrupt if kernels is not None else None
+        )
         # Each finished call heard (the statistics: services/call_stats.py CallStats.finished).
         self.on_finished: Callable[[dict[str, Any], list[Any]], None] | None = on_finished
         self._dirty = False

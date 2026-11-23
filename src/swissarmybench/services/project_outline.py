@@ -245,6 +245,7 @@ class ProjectOutline:
         app_pages: Callable[[str, str], list[tuple[str, list[tuple[str, int]]]]],
         used_tables: UsedTables | None = None,
         portability: Portability | None = None,
+        scope_tables: Callable[[], set[str] | None] | None = None,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -267,6 +268,8 @@ class ProjectOutline:
             self.documents_text,
             lambda: [str(c["name"]) for c in self._connections()],
         )
+        if scope_tables is not None:  # with the ERD's tables in the project (services/relationship_scope.py)
+            self.used_tables = BothTables(scope_tables, self.used_tables)
         self._connection_names: list[str] = []  # as of the outline being gathered
         self._variables: set[str] = set()  # the open tables' Python names
         # SEAM B (drivers): each connection's portability.

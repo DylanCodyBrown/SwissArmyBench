@@ -36,7 +36,17 @@ Make = Callable[[str, list[str]], Awaitable[tuple[int | None, str]]]
 
 
 class ProjectPython:
-    def __init__(self, ws: Workspace, files: Files, make: Make, enabled: bool = True) -> None:
+    def __init__(
+        self,
+        ws: Workspace,
+        files: Files,
+        make: Make,
+        enabled: bool = True,
+        end_session: Callable[[], Awaitable[Any]] | None = None,
+        session_kernel: Callable[[], str | None] = lambda: None,
+        forget_environment: Callable[[str], None] | None = None,
+        type_requirements: Callable[[str], list[str]] = lambda folder: [],
+    ) -> None:
         self.ws = ws
         self._files = files
         self._make = make
@@ -45,14 +55,14 @@ class ProjectPython:
         self._making: dict[str, asyncio.Task[None]] = {}  # by project folder
         self._problems: dict[str, str] = {}
         self._offers: list[dict[str, Any]] = []  # notebooks' older environments, read once (memory only)
-        # The Workbench's part, handed over by the composition root: the project's session ended, and a
-        # document's remembered environment forgotten once it was read.
-        self.end_session: Callable[[], Awaitable[Any]] | None = None
-        self.session_kernel: Callable[[], str | None] = lambda: None
-        self.forget_environment: Callable[[str], None] | None = None
+        # The Workbench's part: the project's session ended, and a document's remembered environment
+        # forgotten once it was read.
+        self.end_session: Callable[[], Awaitable[Any]] | None = end_session
+        self.session_kernel: Callable[[], str | None] = session_kernel
+        self.forget_environment: Callable[[str], None] | None = forget_environment
         # What the project's type needs in its `.venv` beyond requirements.txt (extensions.requirements_of:
         # Streamlit for a canvas), by the project's folder.
-        self.type_requirements: Callable[[str], list[str]] = lambda folder: []
+        self.type_requirements: Callable[[str], list[str]] = type_requirements
 
     # ===== what the screens and the Workbench read =====
 

@@ -19,6 +19,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -316,7 +317,9 @@ class GitHubToken:
             pass
 
 
-def known_secrets(services: Any) -> list[str]:
+def known_secrets(
+    blades: Callable[[], Iterable[Any]], variables: Callable[[], Mapping[str, Any]]
+) -> list[str]:
     """Every value this computer keeps in its keyring for the library (connections' passwords, keyring
     variables): a push refuses a file holding one. Read here, held only for the check."""
     from swissarmybench.adapters.blades import KEYRING_SERVICE, BladeStore
@@ -327,12 +330,12 @@ def known_secrets(services: Any) -> list[str]:
         return []
     users: list[str] = []
     try:
-        for blade in services.blades.everything():
+        for blade in blades():
             users += [f"blade/{blade.name.casefold()}/{s}" for s in blade.secrets]
     except Exception:  # noqa: S110 (a library that cannot be listed: the shapes still check)
         pass
     try:
-        for listed in services.variables.listing()["variables"]:
+        for listed in variables()["variables"]:
             if listed.get("from") == "keyring":
                 users.append(f"variable/{listed['name']}")
     except Exception:  # noqa: S110 (the same)

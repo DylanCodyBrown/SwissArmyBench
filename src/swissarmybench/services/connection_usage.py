@@ -44,6 +44,7 @@ class ConnectionUsage:
         environ: Mapping[str, str],
         now: Callable[[], float],
         figures_of: Callable[[str], dict[str, Any] | None] = lambda name: None,
+        extra_cards: Callable[[], list[dict[str, Any]]] = lambda: [],
     ) -> None:
         self.ws = ws
         self._blades = blades
@@ -61,7 +62,7 @@ class ConnectionUsage:
         self._errors: dict[str, str] = {}
         self._about: dict[str, dict[str, Any]] = {}
         # More cards than the library's: the open project's Sandbox (services/sandbox.py card).
-        self.extra_cards: Callable[[], list[dict[str, Any]]] = lambda: []
+        self.extra_cards: Callable[[], list[dict[str, Any]]] = extra_cards
         # A connection's running figures (services/call_stats.py figures_of), None while it has none.
         self.figures_of: Callable[[str], dict[str, Any] | None] = figures_of
 

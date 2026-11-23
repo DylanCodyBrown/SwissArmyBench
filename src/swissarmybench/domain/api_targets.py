@@ -531,6 +531,10 @@ class Registry:
     def ids(self) -> list[str]:
         return list(self.targets)
 
+    def listing(self) -> list[dict[str, Any]]:
+        """The targets as a picker and the agent read them: [{id, label}]."""
+        return [{"id": t.id, "label": t.label} for t in self.targets.values()]
+
 
 def from_extension(raw: Mapping[str, Any], extension: str) -> Target:
     """An extension's API_TARGETS item: {id, label, words, render, run}."""

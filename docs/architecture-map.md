@@ -41,10 +41,10 @@ flowchart TB
     adapters -->|3| services
     bootstrap -->|40| adapters
     bootstrap -->|1| client
-    bootstrap -->|25| domain
+    bootstrap -->|21| domain
     bootstrap -->|2| root
     bootstrap -->|14| server
-    bootstrap -->|80| services
+    bootstrap -->|82| services
     bootstrap -->|1| settings
     cli -->|2| client
     cli -->|1| domain
@@ -58,32 +58,32 @@ flowchart TB
     ext_accounting -->|2| domain
     ext_accounting -->|2| root
     ext_accounting -->|1| server
-    ext_accounting -->|2| services
+    ext_accounting -->|3| services
     ext_copilot -->|1| adapters
     ext_copilot -->|2| cli
     ext_copilot -->|1| domain
     ext_copilot -->|1| root
     ext_copilot -->|1| server
-    ext_copilot -->|2| services
+    ext_copilot -->|3| services
     ext_git -->|2| adapters
     ext_git -->|2| cli
     ext_git -->|1| server
-    ext_git -->|4| services
+    ext_git -->|5| services
     ext_powerapps -->|2| adapters
     ext_powerapps -->|2| cli
     ext_powerapps -->|13| domain
     ext_powerapps -->|2| server
-    ext_powerapps -->|4| services
+    ext_powerapps -->|5| services
     ext_powerbi -->|1| adapters
     ext_powerbi -->|2| cli
     ext_powerbi -->|21| domain
     ext_powerbi -->|4| server
-    ext_powerbi -->|7| services
+    ext_powerbi -->|9| services
     ext_streamlit -->|4| adapters
     ext_streamlit -->|2| cli
     ext_streamlit -->|6| domain
     ext_streamlit -->|4| server
-    ext_streamlit -->|11| services
+    ext_streamlit -->|13| services
     mcp -->|2| cli
     mcp -->|1| domain
     root -->|9| client
@@ -96,8 +96,8 @@ flowchart TB
     server -->|10| root
     server -->|82| services
     server -->|2| settings
-    services -->|336| domain
-    services -->|2| settings
+    services -->|341| domain
+    services -->|3| settings
     settings -->|1| domain
 ```
 
@@ -125,31 +125,31 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 121 | 157 | 0 | 0.00 | 320 | 1 | 0.00 | 1.00 |
-| settings | every limit, one frozen record | 1 | 5 | 1 | 0.17 | 2 | 0 | 0.00 | 0.83 |
-| services | the use cases | 86 | 86 | 107 | 0.55 | 287 | 140 | 0.49 | 0.04 |
+| domain | the model and its rules | 121 | 158 | 0 | 0.00 | 320 | 1 | 0.00 | 1.00 |
+| settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
+| services | the use cases | 86 | 91 | 107 | 0.54 | 301 | 154 | 0.51 | 0.05 |
 | adapters | the driven edge: DuckDB, files, the keyring | 43 | 22 | 34 | 0.61 | 108 | 2 | 0.02 | 0.37 |
 | cli | the agent's commands | 41 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 3 | 0 | 0.00 | 0.47 |
 | server | the HTTP door and what starts a process | 87 | 12 | 127 | 0.91 | 41 | 2 | 0.05 | 0.04 |
-| bootstrap | the composition root | 1 | 1 | 163 | 0.99 | 2 | 0 | 0.00 | 0.01 |
+| bootstrap | the composition root | 1 | 1 | 161 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
-| accounting | an extension | 9 | 0 | 9 | 1.00 | 5 | 1 | 0.20 | 0.20 |
-| copilot | an extension | 9 | 0 | 8 | 1.00 | 16 | 5 | 0.31 | 0.31 |
-| git | an extension | 9 | 0 | 7 | 1.00 | 17 | 4 | 0.24 | 0.24 |
-| powerapps | an extension | 20 | 0 | 20 | 1.00 | 39 | 15 | 0.38 | 0.38 |
-| powerbi | an extension | 18 | 0 | 23 | 1.00 | 48 | 8 | 0.17 | 0.17 |
-| streamlit | an extension | 31 | 0 | 15 | 1.00 | 58 | 3 | 0.05 | 0.05 |
+| accounting | an extension | 9 | 0 | 10 | 1.00 | 5 | 1 | 0.20 | 0.20 |
+| copilot | an extension | 9 | 0 | 9 | 1.00 | 16 | 5 | 0.31 | 0.31 |
+| git | an extension | 9 | 0 | 8 | 1.00 | 17 | 4 | 0.24 | 0.24 |
+| powerapps | an extension | 20 | 0 | 21 | 1.00 | 39 | 15 | 0.38 | 0.38 |
+| powerbi | an extension | 18 | 0 | 23 | 1.00 | 50 | 9 | 0.18 | 0.18 |
+| streamlit | an extension | 31 | 0 | 16 | 1.00 | 58 | 3 | 0.05 | 0.05 |
 
 ### The modules most depended on
 
 | Module | Modules that import it |
 |---|---:|
-| `swissarmybench.services.workspace` | 85 |
+| `swissarmybench.services.workspace` | 86 |
 | `swissarmybench.server.http` | 71 |
-| `swissarmybench.services.ports` | 55 |
-| `swissarmybench.domain.datasets` | 52 |
+| `swissarmybench.services.ports` | 56 |
+| `swissarmybench.domain.datasets` | 53 |
 | `swissarmybench.cli.api` | 46 |
 | `swissarmybench.domain.blades` | 42 |
 | `swissarmybench.cli.command_kit` | 37 |

@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench_git import __version__
+
+if TYPE_CHECKING:
+    from swissarmybench.services.hooks import Seams
 
 ID = "git"
 NAME = "Git"
@@ -80,7 +83,7 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name, "").strip() or default
 
 
-def routes(services: Any) -> list[Any]:
+def routes(seams: Seams) -> list[Any]:
     """Its routes, its service built from the base's (the audit log, the live updates, the agent's approvals,
     the meta store folder, the shared projects folder, the open project) and its own adapters."""
     from swissarmybench_git.adapters import github
@@ -92,50 +95,50 @@ def routes(services: Any) -> list[Any]:
 
     def folders(which: str) -> str | None:
         if which == "library":
-            return str(services.library.info()["folder"])
-        shared = services.project_explorer.shared_folder()
+            return str(seams.library.info()["folder"])
+        shared = seams.project_explorer.shared_folder()
         return str(shared) if shared else None
 
     async def use_folder(which: str, folder: str) -> None:
         # A clone made this folder: Settings points at it (the agent's Allow was asked for the clone).
         if which == "library":
-            await services.library.set_folder({"folder": folder}, "user")
+            await seams.library.set_folder({"folder": folder}, "user")
         else:
-            await services.project_explorer.set_folder({"which": "shared", "folder": folder}, "user")
+            await seams.project_explorer.set_folder({"which": "shared", "folder": folder}, "user")
 
     async def pulled(which: str) -> None:
         # Files changed here: the shared catalog reads the meta store again; the cards are drawn again.
         if which == "library":
-            await services.shared_catalog.refresh("user")
+            await seams.shared_catalog.refresh("user")
         else:
-            await services.live.broadcast({"type": "projects_changed"})
+            await seams.ws.live.broadcast({"type": "projects_changed"})
 
     service = SourceControl(
-        services.ws,
+        seams.ws,
         lambda token: github.GitHubClient(api, web, token),
         github.GitHubToken(),
-        github.SyncLinks(Path(services.settings.state_dir) / "sync.json"),
+        github.SyncLinks(Path(seams.settings.state_dir) / "sync.json"),
         github.SyncFolder(),
-        services.agent.approvals,
+        seams.approvals,
         folders,
         use_folder,
         client_id=_env("SWISSARMYBENCH_GITHUB_CLIENT_ID", CLIENT_ID),
         pulled=pulled,
-        known_secrets=lambda: github.known_secrets(services),
-        project=services.seams.project_folder,
+        known_secrets=lambda: github.known_secrets(seams.blades.everything, seams.variables.listing),
+        project=seams.project_folder,
     )
-    services.extension[ID] = service  # its own place on the record (tests)
+    seams.extension[ID] = service  # its own place on the record (tests)
     # The base's Team box (Settings): one repository for the team library and its projects/.
     from swissarmybench_git.services.team import TeamPort
 
-    services.hooks.team = TeamPort(service, web)
+    seams.hooks.team = TeamPort(service, web)
 
     async def changed(*_: Any) -> None:
-        await services.live.broadcast({"type": "sync_changed"})
+        await seams.ws.live.broadcast({"type": "sync_changed"})
 
     # The footer's mark follows a save and an opened project (no polling: it reads the files here).
-    services.seams.project_saved.append(changed)
-    services.seams.project_opened.append(changed)
+    seams.project_saved.append(changed)
+    seams.project_opened.append(changed)
     return door.routes(service)
 
 

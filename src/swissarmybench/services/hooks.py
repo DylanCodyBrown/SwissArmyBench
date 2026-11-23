@@ -35,6 +35,24 @@ composition root, typed, so a base rename is a type error there instead of a fea
                     listed, read_named, prepare
   local_api         the project's local sandbox API's endpoints and pairings (services/local_api.py)
   actions           every API's actions as the canvas names them, and what a built app carries
+  ws, settings      the shared ports every use case has (the audit log, the live notices, the workers, the
+                    open tables) and the limits
+  approvals         the one way the agent asks for the user's Allow (services/ports.py Approvals)
+  hooks             the Hooks above, for the extension to fill
+  extension         each extension's own services, by its id (its stop and tests read its own slot)
+  process_event     a child process's start and end told to the beta log (kind, then the event)
+  export_writer     rows as a file's bytes (adapters/export.py)
+  datasets, blades, connections, variables, library, project_explorer, shared_catalog, models, compares,
+  sab_projects, app_registrations
+                    the base's services, each as the small port of what an extension calls (below)
+  api_document      a library API's OpenAPI document and its source (the APIs explorer's document_of)
+  used_tables       the tables the open project uses (None: no project open)
+  document_python   the Python a document runs in (the Workbench's remembered environment; None: the app's)
+  core_files        an export's adapter.py and connections.py for the connections named (the scaffold's)
+
+server/app.py hands Seams, never the whole Services record, to each extension's `routes` and `stop`
+(tests/test_extension_layers.py): a member an extension reads is declared here, so a base rename is a mypy
+error in bootstrap's `_seams` (the base no longer fits its port) or in the extension (the port lacks it).
 """
 
 from __future__ import annotations
@@ -42,6 +60,15 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+
+from swissarmybench.domain.app_registrations import Registration
+from swissarmybench.domain.blades import Blade
+from swissarmybench.domain.datasets import Opened
+from swissarmybench.domain.relationships import Model
+from swissarmybench.domain.table_cells import Origin
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Workspace
+from swissarmybench.settings import Settings
 
 
 class AppDocument(Protocol):
@@ -140,6 +167,141 @@ class ActionsSeam(Protocol):
     def carried(self, used: str) -> dict[str, str]: ...
 
 
+class OriginsSeam(Protocol):
+    def get(self, name: str) -> Origin: ...
+
+
+class DatasetsSeam(Protocol):
+    """How a table arrives (services/datasets.py DatasetService), and where each open one came from."""
+
+    @property
+    def origins(self) -> OriginsSeam: ...
+
+    async def store_table(
+        self,
+        name: str,
+        table: Any,
+        source_kind: str,
+        new_grid: bool,
+        who: str,
+        query: str | None = None,
+        follow: bool = False,
+        opened: Opened | None = None,
+        origin: Origin | None = None,
+    ) -> dict[str, Any]: ...
+
+
+class BladesSeam(Protocol):
+    """The library's blades (services/blades.py BladeService)."""
+
+    def get(self, name: str) -> Blade: ...
+
+    def everything(self) -> list[Blade]: ...
+
+    def summary(
+        self, blade: Blade, everything: list[Blade] | None = None, pinned: set[str] | None = None
+    ) -> dict[str, Any]: ...
+
+    def starters(self) -> dict[str, Any]: ...
+
+
+class ConnectionsSeam(Protocol):
+    """The library's connections (services/connections.py ConnectionService)."""
+
+    def listing(self) -> dict[str, Any]: ...
+
+    def blade(self, name: str) -> tuple[Blade, str]: ...
+
+    async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]: ...
+
+    async def datasets(self, name: str, body: Any, live: bool | None = None) -> dict[str, Any]: ...
+
+    async def open_table(self, name: str, body: Any, who: str) -> dict[str, Any]: ...
+
+    async def read_query(self, name: str, sql: str, body: Any = None) -> Any: ...
+
+    async def read_for_query(self, name: str, place: dict[str, str], pushed: Any, most: int) -> Any: ...
+
+
+class VariablesSeam(Protocol):
+    """This computer's variables (services/variables.py Variables); never a secret's value."""
+
+    def listing(self, search: Any = None, source: Any = None) -> dict[str, Any]: ...
+
+    def shareable(self) -> dict[str, str]: ...
+
+    async def put(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
+    async def resolve(self, text: str, where: str = "") -> str: ...
+
+
+class LibrarySeam(Protocol):
+    """The library folder (services/library.py Library)."""
+
+    def folder(self) -> Any: ...
+
+    def made(self) -> None: ...
+
+    def info(self) -> dict[str, Any]: ...
+
+    async def set_folder(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
+
+class ProjectExplorerSeam(Protocol):
+    """The projects folders (services/project_explorer.py ProjectExplorer)."""
+
+    def shared_folder(self) -> str | None: ...
+
+    async def set_folder(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
+
+class SharedCatalogSeam(Protocol):
+    async def refresh(self, who: str = "user") -> dict[str, Any]: ...
+
+
+class ModelsSeam(Protocol):
+    """The relationships in use (services/relationships.py Models)."""
+
+    @property
+    def model(self) -> Model: ...
+
+    async def apply(self, model: Model, who: str) -> dict[str, Any]: ...
+
+
+class ComparesSeam(Protocol):
+    async def create(self, body: Any, who: str) -> dict[str, Any]: ...
+
+
+class OpenProject(Protocol):
+    @property
+    def folder(self) -> str: ...
+
+
+class ProjectsSeam(Protocol):
+    """The open project (services/sab_projects.py SabProjects): its state, a new one, its own settings."""
+
+    @property
+    def current(self) -> OpenProject | None: ...
+
+    def state(self) -> dict[str, Any]: ...
+
+    async def new(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
+    def setting(self, key: str) -> Any: ...
+
+    async def set_setting(self, key: str, value: Any, who: str = "user") -> dict[str, Any]: ...
+
+
+class RegistrationsSeam(Protocol):
+    """The library's app registrations (services/app_registrations.py AppRegistrations)."""
+
+    def names(self) -> list[str]: ...
+
+    def get(self, name: str) -> Registration: ...
+
+    async def check(self, name: str, who: str) -> dict[str, Any]: ...
+
+
 ProjectOpened = Callable[[str, Mapping[str, Any]], Awaitable[None]]
 ProjectSaved = Callable[[str], Awaitable[None]]
 
@@ -157,3 +319,25 @@ class Seams:
     connection_tables: ConnectionTablesSeam
     local_api: LocalApiSeam
     actions: ActionsSeam
+    ws: Workspace
+    settings: Settings
+    approvals: Approvals
+    hooks: Hooks
+    extension: dict[str, Any]
+    process_event: Callable[..., None]
+    export_writer: Any
+    datasets: DatasetsSeam
+    blades: BladesSeam
+    connections: ConnectionsSeam
+    variables: VariablesSeam
+    library: LibrarySeam
+    project_explorer: ProjectExplorerSeam
+    shared_catalog: SharedCatalogSeam
+    models: ModelsSeam
+    compares: ComparesSeam
+    sab_projects: ProjectsSeam
+    app_registrations: RegistrationsSeam
+    api_document: Callable[[str], tuple[dict[str, Any], dict[str, Any]]]
+    used_tables: Callable[[], set[str] | None]
+    document_python: Callable[[str], str | None]
+    core_files: Callable[[list[str]], Awaitable[dict[str, Any]]]

@@ -6,7 +6,7 @@
                                 "Project modes"): the Excel canvas, Excel and accounting families, Python,
                                 no extra cell kinds, the agent's tool group, the export
   FRONT_END                     the front-end plug-ins it names (they live in the shared web/)
-  routes(services)              its routes, given the base's services (bootstrap's Services)
+  routes(seams)                 its routes, given what the base offers (services/hooks.py Seams)
   scaffold(name, data_names)    an Accounting project's own files: workbook.design.json, workbook.py,
                                 templates/
   COMMANDS                      its agent commands (commands.py), added to the base's registry when on
@@ -14,9 +14,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench_accounting import __version__
+
+if TYPE_CHECKING:
+    from swissarmybench.services.hooks import Seams
 
 ID = "accounting"
 NAME = "Accounting"
@@ -99,23 +102,23 @@ def describe() -> dict[str, Any]:
     }
 
 
-def routes(services: Any) -> list[Any]:
-    """Its routes, built from the base's services (the composition root's Services)."""
+def routes(seams: Seams) -> list[Any]:
+    """Its routes, built from what the base offers (services/hooks.py Seams)."""
     from swissarmybench_accounting import files
     from swissarmybench_accounting import routes as door
     from swissarmybench_accounting.service import Accounting
 
     def project_folder() -> str | None:
-        found = services.seams.project_folder() or services.seams.opened_folder()
+        found = seams.project_folder() or seams.opened_folder()
         return str(found) if found else None
 
     async def store_table(name: str, table: Any, kind: str, new_grid: bool, who: str) -> Any:
-        return await services.datasets.store_table(name, table, kind, new_grid, who)
+        return await seams.datasets.store_table(name, table, kind, new_grid, who)
 
-    accounting = Accounting(services.ws, services.agent.approvals, store_table, project_folder, files)
+    accounting = Accounting(seams.ws, seams.approvals, store_table, project_folder, files)
 
     def functions() -> dict[str, Any]:
-        families = services.blades.starters()["families"]
+        families = seams.blades.starters()["families"]
         wanted = [f for f in families if f["family"] in ("Excel",)]
         writes = [
             b
