@@ -1,0 +1,85 @@
+@* A connection's form, drawn from the backend's data (the kind's fields by part: where it is, who signs in,
+   security), its passwords typed here and kept in the system keyring, the name and description, the code it makes
+   (each field written into it by the server: POST /blades/fill), Test and Save. *@
+
+<ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+<Busy IsBusy="_form is null && _error is null" Words="Loading the form…">
+    @if (_form is { Id: PythonKind })
+    {
+        <p>A connection made of your own Python (three code boxes) is not in the Blazor front end yet. <a href="/workspace?open=connections">Open in the classic front end</a></p>
+    }
+    else if (_form is { } form)
+    {
+        <div class="connection-form settings-page">
+            <div class="form-row">
+                <Icon Name="@form.Id" /> <strong>@form.Label</strong> <span class="muted">@form.Group</span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(form.Note))
+            {
+                <p class="muted">@form.Note</p>
+            }
+            @foreach (var local in form.Local)
+            {
+                <ErrorNote Warning="true" Words="@local.Words" />
+            }
+            @foreach (var package in form.Packages.Where(p => !p.Installed))
+            {
+                <ErrorNote Warning="true" Words="@($"It needs {package.Pip}, which is not installed in the app's Python.")" />
+            }
+
+            <fieldset class="fieldset">
+                <legend>Name</legend>
+                <label class="form-row"><span>Name</span><input class="connection-name" @bind="_name" placeholder="A name for it" /></label>
+                <label class="form-row"><span>Description</span><input class="connection-description" @bind="_description" placeholder="What it holds (optional)" /></label>
+            </fieldset>
+
+            @foreach (var (part, title) in _parts)
+            {
+                var fields = FieldsOf(part).ToList();
+                if (fields.Count == 0 && !(part == WhoPart && form.Secrets.Count > 0))
+                {
+                    continue;
+                }
+                <fieldset class="fieldset" data-part="@part">
+                    <legend>@title</legend>
+                    @foreach (var field in fields)
+                    {
+                        <label class="form-row">
+                            <span>@Label(field.Name)</span>
+                            <input class="connection-field" data-field="@field.Name" value="@TextOf(field)" placeholder="@(field.Placeholder ? TextOf(field) : null)" @onchange="e => FillAsync(field, e.Value?.ToString() ?? string.Empty)" />
+                            @if (field.Picker is "file" or "folder")
+                            {
+                                <button type="button" class="btn small" @onclick="() => PickAsync(field)"><Icon Name="folder" /> Choose…</button>
+                            }
+                        </label>
+                    }
+                    @if (part == WhoPart)
+                    {
+                        @foreach (var secret in form.Secrets)
+                        {
+                            <label class="form-row">
+                                <span>@Label(secret)</span>
+                                <input type="password" autocomplete="off" class="connection-secret" placeholder="@(_editing is null ? "Typed here, kept in the system keyring" : "Leave empty to keep the saved one")" @bind="_secrets[secret]" />
+                            </label>
+                        }
+                    }
+                </fieldset>
+            }
+
+            <details class="connection-code">
+                <summary>Its code</summary>
+                <pre class="mono">@_code</pre>
+            </details>
+
+            @if (_tested is not null)
+            {
+                <p class="status-ok" role="status">@_tested</p>
+            }
+            <div class="form-row">
+                <button type="button" class="btn" disabled="@_busy" @onclick="TestAsync"><Icon Name="play" /> Test</button>
+                <button type="button" class="btn primary" disabled="@_busy" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+                <a class="btn ghost" href="@(_editing is null ? "connections?add=1" : $"connections?name={Uri.EscapeDataString(_editing)}")">Cancel</a>
+            </div>
+        </div>
+    }
+</Busy>

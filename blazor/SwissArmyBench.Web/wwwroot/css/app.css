@@ -131,7 +131,7 @@ html.rail-names .nav-rail-toggle { padding-left: 22px; font-size: 12px; }
 .link { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 
 /* ===== forms ===== */
-input[type="text"], input[type="search"], input:not([type]), select, textarea {
+input[type="text"], input[type="search"], input[type="password"], input[type="number"], input:not([type]), select, textarea {
   min-height: 28px; padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: 6px;
   background: var(--bg); color: var(--fg); font: inherit;
 }
@@ -222,3 +222,24 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .tab { padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; cursor: pointer; }
 .tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--fg); font-weight: 600; }
 .empty-state { display: grid; justify-items: center; gap: 10px; max-width: 460px; margin: 48px auto; text-align: center; }
+
+/* ===== the Connections page ===== */
+.connection-card { text-decoration: none; }
+.connection-status { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 12px; font-weight: 400; color: var(--muted); }
+.connection-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
+.st-works .connection-status-dot { background: var(--ok); }
+.st-needs .connection-status-dot, .st-resuming .connection-status-dot { background: var(--warn); }
+.st-failing .connection-status-dot { background: var(--error); }
+.only-here { display: inline-flex; align-items: center; gap: 4px; margin: 0; color: var(--warn); font-size: 12px; }
+.kind-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.kind-card { text-decoration: none; padding: 8px 10px; }
+.kind-card .card-title { font-size: 13px; font-weight: 500; }
+.terms { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.terms dt { color: var(--muted); }
+.terms dd { margin: 0; overflow-wrap: anywhere; }
+.plain-list { margin: 0; padding-left: 18px; }
+.status-ok { color: var(--ok); }
+.add-search { width: min(360px, 100%); margin-bottom: 12px; }
+.connection-form .form-row > span:first-child { min-width: 140px; color: var(--muted); }
+.connection-form input:not([type="checkbox"]):not([type="radio"]) { flex: 1 1 260px; }
+.connection-code pre { max-height: 260px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }

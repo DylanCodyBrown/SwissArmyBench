@@ -4,6 +4,7 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
+using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.SessionLog;
@@ -42,6 +43,7 @@ public static class Program
         services.AddScoped<SessionLogClient>();
         services.AddScoped<FileChooser>();
         services.AddScoped<SettingsClient>();
+        services.AddScoped<ConnectionsClient>();
     }
 
     private static void AddState(IServiceCollection services)

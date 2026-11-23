@@ -1,0 +1,97 @@
+@* The connections as cards: each its type's icon, name, status in a word, type, description, calls this session
+   ("2 calls · 3 min ago · usually 380 ms"), the amber Only works on your machine, what it writes. Live: a saved,
+   removed or used connection redraws them. *@
+@implements IDisposable
+@inject ConnectionsClient Connections
+@inject LiveUpdates Live
+
+<ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+<Busy IsBusy="_cards is null" Words="Loading the connections…">
+    @if (_cards is { Count: 0 })
+    {
+        <div class="empty-state">
+            <Icon Name="plug" />
+            <p>No connections yet: a connection is a database, a lake, SharePoint or a folder of files whose tables DuckDB SQL can name.</p>
+            <a class="btn primary" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
+        </div>
+    }
+    else if (_cards is { } cards)
+    {
+        <div class="card-grid">
+            @foreach (var card in cards)
+            {
+                <a class="card connection-card" href="@($"connections?name={Uri.EscapeDataString(card.Name)}")" data-name="@card.Name" style="@(card.Colour is null ? null : $"border-left: 4px solid {card.Colour}")">
+                    <div class="card-title">
+                        <Icon Name="@(card.Template ?? card.TablesKind)" />
+                        <span>@card.Name</span>
+                        <StatusPill Status="@card.Status" Why="@WhyOf(card)" />
+                    </div>
+                    <div class="card-meta"><span>@card.Type</span></div>
+                    @if (!string.IsNullOrWhiteSpace(card.Description))
+                    {
+                        <p class="muted">@card.Description</p>
+                    }
+                    @if (card.Words is { } words)
+                    {
+                        <p class="muted">@words</p>
+                    }
+                    <div class="card-meta"><span>@CallWords.Of(card.Calls)</span></div>
+                    @if (card.Writes is { Words.Length: > 0 } writes)
+                    {
+                        <div class="card-meta"><span>@writes.Words</span></div>
+                    }
+                    @foreach (var local in card.Local ?? [])
+                    {
+                        <p class="only-here" title="@local.Words"><Icon Name="warning" /> Only works on your machine</p>
+                    }
+                </a>
+            }
+        </div>
+    }
+</Busy>
+
+@code {
+    private IReadOnlyList<ConnectionCard>? _cards;
+    private Exception? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.Changed += OnNotice;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _cards = await Connections.CardsAsync();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            _cards ??= [];
+        }
+    }
+
+    private static string? WhyOf(ConnectionCard card) => card.Status switch
+    {
+        "needs" => string.Join(", ", card.Missing ?? []),
+        "failing" or "resuming" => card.Error,
+        _ => null,
+    };
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type.StartsWith("connection", StringComparison.Ordinal) || notice.Type is "blades_changed" or "catalog_loaded")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Live.Changed -= OnNotice;
+}

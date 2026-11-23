@@ -1,0 +1,87 @@
+@* The Connections page (the classic connectionsWindow.ts): the cards, a card's detail (?name=), Add connection's
+   kinds (?add=1) and a kind's form (?kind=, or ?edit= a saved one), Find connections on this computer (?find=1).
+   Each view is in the address, so Back and Forward move between them. *@
+@page "/connections"
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title">
+            @if (View != ListView)
+            {
+                <a class="btn ghost icon" href="connections" aria-label="Back to Connections"><Icon Name="back" /></a>
+            }
+            <Icon Name="plug" /> @Title
+        </h1>
+        @if (View == ListView)
+        {
+            <div class="area-page-actions">
+                <a class="btn primary" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
+                <a class="btn" href="connections?find=1"><Icon Name="zoom" /> Find connections on this computer…</a>
+            </div>
+        }
+    </header>
+    <div class="area-page-body">
+        @switch (View)
+        {
+            case DetailView:
+                <ConnectionDetail Name="@(Name ?? string.Empty)" />
+                break;
+            case AddView:
+                <AddConnection />
+                break;
+            case FormView:
+                <ConnectionFormView Kind="@Kind" Edit="@Edit" />
+                break;
+            case FindView:
+                <FindConnections />
+                break;
+            default:
+                <ConnectionCards />
+                break;
+        }
+    </div>
+</section>
+
+@code {
+    private const string ListView = "list";
+    private const string DetailView = "detail";
+    private const string AddView = "add";
+    private const string FormView = "form";
+    private const string FindView = "find";
+
+    [SupplyParameterFromQuery]
+    public string? Name { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Add { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Kind { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Edit { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Find { get; set; }
+
+    private string View =>
+        Kind is not null || Edit is not null ? FormView
+        : Name is not null ? DetailView
+        : Add is not null ? AddView
+        : Find is not null ? FindView
+        : ListView;
+
+    private string Title => View switch
+    {
+        DetailView => Name!,
+        AddView => "Add connection",
+        FormView => Edit is null ? "Add connection" : $"Change {Edit}",
+        FindView => "Find connections on this computer",
+        _ => "Connections",
+    };
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    protected override Task OnParametersSetAsync() => Js.InvokeVoidAsync("sab.setTitle", Title).AsTask();
+}

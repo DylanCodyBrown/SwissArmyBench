@@ -1,0 +1,57 @@
+@* Add connection: every kind the backend offers, by its group (Databases, Lakes and SharePoint, Files, Your own
+   code), each its own icon; a click opens its form. Key vaults are added on the Environment's Settings and secrets
+   tab, not here. *@
+@inject ConnectionsClient Connections
+
+<ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+<Busy IsBusy="_forms is null && _error is null" Words="Loading the kinds of connection…">
+    @if (_forms is { } forms)
+    {
+        <input type="search" class="add-search" placeholder="Search the kinds" aria-label="Search the kinds" @bind="_search" @bind:event="oninput" />
+        @foreach (var group in forms.Where(Matches).GroupBy(f => f.Group))
+        {
+            <section class="section">
+                <div class="section-head"><h2>@group.Key</h2></div>
+                <div class="kind-grid">
+                    @foreach (var form in group)
+                    {
+                        <a class="card kind-card" href="@($"connections?kind={Uri.EscapeDataString(form.Id)}")" data-kind="@form.Id">
+                            <div class="card-title"><Icon Name="@form.Id" /> <span>@form.Label</span></div>
+                            @if (form.Local.Count > 0)
+                            {
+                                <span class="only-here" title="@form.Local[0].Words"><Icon Name="warning" /> Only works on your machine</span>
+                            }
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+        <p class="muted">Key vaults are added on the <a href="environment?at=settings">Environment's Settings and secrets</a> tab.</p>
+    }
+</Busy>
+
+@code {
+    private const string VaultGroup = "Vaults";
+
+    private IReadOnlyList<ConnectionForm>? _forms;
+    private Exception? _error;
+    private string _search = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _forms = (await Connections.FormsAsync()).Where(f => f.Group != VaultGroup).ToList();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private bool Matches(ConnectionForm form) =>
+        _search.Length == 0 || form.Label.Contains(_search, StringComparison.OrdinalIgnoreCase) || form.Group.Contains(_search, StringComparison.OrdinalIgnoreCase);
+}

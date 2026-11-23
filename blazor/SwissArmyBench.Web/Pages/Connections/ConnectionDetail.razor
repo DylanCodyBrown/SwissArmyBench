@@ -1,0 +1,121 @@
+@* A connection's detail: its status, Change, Test, Refresh and Remove; how code names it; its tables as a tree
+   (search, Open as a grid); its configuration (never a password's value); where it is used; its calls this session. *@
+
+<ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+@if (_said is not null)
+{
+    <p class="status-ok" role="status">@_said</p>
+}
+<Busy IsBusy="_usage is null && _error is null" Words="Loading the connection…">
+    @if (_usage is { } usage)
+    {
+        <div class="toolbar-row">
+            <StatusPill Status="@usage.Status" Why="@usage.Error" />
+            <span class="muted">@usage.Type</span>
+            <a class="btn small" href="@($"connections?edit={Uri.EscapeDataString(Name)}")"><Icon Name="edit" /> Change</a>
+            <button type="button" class="btn small" @onclick="TestAsync"><Icon Name="play" /> Test</button>
+            <button type="button" class="btn small" @onclick="RefreshAsync"><Icon Name="reset" /> Refresh</button>
+            <button type="button" class="btn small danger" @onclick="RemoveAsync"><Icon Name="trash" /> Remove</button>
+        </div>
+        @if (usage.Status is "failing" or "resuming" && !string.IsNullOrWhiteSpace(usage.Error))
+        {
+            <ErrorNote Words="@usage.Error" />
+        }
+        @foreach (var local in usage.Local ?? [])
+        {
+            <ErrorNote Warning="true" Words="@local.Words" />
+        }
+
+        <section class="section">
+            <div class="section-head"><h2>In code</h2></div>
+            <code>sab.connection("@Name")  ·  %%sql @(Name.Contains(' ') ? $"\"{Name}\"" : Name)</code>
+        </section>
+
+        <section class="section connection-tables">
+            <div class="section-head">
+                <h2>Tables</h2>
+                <input type="search" placeholder="Search tables" aria-label="Search tables" @bind="_search" @bind:event="oninput" />
+            </div>
+            @if (_tree is null)
+            {
+                <div class="loading-block">Loading its tables…</div>
+            }
+            else if (_tree.Groups.Count == 0)
+            {
+                <p class="muted">No tables listed yet: Refresh lists them.</p>
+            }
+            else
+            {
+                @foreach (var group in _tree.Groups)
+                {
+                    <details open>
+                        <summary>@(group.Dataset ?? string.Join(".", new[] { group.Database, group.Schema }.Where(p => !string.IsNullOrEmpty(p)))) <span class="muted">(@group.Tables.Count)</span></summary>
+                        <table class="rows">
+                            <tbody>
+                                @foreach (var table in group.Tables.Where(Matches))
+                                {
+                                    <tr>
+                                        <td><Icon Name="table" /> @table.Table</td>
+                                        <td><code>@table.Sql</code></td>
+                                        <td><button type="button" class="btn small" @onclick="() => OpenTableAsync(table)">Open</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </details>
+                }
+            }
+        </section>
+
+        <section class="section">
+            <div class="section-head"><h2>Configuration</h2></div>
+            <dl class="terms">
+                @foreach (var setting in usage.Configuration.Settings)
+                {
+                    <dt>@setting.Name</dt>
+                    <dd class="mono">@ValueText(setting.Value)</dd>
+                }
+                @foreach (var password in usage.Configuration.Passwords)
+                {
+                    <dt>@password.Name</dt>
+                    <dd>From @PasswordSource(password)</dd>
+                }
+                @if (usage.Writes is { } writes)
+                {
+                    <dt>Writes</dt>
+                    <dd>@writes.Words</dd>
+                }
+            </dl>
+        </section>
+
+        <section class="section">
+            <div class="section-head"><h2>Where it is used</h2></div>
+            @if (usage.References.Count == 0)
+            {
+                <p class="muted">No notebook, script, canvas or open grid names it yet.</p>
+            }
+            else
+            {
+                <ul class="plain-list">
+                    @foreach (var reference in usage.References)
+                    {
+                        <li><strong>@reference.Title</strong> <span class="muted">@(reference.Cell is { } cell ? $"@cell{cell}" : reference.Kind == "grid" ? "an open grid" : "main code")</span> <code>@reference.How</code></li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="section">
+            <div class="section-head"><h2>Calls this session</h2></div>
+            <dl class="terms">
+                @foreach (var (kind, label) in CallWords.Kinds)
+                {
+                    <dt>@label</dt>
+                    <dd>@(usage.Calls?.ByKind?.GetValueOrDefault(kind) ?? 0)</dd>
+                }
+                <dt>Last used</dt>
+                <dd>@(usage.Calls?.LastUsed is { } last ? $"{CallWords.Ago(last)}{(usage.Calls.LastOk == false ? " (failed)" : string.Empty)}" : "Not yet")</dd>
+            </dl>
+        </section>
+    }
+</Busy>

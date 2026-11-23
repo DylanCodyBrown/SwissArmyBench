@@ -1,0 +1,20 @@
+@* A connection's status in a word (the reason on hover): Works, Ready, Needs a password, Failing, Resuming. *@
+<span class="connection-status st-@Status" title="@Why"><span class="connection-status-dot" aria-hidden="true"></span>@Words</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Why { get; set; }
+
+    private string Words => Status switch
+    {
+        "works" => "Works",
+        "ready" => "Ready",
+        "needs" => "Needs a password",
+        "failing" => "Failing",
+        "resuming" => "Resuming",
+        _ => Status,
+    };
+}

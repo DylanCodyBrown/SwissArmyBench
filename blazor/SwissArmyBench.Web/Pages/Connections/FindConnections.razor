@@ -1,0 +1,130 @@
+@* Find connections on this computer (the classic findConnections.ts): the known tools' settings read (never a
+   password), the list with search, Select all, Already added and the kinds with no connection yet; Import makes the
+   ticked ones library connections, their passwords variables to set. *@
+@inject ConnectionsClient Connections
+
+<ErrorNote Error="_error" OnRetry="ScanAsync" OnClose="() => _error = null" />
+<Busy IsBusy="_scanning" Words="Looking at this computer's tools…" OnCancel="CancelAsync">
+    @if (_found is { } found)
+    {
+        <div class="toolbar-row">
+            <input type="search" placeholder="Search" aria-label="Search" @bind="_search" @bind:event="oninput" />
+            <button type="button" class="btn small" @onclick="SelectAll">Select all</button>
+            <button type="button" class="btn primary" disabled="@(_ticked.Count == 0)" @onclick="ImportAsync">Import @(_ticked.Count > 0 ? _ticked.Count.ToString() : string.Empty)</button>
+            <span class="muted">@found.Files settings files read</span>
+        </div>
+        @if (_imported is not null)
+        {
+            <p class="status-ok" role="status">@_imported</p>
+        }
+        @if (found.Connections.Count == 0)
+        {
+            <p class="muted">No connections were found in the tools this app knows.</p>
+        }
+        else
+        {
+            <table class="rows found-list">
+                <thead><tr><th></th><th>Name</th><th>Kind</th><th>Where</th><th>Found in</th></tr></thead>
+                <tbody>
+                    @foreach (var row in found.Connections.Where(Matches))
+                    {
+                        <tr data-id="@row.Id">
+                            <td>
+                                @if (row.Already is null && row.Supported)
+                                {
+                                    <input type="checkbox" aria-label="Import @row.Name" checked="@_ticked.Contains(row.Id)" @onchange="() => Toggle(row.Id)" />
+                                }
+                            </td>
+                            <td>@row.Name</td>
+                            <td>@row.KindLabel</td>
+                            <td class="mono">@WhereOf(row)</td>
+                            <td class="muted">
+                                @string.Join(", ", (row.From ?? []).Select(f => f.Tool).Distinct())
+                                @if (row.Already is { } already)
+                                {
+                                    <div>Already added as @already</div>
+                                }
+                                else if (!row.Supported)
+                                {
+                                    <div>@(row.Why ?? "No connection of this kind yet")</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        @foreach (var note in found.Notes)
+        {
+            <p class="muted">@note</p>
+        }
+    }
+</Busy>
+
+@code {
+    private FoundList? _found;
+    private Exception? _error;
+    private bool _scanning;
+    private string _search = string.Empty;
+    private string? _imported;
+    private readonly HashSet<string> _ticked = [];
+
+    protected override Task OnInitializedAsync() => ScanAsync();
+
+    private async Task ScanAsync()
+    {
+        _scanning = true;
+        try
+        {
+            _found = await Connections.FindAsync();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _scanning = false;
+    }
+
+    private async Task CancelAsync()
+    {
+        await Connections.CancelFindAsync();
+    }
+
+    private bool Matches(FoundRow row) =>
+        _search.Length == 0 || $"{row.Name} {row.KindLabel} {row.Server} {row.Database} {row.Path}".Contains(_search, StringComparison.OrdinalIgnoreCase);
+
+    private static string WhereOf(FoundRow row) =>
+        row.Path.Length > 0 ? row.Path : string.Join(" / ", new[] { row.Server, row.Database }.Where(p => p.Length > 0));
+
+    private void Toggle(string id)
+    {
+        if (!_ticked.Remove(id))
+        {
+            _ticked.Add(id);
+        }
+    }
+
+    private void SelectAll()
+    {
+        foreach (var row in (_found?.Connections ?? []).Where(r => r.Already is null && r.Supported && Matches(r)))
+        {
+            _ticked.Add(row.Id);
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        try
+        {
+            await Connections.ImportAsync([.. _ticked]);
+            _imported = $"Imported {_ticked.Count}: each password is a variable to set on the Environment's Settings and secrets tab.";
+            _ticked.Clear();
+            await ScanAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}
