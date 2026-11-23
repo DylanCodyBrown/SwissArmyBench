@@ -6268,3 +6268,12 @@ at four workers: 5,799 passed, 60 skipped, 2 failed, neither this branch's: the 
 the updater's uv test fail only because this worktree's PYTHONPATH reaches the new Python (the environment's
 editable install points at the main checkout); both pass without it (35 passed in their two files). The
 browser suite was not run: no page file changed.
+
+## Final runs after the craft review fixes, 2026-11-22/23
+
+The branch with every review fix (A, B1, B2, C, D), the canvas previews fix, the white-screen fix and Sybase's
+count and Databricks' dialect: the quick suite in one process 5,840 passed, 40 skipped, 0 failed; the browser suite
+in one process in Chromium 413 passed, 15 skipped, 2 failed, both passing when their files run alone (5 of 5):
+the sandbox list's sort test ran across midnight (its tables' made times on two days), and the Play-menu share test
+fails only after the whole suite. The built wheels pass tools/smoke_install.py on a fresh install. Not checked here:
+Windows (the preview photographer's hidden-window way, the update's restart on the owner's machine).
