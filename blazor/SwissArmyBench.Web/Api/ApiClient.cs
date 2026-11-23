@@ -60,6 +60,20 @@ public sealed class ApiClient
 
     public Task<T> DeleteAsync<T>(string path, CancellationToken cancel = default) => SendAsync<T>(HttpMethod.Delete, path, null, cancel);
 
+    /// <summary>A POST whose body is plain text (a pasted table), its answer JSON.</summary>
+    public async Task<T> PostTextAsync<T>(string path, string text, CancellationToken cancel = default)
+    {
+        using var request = Request(HttpMethod.Post, path, null);
+        request.Content = new StringContent(text, Encoding.UTF8, "text/plain");
+        using var answer = await SendRequestAsync(request, path, HttpCompletionOption.ResponseContentRead, cancel);
+        var said = await answer.Content.ReadAsStringAsync(cancel);
+        if (!answer.IsSuccessStatusCode)
+        {
+            throw new ApiException((int)answer.StatusCode, ReadRefusal(said, answer.StatusCode), said);
+        }
+        return JsonSerializer.Deserialize<T>(said, Json)!;
+    }
+
     /// <summary>A path's part (a name, an id) made safe to put in an address.</summary>
     public static string Part(string value) => Uri.EscapeDataString(value);
 

@@ -33,6 +33,13 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<Notes>();
         Services.AddScoped<Dialogs>();
         Services.AddScoped<GridStatus>();
+        Services.AddScoped<PackagePrompts>();
+        Services.AddScoped<VariableAsks>();
+        Services.AddScoped<BetaState>();
+        Services.AddScoped<TourState>();
+        Services.AddScoped<FilePicks>();
+        Services.AddScoped<Api.Environment.EnvironmentClient>();
+        Services.AddScoped<Api.Variables.VariablesClient>();
     }
 
     /// <summary>How many handlers an event of a service holds now (a field-like event's own delegate).</summary>

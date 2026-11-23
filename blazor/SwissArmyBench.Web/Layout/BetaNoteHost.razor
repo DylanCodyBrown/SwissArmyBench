@@ -1,0 +1,70 @@
+@* Leave a note… (beta mode, the classic betaNotes.ts openNote): the place it is about, what is wrong in the user's own
+   words, Save (Ctrl+Enter) and Cancel. The note goes to the beta log with the page and the place, never data. *@
+@implements IDisposable
+@inject BetaState Beta
+@inject NavigationManager Nav
+@inject Notes Notes
+
+@if (Beta.Noting is { } place)
+{
+    <AppDialog Title="Leave a note" OnClose="Beta.NoteDone">
+        <ChildContent>
+            <div class="beta-note-form">
+                <p class="hint beta-note-where">@place</p>
+                <textarea rows="5" class="beta-note-text" placeholder="What is wrong" aria-label="What is wrong" data-no-variables @bind="_text" @bind:event="oninput" @onkeydown="KeyAsync"></textarea>
+            </div>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="Beta.NoteDone">Cancel</button>
+            <button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private string _text = string.Empty;
+    private Exception? _error;
+
+    protected override void OnInitialized() => Beta.Changed += Redraw;
+
+    private void Redraw()
+    {
+        if (Beta.Noting is null)
+        {
+            _text = string.Empty;
+            _error = null;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && (e.CtrlKey || e.MetaKey))
+        {
+            await SaveAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_text.Trim().Length == 0 || Beta.Noting is not { } place)
+        {
+            return;
+        }
+        var page = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
+        try
+        {
+            await Beta.NoteAsync(_text, page.Length == 0 ? "home" : page, "menu", place);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            return;
+        }
+        Beta.NoteDone();
+        _ = Notes.SayAsync("Saved");
+    }
+
+    public void Dispose() => Beta.Changed -= Redraw;
+}

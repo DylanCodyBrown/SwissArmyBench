@@ -1,0 +1,73 @@
+@* The footer's marks an extension's rail area answers (the classic areaMarks.ts; the owner, 2026-11-18: "a simple
+   indicator at the bottom that the project is out of sync"). The backend names each area and its mark route (GET
+   /app/areas); a mark shows only while its route answers one ("↑3 to push", amber), read once and again on the
+   notices that change it (sync_changed, project_changed, projects_changed), never on a timer. A click opens the
+   area's page. *@
+@implements IDisposable
+@inject ApiClient Api
+@inject AppClient App
+@inject LiveUpdates Live
+@inject NavigationManager Nav
+
+<span class="area-marks">
+    @foreach (var (area, mark) in _shown)
+    {
+        <button type="button" class="area-mark area-mark-@mark.State" data-area="@area.Area" title="@TitleOf(area, mark)" @onclick="() => Open(area)">@mark.Words</button>
+    }
+</span>
+
+@code {
+    private IReadOnlyList<AreaInfo>? _areas;
+    private List<(AreaInfo Area, AreaMark Mark)> _shown = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        await DrawAsync();
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type is "sync_changed" or "project_changed" or "projects_changed")
+        {
+            _ = InvokeAsync(DrawAsync);
+        }
+    }
+
+    private async Task DrawAsync()
+    {
+        try
+        {
+            _areas ??= (await App.AreasAsync()).Where(a => a.Mark is { Length: > 0 }).ToList();
+        }
+        catch (ApiException)
+        {
+            _areas = [];
+        }
+        var shown = new List<(AreaInfo, AreaMark)>();
+        foreach (var area in _areas)
+        {
+            try
+            {
+                if ((await Api.GetAsync<AreaMarkAnswer>(area.Mark!)).Mark is { } mark)
+                {
+                    shown.Add((area, mark));
+                }
+            }
+            catch (ApiException)
+            {
+                // A mark that does not answer is not shown.
+            }
+        }
+        _shown = shown;
+        StateHasChanged();
+    }
+
+    private static string TitleOf(AreaInfo area, AreaMark mark) =>
+        $"{area.Name}: {(mark.Name is { Length: > 0 } name ? $"{name}, " : string.Empty)}{mark.Words}";
+
+    // The area's page: an extension's page of this app is x-<area> (a page not here yet says so with the classic link).
+    private void Open(AreaInfo area) => Nav.NavigateTo($"x-{area.Area}");
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

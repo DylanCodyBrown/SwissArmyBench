@@ -20,7 +20,7 @@
 <span class="credit">Created by Dylan Brown</span>
 @if (_menu is { } menu)
 {
-    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" NoBetaNote="@(menu.Title == "Beta mode")" OnClose="() => _menu = null" />
 }
 @if (_missing is { } missing)
 {

@@ -1,0 +1,89 @@
+@* The page's own file picker (the classic fileChooser.ts choosePage), when this computer's own dialog cannot open:
+   Places (Home, Desktop, Documents, Downloads, Projects, Library), this kind of pick's Recent folders and the Drives;
+   Up and the breadcrumb; the path box with Go; Filter as you type; New folder (folder and save); Hidden files; the
+   folders then the files of the wanted kinds (name, modified, size): a click selects, a double-click or Enter opens a
+   folder or picks a file; the arrows, Home, End, Backspace up; Save's File name. Logic in FilePicker.razor.cs. *@
+
+<AppDialog Title="@Request.Title" Wide="true" Class="file-chooser" OnClose="CloseAsync">
+    <ChildContent>
+        <div class="file-chooser-body">
+            <nav class="file-places" aria-label="Places">
+                @foreach (var (heading, places) in PlaceGroups)
+                {
+                    <div class="file-place-group">
+                        <h3>@heading</h3>
+                        @foreach (var place in places)
+                        {
+                            <button type="button" class="file-place" title="@place.Path" data-path="@place.Path" aria-current="@(place.Path == _shown?.Path ? "location" : null)" @onclick="() => GoAsync(place.Path)">
+                                <Icon Name="@PlaceIcon(place.Kind)" /><span>@(place.Kind == "recent" ? FolderCrumb.Of(place.Path, _shown?.Separator ?? "/")[^1].Name : place.Name)</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </nav>
+            <div class="file-main">
+                <div class="file-bar">
+                    <button type="button" class="btn ghost icon" aria-label="Up" title="Up" disabled="@(_shown?.Parent is null)" @onclick="UpAsync"><Icon Name="up" /></button>
+                    <nav class="file-crumbs" aria-label="Path">
+                        @if (_shown is { } shown)
+                        {
+                            var crumbs = FolderCrumb.Of(shown.Path, shown.Separator);
+                            @foreach (var crumb in crumbs.SkipLast(1))
+                            {
+                                <button type="button" class="file-crumb" title="@crumb.Path" @onclick="() => GoAsync(crumb.Path)">@crumb.Name</button>
+                            }
+                            <span class="file-crumb current" aria-current="location">@crumbs[^1].Name</span>
+                        }
+                    </nav>
+                </div>
+                <div class="file-path">
+                    <input type="text" class="mono" aria-label="Folder" spellcheck="false" placeholder="@_shown?.Path" data-no-variables @bind="_where" @bind:event="oninput" @onkeydown="WhereKeyAsync" />
+                    <button type="button" class="btn" @onclick="() => GoAsync(_where.Trim())"><Icon Name="play" /> Go</button>
+                </div>
+                <div class="file-tools">
+                    <input type="search" aria-label="Filter" placeholder="Filter" spellcheck="false" value="@_filter" @oninput="FilterTyped" @onkeydown="FilterKeyAsync" @onkeydown:stopPropagation="true" @ref="_filterBox" />
+                    @if (Request.Mode != "file")
+                    {
+                        <button type="button" class="btn" @onclick="NewFolder"><Icon Name="plus" /> New folder</button>
+                    }
+                    <label class="file-hidden"><input type="checkbox" aria-label="Hidden files" checked="@_hidden" @onchange="HiddenAsync" /><span>Hidden files</span></label>
+                </div>
+                <Busy IsBusy="_reading" Words="@_readingWords">
+                    <ul class="file-list" role="listbox" tabindex="0" aria-label="Folders and files" aria-activedescendant="@(_selected >= 0 ? $"file-row-{_selected}" : null)" @onkeydown="ListKeyAsync" @ref="_list">
+                        @if (_naming)
+                        {
+                            <li class="file-row folder file-new">
+                                <span class="file-name"><Icon Name="folder" />
+                                    <input type="text" aria-label="New folder's name" spellcheck="false" data-no-variables @bind="_newName" @bind:event="oninput" @onkeydown="NewFolderKeyAsync" @onkeydown:stopPropagation="true" @ref="_newBox" /></span>
+                            </li>
+                        }
+                        @foreach (var (row, i) in Drawn.Select((r, i) => (r, i)))
+                        {
+                            <li id="file-row-@i" class="file-row @(row.Folder ? "folder" : "file") @(!row.Folder && Request.Mode == "folder" ? "muted" : string.Empty)" role="option"
+                                aria-selected="@(i == _selected ? "true" : "false")" title="@row.Entry.Path" @onclick="() => Select(i)" @ondblclick="() => ActivateAsync(i)">
+                                <span class="file-name"><Icon Name="@(row.Folder ? "folder" : "file")" /><span>@row.Entry.Name</span></span>
+                                <span class="file-meta file-date">@DateOf(row.Entry)</span>
+                                <span class="file-meta file-size">@(row.Folder || row.Entry.Size is null ? string.Empty : SizeOf(row.Entry.Size.Value))</span>
+                            </li>
+                        }
+                        @if (_shown is not null && Drawn.Count == 0 && !_naming)
+                        {
+                            <li class="file-empty">@(_filter.Trim().Length > 0 ? "Nothing matches" : "Empty folder")</li>
+                        }
+                    </ul>
+                </Busy>
+                @if (Request.Mode == "save")
+                {
+                    <label class="field file-save"><span>File name</span><input type="text" aria-label="File name" spellcheck="false" data-no-variables @bind="_saveName" @bind:event="oninput" @onkeydown="SaveKeyAsync" @ref="_saveBox" /></label>
+                }
+                <p class="hint" role="status">@Status</p>
+            </div>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" disabled="@(Request.Mode == "file" && _selected < 0)" @onclick="PickAsync">
+            <Icon Name="check" /> @(Request.Mode switch { "folder" => "Choose this folder", "save" => "Save here", _ => "Open" })
+        </button>
+        <button type="button" class="btn" @onclick="() => FinishAsync(null)">Cancel</button>
+    </Foot>
+</AppDialog>

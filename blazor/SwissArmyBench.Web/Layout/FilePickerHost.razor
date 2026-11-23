@@ -1,0 +1,16 @@
+@* The page's own file picker, asked for by FileChooser when this computer's own dialog cannot open (State/FilePicks). *@
+@implements IDisposable
+@inject FilePicks Picks
+
+@if (Picks.Open is { } request)
+{
+    <FilePicker @key="request" Request="request" OnDone="path => Picks.Answer(path)" />
+}
+
+@code {
+    protected override void OnInitialized() => Picks.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Picks.Changed -= Redraw;
+}

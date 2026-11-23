@@ -17,6 +17,7 @@ using SwissArmyBench.Web.Api.Relationships;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Api.Structures;
+using SwissArmyBench.Web.Api.Variables;
 using SwissArmyBench.Web.Api.Workbench;
 using SwissArmyBench.Web.State;
 
@@ -63,6 +64,7 @@ public static class Program
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();
         services.AddScoped<ExtensionsClient>();
+        services.AddScoped<VariablesClient>();
     }
 
     private static void AddState(IServiceCollection services)
@@ -76,5 +78,10 @@ public static class Program
         services.AddScoped<Commands>();
         services.AddScoped<GridStatus>();
         services.AddScoped<PythonSession>();
+        services.AddScoped<PackagePrompts>();
+        services.AddScoped<VariableAsks>();
+        services.AddScoped<BetaState>();
+        services.AddScoped<FilePicks>();
+        services.AddScoped<TourState>();
     }
 }

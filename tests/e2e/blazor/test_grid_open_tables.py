@@ -8,7 +8,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 
 
 def test_open_file_paste_and_the_tables_list(browser: Browser, server: dict[str, Any]) -> None:
@@ -17,9 +17,8 @@ def test_open_file_paste_and_the_tables_list(browser: Browser, server: dict[str,
     made_up.write_text("region,target\nNorth,10\nSouth,20\n", encoding="utf-8")
     page = open_page(browser, server, "grids")
     page.get_by_role("button", name="Open file…").click()
-    # No system dialog in a test: the app's own box takes the path.
-    page.locator(".dialog input").fill(str(made_up))
-    page.locator(".dialog-foot").get_by_role("button", name="Choose").click()
+    # No system dialog in a test: the page's own picker.
+    choose_path(page, made_up)
     expect(page.locator(".grid-tab.tab-item.current")).to_contain_text("made_up_regions")
     expect(page.locator(".status-rows")).to_contain_text("of 2")
 

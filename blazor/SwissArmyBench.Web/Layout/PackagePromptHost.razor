@@ -1,0 +1,96 @@
+@* The one missing-package prompt (State/PackagePrompts, the classic missingPackages.ts promptInstall): "Install
+   <package>?", "<Feature> will not work without <package>.", Not now and Install now (its progress here, then
+   done or the error with Try again, then the caller's retry). Closed any way but Install now is Not now; never
+   while it installs. *@
+@implements IDisposable
+@inject PackagePrompts Prompts
+@inject Notes Notes
+
+@if (Prompts.Open is { } prompt)
+{
+    <AppDialog Title="@prompt.Title" Class="missing-packages" OnClose="NotNow">
+        <ChildContent>
+            <div class="missing-body" data-packages="@string.Join(' ', prompt.Missing.Packages)">
+                <p class="missing-sentence">@prompt.Sentence</p>
+                <div class="missing-state @(_installed ? "status-ok" : string.Empty)" role="status">
+                    @if (_installing)
+                    {
+                        <span class="loading-block"><span class="busy-spinner" aria-hidden="true"></span> Installing @prompt.Missing.Listed…</span>
+                    }
+                    else if (_failed is not null)
+                    {
+                        <ErrorNote Said="@(new Refusal("The install failed.", prompt.Missing.Listed, null, _failed))" />
+                    }
+                </div>
+            </div>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" disabled="@_installing" @onclick="NotNow">Not now</button>
+            <button type="button" class="btn primary" disabled="@_installing" title="@prompt.Missing.Command" aria-label="@(_failed is null ? "Install now" : "Try again")" @onclick="() => InstallAsync(prompt)">
+                <Icon Name="import" /> @(_installing ? "Installing…" : _failed is null ? "Install now" : "Try again")
+            </button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private bool _installing;
+    private bool _installed;
+    private string? _failed;
+    private PackagePrompt? _shown;
+
+    protected override void OnInitialized() => Prompts.Changed += Redraw;
+
+    private void Redraw()
+    {
+        if (!ReferenceEquals(Prompts.Open, _shown))
+        {
+            _shown = Prompts.Open;
+            _installing = false;
+            _installed = false;
+            _failed = null;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void NotNow()
+    {
+        if (!_installing)
+        {
+            Prompts.Answer(false);
+        }
+    }
+
+    private async Task InstallAsync(PackagePrompt prompt)
+    {
+        _installing = true;
+        _failed = null;
+        try
+        {
+            await Prompts.InstallAsync(prompt);
+        }
+        catch (InvalidOperationException error)
+        {
+            _installing = false;
+            _failed = error.Message;
+            return;
+        }
+        _installing = false;
+        _installed = true;
+        Prompts.Answer(true);
+        _ = Notes.SayAsync($"Installed {prompt.Missing.Listed}.");
+        if (prompt.Then is { } then)
+        {
+            try
+            {
+                await then();
+            }
+            catch (ApiException error)
+            {
+                Notes.Error(error);
+            }
+        }
+    }
+
+    public void Dispose() => Prompts.Changed -= Redraw;
+}

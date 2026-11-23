@@ -2,7 +2,7 @@
    The focus goes into it as it opens (shell.js dialogOpened); Escape closes it (as Close). *@
 @inject IJSRuntime Js
 <div class="dialog-shade" @onkeydown="OnKeyAsync">
-    <div class="dialog @(Wide ? "wide" : string.Empty)" role="dialog" aria-modal="true" aria-label="@Title" tabindex="-1" @ref="_dialog">
+    <div class="dialog @(Wide ? "wide" : string.Empty) @Class" role="dialog" aria-modal="true" aria-label="@Title" tabindex="-1" @ref="_dialog">
         <div class="dialog-head">
             <h2>@Title</h2>
             <button type="button" class="btn ghost icon" aria-label="Close" @onclick="OnClose"><Icon Name="close" /></button>
@@ -30,6 +30,10 @@
 
     [Parameter]
     public RenderFragment? Foot { get; set; }
+
+    /// <summary>A class of the dialog's own (file-chooser, missing-packages), for its looks.</summary>
+    [Parameter]
+    public string Class { get; set; } = string.Empty;
 
     [Parameter]
     public EventCallback OnClose { get; set; }

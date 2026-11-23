@@ -41,6 +41,9 @@ public partial class FooterMarks : IAsyncDisposable
     [Inject]
     private NavigationManager Nav { get; set; } = default!;
 
+    [Inject]
+    private BetaState Beta { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -107,13 +110,11 @@ public partial class FooterMarks : IAsyncDisposable
             new("Turn off beta mode", "exclude", async () => _beta = (await Settings.SetBetaAsync(false)).On),
         ], e.ClientX, e.ClientY - 120);
 
-    private async Task LeaveNoteAsync()
+    // The note form is the one every right-click menu opens (BetaState, the classic betaNotes.ts openNote).
+    private Task LeaveNoteAsync()
     {
-        if (await Dialogs.AskTextAsync("Leave a note", "What happened, in your words (it goes in the beta log).", "Note") is { Length: > 0 } note)
-        {
-            await Settings.BetaNoteAsync(note);
-            _ = Notes.SayAsync("Noted.");
-        }
+        Beta.AskNote("Button: Beta");
+        return Task.CompletedTask;
     }
 
     /// <summary>Launch Claude (the classic claudeLaunch.ts): the one found; a choice when both are; the install help

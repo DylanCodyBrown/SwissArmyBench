@@ -11,10 +11,11 @@ import sys
 import time
 import urllib.request
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
-from playwright.sync_api import Browser, Page, sync_playwright
+from playwright.sync_api import Browser, Page, expect, sync_playwright
 
 from swissarmybench.settings import Settings
 
@@ -38,7 +39,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
         "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),
         "SWISSARMYBENCH_NO_BROWSER": "1",
-        # The file chooser falls back to the app's own typed path (no system dialog opens during a test).
+        # The file chooser falls back to the page's own picker (no system dialog opens during a test).
         "SWISSARMYBENCH_SYSTEM_DIALOGS": "off",
         "SWISSARMYBENCH_PROJECT_VENV": "off",
     }
@@ -88,6 +89,24 @@ def open_page(browser: Browser, info: dict[str, Any], path: str = "", dark: bool
     page.goto(f"http://127.0.0.1:{info['port']}/blazor/{path}#token={info['token']}")
     page.wait_for_selector(".nav-rail", timeout=FIRST_LOAD_MS)
     return page
+
+
+def choose_path(page: Page, path: Any, folder: bool = False, save: bool = False) -> None:
+    """A pick in the page's own file picker (no system dialog opens in a test: the classic fileChooser.ts
+    choosePage): the folder typed in its path box and Enter, then the file's row opened, Choose this
+    folder, or (Save as) the file's name typed and Save here."""
+    picker = page.locator(".dialog.file-chooser")
+    where = Path(path)
+    picker.get_by_label("Folder", exact=True).fill(str(where if folder else where.parent))
+    picker.get_by_label("Folder", exact=True).press("Enter")
+    expect(picker.locator(".file-crumb.current")).to_have_text(where.name if folder else where.parent.name)
+    if folder:
+        picker.get_by_role("button", name="Choose this folder").click()
+    elif save:
+        picker.get_by_label("File name").fill(where.name)
+        picker.get_by_role("button", name="Save here").click()
+    else:
+        picker.locator(".file-row", has_text=where.name).dblclick()
 
 
 # The accessibility check run in the page (axe-core is not among web/'s packages, so it is our own): every

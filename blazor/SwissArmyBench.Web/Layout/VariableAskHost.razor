@@ -1,0 +1,17 @@
+@* The one Add variable form asked for from anywhere (State/VariableAsks: an error note's Set it, a box's New
+   variable…). *@
+@implements IDisposable
+@inject VariableAsks Asks
+
+@if (Asks.Open is { } name)
+{
+    <VariableAddDialog Name="@name" OnClose="() => Asks.Answer(null)" OnAdded="added => Asks.Answer(added)" />
+}
+
+@code {
+    protected override void OnInitialized() => Asks.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Asks.Changed -= Redraw;
+}

@@ -64,6 +64,18 @@ public sealed class Commands
         await command.Run();
     }
 
+    /// <summary>A command of the page in front by its id, run when it can be (the desktop app's keys); false when the
+    /// page has none of that id or it cannot run now.</summary>
+    public async Task<bool> RunIdAsync(string id)
+    {
+        if (All().FirstOrDefault(c => c.Id == id) is not { WhyNot: null } command)
+        {
+            return false;
+        }
+        await RunAsync(command);
+        return true;
+    }
+
     private IEnumerable<PaletteCommand> Help() =>
     [
         new("help.palette", "Help", "Show every command", () => { Show("palette"); return Task.CompletedTask; }, "Ctrl+Shift+P"),
