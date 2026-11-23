@@ -957,3 +957,125 @@
   min-height: 0;
 }
 
+
+/* ===== The Excel canvas's page (Pages/Accounting): the classic page's canvas frame and tabs (grid.css .cv,
+   .tab-item, .card-grip), scoped to it ===== */
+.page-main > .xc-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+.cv.xc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+
+.xc-page .busy-host {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.xc .tab-item,
+.xc-templates .tab-item {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  max-width: 240px;
+  min-width: 90px;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+}
+
+.xc .tab-item:hover,
+.xc-templates .tab-item:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+
+.xc .tab-item.active,
+.xc-templates .tab-item.active {
+  margin-bottom: -1px;
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.xc .tab-label {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xc .tab-item .tab-close {
+  opacity: 0.6;
+}
+
+.xc .tab-item:hover .tab-close,
+.xc .tab-item.active .tab-close {
+  opacity: 1;
+}
+
+.xc .card-grip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: linear-gradient(135deg, transparent 0 55%, var(--border-strong) 55% 62%, transparent 62% 72%, var(--border-strong) 72% 79%, transparent 79%);
+  cursor: nwse-resize;
+  opacity: 0.7;
+  touch-action: none;
+}
+
+.xc .card-grip:hover,
+.xc .card-grip:focus-visible {
+  opacity: 1;
+}
+
+.xc-board {
+  touch-action: none;
+}
+
+.xc-dirty {
+  margin-left: 2px;
+  color: var(--accent);
+}
+
+.dialog:has(.xc-templates),
+.dialog:has(.xc-statements) {
+  width: min(1200px, calc(100vw - var(--rail-w) - 32px));
+  max-width: none;
+}
+
+/* The wide dialog keeps clear of the rail (the classic page's dialog.wide). */
+.dialog-shade:has(.xc-templates),
+.dialog-shade:has(.xc-statements) {
+  padding-left: var(--rail-w);
+}
+
+.xc-landing .hint {
+  margin: 0 0 8px;
+}

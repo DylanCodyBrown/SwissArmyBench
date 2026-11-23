@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 using SwissArmyBench.Web.Api;
+using SwissArmyBench.Web.Api.Accounting;
 using SwissArmyBench.Web.Api.Analyze;
 using SwissArmyBench.Web.Api.Apis;
 using SwissArmyBench.Web.Api.App;
@@ -77,6 +78,7 @@ public static class Program
         services.AddScoped<PowerBiClient>();
         services.AddScoped<PanelClient>();
         services.AddScoped<CodeAppClient>();
+        services.AddScoped<AccountingClient>();
     }
 
     private static void AddState(IServiceCollection services)

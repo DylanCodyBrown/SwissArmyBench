@@ -59,7 +59,8 @@ blazor/
   interop/                   one plain JavaScript file per widget, bundled by build.mjs (esbuild, web's packages)
     shell.js                 the session, the theme, storage, the clipboard, the live-updates socket
     canvas.js                the Canvas's pointer capture, keys, zoom and windows; the Widgets window's keys
-    files.js                 a file saved from an answer's bytes (Export to Power BI's zip)
+    files.js                 a file saved from an answer's bytes (Export to Power BI's zip, a built workbook)
+    workbook.js              the Excel canvas's built sheet (charts over their anchor cells), its pointer and keys
     agGrid.js                AG Grid: the infinite row model asking /grids/{id}/rows itself (rows never pass C#)
     mermaid.js               Mermaid: the ERD (strict security, the app's colours)
   SwissArmyBench.Web/
@@ -81,7 +82,7 @@ blazor/
 
 Addresses: `/blazor/` Home, `connections` (`?name=`, `?add=1`, `?kind=`, `?edit=`, `?find=1`), `catalog`,
 `environment?at=tables|variables|structures|settings|libraries`, `grids` (`?grid=`, `?table=`, `?new=1`), `erd`,
-`session`, `settings`, `canvas` (`?path=`), `perf` (`?canvas=`, `&build=&file=`), `widgets` (`?name=`), `x-scm`, `codeapp`, `x-<area>` (an extension's panel page); every other area of the rail is its one line and the classic link.
+`session`, `settings`, `canvas` (`?path=`), `perf` (`?canvas=`, `&build=&file=`), `widgets` (`?name=`), `x-scm`, `codeapp`, `workbook` (`?path=`, `?title=`), `x-<area>` (an extension's panel page); every other area of the rail is its one line and the classic link.
 
 ## Built better than the classic
 
@@ -134,6 +135,7 @@ No other package. The JavaScript widgets are the classic page's own npm packages
 | Source Control (Git extension) | done | VS Code's Source Control view and graph (`x-scm`) over GitHub sync, with VS Code's sizes, codicons, menus, keys and Modern colours: signed out, the welcome and a token or GitHub's device flow; Clone Repository and Connect Folder to Repository through VS Code's quick picks; each repository's message box (Ctrl+Enter), Commit and its menu (or Sync Changes), Merge Changes, Staged Changes and Changes with their counts, letters and colours, inline actions and right-click menus, list or tree; More Actions... with its submenus (what needs a local Git greyed out); VS Code's dialogs for discard and smart commit; the GRAPH's swimlanes (VS Code's scmHistory.ts in tested C#), refs, Incoming Changes, a commit's hover, its files and Load More...; Monaco's diff editor with its tab, Previous and Next Change (F7), Inline View, the files beside it; the side bar's sash. Settings' Team box gets the sign-in step as a component (TeamSignIn). |
 | Power BI (extension) | done | The rail area drawn from its panel data (`x-powerbi`: any extension area with a panel route is, through ExtensionAreaPage and the generic ExtensionPanel: lines, switches, actions and notes, choices, rows, a code to copy and its page, busy words, a dry run to review, a plug-in opened); Export to Power BI… from the ERD (an on extension's page action, PageActions): the tables with their ticks, why Power Query cannot read one, Include its rows, notes and Only works on your machine, the relationships that go (inactive) and the ones left out, the parameters, the Name; Use an existing report's pages (Choose file… or a dropped .pbix, .pbit or .pbip: its fields mapped, Leave it); Export into the project's powerbi/ (Open in Power BI Desktop or Show its folder) or a zip to save. |
 | Code App (Power Apps extension) | done | The rail's Code App while the app's modes list the code app type (`codeapp`): the strip (each tool with its version or Install, who is signed in, Sign in, the environment); New code app (name, environment, folder), Open code app…, Close; Project (facts, Data sources with Add a Dataverse table, Add a connector, Open as grid, Remove; the data notebook's Open and Use in app; the Files with New page and Show all files); Connectors (search, Refresh, a connector's operations explored with their inputs, bodies and outputs as trees, Add to app with its connection); Run live (the dev server's pane, Local Play, Stop); Push (what it runs, Push, Versions); Custom connector (its files first, then Make the connector); Runs (their lines as they come). A code app's files and its data notebook open in the classic Workbench window, whose TypeScript editor and Deno cells the Blazor pages do not have yet. |
+| Accounting (Excel canvas extension) | done | The rail's Workbook while a mode offers the Excel canvas (`workbook`): the project's designs and New workbook; the sheets as tabs (New sheet, F2 or a double-click renames in place, × asks when the sheet holds blocks); blocks on the cells (Block: a title, text, a table, a pivot, a chart; drag, the corner, the arrow keys, Delete), Properties (the block's or the sheet's freeze panes and print setup); Undo and Redo; Play (Out of date · Play) and each sheet as built with its charts; Download, Save (Ctrl+S), Export workbook.py; Templates (Import…, a cell picked and bound, Unbind) and Statements and invoices (Dry run, then Build, Register). The classic page has it as a Notebooks tab. |
 
 ## Decisions for the owner
 

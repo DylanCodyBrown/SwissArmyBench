@@ -34,6 +34,9 @@ public sealed class RailState : IDisposable
     /// <summary>The Code App area: the app's modes list the code app type (the Power Apps extension is on).</summary>
     public bool CodeAppOn { get; private set; }
 
+    /// <summary>The Workbook area: a mode of this app offers the Excel canvas (the Accounting extension is on).</summary>
+    public bool WorkbookOn { get; private set; }
+
     /// <summary>What the agent did that the user has not seen on the Session page yet.</summary>
     public int Unseen { get; private set; }
 
@@ -48,6 +51,7 @@ public sealed class RailState : IDisposable
             var modes = (await _app.ModesAsync()).Modes;
             CanvasOn = modes.Any(m => m.Canvases.Contains("streamlit"));
             CodeAppOn = modes.Any(m => m.Type == "codeapp");
+            WorkbookOn = modes.Any(m => m.Canvases.Contains("excel"));
         }
         catch (Api.ApiException)
         {

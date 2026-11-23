@@ -10,6 +10,7 @@ public static class Areas
 {
     public const string Canvas = "canvas";
     public const string CodeApp = "codeapp";
+    public const string Workbook = "workbook";
     public const string Widgets = "widgets";
     public const string Session = "session";
     public const string Extensions = "extensions";
@@ -27,6 +28,9 @@ public static class Areas
         new("notebooks", "Notebooks", "notebook", "notebooks", "/notebooks?kind=notebook&view=list", Kind: "notebook"),
         // The Power Apps extension's area: shown while the app's modes list the code app type.
         new(CodeApp, "Code App", "codeapp", "codeapp", "/workspace?open=codeapp"),
+        // The Accounting extension's Excel canvas (the classic page has it as a Notebooks tab): shown while a mode
+        // offers the excel canvas.
+        new(Workbook, "Workbook", "excel", "workbook", "/notebooks?kind=notebook&view=list"),
         new(Canvas, "Canvas", "page", "canvas", "/streamlit/canvas"),
         new(Widgets, "Widgets", "sliders", "widgets", "/streamlit/widget"),
         new("analyze", "Analyze", "sandbox", "analyze", "/workspace?view=analyze"),

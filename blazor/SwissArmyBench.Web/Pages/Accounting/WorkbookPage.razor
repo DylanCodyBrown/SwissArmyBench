@@ -1,0 +1,129 @@
+@page "/workbook"
+@* The Excel canvas (the classic excelCanvas.ts, the Accounting extension's plug-in on the Notebooks page): the
+   workbook's sheets as tabs, its blocks on a grid of cells with Properties beside them (the sheet's own when none is
+   selected), Play builds the workbook and shows each sheet as built, Download gives the .xlsx, Export workbook.py the
+   automation; Templates… and Statements and invoices…. With no design named: the landing. Logic in
+   WorkbookPage.razor.cs and WorkbookPage.Actions.cs. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<PageTitle>@Title</PageTitle>
+
+@if (_landing)
+{
+    <WorkbookLanding />
+}
+else
+{
+    <section class="area-page xc-page">
+        <div class="cv xc @(_playing ? "live" : null)" tabindex="-1" @onkeydown="KeyAsync" @ref="_root">
+            <div class="cv-top xc-top">
+                <SheetTabs Sheets="@(_state?.Design.Sheets ?? [])" Current="@Sheet?.Id" OnSelect="SelectSheetAsync" OnRename="RenameSheetAsync" OnRemove="RemoveSheetAsync" OnAdd="AddSheetAsync" />
+                <span class="cv-tools xc-tools">
+                    <span class="cv-mode" role="group" aria-label="Edit or play">
+                        <button type="button" class="btn cv-edit" aria-pressed="@(!_playing && !_building ? "true" : "false")" @onclick="Edit"><Icon Name="edit" /><span class="btn-label">Edit</span></button>
+                        <button type="button" class="btn @(Stale ? "cv-play cv-stale" : "cv-play")" title="Build the workbook from the open tables" aria-pressed="@(_playing || _building ? "true" : "false")" disabled="@(_building || _state is null)" @onclick="PlayAsync">
+                            <Icon Name="play" /><span class="btn-label">@(_building ? "Building…" : Stale ? "Out of date · Play" : "Play")</span>
+                        </button>
+                    </span>
+                    <span class="cv-group" role="group" aria-label="Undo and redo">
+                        <button type="button" class="btn ghost icon cv-undo" aria-label="Undo" title="Undo (Ctrl+Z)" disabled="@(_undo.Count == 0)" @onclick="UndoAsync"><Icon Name="undo" /></button>
+                        <button type="button" class="btn ghost icon cv-redo" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled="@(_redo.Count == 0)" @onclick="RedoAsync"><Icon Name="redo" /></button>
+                    </span>
+                    <button type="button" class="btn line xc-add" aria-label="Add a block" title="Add a block" aria-haspopup="menu" disabled="@_playing" @ref="_blocksButton" @onclick="BlocksMenuAsync">
+                        <Icon Name="plus" /><span class="btn-label">Block</span><Icon Name="down" />
+                    </button>
+                    <button type="button" class="btn ghost xc-more" aria-label="Templates and statements" title="Templates and statements" aria-haspopup="menu" @ref="_templatesButton" @onclick="TemplatesMenuAsync">
+                        <Icon Name="excel" /><span class="btn-label">Templates</span><Icon Name="down" />
+                    </button>
+                    <button type="button" class="btn xc-export" title="The automation that builds this workbook from data.py, without the app" @onclick="ExportAsync"><Icon Name="export" /><span class="btn-label">Export workbook.py</span></button>
+                    <button type="button" class="btn ghost xc-download" title="The workbook Play built (.xlsx)" disabled="@(_state?.Played != true)" @onclick="DownloadAsync"><Icon Name="import" /><span class="btn-label">Download</span></button>
+                    <button type="button" class="btn ghost xc-save" title="Save the design (Ctrl+S)" disabled="@(_state is null)" @onclick="() => SaveAsync()">
+                        <Icon Name="save" /><span class="btn-label">Save</span>
+                        @if (_state?.Unsaved == true)
+                        {
+                            <span class="xc-dirty" aria-label="Unsaved changes" title="Unsaved changes">●</span>
+                        }
+                    </button>
+                </span>
+            </div>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            @if (Notices.Count > 0)
+            {
+                <div class="cv-notes">
+                    @foreach (var said in Notices)
+                    {
+                        <ErrorNote Words="@said" Warning="true" />
+                    }
+                </div>
+            }
+            <Busy IsBusy="_building" Words="Building the workbook…">
+                <div class="xc-middle">
+                    @if (_state is null)
+                    {
+                        <div class="loading-block">@(_error is null ? "Opening the workbook…" : string.Empty)</div>
+                    }
+                    else if (_playing)
+                    {
+                        <div class="xc-played">
+                            @if (PlayedSheet is { } shown)
+                            {
+                                <SheetView Sheet="shown" Names="@(_state.Preview?.Names)" />
+                            }
+                            else
+                            {
+                                <p class="cv-empty">Play builds the workbook</p>
+                            }
+                        </div>
+                    }
+                    else if (Sheet is { } sheet)
+                    {
+                        <BlockBoard Sheet="sheet" Selected="@_selected" OnSelect="SelectAsync" OnPatch="PatchAsync" OnRemove="RemoveBlockAsync" />
+                        <aside class="xc-props" aria-label="Properties" @onkeydown:stopPropagation="true">
+                            @if (Selected is { } block)
+                            {
+                                <BlockProperties Block="block" Design="_state.Design" Tables="AllTables" OnPatch="p => PatchAsync(block.Id, p)" />
+                            }
+                            else
+                            {
+                                <SheetProperties Sheet="sheet" OnChange="p => SheetAsync(sheet.Id, p)" />
+                            }
+                        </aside>
+                    }
+                </div>
+            </Busy>
+        </div>
+    </section>
+}
+
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_templatesOpen)
+{
+    <TemplatesDialog OnClose="() => _templatesOpen = false" OnStatements="OpenStatements" />
+}
+@if (_statementsOpen)
+{
+    <StatementsDialog Template="@_statementsFor" OnClose="() => _statementsOpen = false" />
+}
+
+@code {
+    private ElementReference _root;
+    private bool _guarded;
+
+    private bool Stale => _playing && _state?.OutOfDate == true;
+
+    private PreviewSheet? PlayedSheet => _state?.Preview?.Sheets.FirstOrDefault(s => s.Name == Sheet?.Name) ?? _state?.Preview?.Sheets.FirstOrDefault();
+
+    private IReadOnlyList<string> AllTables => _openTables.Concat(_state?.Tables ?? []).Distinct().ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_landing && !_guarded && _state is not null)
+        {
+            _guarded = true;
+            await (await ModuleAsync()).InvokeVoidAsync("guardKeys", _root);
+        }
+    }
+}

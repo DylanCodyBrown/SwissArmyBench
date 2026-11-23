@@ -1,0 +1,69 @@
+@* The Excel canvas with no design named: the open project's workbook designs (its *.design.json at its top), and
+   New workbook (its title asked). No project: open one first. *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.Projects
+@inject ProjectsClient Projects
+@inject ApiClient Api
+@inject SwissArmyBench.Web.State.Dialogs Dialogs
+@inject NavigationManager Nav
+
+<section class="area-page">
+    <div class="cvs-landing xc-landing">
+        <h1>Workbook</h1>
+        <p class="hint">A workbook's design: its sheets, titles, tables, pivots and charts, built from the open tables.</p>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_loaded)
+        {
+            @if (_folder is null)
+            {
+                <p>Open a project first: its workbook designs are its files.</p>
+            }
+            @foreach (var file in _files)
+            {
+                <a class="cvs-landing-item" href="@($"workbook?path={Uri.EscapeDataString(file)}")"><Icon Name="excel" />@WorkbookPage.NameOf(file)</a>
+            }
+            <button type="button" class="btn primary" @onclick="NewAsync"><Icon Name="plus" /><span class="btn-label">New workbook</span></button>
+        }
+        else if (_error is null)
+        {
+            <div class="loading-block">Loading…</div>
+        }
+    </div>
+</section>
+
+@code {
+    private string? _folder;
+    private IReadOnlyList<string> _files = [];
+    private bool _loaded;
+    private Exception? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _folder = (await Projects.CurrentAsync()).Project?.Path;
+            if (_folder is not null)
+            {
+                var found = await Api.GetAsync<System.Text.Json.JsonElement>($"/folders?path={Uri.EscapeDataString(_folder)}&suffixes=.json");
+                _files = found.GetProperty("files").EnumerateArray()
+                    .Select(f => f.GetProperty("path").GetString() ?? string.Empty)
+                    .Where(p => p.EndsWith(".design.json", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _loaded = true;
+    }
+
+    private async Task NewAsync()
+    {
+        var title = await Dialogs.AskTextAsync("New workbook", "Its title: the first sheet's heading.", "Title", "Workbook", "Make");
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            Nav.NavigateTo($"workbook?title={Uri.EscapeDataString(title.Trim())}");
+        }
+    }
+}

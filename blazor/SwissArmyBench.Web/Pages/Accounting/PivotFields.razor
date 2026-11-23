@@ -1,0 +1,41 @@
+@* A pivot block's own fields (the classic excelCanvas.ts drawProps): its rows and columns (names), each value's
+   summary, column and format, and Value to add one more. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<label class="xc-field"><span>Rows</span>
+    <input type="text" class="xc-rows" spellcheck="false" value="@string.Join(", ", Block.Rows ?? [])" @onchange="@(e => SetAsync("rows", WorkbookRules.Split(e.Value as string ?? string.Empty)))" />
+</label>
+<label class="xc-field"><span>Columns</span>
+    <input type="text" class="xc-pivot-columns" spellcheck="false" value="@string.Join(", ", WorkbookRules.Names(Block))" @onchange="@(e => SetAsync("columns", WorkbookRules.Split(e.Value as string ?? string.Empty)))" />
+</label>
+@for (var i = 0; i < Values.Count; i++)
+{
+    var at = i;
+    var value = Values[at];
+    <div class="xc-value">
+        <WorkbookChoice Label="Summary" Value="@value.Agg" Options="WorkbookRules.Summaries" OnPick="@(v => ValueAsync(at, x => x with { Agg = v }))" />
+        <input type="text" class="xc-value-column" aria-label="Of" placeholder="column" spellcheck="false" value="@value.Column"
+               @onchange="@(e => ValueAsync(at, x => x with { Column = Blank((e.Value as string ?? string.Empty).Trim()) }))" />
+        <WorkbookChoice Label="Format" Value="@value.Format" Options="WorkbookRules.Formats" OnPick="@(v => ValueAsync(at, x => x with { Format = Blank(v) }))" />
+    </div>
+}
+<button type="button" class="btn ghost xc-add-value" @onclick="AddAsync"><Icon Name="plus" /><span class="btn-label">Value</span></button>
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkbookBlock Block { get; set; } = default!;
+
+    [Parameter]
+    public Func<IReadOnlyDictionary<string, object?>, Task> OnSet { get; set; } = default!;
+
+    private IReadOnlyList<PivotValue> Values => Block.Values is { Count: > 0 } v ? v : [new PivotValue()];
+
+    private static string? Blank(string value) => value.Length > 0 ? value : null;
+
+    private Task SetAsync(string key, object? value) => OnSet(new Dictionary<string, object?> { [key] = value });
+
+    private Task ValueAsync(int at, Func<PivotValue, PivotValue> change) =>
+        SetAsync("values", Values.Select((v, i) => i == at ? change(v) : v).ToList());
+
+    private Task AddAsync() => SetAsync("values", Values.Append(new PivotValue { Agg = "sum", Column = string.Empty }).ToList());
+}
