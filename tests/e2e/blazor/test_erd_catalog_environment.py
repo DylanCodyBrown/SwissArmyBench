@@ -1,5 +1,5 @@
-"""The Blazor front end's ERD (Find relationships among the made-up sample store, Add one, the Mermaid diagram,
-Delete), the Catalog's search and the Environment's tables with Open."""
+"""The Blazor front end's ERD (Find relationships among the made-up sample store, Add one, the Mermaid
+diagram, Delete), the Catalog's search and the Environment's tables with Open."""
 
 from __future__ import annotations
 
