@@ -13,6 +13,7 @@
             </div>
             <button type="button" class="btn primary" @onclick="FindAsync"><Icon Name="zoom" /> Find relationships</button>
             <button type="button" class="btn" disabled="@(!(_model?.CanUndo ?? false))" @onclick="UndoAsync"><Icon Name="undo" /> Undo</button>
+            <PageActions Page="erd" Context="_erd?.Tables" />
         </div>
     </header>
     <div class="area-page-body">

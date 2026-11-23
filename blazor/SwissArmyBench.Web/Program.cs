@@ -19,6 +19,7 @@ using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Api.Structures;
 using SwissArmyBench.Web.Api.Workbench;
+using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web;
@@ -81,5 +82,8 @@ public static class Program
         services.AddScoped<ConnectionColours>();
         services.AddScoped<ConnectionSlots>();
         services.AddScoped<BetaState>();
+        // The page plug-ins: an extension's page (Power BI export, Source Control, Code App) registered under the id its
+        // PAGE_ACTIONS names (Components/PagePlugins.cs).
+        services.AddSingleton(new PagePlugins());
     }
 }

@@ -6,4 +6,5 @@ public sealed record ModeInfo(
     string Name,
     IReadOnlyList<string> Canvases,
     string Title = "",
-    string Explain = "");
+    string Explain = "",
+    IReadOnlyList<PageAction>? PageActions = null);
