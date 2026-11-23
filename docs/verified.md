@@ -6277,3 +6277,12 @@ in one process in Chromium 413 passed, 15 skipped, 2 failed, both passing when t
 the sandbox list's sort test ran across midnight (its tables' made times on two days), and the Play-menu share test
 fails only after the whole suite. The built wheels pass tools/smoke_install.py on a fresh install. Not checked here:
 Windows (the preview photographer's hidden-window way, the update's restart on the owner's machine).
+
+## 2026-11-23: the browser suite clean end to end after the craft review's fixes
+
+- The whole browser suite in one process (Chromium): **415 passed, 0 failed**, 15 skipped, 25 minutes.
+- The runs before it found three flickering tests and one real race, all fixed: Save as clicked before the file
+  chooser reached its folder (the test waits for the folder's crumb); code typed key by key changed by completion
+  (inserted whole); and, in the app, a DAX cell's default dataset read before the page's first load of the
+  dataset names (it waits for that load now: the agent's `cell.addDax` on a page just opened).
+- The quick suite before these: 5,840 passed, 0 failed.
