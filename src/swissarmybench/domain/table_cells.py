@@ -392,6 +392,60 @@ def _numbered(cells: Sequence[PlanCell], next_number: int, give: bool) -> tuple[
     return out, highest + 1
 
 
+@dataclass
+class _Group:
+    """What arrange works out about one document, phase by phase (the cells numbered, each table's maker,
+    what blocks a move, the order), read by the phases after."""
+
+    numbered: list[PlanCell]
+    by_name: dict[str, TableSpec]
+    transformations: dict[str, PlanCell]  # each table's own transformations cell, by its name
+    names: list[str]  # the tables of the group: those the document holds, then (moving) the open ones
+    users: list[PlanCell]  # the user's own cells
+    known: dict[int, Facts]  # each user's cell's facts, by its id
+    places: dict[int, int]  # each user's cell's place among them, by its id
+    variables: dict[str, str]  # each table's Python name
+    table_of: dict[str, str]  # a Python name -> its table
+    next_number: int
+    makers: dict[str, PlanCell | None] = field(default_factory=dict)
+    blocked: dict[str, str] = field(default_factory=dict)  # a table that stays put, and why
+    needs_tables: dict[str, list[str]] = field(default_factory=dict)  # the tables each is made from
+    imports_for: dict[str, list[PlanCell]] = field(default_factory=dict)  # the import cells its maker needs
+    owner: dict[str, str] = field(default_factory=dict)  # the first table its maker makes
+    order: list[str] = field(default_factory=list)
+    table_numbers: dict[str, int | None] = field(default_factory=dict)  # each transformations cell's number
+
+    def facts_of(self, cell: PlanCell) -> Facts:
+        return self.known[id(cell)]
+
+    def take_number(self) -> int:
+        self.next_number += 1
+        return self.next_number - 1
+
+    def code_for(self, name: str) -> str:
+        spec = self.by_name.get(name)
+        if spec is None:
+            return self.transformations[name].source
+        return spec.code if self.makers[name] is not None else spec.loaded
+
+    def note_for(self, name: str) -> str | None:
+        maker = self.makers[name]
+        if maker is None:
+            return None
+        at = f"at @cell{maker.number}" if maker.number is not None else "in the script's main code"
+        if name in self.blocked:
+            reason = self.blocked[name]
+            if reason.startswith("it is in"):
+                return f"{name} is made in the script's main code"
+            return f"{name} is made {at} ({reason})"
+        return f"{name} is made {at}" if self.owner[name] != name else None
+
+    def transformations_cell(self, name: str, grouped: bool) -> PlanCell:
+        old = self.transformations.get(name)
+        number = old.number if old is not None else self.take_number()
+        return PlanCell(number, "code", self.code_for(name), "transformations", name, grouped)
+
+
 def arrange(
     cells: Sequence[PlanCell],
     specs: Sequence[TableSpec],
@@ -406,9 +460,43 @@ def arrange(
     is added, taken away or moved (the user is typing): only the tables' cells follow the grid, and
     each of the user's cells learns its uses line. `headings` False: no heading cells (a script's group
     is a region of the file, not cells).
+
+    In phases over one record (_Group): number the cells and read them, find each table's maker, decide
+    what keeps a table from moving, order the tables, lay the cells out, then each cell's uses line.
     """
+    group = _group_of(cells, specs, next_number, move)
+    _find_makers(group)
+    for name in group.names:
+        reason = _why_it_stays(group, name)
+        if reason is not None:
+            group.blocked[name] = reason
+    _stay_with_what_stays(group)
+    _order_tables(group)
+    if not move:
+        out = _in_place(group)
+    elif group.names:
+        out = _moved(group, headings)
+    else:
+        out = list(group.users)
+    lines = [
+        TableLine(
+            name=name,
+            cell=group.table_numbers.get(name),
+            maker=group.makers[name].number if group.makers[name] is not None else None,  # type: ignore[union-attr]
+            moved=name not in group.blocked,
+            note=group.note_for(name),
+            steps=group.by_name[name].steps if name in group.by_name else None,
+            open=name in group.by_name,
+            code=group.code_for(name).rstrip("\n"),
+        )
+        for name in (group.order if move else group.names)
+    ]
+    return Arrangement(_with_uses(group, out), lines, group.next_number)
+
+
+def _group_of(cells: Sequence[PlanCell], specs: Sequence[TableSpec], next_number: int, move: bool) -> _Group:
+    """The cells numbered and read: each table's transformations cell, the tables, the user's own cells."""
     numbered, next_number = _numbered(cells, next_number, give=move)
-    by_name = {spec.name: spec for spec in specs}
     transformations: dict[str, PlanCell] = {}
     for cell in numbered:
         if cell.role == "transformations" and cell.table and cell.table not in transformations:
@@ -416,199 +504,194 @@ def arrange(
     names = list(transformations)
     if move:
         names += [spec.name for spec in specs if spec.name not in transformations]
-    old_headings = {c.table: c for c in numbered if c.role == "table" and c.table}
-    top = next((c for c in numbered if c.role == "tables"), None)
     app = ("tables", "table", "transformations")
     users = [c for c in numbered if c.role not in app]
     if move:
         users = [replace(c, role="", table=None, grouped=False) for c in users]
-    known = {id(c): facts(split_uses(c.source)[1]) if c.kind == "code" else Facts() for c in users}
-    places = {id(c): i for i, c in enumerate(users)}
-
-    def cell_facts(cell: PlanCell) -> Facts:
-        return known[id(cell)]
-
     variables = {name: variable_name(name) for name in names}
-    table_of = {variable: name for name, variable in variables.items()}
+    return _Group(
+        numbered=numbered,
+        by_name={spec.name: spec for spec in specs},
+        transformations=transformations,
+        names=names,
+        users=users,
+        known={id(c): facts(split_uses(c.source)[1]) if c.kind == "code" else Facts() for c in users},
+        places={id(c): i for i, c in enumerate(users)},
+        variables=variables,
+        table_of={variable: name for name, variable in variables.items()},
+        next_number=next_number,
+        needs_tables={name: [] for name in names},
+        imports_for={name: [] for name in names},
+    )
 
-    # The maker: the first of the user's cells that gives the name a value without reading it.
-    makers: dict[str, PlanCell | None] = {}
-    for name in names:
-        variable = variables[name]
-        binders = [c for c in users if c.kind == "code" and variable in cell_facts(c).made]
-        fresh = [c for c in binders if variable not in cell_facts(c).needs]
+
+def _find_makers(group: _Group) -> None:
+    """The maker: the first of the user's cells that gives the name a value without reading it."""
+    for name in group.names:
+        variable = group.variables[name]
+        binders = [c for c in group.users if c.kind == "code" and variable in group.facts_of(c).made]
+        fresh = [c for c in binders if variable not in group.facts_of(c).needs]
         found = fresh or binders
-        makers[name] = found[0] if found else None
+        group.makers[name] = found[0] if found else None
 
-    blocked: dict[str, str] = {}
-    needs_tables: dict[str, list[str]] = {name: [] for name in names}
-    imports_for: dict[str, list[PlanCell]] = {name: [] for name in names}
-    for name in names:
-        maker = makers[name]
-        if maker is None:
+
+def _why_it_stays(group: _Group, name: str) -> str | None:
+    """Why a table's maker cannot move into the group (None: it can), noting the tables it is made from
+    and the import cells it needs on the way."""
+    maker = group.makers[name]
+    if maker is None:
+        return None
+    if maker.fixed:
+        return "it is in the script's main code"
+    missing: list[str] = []
+    mine = group.facts_of(maker)
+    for need in mine.needs:
+        if need in group.table_of:
+            other = group.table_of[need]
+            if other != name and group.makers[other] is not maker:
+                group.needs_tables[name].append(other)
             continue
-        if maker.fixed:
-            blocked[name] = "it is in the script's main code"
+        providers = [c for c in group.users if c is not maker and need in group.facts_of(c).made]
+        if not providers:
+            continue  # a built-in, a connection's name, something the kernel already holds
+        above = [c for c in providers if group.places[id(c)] < group.places[id(maker)]]
+        provider = above[-1] if above else None
+        if provider is not None and group.facts_of(provider).imports_only and not provider.fixed:
+            group.imports_for[name].append(provider)
             continue
-        missing: list[str] = []
-        mine = cell_facts(maker)
-        for need in mine.needs:
-            if need in table_of:
-                other = table_of[need]
-                if other != name and makers[other] is not maker:
-                    needs_tables[name].append(other)
-                continue
-            providers = [c for c in users if c is not maker and need in cell_facts(c).made]
-            if not providers:
-                continue  # a built-in, a connection's name, something the kernel already holds
-            above = [c for c in providers if places[id(c)] < places[id(maker)]]
-            provider = above[-1] if above else None
-            if provider is not None and cell_facts(provider).imports_only and not provider.fixed:
-                imports_for[name].append(provider)
-                continue
-            made_there = [t for t in names if provider is not None and makers[t] is provider]
-            if made_there:
-                needs_tables[name].append(made_there[0])
-            else:
-                missing.append(need)
-        if missing:
-            blocked[name] = f"it needs {_names_list(missing)}"
+        made_there = [t for t in group.names if provider is not None and group.makers[t] is provider]
+        if made_there:
+            group.needs_tables[name].append(made_there[0])
+        else:
+            missing.append(need)
+    if missing:
+        return f"it needs {_names_list(missing)}"
+    return _set_above(group, name, maker, mine)
+
+
+def _set_above(group: _Group, name: str, maker: PlanCell, mine: Facts) -> str | None:
+    """Another cell above that sets the same name would then run after this one."""
+    for made in mine.made:
+        if made in group.table_of and group.makers[group.table_of[made]] is maker:
             continue
-        # Another cell above that sets the same name would then run after this one.
-        for made in mine.made:
-            if made in table_of and makers[table_of[made]] is maker:
-                continue
-            clash = next(
-                (
-                    c
-                    for c in users
-                    if c is not maker
-                    and places[id(c)] < places[id(maker)]
-                    and made in cell_facts(c).made
-                    and not cell_facts(c).imports_only
-                ),
-                None,
-            )
-            if clash is not None:
-                where = f"@cell{clash.number}" if clash.number is not None else "the script's main code"
-                blocked[name] = f"{made} is also set at {where}"
-                break
-    # A table made from one that stays put stays put too.
+        clash = next(
+            (
+                c
+                for c in group.users
+                if c is not maker
+                and group.places[id(c)] < group.places[id(maker)]
+                and made in group.facts_of(c).made
+                and not group.facts_of(c).imports_only
+            ),
+            None,
+        )
+        if clash is not None:
+            where = f"@cell{clash.number}" if clash.number is not None else "the script's main code"
+            return f"{made} is also set at {where}"
+    return None
+
+
+def _stay_with_what_stays(group: _Group) -> None:
+    """A table made from one that stays put stays put too."""
     changed = True
     while changed:
         changed = False
-        for name in names:
-            if name in blocked:
+        for name in group.names:
+            if name in group.blocked:
                 continue
-            stuck = [other for other in needs_tables[name] if other in blocked]
+            stuck = [other for other in group.needs_tables[name] if other in group.blocked]
             if stuck:
-                blocked[name] = f"it needs {_names_list(stuck)}"
+                group.blocked[name] = f"it needs {_names_list(stuck)}"
                 changed = True
 
-    # Tables that share a maker: the first holds the cell, the others come after it.
-    owner: dict[str, str] = {}
-    for name in names:
-        maker = makers[name]
-        first = next((n for n in names if maker is not None and makers[n] is maker), name)
-        owner[name] = first
-        if first != name and first not in needs_tables[name]:
-            needs_tables[name].append(first)
 
-    # Each table after the tables it is made from.
-    order: list[str] = []
-    waiting = list(names)
+def _order_tables(group: _Group) -> None:
+    """Tables that share a maker: the first holds the cell, the others come after it; then each table
+    after the tables it is made from."""
+    for name in group.names:
+        maker = group.makers[name]
+        first = next((n for n in group.names if maker is not None and group.makers[n] is maker), name)
+        group.owner[name] = first
+        if first != name and first not in group.needs_tables[name]:
+            group.needs_tables[name].append(first)
+    waiting = list(group.names)
     while waiting:
-        ready = [n for n in waiting if all(o in order or o not in waiting for o in needs_tables[n])]
+        ready = [
+            n for n in waiting if all(o in group.order or o not in waiting for o in group.needs_tables[n])
+        ]
         chosen = ready[0] if ready else waiting[0]
-        order.append(chosen)
+        group.order.append(chosen)
         waiting.remove(chosen)
 
-    def code_for(name: str) -> str:
-        spec = by_name.get(name)
-        if spec is None:
-            return transformations[name].source
-        return spec.code if makers[name] is not None else spec.loaded
 
-    def note_for(name: str) -> str | None:
-        maker = makers[name]
-        if maker is None:
-            return None
-        at = f"at @cell{maker.number}" if maker.number is not None else "in the script's main code"
-        if name in blocked:
-            reason = blocked[name]
-            if reason.startswith("it is in"):
-                return f"{name} is made in the script's main code"
-            return f"{name} is made {at} ({reason})"
-        return f"{name} is made {at}" if owner[name] != name else None
-
+def _in_place(group: _Group) -> list[PlanCell]:
+    """Nothing moved (the user is typing): only each table's cell follows the grid."""
     out: list[PlanCell] = []
-
-    def take_number() -> int:
-        nonlocal next_number
-        next_number += 1
-        return next_number - 1
-
-    def transformations_cell(name: str, grouped: bool) -> PlanCell:
-        old = transformations.get(name)
-        number = old.number if old is not None else take_number()
-        return PlanCell(number, "code", code_for(name), "transformations", name, grouped)
-
-    table_numbers: dict[str, int | None] = {}
-    if not move:
-        for cell in numbered:
-            if cell.role == "transformations" and cell.table and cell.table in transformations:
-                kept = cell
-                if transformations[cell.table] is cell:
-                    kept = replace(cell, source=code_for(cell.table))
-                table_numbers[cell.table] = cell.number
-                out.append(kept)
-            else:
-                out.append(cell)
-    elif names:
-        moving_makers = {id(makers[n]) for n in names if makers[n] is not None and n not in blocked}
-        moving_imports: list[PlanCell] = []
-        for name in order:
-            if name not in blocked:
-                for cell in imports_for[name]:
-                    if all(cell is not c for c in moving_imports):
-                        moving_imports.append(cell)
-        moving_imports.sort(key=lambda c: places[id(c)])
-        if headings:
-            top_number = top.number if top else take_number()
-            out.append(PlanCell(top_number, "markdown", TABLES_HEADING, "tables", None, True))
-        out += [replace(c, role="imports", grouped=True) for c in moving_imports]
-        for name in order:
-            if headings:
-                note = note_for(name)
-                heading = old_headings.get(name)
-                text = f"## {name}" + (f"\n\n{note}" if note else "")
-                number = heading.number if heading else take_number()
-                out.append(PlanCell(number, "markdown", text, "table", name, True))
-            if name in blocked:
-                continue
-            maker = makers[name]
-            if maker is not None and owner[name] == name:
-                out.append(replace(maker, role="maker", table=name, grouped=True))
-            cell = transformations_cell(name, True)
-            table_numbers[name] = cell.number
+    for cell in group.numbered:
+        if cell.role == "transformations" and cell.table and cell.table in group.transformations:
+            kept = cell
+            if group.transformations[cell.table] is cell:
+                kept = replace(cell, source=group.code_for(cell.table))
+            group.table_numbers[cell.table] = cell.number
+            out.append(kept)
+        else:
             out.append(cell)
-        moved = moving_makers | {id(c) for c in moving_imports}
-        for cell in users:
-            if id(cell) in moved:
-                continue
-            made_here = [n for n in order if makers[n] is cell]
-            out.append(replace(cell, role="maker", table=made_here[0]) if made_here else cell)
-            for name in made_here:
-                if name in blocked:
-                    placed = transformations_cell(name, False)
-                    table_numbers[name] = placed.number
-                    out.append(placed)
-    else:
-        out = list(users)
+    return out
 
-    # The uses line: on the user's own cells only (not a maker, not the app's cells, not Markdown).
-    links = {variables[name]: table_numbers.get(name) for name in names}
-    maker_ids = {id(m) for m in makers.values() if m is not None}
+
+def _moved(group: _Group, headings: bool) -> list[PlanCell]:
+    """The Tables group at the top (its heading, the import cells its makers need, then each table: its
+    heading, its maker, its transformations), then the user's other cells; a table that stays put keeps
+    its transformations cell after its maker."""
+    makers, blocked = group.makers, group.blocked
+    moving_makers = {id(makers[n]) for n in group.names if makers[n] is not None and n not in blocked}
+    moving_imports: list[PlanCell] = []
+    for name in group.order:
+        if name not in blocked:
+            for cell in group.imports_for[name]:
+                if all(cell is not c for c in moving_imports):
+                    moving_imports.append(cell)
+    moving_imports.sort(key=lambda c: group.places[id(c)])
+    out: list[PlanCell] = []
+    if headings:
+        top = next((c for c in group.numbered if c.role == "tables"), None)
+        top_number = top.number if top else group.take_number()
+        out.append(PlanCell(top_number, "markdown", TABLES_HEADING, "tables", None, True))
+    out += [replace(c, role="imports", grouped=True) for c in moving_imports]
+    old_headings = {c.table: c for c in group.numbered if c.role == "table" and c.table}
+    for name in group.order:
+        if headings:
+            note = group.note_for(name)
+            heading = old_headings.get(name)
+            text = f"## {name}" + (f"\n\n{note}" if note else "")
+            number = heading.number if heading else group.take_number()
+            out.append(PlanCell(number, "markdown", text, "table", name, True))
+        if name in blocked:
+            continue
+        maker = makers[name]
+        if maker is not None and group.owner[name] == name:
+            out.append(replace(maker, role="maker", table=name, grouped=True))
+        cell = group.transformations_cell(name, True)
+        group.table_numbers[name] = cell.number
+        out.append(cell)
+    moved = moving_makers | {id(c) for c in moving_imports}
+    for cell in group.users:
+        if id(cell) in moved:
+            continue
+        made_here = [n for n in group.order if makers[n] is cell]
+        out.append(replace(cell, role="maker", table=made_here[0]) if made_here else cell)
+        for name in made_here:
+            if name in blocked:
+                placed = group.transformations_cell(name, False)
+                group.table_numbers[name] = placed.number
+                out.append(placed)
+    return out
+
+
+def _with_uses(group: _Group, out: list[PlanCell]) -> list[PlanCell]:
+    """The uses line: on the user's own cells only (not a maker, not the app's cells, not Markdown)."""
+    links = {group.variables[name]: group.table_numbers.get(name) for name in group.names}
+    maker_ids = {id(m) for m in group.makers.values() if m is not None}
     final: list[PlanCell] = []
     for cell in out:
         own = cell.role == "" and id(cell) not in maker_ids and not cell.fixed
@@ -619,21 +702,7 @@ def arrange(
         else:
             cell = replace(cell, uses=None)
         final.append(cell)
-
-    lines = [
-        TableLine(
-            name=name,
-            cell=table_numbers.get(name),
-            maker=makers[name].number if makers[name] is not None else None,  # type: ignore[union-attr]
-            moved=name not in blocked,
-            note=note_for(name),
-            steps=by_name[name].steps if name in by_name else None,
-            open=name in by_name,
-            code=code_for(name).rstrip("\n"),
-        )
-        for name in (order if move else names)
-    ]
-    return Arrangement(final, lines, next_number)
+    return final
 
 
 # ===== scripts: the same in a .py file =====
