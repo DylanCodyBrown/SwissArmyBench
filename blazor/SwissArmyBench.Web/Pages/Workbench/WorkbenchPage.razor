@@ -15,12 +15,7 @@
                 <Icon Name="project" /> @project.Name@(project.Dirty ? " ●" : string.Empty)
             </button>
         }
-        <h1 class="wb-doc-title" title="@(Front?.Path ?? Front?.Title ?? string.Empty)"><Icon Name="@(IsNotebooks ? "notebook" : "code")" /> @Title
-            @if (Front?.Dirty == true)
-            {
-                <span class="dirty-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes">●</span>
-            }
-        </h1>
+        <h1 class="wb-doc-title"><Icon Name="@(IsNotebooks ? "notebook" : "code")" /> @(IsNotebooks ? "Notebooks" : "Scripts")</h1>
         <div class="area-page-actions" role="toolbar" aria-label="Document">
             <button type="button" class="btn small" disabled="@(Front is null && Project.Current is null)" title="@(Front is null && Project.Current is null ? NothingSaves : "Save (Ctrl+S)")" @onclick="SaveFrontAsync"><Icon Name="save" /> Save</button>
             <button type="button" class="btn small" disabled="@(Front is null)" title="@(Front is null ? NothingSaves : "Save as (Ctrl+Shift+S)")" @onclick="() => SaveAsAsync(Front)"><Icon Name="save" /> Save as…</button>

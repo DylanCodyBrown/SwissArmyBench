@@ -13,8 +13,8 @@ public partial class WorkbenchPage
 {
     private async Task ExportDataAsync()
     {
-        var data = _documents.FirstOrDefault(d => d.Path is not null && System.IO.Path.GetFileName(d.Path) == "data.ipynb");
-        var folder = data?.Path is { } path ? System.IO.Path.GetDirectoryName(path) : Project.Current?.Path;
+        var data = _documents.FirstOrDefault(d => d.Path is not null && FilePaths.Name(d.Path) == "data.ipynb");
+        var folder = data?.Path is { } path ? FilePaths.Folder(path) : Project.Current?.Path;
         if (folder is null)
         {
             throw new InvalidOperationException("No project is open (a folder with a data.ipynb).");
@@ -36,8 +36,8 @@ public partial class WorkbenchPage
         {
             return;
         }
-        var name = System.IO.Path.GetFileName(project.Path);
-        if (await Files.ChooseAsync("save", $"Copy {name} to", System.IO.Path.GetDirectoryName(project.Path), "project") is not { } target)
+        var name = FilePaths.Name(project.Path);
+        if (await Files.ChooseAsync("save", $"Copy {name} to", FilePaths.Folder(project.Path), "project") is not { } target)
         {
             return;
         }
@@ -61,9 +61,9 @@ public partial class WorkbenchPage
     private async Task ExportDocumentAsync(OpenDocument doc, string format)
     {
         var ending = format == "notebook" ? ".ipynb" : ".py";
-        var stem = Regex.Replace(System.IO.Path.GetFileNameWithoutExtension(doc.Title).Trim(), @"\W+", "_").Trim('_').ToLowerInvariant();
+        var stem = Regex.Replace(FilePaths.Stem(doc.Title).Trim(), @"\W+", "_").Trim('_').ToLowerInvariant();
         var suggested = $"{(stem.Length == 0 ? "job" : stem)}_automation{ending}";
-        var start = doc.Path is null ? (await Workbench.HomeAsync()).Folder : System.IO.Path.GetDirectoryName(doc.Path);
+        var start = doc.Path is null ? (await Workbench.HomeAsync()).Folder : FilePaths.Folder(doc.Path);
         var title = format == "notebook" ? "Export as one notebook" : "Export as one Python script";
         if (await Files.ChooseAsync("save", title, start, "file", name: suggested) is not { } path)
         {

@@ -88,7 +88,7 @@ def test_compare_import_and_new_environment(browser: Browser, server: dict[str, 
     page.click(".wb-script-editor .monaco-editor .view-lines")
     page.keyboard.press("End")
     page.keyboard.type("\nmine = 2")
-    expect(page.locator(".wb-doc-title .dirty-dot")).to_be_visible()
+    expect(page.locator(".wb-tab.active .wb-tab-dirty")).to_have_text("●")
     call(server, "POST", "/workbench/save", {"path": str(script), "text": "value = 3\n", "force": True})
     bar = page.locator(".wb-elsewhere")
     expect(bar).to_contain_text("Changed elsewhere.", timeout=30_000)

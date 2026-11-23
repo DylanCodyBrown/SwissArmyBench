@@ -6,7 +6,7 @@
     @foreach (var file in Places.GroupBy(p => p.Path ?? Current ?? string.Empty))
     {
         <section class="ide-results-file">
-            <strong title="@file.Key"><Icon Name="code" /> @System.IO.Path.GetFileName(file.Key)<span class="hint"> @file.Count()</span></strong>
+            <strong title="@file.Key"><Icon Name="code" /> @FilePaths.Name(file.Key)<span class="hint"> @file.Count()</span></strong>
             @foreach (var place in file)
             {
                 <button type="button" class="ide-result" role="treeitem" data-line="@place.Line" @onclick="() => OnGo.InvokeAsync(place)">

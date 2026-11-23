@@ -61,7 +61,7 @@
             var recent = Recent
                 .Where(r => r.Exists && r.Path.EndsWith(Extension, StringComparison.OrdinalIgnoreCase))
                 .Where(r => project.All(p => p.Path != r.Path))
-                .Select(r => (Name: System.IO.Path.GetFileName(r.Path), r.Path, Where: "Recent"));
+                .Select(r => (Name: FilePaths.Name(r.Path), r.Path, Where: "Recent"));
             return project.Concat(recent).ToList();
         }
     }

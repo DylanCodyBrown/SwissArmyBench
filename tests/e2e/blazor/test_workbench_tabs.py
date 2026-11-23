@@ -35,7 +35,7 @@ def test_documents_are_tabs_that_split_and_close(browser: Browser, server: dict[
 
     # A click on a tab brings it to the front, its cells as they were.
     page.locator(".wb-tab", has_text="first.ipynb").click()
-    expect(page.locator(".wb-doc-title")).to_contain_text("first.ipynb")
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("first.ipynb")
 
     # Split right: the tab moves to a new group beside its own.
     page.click(".wb-group.focused button[aria-label='Document menu']")

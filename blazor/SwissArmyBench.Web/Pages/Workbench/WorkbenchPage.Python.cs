@@ -84,7 +84,7 @@ public partial class WorkbenchPage
         await UsePythonAsync(doc, picked);
     }
 
-    private static string? FolderOf(OpenDocument doc) => doc.Path is { } path ? System.IO.Path.GetDirectoryName(path) : null;
+    private static string? FolderOf(OpenDocument doc) => doc.Path is { } path ? FilePaths.Folder(path) : null;
 
     private async Task UsePythonAsync(OpenDocument doc, string python)
     {

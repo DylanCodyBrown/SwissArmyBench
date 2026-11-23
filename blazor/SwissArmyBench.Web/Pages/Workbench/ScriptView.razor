@@ -18,7 +18,7 @@
         </div>
         <div class="wb-console-body">
             <OutputArea Outputs="_console.Outputs" ErrorDetail="_console.ErrorDetail" Asking="_console.Asking" OnAnswer="AnswerAsync"
-                        Document="@(Path is null ? "the script" : System.IO.Path.GetFileName(Path))" OnFix="FixAsync" OnGoTo="GoToAsync" />
+                        Document="@(Path is null ? "the script" : FilePaths.Name(Path))" OnFix="FixAsync" OnGoTo="GoToAsync" />
         </div>
         <form class="wb-console-line" @onsubmit="RunLineAsync" @onsubmit:preventDefault="true">
             <span aria-hidden="true">&gt;&gt;&gt;</span>

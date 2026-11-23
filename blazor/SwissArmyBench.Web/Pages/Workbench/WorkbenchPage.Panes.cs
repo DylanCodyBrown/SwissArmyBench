@@ -68,7 +68,7 @@ public partial class WorkbenchPage
         {
             return;
         }
-        var stem = System.IO.Path.GetFileNameWithoutExtension(path);
+        var stem = FilePaths.Stem(path);
         var name = NotNamePart().Replace(stem, "_").Trim('_') is { Length: > 0 } plain ? plain : "table";
         await GuardAsync(async () =>
         {
