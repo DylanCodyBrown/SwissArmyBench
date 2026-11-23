@@ -27,6 +27,10 @@
     <NotebookOutline Flow="_flow" Selected="_selected?.Number" Tables="_kept.Cells.Any(c => c.IsAppCell)" OnGo="GoToNumberAsync" OnTables="GoToTablesAsync" OnClose="ToggleOutlineAsync" />
 }
 </div>
+@if (_snippet)
+{
+    <SwissArmyBench.Web.Pages.Workbench.Blades.SnippetDialog Language="@SnippetLanguage" OnClose="() => _snippet = false" OnInsert="SnippetInsertAsync" />
+}
 @if (_menu is { } menu)
 {
     <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />

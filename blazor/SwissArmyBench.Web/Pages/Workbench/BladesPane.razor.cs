@@ -18,6 +18,24 @@ public partial class BladesPane
     private bool _importing;
     private bool _folders;
     private ShownMenu? _menu;
+    private BladeSummary? _snippet;
+
+    /// <summary>Insert: a snippet's form first (its placeholders filled by the server's rules), else the blade's line.</summary>
+    private Task InsertAsync(BladeSummary blade)
+    {
+        if (blade.Language is { Length: > 0 })
+        {
+            _snippet = blade;
+            return Task.CompletedTask;
+        }
+        return OnInsert.InvokeAsync(LineOf(blade));
+    }
+
+    private async Task SnippetInsertAsync(string text)
+    {
+        _snippet = null;
+        await OnInsert.InvokeAsync(text);
+    }
 
     [Inject]
     private SwissArmyBench.Web.Api.Blades.BladesClient Blades { get; set; } = default!;

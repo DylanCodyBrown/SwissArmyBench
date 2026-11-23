@@ -61,3 +61,22 @@ def test_a_starter_is_copied_as_your_own(browser: Browser, server: dict[str, Any
     expect(page.locator(".wb-tab.active")).to_contain_text("Power BI list datasets", timeout=15_000)
     expect(page.locator(".blade-ide .ide-readonly")).to_have_count(0)
     page.close()
+
+
+def test_insert_a_snippet_fills_its_placeholders(browser: Browser, server: dict[str, Any]) -> None:
+    path = str(server["tmp"] / "workbench" / "snippets.ipynb")
+    cells = [{"kind": "dax", "source": "", "number": 1}]
+    call(server, "POST", "/workbench/save", {"path": path, "cells": cells, "next_cell": 2})
+    page = open_page(browser, server, f"notebooks?path={path}")
+    cell = page.locator(".wb-cell").first
+    cell.locator("button[aria-label='More actions']").click()
+    page.locator(".context-menu [role=menuitem]:has-text('Insert a snippet…')").click()
+    picker = page.locator(".dialog", has_text="Insert a DAX snippet")
+    picker.locator("input[aria-label='Search snippets']").fill("date table checks")
+    picker.locator(".snippet-choice").first.click()
+    form = page.locator(".dialog", has_text="DAX date table checks")
+    form.locator("input[aria-label='Date table']").fill("MadeUpDates")
+    form.locator("input[aria-label='Date column']").fill("Day")
+    form.locator("button:has-text('Insert')").click()
+    expect(cell.locator(".view-lines")).to_contain_text("MadeUpDates", timeout=15_000)
+    page.close()

@@ -11,4 +11,5 @@ public sealed record BladeSummary(
     IReadOnlyList<string>? Tags = null,
     bool Pinned = false,
     string? Source = null,
-    string? Pack = null);
+    string? Pack = null,
+    string? Language = null);

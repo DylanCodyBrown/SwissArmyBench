@@ -16,6 +16,28 @@ public partial class NotebookView
 
     private readonly Stack<List<CellModel>> _undo = new();
     private ShownMenu? _menu;
+    private bool _snippet;
+
+    /// <summary>Insert a snippet…: the snippets of the selected cell's language, then its form.</summary>
+    public void PickSnippet() => _snippet = _selected is { IsAppCell: false };
+
+    private string SnippetLanguage => _selected?.Kind switch
+    {
+        "dax" => "dax",
+        "html" => "html",
+        "markdown" => "markdown",
+        "sql" => "sql",
+        _ => "python",
+    };
+
+    private async Task SnippetInsertAsync(string text)
+    {
+        _snippet = false;
+        if (_selected is { } cell && _views.TryGetValue(cell, out var view))
+        {
+            await view.InsertAsync(text);
+        }
+    }
 
     [Inject]
     private Notes Notes { get; set; } = default!;
@@ -213,6 +235,7 @@ public partial class NotebookView
             line("Insert a cell above", "plus", InsertAboveAsync),
             line("Insert a cell below", "plus", InsertBelowAsync),
             line("Name…", "edit", NameSelectedAsync, user ? null : "The app's cell keeps its own name"),
+            line("Insert a snippet…", "plus", () => now(() => _snippet = true), user ? null : "The app's cell follows its table"),
             MenuEntry.Separator,
             line("Copy", "copy", () => now(CopySelected), user ? null : "The app's cell follows its table"),
             line("Paste below", "copy", PasteBelowAsync, HasCopied ? null : "Copy a cell first"),

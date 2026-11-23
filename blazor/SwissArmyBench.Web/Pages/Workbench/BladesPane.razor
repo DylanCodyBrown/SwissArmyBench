@@ -46,7 +46,7 @@
                                 <button type="button" class="btn small ghost icon" aria-label="@(blade.Pinned ? "Unpin" : "Pin")" title="@(blade.Pinned ? "Unpin" : "Pin")" aria-pressed="@(blade.Pinned ? "true" : "false")" @onclick="() => PinAsync(blade)"><Icon Name="pin" /></button>
                             }
                             <button type="button" class="btn small ghost icon" aria-label="@(blade.Connection is null ? "Copy the sab.blade line" : "Copy the sab.connection line")" title="@(blade.Connection is null ? "Copy the sab.blade line" : "Copy the sab.connection line")" @onclick="() => CopyLineAsync(blade)"><Icon Name="code" /></button>
-                            <button type="button" class="btn small ghost" aria-label="@($"Insert {blade.Name}")" @onclick="() => OnInsert.InvokeAsync(LineOf(blade))"><Icon Name="plus" /> Insert</button>
+                            <button type="button" class="btn small ghost" aria-label="@($"Insert {blade.Name}")" @onclick="() => InsertAsync(blade)"><Icon Name="plus" /> Insert</button>
                         </span>
                     </li>
                 }
@@ -57,6 +57,10 @@
 @if (_menu is { } menu)
 {
     <ContextMenu Title="Blades menu" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_snippet is { } snippet)
+{
+    <SwissArmyBench.Web.Pages.Workbench.Blades.SnippetDialog Name="@snippet.Name" Language="@(snippet.Language ?? "python")" OnClose="() => _snippet = null" OnInsert="SnippetInsertAsync" />
 }
 @if (_new)
 {
