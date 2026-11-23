@@ -4,10 +4,10 @@
 
 <section class="area-page">
     <header class="area-page-head">
-        <h1 class="area-page-title"><Icon Name="cog" /> Settings</h1>
+        <h1 class="area-page-title">Settings</h1>
     </header>
     <div class="area-page-body">
-        <div class="settings-page">
+        <div class="settings-page settings-grid">
             <ErrorNote Error="_error" OnClose="() => _error = null" />
 
             <fieldset class="fieldset">
@@ -38,10 +38,10 @@
                     </label>
                 </div>
                 <p class="muted">
-                    The one the app opens. The Blazor front end is a preview: a page it does not have yet links back to the classic one.
+                    The one the app opens. The Blazor front end is a preview: a page it does not have yet links back here.
                     @if (_frontend == Classic)
                     {
-                        <a href="/workspace?open=settings">Open the classic front end</a>
+                        <a class="frontend-open" href="/workspace?open=settings">Open the classic front end</a>
                     }
                 </p>
             </fieldset>
@@ -61,53 +61,20 @@
                 <legend><Icon Name="session" /> Session</legend>
                 <label class="check">
                     <input type="checkbox" role="switch" checked="@_follow" @onchange="FollowAsync" />
-                    Follow the agent: its actions' places come to the front
+                    Follow the agent
                 </label>
             </fieldset>
 
-            @if (_updates is { Available: true } updates)
-            {
-                <fieldset class="fieldset">
-                    <legend><Icon Name="upload" /> Updates</legend>
-                    <p>@updates.Name @updates.Latest is available (this is @updates.Current).</p>
-                    <div><button type="button" class="btn primary" @onclick="UpdateAsync">Click here to update</button></div>
-                </fieldset>
-            }
+            <UpdateFlow />
 
-            @if (_claude is { } claude)
-            {
-                <fieldset class="fieldset">
-                    <legend><Icon Name="claude" /> Claude</legend>
-                    <ClaudeRow Title="Claude Code" Kind="claude.Code" />
-                    <ClaudeRow Title="Claude Desktop" Kind="claude.Desktop" />
-                    <label class="check">
-                        <input type="checkbox" role="switch" checked="@claude.Bypass" @onchange="BypassAsync" />
-                        Launch Claude Code with permissions bypassed
-                    </label>
-                </fieldset>
-            }
+            <ClaudeSection />
 
-            @if (_beta is { } beta)
-            {
-                <fieldset class="fieldset">
-                    <legend><Icon Name="bug" /> Beta</legend>
-                    <label class="check">
-                        <input type="checkbox" role="switch" checked="@beta.On" @onchange="BetaAsync" />
-                        Beta mode: keep a log of errors and slow requests (no data, SQL, code, secrets or paths)
-                    </label>
-                    <p class="muted">The log holds @beta.Files @(beta.Files == 1 ? "file" : "files") (@Size(beta.Bytes)), @beta.Pictures @(beta.Pictures == 1 ? "picture" : "pictures").</p>
-                    <div class="form-row">
-                        <button type="button" class="btn" disabled="@(!beta.On)" @onclick="NoteAsync">Leave a note…</button>
-                        <button type="button" class="btn" @onclick="ExportAsync">Export beta log…</button>
-                        <button type="button" class="btn ghost" @onclick="ClearAsync">Clear the log</button>
-                    </div>
-                </fieldset>
-            }
+            <BetaSection />
 
             <fieldset class="fieldset">
                 <legend><Icon Name="agent" /> Connect an agent</legend>
                 <pre class="mono mcp-prompt">@McpPrompt</pre>
-                <div><button type="button" class="btn" @onclick="CopyPromptAsync"><Icon Name="copy" /> Copy the setup prompt</button></div>
+                <button type="button" class="btn" @onclick="CopyPromptAsync"><Icon Name="copy" /> Copy the setup prompt</button>
             </fieldset>
         </div>
     </div>

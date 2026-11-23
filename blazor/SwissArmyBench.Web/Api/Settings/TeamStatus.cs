@@ -1,6 +1,6 @@
 namespace SwissArmyBench.Web.Api.Settings;
 
-/// <summary>GET /team: Settings' Team box (no team, or joined: its repository and its sync words), and the folders.</summary>
+/// <summary>GET /team: Settings' Team box (no team, or joined), whether GitHub sync is on and signed in, the folders.</summary>
 public sealed record TeamStatus(
     string State,
     bool SyncOn,
@@ -10,6 +10,9 @@ public sealed record TeamStatus(
     string LibraryFolder,
     bool LibraryDefault,
     string? SharedFolder,
-    string? Repository = null,
-    string? Url = null,
-    TeamSync? Sync = null);
+    TeamJoined? Team = null,
+    bool SignedIn = false,
+    string? Account = null,
+    bool Device = false,
+    IReadOnlyList<string>? TokenSteps = null,
+    TeamPending? Pending = null);

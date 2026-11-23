@@ -79,5 +79,6 @@ public static class Program
         services.AddScoped<PythonSession>();
         services.AddScoped<ConnectionColours>();
         services.AddScoped<ConnectionSlots>();
+        services.AddScoped<BetaState>();
     }
 }

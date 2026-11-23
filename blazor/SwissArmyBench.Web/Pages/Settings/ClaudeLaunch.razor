@@ -1,0 +1,165 @@
+@* Launch Claude in the status bar (the classic claudeLaunch.ts launchButton and launchClaude): the one found starts;
+   both found, a menu (Claude Code in a terminal, Claude Desktop); none, what to install (each command with Copy, the
+   setup's link, Choose its file…, Look again); Desktop's settings asked once (Add Swiss Army Bench to Claude Desktop?)
+   or named (Where does this Claude Desktop keep its settings?). The user's click only: the agent cannot launch. *@
+@inject SettingsClient Settings
+@inject FileChooser Files
+@inject Notes Notes
+@inject IJSRuntime Js
+
+<button type="button" class="claude-launch btn ghost small" aria-label="Launch Claude" @onclick="e => LaunchAsync(null, false, (e.ClientX, e.ClientY - 8))"><Icon Name="claude" /> <span class="claude-launch-label">Launch Claude</span></button>
+@if (_menu is { } at)
+{
+    <ContextMenu Title="Launch Claude" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@Choices" />
+}
+@if (_missing is { } missing)
+{
+    var first = missing.FirstOrDefault()?.Kind ?? "code";
+    <AppDialog Title="@(missing.Count > 1 ? "Claude is not installed" : $"{NameOf(first)} is not installed")" OnClose="() => _missing = null">
+        <ChildContent>
+            @foreach (var help in missing)
+            {
+                <section class="claude-help" data-kind="@help.Kind">
+                    <h3><Icon Name="claude" /> @NameOf(help.Kind)</h3>
+                    @foreach (var command in help.Commands ?? [])
+                    {
+                        <div class="claude-command"><code class="mono">@command</code> <button type="button" class="btn icon" aria-label="Copy" title="Copy" @onclick="() => CopyAsync(command)"><Icon Name="copy" /></button></div>
+                    }
+                    @if (help.Url is { } url)
+                    {
+                        <a href="@url" target="_blank" rel="noopener noreferrer">@(help.Kind == "code" ? "Claude Code's setup" : "Download Claude Desktop")</a>
+                    }
+                </section>
+            }
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => ChooseItsFileAsync(first)"><Icon Name="folder" /> Choose its file…</button>
+            <button type="button" class="btn primary" @onclick="LookAgainAsync"><Icon Name="reset" /> Look again</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_confirm is { } confirm)
+{
+    <AppDialog Title="Add Swiss Army Bench to Claude Desktop?" OnClose="() => _confirm = null">
+        <ChildContent>
+            <p>Its MCP settings get a swissarmybench server; everything else in the file stays, and a copy of it is kept first.</p>
+            <code class="mono claude-config-path">@confirm.Path</code>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _confirm = null">Cancel</button>
+            <button type="button" class="btn primary" @onclick="ConfirmedAsync"><Icon Name="check" /> Add and start</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_unknown is { } unknown)
+{
+    <AppDialog Title="Where does this Claude Desktop keep its settings?" OnClose="() => _unknown = null">
+        <ChildContent>
+            <p>No claude_desktop_config.json was found for it. The likeliest place:</p>
+            <code class="mono claude-config-path">@unknown.Path</code>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="ChooseTheFileAsync"><Icon Name="folder" /> Choose the file…</button>
+            <button type="button" class="btn primary" @onclick="ConfirmedAsync"><Icon Name="check" /> Use this place</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private (double X, double Y)? _menu;
+    private IReadOnlyList<ClaudeHelp>? _missing;
+    private ClaudeConfig? _confirm;
+    private ClaudeConfig? _unknown;
+
+    private IReadOnlyList<MenuEntry> Choices =>
+    [
+        new("Claude Code in a terminal", "claude", () => LaunchAsync("code", false, null)),
+        new("Claude Desktop", "claude", () => LaunchAsync("desktop", false, null)),
+    ];
+
+    private static string NameOf(string kind) => kind == "desktop" ? "Claude Desktop" : "Claude Code";
+
+    /// <summary>Launch Claude: the one found, the user's pick when both are, the install help when none is.</summary>
+    public async Task LaunchAsync(string? app, bool confirmed, (double X, double Y)? at)
+    {
+        ClaudeLaunched answer;
+        try
+        {
+            answer = await Settings.LaunchClaudeAsync(app, confirmed);
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+            return;
+        }
+        if (answer.Choose is not null)
+        {
+            _menu = at ?? (480, 320);
+        }
+        else if (answer.Missing is { } missing)
+        {
+            _missing = missing;
+        }
+        else if (answer.Confirm is { } confirm)
+        {
+            _confirm = confirm;
+        }
+        else if (answer.ConfigUnknown is { } unknown)
+        {
+            _unknown = unknown;
+        }
+        else if (answer.Error is { } words)
+        {
+            Notes.Error(new ApiException(0, new Refusal(words), string.Empty));
+        }
+        else if (answer.Launched == "code")
+        {
+            _ = Notes.SayAsync($"Claude Code started in {answer.Terminal ?? "a terminal"}{(answer.Bypass ? " (bypass permissions)" : string.Empty)}.");
+        }
+        else if (answer.Launched == "desktop")
+        {
+            _ = Notes.SayAsync(answer.Changed ? "Claude Desktop started. If it was already open, quit it and start it again to load Swiss Army Bench." : "Claude Desktop started.");
+        }
+    }
+
+    private async Task CopyAsync(string command)
+    {
+        await Js.InvokeAsync<bool>("sab.copy", command);
+        _ = Notes.SayAsync("Copied.");
+    }
+
+    private async Task LookAgainAsync()
+    {
+        _missing = null;
+        await Settings.ClaudeAsync(true);
+        await LaunchAsync(null, false, null);
+    }
+
+    private async Task ChooseItsFileAsync(string kind)
+    {
+        _missing = null;
+        if (await Files.ChooseAsync("file", $"Choose {NameOf(kind)}", null, "claude") is { } path)
+        {
+            await Settings.SetClaudeAsync(new Dictionary<string, object?> { [kind] = path });
+            await LaunchAsync(kind, false, null);
+        }
+    }
+
+    private async Task ConfirmedAsync()
+    {
+        (_confirm, _unknown) = (null, null);
+        await LaunchAsync("desktop", true, null);
+    }
+
+    private async Task ChooseTheFileAsync()
+    {
+        var likeliest = _unknown?.Path;
+        _unknown = null;
+        var state = await Settings.ClaudeAsync(false);
+        if (state.Desktop.Chosen is { } desktop && await Files.ChooseAsync("save", "Choose claude_desktop_config.json", likeliest, "claude") is { } path)
+        {
+            await Settings.SetClaudeAsync(new Dictionary<string, object?> { ["config"] = new Dictionary<string, string> { [desktop] = path } });
+            await LaunchAsync("desktop", false, null);
+        }
+    }
+}

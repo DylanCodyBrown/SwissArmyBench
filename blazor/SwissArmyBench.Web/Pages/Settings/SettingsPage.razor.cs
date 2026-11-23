@@ -3,7 +3,6 @@ using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
-using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.State;
@@ -14,7 +13,6 @@ public partial class SettingsPage
 {
     private const string Classic = "classic";
     private const string Blazor = "blazor";
-    private const double BytesInKilobyte = 1024;
 
     /// <summary>What an agent needs to connect (the classic MCP_PROMPT, word for word).</summary>
     private const string McpPrompt =
@@ -28,9 +26,6 @@ public partial class SettingsPage
     private string _frontend = Classic;
     private GatesAnswer? _gates;
     private bool _follow = true;
-    private UpdatesStatus? _updates;
-    private ClaudeStatus? _claude;
-    private BetaStatus? _beta;
 
     [Inject]
     private ThemeState Theme { get; set; } = default!;
@@ -45,12 +40,6 @@ public partial class SettingsPage
     private SessionLogClient SessionLog { get; set; } = default!;
 
     [Inject]
-    private FileChooser Files { get; set; } = default!;
-
-    [Inject]
-    private Dialogs Dialogs { get; set; } = default!;
-
-    [Inject]
     private Notes Notes { get; set; } = default!;
 
     [Inject]
@@ -62,13 +51,7 @@ public partial class SettingsPage
         await RunAsync(async () => _frontend = (await App.FrontendAsync()).Frontend);
         await RunAsync(async () => _gates = await App.GatesAsync());
         await RunAsync(async () => _follow = (await SessionLog.ListingAsync("agent", changesOnly: true)).Follow);
-        await RunAsync(async () => _updates = await Settings.UpdatesAsync());
-        await RunAsync(async () => _claude = await Settings.ClaudeAsync());
-        await RunAsync(async () => _beta = await Settings.BetaAsync());
     }
-
-    private static string Size(long bytes) =>
-        bytes < BytesInKilobyte ? $"{bytes} bytes" : $"{bytes / BytesInKilobyte:0.#} KB";
 
     private void Failed(Exception error)
     {
@@ -85,47 +68,6 @@ public partial class SettingsPage
     });
 
     private Task FollowAsync(ChangeEventArgs e) => RunAsync(async () => _follow = (await SessionLog.SetFollowAsync(e.Value is true)).Follow);
-
-    private Task BypassAsync(ChangeEventArgs e) => RunAsync(async () => _claude = await Settings.SetClaudeBypassAsync(e.Value is true));
-
-    private Task BetaAsync(ChangeEventArgs e) => RunAsync(async () => _beta = await Settings.SetBetaAsync(e.Value is true));
-
-    private async Task UpdateAsync()
-    {
-        if (_updates?.Latest is { } version)
-        {
-            await RunAsync(() => Settings.UpdateAsync(version));
-        }
-    }
-
-    private async Task NoteAsync()
-    {
-        var text = await Dialogs.AskTextAsync("Leave a note", "What happened, in your own words: it goes in the beta log.", "Note", string.Empty, "Leave the note");
-        if (!string.IsNullOrWhiteSpace(text))
-        {
-            await RunAsync(() => Settings.BetaNoteAsync(text));
-            await Notes.SayAsync("Noted.");
-        }
-    }
-
-    private async Task ExportAsync()
-    {
-        var path = await Files.ChooseAsync("save", "Export beta log", null, "beta");
-        if (path is not null)
-        {
-            await RunAsync(() => Settings.ExportBetaLogAsync(path));
-            await Notes.SayAsync("Exported.");
-        }
-    }
-
-    private async Task ClearAsync()
-    {
-        if (await Dialogs.AskYesNoAsync("Clear the log", "Every file and picture of the beta log is deleted.", "Clear", danger: true))
-        {
-            await RunAsync(() => Settings.ClearBetaLogAsync());
-            await RunAsync(async () => _beta = await Settings.BetaAsync());
-        }
-    }
 
     private async Task CopyPromptAsync()
     {

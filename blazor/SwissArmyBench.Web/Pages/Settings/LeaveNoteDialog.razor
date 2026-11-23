@@ -1,0 +1,69 @@
+@* Leave a note (the classic betaNotes.ts openNote): what is wrong, where (this page), Attach a picture of this window
+   (the picture shows your data); Save (Ctrl+Enter). Only in beta mode. *@
+@inject SettingsClient Settings
+@inject Notes Notes
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+<AppDialog Title="Leave a note" OnClose="OnClose">
+    <ChildContent>
+        <div class="beta-note-form">
+            <p class="hint beta-note-where">@Where</p>
+            <textarea rows="5" class="beta-note-text" placeholder="What is wrong" aria-label="What is wrong" @bind="_text" @bind:event="oninput" @onkeydown="KeyAsync"></textarea>
+            <label class="check"><input type="checkbox" class="beta-note-picture" @bind="_attach" /> Attach a picture of this window<span class="hint"> (the picture shows your data)</span></label>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <Busy IsBusy="_saving" Words="Saving…"><button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button></Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _text = string.Empty;
+    private bool _attach;
+    private bool _saving;
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Where => $"This page: {Nav.ToBaseRelativePath(Nav.Uri).Split('#')[0]}";
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && (e.CtrlKey || e.MetaKey))
+        {
+            await SaveAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_text.Trim().Length == 0)
+        {
+            return;
+        }
+        _saving = true;
+        try
+        {
+            var page = Nav.ToBaseRelativePath(Nav.Uri).Split('#')[0];
+            var picture = _attach ? await PictureAsync() : null;
+            await Settings.NoteAsync(new { text = _text, page = $"blazor/{page}", window = "blazor", attach_picture = _attach ? true : (bool?)null, picture });
+            _ = Notes.SayAsync("Saved");
+            await OnClose.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _saving = false;
+    }
+
+    private async Task<string?> PictureAsync()
+    {
+        await using var module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/picture.js");
+        return await module.InvokeAsync<string>("picture", ".dialog-shade");
+    }
+}
