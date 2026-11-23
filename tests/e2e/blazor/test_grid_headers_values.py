@@ -111,3 +111,22 @@ def test_the_steps_panel_previews_and_undo_brings_a_step_back(browser: Browser, 
     expect(page.locator(".note-corner")).to_contain_text("Cleared the step")
     assert call(server, "GET", f"/grids/{grid}")["steps"] == []
     page.close()
+
+
+def test_the_key_finder_finds_as_it_opens(browser: Browser, server: dict[str, Any]) -> None:
+    grid = orders(server)
+    page = open_page(browser, server, f"grids?grid={grid}")
+    page.click("[data-tool=keyfinder]")
+    dialog = page.locator(".dialog")
+    expect(dialog).to_contain_text("Most distinct column combination in")
+    expect(dialog).to_contain_text("tells every one of all 120 rows apart")
+    expect(dialog).to_contain_text("column pairs share values")
+    row = dialog.locator(".kf-row", has_text="customer_id").first
+    row.click()
+    expect(dialog.locator(".kf-sample")).to_contain_text("shared")
+    row.get_by_role("button", name="Add as relationship").click()
+    expect(row.get_by_role("button", name="Add as relationship")).to_be_disabled()
+    assert any(r["from_columns"] == ["customer_id"] for r in call(server, "GET", "/relationships")["relationships"])
+    dialog.get_by_role("button", name="Send to Analyze").click()
+    expect(page.locator(".note-corner")).to_contain_text("On the Analyze board")
+    page.close()

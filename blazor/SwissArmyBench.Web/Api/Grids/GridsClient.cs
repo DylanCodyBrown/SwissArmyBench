@@ -69,8 +69,14 @@ public sealed class GridsClient
 
     public Task<KeyFinderTargets> KeyFinderTargetsAsync(string grid) => _api.GetAsync<KeyFinderTargets>($"{Base(grid)}/key-finder");
 
-    public Task<KeyFinderResult> KeyFinderAsync(string grid, string target) =>
-        _api.PostAsync<KeyFinderResult>($"{Base(grid)}/key-finder", new { target, options = new Dictionary<string, object>() });
+    /// <summary>The likely join keys with another grid ("*": every other open grid), best first; the options are the
+    /// Key Finder's (trim, ignore_case, max_length).</summary>
+    public Task<KeyFinderResult> KeyFinderAsync(string grid, string target, object? options = null) =>
+        _api.PostAsync<KeyFinderResult>($"{Base(grid)}/key-finder", new { target, options = options ?? new Dictionary<string, object>() });
+
+    /// <summary>A pair's values: the ones both columns hold, and the ones of this column the other lacks.</summary>
+    public Task<KeySample> KeySampleAsync(string grid, KeyPair pair, object options) =>
+        _api.PostAsync<KeySample>($"{Base(grid)}/key-finder/sample", new { target = pair.TargetGrid, source_column = pair.SourceColumn, target_column = pair.TargetColumn, options });
 
     /// <summary>The address of the grid's export (a download, or saved in the export folder with save=1).</summary>
     public static string ExportAddress(string grid, IReadOnlyDictionary<string, string> options) =>

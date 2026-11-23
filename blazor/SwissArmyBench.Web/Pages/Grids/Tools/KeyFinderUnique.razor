@@ -1,0 +1,58 @@
+@* The Key Finder's most distinct column combination (the classic keyFinder.ts uniqueKeyTable): one row per column
+   added, the last the answer, then any other combination as small that is also unique. *@
+
+<div class="kf-unique">
+    <h3 class="kf-heading">Most distinct column combination in @Source</h3>
+    @if (Found.Stopped)
+    {
+        <ErrorNote Words="Stopped at the time limit. Filter the grid first." Warning="true" />
+    }
+    else if (Found.Steps.Count == 0)
+    {
+        <p class="hint">@(Found.RowsChecked > 0 ? "No column could be checked." : "The grid has no rows.")</p>
+    }
+    else
+    {
+        var best = Found.Steps[^1];
+        var scope = Found.Limited ? $"the first {Found.RowsChecked:N0} rows" : $"all {Found.RowsChecked:N0} rows";
+        <p class="hint">@(best.Unique ? $"{string.Join(" + ", best.Columns)} tells every one of {scope} apart." : $"No combination tells every row apart: {best.RepeatedRows:N0} of {scope} repeat an earlier row in every column checked.")</p>
+        <table class="kf-table rows">
+            <thead>
+                <tr><th>Current Table Column Names</th><th>Relationship</th><th class="num" title="@($"Of {scope}")">Unique rows</th><th class="num">Distinct combinations</th></tr>
+            </thead>
+            <tbody>
+                @for (var at = 0; at < Found.Steps.Count; at++)
+                {
+                    var combo = Found.Steps[at];
+                    var answer = at == Found.Steps.Count - 1;
+                    @Line(combo, answer ? (combo.Unique ? "unique per row" : "the most distinct combination") : $"add a column ({at + 1} of {Found.Steps.Count})", answer)
+                }
+                @foreach (var combo in Found.Alternatives)
+                {
+                    @Line(combo, "also unique per row", false)
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public UniqueKey Found { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Source { get; set; } = string.Empty;
+
+    private RenderFragment Line(KeyCombo combo, string note, bool answer) => __builder =>
+    {
+        <tr class="@(answer ? "kf-best" : string.Empty)">
+            <td>@string.Join(" + ", combo.Columns)</td>
+            <td>@note</td>
+            <td class="num"><span class="kf-bar" aria-hidden="true"><span style="@($"width: {Math.Round(combo.Share * 100)}%")"></span></span>@KeyFinderDialog.Percent(combo.Share)</td>
+            <td class="num" title="@($"{combo.Distinct:N0} distinct combinations across {Found.RowsChecked:N0} rows")">
+                @combo.Distinct.ToString("N0")/@Found.RowsChecked.ToString("N0")
+                <div class="hint">@(combo.RepeatedRows > 0 ? $"{combo.RepeatedRows:N0} rows repeat" : "no row repeats")</div>
+            </td>
+        </tr>
+    };
+}

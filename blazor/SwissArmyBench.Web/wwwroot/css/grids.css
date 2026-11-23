@@ -154,3 +154,18 @@ body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offs
 .sandbox-cell-json { font-family: "Cascadia Code", Consolas, monospace; }
 .file-changed { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--warn); background: var(--warn-soft); }
 .tab-changed { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+
+/* ===== the Key Finder (keyFinder.ts) ===== */
+.kf-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; }
+.kf-form .narrow { width: 6em; }
+.kf-bar { display: inline-block; width: 40px; height: 6px; margin-right: 6px; border-radius: 3px; background: var(--surface-2); vertical-align: middle; }
+.kf-bar span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.kf-row { cursor: pointer; }
+.kf-row:hover, .kf-row.open { background: var(--row-hover); }
+.kf-actions { white-space: nowrap; }
+.kf-sample-body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kf-values { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.kf-values code { padding: 0 4px; border-radius: 3px; background: var(--surface-2); }
+.kf-best { font-weight: 600; }
+.kf-heading { margin: 8px 0 4px; font-size: 1em; }
+.kf-skipped { margin-top: 8px; color: var(--muted); }

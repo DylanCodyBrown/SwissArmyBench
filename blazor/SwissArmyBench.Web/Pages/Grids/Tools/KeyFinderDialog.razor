@@ -1,49 +1,129 @@
-@* The Key Finder (the classic keyFinder.ts, in a dialog): another open table to compare with, then the likely join
-   keys best first (shared values, how much of each side is found, the relationship it reads as), each one Add as a
-   relationship. Logic in KeyFinderDialog.razor.cs. *@
+@* The Key Finder (the classic keyFinder.ts, its own window there; a dialog here): another open table (or every other
+   one, or this one for a self-join), Trim spaces, Ignore case, Longest value; the most distinct column combination
+   here; then the likely join keys best first, each with the share found on each side and the shared values, a click
+   (or Enter) showing its shared and missing values, Compare on these and Add as relationship; Show all, Send to
+   Analyze, and the columns not compared with why. It finds them as it opens. Logic in KeyFinderDialog.razor.cs. *@
 
-<AppDialog Title="@($"Key Finder: {Dataset}")" OnClose="OnClose">
+<AppDialog Title="@($"Key Finder: {Dataset}")" Wide="true" OnClose="OnClose">
     <ChildContent>
-        <div class="form-row">
+        <div class="kf-form form-row">
             <label class="field"><span>Compare with</span>
                 <select aria-label="Compare with" @bind="_target">
-                    @foreach (var target in _targets.Where(t => !t.Self))
+                    <option value="*">Every other open grid</option>
+                    @foreach (var target in _targets)
                     {
-                        <option value="@target.Grid">@target.Label</option>
+                        <option value="@target.Grid">@(target.Self ? $"{target.Label} (self-join)" : target.Label)</option>
                     }
                 </select>
             </label>
-            <button type="button" class="btn primary" disabled="@(_target.Length == 0 || _running)" @onclick="FindAsync"><Icon Name="zoom" /> Find keys</button>
+            <label class="check-row"><input type="checkbox" aria-label="Trim spaces" @bind="_trim" /> Trim spaces</label>
+            <label class="check-row"><input type="checkbox" aria-label="Ignore case" @bind="_ignoreCase" /> Ignore case</label>
+            <label class="field"><span>Longest value (characters)</span><input type="number" min="1" max="4096" aria-label="Longest value (characters)" @bind="_maxLength" class="narrow" /></label>
+            <button type="button" class="btn primary" disabled="@_running" @onclick="FindAsync"><Icon Name="zoom" /> Find keys</button>
         </div>
-        @if (_targets.Count > 0 && _targets.All(t => t.Self))
-        {
-            <p class="muted">Open another table to compare this one with.</p>
-        }
         <ErrorNote Error="_error" OnClose="() => _error = null" />
         @if (_running)
         {
-            <div class="loading-block">Comparing…</div>
+            <div class="loading-block">Comparing with @Against…</div>
         }
         else if (_result is { } result)
         {
+            <p class="hint" role="status">@result.PairCount.ToString("N0") column pair@(result.PairCount == 1 ? string.Empty : "s") share values · @result.SourceChecked.Count column@(result.SourceChecked.Count == 1 ? string.Empty : "s") checked here against @TargetsWords</p>
+            @if (result.UniqueKey is { ValueKind: JsonValueKind.Object } unique)
+            {
+                <KeyFinderUnique Found="unique.Deserialize<UniqueKey>(ApiClient.Json)!" Source="@result.Source" />
+            }
             @if (result.Pairs.Count == 0)
             {
-                <p class="muted">No column here shares values with that table.</p>
+                <p>No shared values.</p>
             }
-            <table class="rows key-pairs">
-                <tbody>
-                    @foreach (var pair in result.Pairs)
-                    {
+            else
+            {
+                <table class="kf-table rows">
+                    <thead>
                         <tr>
-                            <td><strong>@pair.SourceColumn</strong> → @pair.TargetDataset.@pair.TargetColumn</td>
-                            <td>@pair.Shared.ToString("N0") shared</td>
-                            <td class="muted">@pair.Relationship</td>
-                            <td>@pair.Score.ToString("0.00")</td>
-                            <td class="row-actions"><button type="button" class="btn small" @onclick="() => AddAsync(pair)">Add relationship</button></td>
+                            <th>Current Table Column Name</th>
+                            <th>Table</th>
+                            <th>Column</th>
+                            <th>Relationship</th>
+                            <th class="num" title="Found in the other table">@result.Source</th>
+                            <th class="num" title="Found here">@(Targets.Count == 1 ? Targets[0].Dataset : "Other table")</th>
+                            <th class="num">Shared values</th>
+                            <th aria-label="Actions"></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var pair in Shown(result))
+                        {
+                            var key = KeyOf(pair);
+                            var expanded = _open == key;
+                            var self = pair.TargetGrid == Grid;
+                            var known = _model is not null && Compare.KnownJoins.IsKnown(_model, result.Source, pair.TargetDataset, pair.SourceColumn, pair.TargetColumn);
+                            <tr class="kf-row @(expanded ? "open" : string.Empty)" tabindex="0" title="Shared and missing values" aria-expanded="@(expanded ? "true" : "false")"
+                                @onclick="() => ToggleAsync(pair)" @onkeydown="e => RowKeyAsync(e, pair)">
+                                <td>
+                                    @if (known)
+                                    {
+                                        <span class="known-pair" title="Known relationship"><Icon Name="crown" /></span>
+                                    }
+                                    <strong>@pair.SourceColumn</strong>
+                                </td>
+                                <td><span class="kf-target">@pair.Target</span></td>
+                                <td><strong>@pair.TargetColumn</strong></td>
+                                <td>@pair.Relationship</td>
+                                <td class="num">@Bar(pair.SourceFound)@Percent(pair.SourceFound)</td>
+                                <td class="num">@Bar(pair.TargetFound)@Percent(pair.TargetFound)</td>
+                                <td class="num" title="@($"{pair.Shared:N0} values in both: out of {pair.SourceDistinct:N0} distinct here and {pair.TargetDistinct:N0} in {pair.Target}")">
+                                    @pair.Shared.ToString("N0")/@pair.SourceDistinct.ToString("N0")
+                                    <div class="hint">@pair.Shared.ToString("N0")/@pair.TargetDistinct.ToString("N0") of theirs</div>
+                                </td>
+                                <td class="kf-actions" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+                                    <button type="button" class="btn small" disabled="@self" title="@(self ? "A table is not compared with itself" : "Compare on these")" @onclick="() => CompareOnAsync(pair)"><Icon Name="columns" /> Compare on these</button>
+                                    <button type="button" class="btn small" disabled="@(known || self)" title="@(known ? "Already a relationship" : self ? "A relationship joins two tables" : "Add as relationship")" @onclick="() => AddAsync(pair)"><Icon Name="crown" /> Add as relationship</button>
+                                </td>
+                            </tr>
+                            @if (expanded)
+                            {
+                                <tr class="kf-sample">
+                                    <td colspan="8">
+                                        @if (_sample is { } sample)
+                                        {
+                                            <div class="kf-sample-body">
+                                                <div><strong>@sample.MatchedCount.ToString("N0") shared</strong> @Values(sample.Matched)</div>
+                                                <div><strong>@sample.MissingCount.ToString("N0") of @pair.SourceColumn not in @pair.TargetColumn</strong> @Values(sample.Missing)</div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="loading-block">Reading the values of @pair.SourceColumn and @pair.TargetColumn…</div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            }
+            @if (result.Pairs.Count > Shown(result).Count)
+            {
+                <button type="button" class="btn small" @onclick="() => _showAll = true">Show all @result.Pairs.Count.ToString("N0")</button>
+            }
+            @if (result.Pairs.Count > 0)
+            {
+                <button type="button" class="btn small" @onclick="() => OnSend.InvokeAsync(result)"><Icon Name="image" /> Send to Analyze</button>
+            }
+            @if (Skipped(result) is { Count: > 0 } skipped)
+            {
+                <details class="kf-skipped">
+                    <summary>@skipped.Count column@(skipped.Count == 1 ? string.Empty : "s") not compared</summary>
+                    <ul>
+                        @foreach (var (column, here) in skipped)
+                        {
+                            <li><strong>@column.Column</strong>@(here ? " (this grid)" : string.Empty): @column.Reason</li>
+                        }
+                    </ul>
+                </details>
+            }
         }
     </ChildContent>
     <Foot>

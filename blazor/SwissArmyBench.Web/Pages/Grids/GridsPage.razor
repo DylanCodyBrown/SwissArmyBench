@@ -108,7 +108,7 @@
             <ValueViewer Title="@viewing.Title" Value="viewing.Value" OnSend="v => SendCardsAsync(GridCards.Value(v.Value, v.Trail, open.Dataset))" OnClose="CloseDialog" />
             break;
         case "keyfinder":
-            <KeyFinderDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
+            <KeyFinderDialog Grid="@open.Grid" Dataset="@open.Dataset" OnSend="SendKeyFinderAsync" OnClose="CloseDialog" />
             break;
         case "code":
             <CodeDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />

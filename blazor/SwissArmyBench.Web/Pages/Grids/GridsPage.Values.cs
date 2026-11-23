@@ -66,6 +66,12 @@ public partial class GridsPage
         }
     }
 
+    private Task SendKeyFinderAsync(Api.Grids.KeyFinderResult result)
+    {
+        var targets = result.Targets.Select(t => t.GetProperty("dataset").GetString() ?? string.Empty).ToList();
+        return SendCardsAsync(GridCards.KeyFinder(result, targets));
+    }
+
     private async Task SendValueAsync(GridPoint at, string where)
     {
         if (_grid is not null && _info is { } info)
