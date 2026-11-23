@@ -52,7 +52,7 @@ else
                             }
                             else if (_view.State is not null)
                             {
-                                <CanvasBoard @ref="_board" View="_view" Widgets="_widgets" ShowWires="_showWires" Dragging="_dragging"
+                                <CanvasBoard @ref="_board" View="_view" Widgets="_widgets" ShowWires="_showWires" Dragging="@_dragging"
                                              OnSend="SendAsync" OnSelect="Select" OnMenu="OpenMenu" OnInsert="InsertAsync" OnEditWidget="OpenWidgetsAsync"
                                              OnReplace="ReplaceAt" OnWidth="RememberViewAsync" RunGroup="RunGroup" OnWheel="WheelAsync" />
                             }

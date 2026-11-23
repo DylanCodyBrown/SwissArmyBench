@@ -100,6 +100,16 @@ def test_insert_with_no_container_makes_one_around_it() -> None:
     assert node["x"] == parent["props"]["padding"]
 
 
+def test_a_widget_dropped_near_the_right_edge_slides_left_to_fit() -> None:
+    """The owner, 2026-11-23: a wide widget dropped on the page by its right edge went in, not refused as
+    "past the right of the page"."""
+    canvas, made = run(model.new_canvas("S"), "insert_widget", widget="chart", x=1150, y=40)
+    _, parent, _ = model.find(canvas, str(made))
+    assert parent is not None
+    assert parent["x"] + parent["w"] == model.page_width(canvas) and parent["y"] == 40
+    assert not model.problems(canvas)
+
+
 def test_scrollable_needs_a_fixed_height_and_is_set_with_it() -> None:
     canvas, c1 = run(model.new_canvas("S"), "add_container")
     canvas = run(canvas, "set_container", id=c1, props={"scrollable": True})[0]

@@ -631,13 +631,11 @@ def insert_widget(
     w, h = int(body.get("w") or w), int(body.get("h") or h)
     if parent is None:
         pad = CONTAINER_DEFAULT["padding"]
-        around = {
-            "page": page["id"],
-            "x": body.get("x"),
-            "y": body.get("y"),
-            "w": min(page_width(canvas), w + 2 * pad),
-            "h": h + 2 * pad,
-        }
+        wide = min(page_width(canvas), w + 2 * pad)
+        x = body.get("x")
+        if isinstance(x, (int, float)):  # dropped near the right edge: slid left until it fits the page
+            x = max(0, min(int(x), page_width(canvas) - wide))
+        around = {"page": page["id"], "x": x, "y": body.get("y"), "w": wide, "h": h + 2 * pad}
         canvas, made = add_container(canvas, around, facts)
         page = page_of(canvas, page["id"])
         _, _, parent = find(canvas, made)

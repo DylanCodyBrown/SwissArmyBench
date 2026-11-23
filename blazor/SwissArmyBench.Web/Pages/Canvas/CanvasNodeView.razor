@@ -21,7 +21,7 @@
         }
         @foreach (var child in Node.Children ?? [])
         {
-            <CanvasNodeView @key="child.Id" Node="child" View="View" Widgets="Widgets" Moving="Moving" Dragging="Dragging"
+            <CanvasNodeView @key="child.Id" Node="child" View="View" Widgets="Widgets" Moving="Moving" Dragging="@Dragging"
                             OnDown="OnDown" OnMenu="OnMenu" OnDrop="OnDrop" OnEditWidget="OnEditWidget" OnReplace="OnReplace" OnRemove="OnRemove" />
         }
         @if (Node.Hidden)

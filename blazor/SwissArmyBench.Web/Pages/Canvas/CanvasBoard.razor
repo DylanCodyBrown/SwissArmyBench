@@ -20,7 +20,7 @@
             </div>
             @foreach (var node in View.Children)
             {
-                <CanvasNodeView @key="node.Id" Node="node" View="View" Widgets="Widgets" Moving="_moved" Dragging="Dragging"
+                <CanvasNodeView @key="node.Id" Node="node" View="View" Widgets="Widgets" Moving="_moved" Dragging="@Dragging"
                                 OnDown="NodeDownAsync" OnMenu="NodeMenuAsync" OnDrop="NodeDropAsync" OnEditWidget="OnEditWidget"
                                 OnReplace="OnReplace" OnRemove="RemoveAsync" />
             }

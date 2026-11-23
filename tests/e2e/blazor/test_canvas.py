@@ -214,3 +214,29 @@ def test_play_shows_the_page_in_place(browser: Browser, server: dict[str, Any]) 
     expect(page.locator(".cvs-board")).to_be_visible()
     expect(page.locator(".cvs-play")).to_contain_text("Play")
     page.close()
+
+
+def test_a_widget_dragged_from_the_widgets_pane_lands_where_it_is_dropped(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The owner's screenshot, 2026-11-23: a drop said "There is no widget called _dragging." (the board was
+    handed the word, not the widget being dragged). Dropped into a container and onto the bare page (a wide
+    one near the right edge slid left to fit), the dragged widget goes in, and no error shows."""
+    path = made_up_canvas(server, "Dragged")
+    page = open_canvas(browser, server, path)
+    draw_container(page, 60, 60, 420, 260)
+    expect(page.locator(".cvs-container")).to_have_count(1)
+    page.fill(".cvs-gallery-search", "status badge")
+    page.locator(".cvs-card[data-widget=status_badge]").drag_to(
+        page.locator(".cvs-container"), target_position={"x": 60, "y": 60}
+    )
+    expect(page.locator(".cvs-container .cvs-widget[data-widget=status_badge]")).to_have_count(1)
+    page.fill(".cvs-gallery-search", "kpi row")
+    page.locator(".cvs-card[data-widget=sales_kpi_row]").drag_to(
+        page.locator(".cvs-board"), target_position={"x": 900, "y": 380}
+    )
+    expect(page.locator(".cvs-widget[data-widget=sales_kpi_row]")).to_have_count(1)
+    expect(page.locator(".error-note")).to_have_count(0)
+    placed = {n.get("widget") for n in saved_nodes(path) if n["kind"] == "widget"}
+    assert placed == {"status_badge", "sales_kpi_row"}
+    page.close()
