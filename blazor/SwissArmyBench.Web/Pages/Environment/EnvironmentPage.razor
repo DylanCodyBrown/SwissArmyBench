@@ -1,0 +1,92 @@
+@* The Environment (the classic environmentPage.ts): everything the project holds, a tab per kind (Tables,
+   Variables, Structures, Settings and secrets, Libraries) with its count, one search over every tab, each row's
+   Used in, and its actions (Open, Rename, Remove; a library's Pin and Update). ?at= names the tab. *@
+@page "/environment"
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="environment" /> Environment</h1>
+        <div class="area-page-actions">
+            <input type="search" class="environment-search" placeholder="Search every tab" aria-label="Search every tab" value="@_search" @oninput="SearchAsync" />
+        </div>
+    </header>
+    <div class="area-page-body">
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        <Busy IsBusy="_answer is null && _error is null" Words="Loading the environment…">
+            @if (_answer is { } answer)
+            {
+                @if (answer.Python is { } python)
+                {
+                    <p class="muted environment-python"><Icon Name="python" /> @python.Words</p>
+                }
+                <div class="tabs" role="tablist">
+                    @foreach (var tab in answer.Tabs)
+                    {
+                        <a role="tab" class="tab" aria-selected="@(tab.Kind == Tab ? "true" : "false")" href="@($"environment?at={TabParameterOf(tab.Kind)}")">
+                            @tab.Name <span class="chip">@answer.Counts.GetValueOrDefault(tab.Kind)</span>
+                        </a>
+                    }
+                </div>
+                @if (Tab == Library)
+                {
+                    <div class="toolbar-row">
+                        <button type="button" class="btn small" @onclick="CheckAsync"><Icon Name="reset" /> Check for newer versions</button>
+                    </div>
+                }
+                @if (Tab == Setting)
+                {
+                    <p class="muted">Settings and secrets: a secret's value stays in this computer's keyring and is never shown here. <a href="/workspace?open=environment&at=settings">Add a variable or a key vault in the classic front end</a>.</p>
+                }
+                var rows = answer.Items.Where(i => i.Kind == Tab).ToList();
+                @if (rows.Count == 0)
+                {
+                    <p class="muted">@(string.IsNullOrEmpty(_search) ? "Nothing here yet." : "Nothing matches.")</p>
+                }
+                else
+                {
+                    <table class="rows environment-rows">
+                        <thead>
+                            <tr><th>Name</th><th>Type</th><th>Size</th><th>Value</th><th>Used in</th><th>From</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in rows)
+                            {
+                                <tr data-id="@item.Id">
+                                    <td><strong>@item.Name</strong></td>
+                                    <td>@item.Type</td>
+                                    <td>@item.Size</td>
+                                    <td class="environment-value">@item.Value</td>
+                                    <td>@string.Join(", ", (item.Used ?? []).Select(u => u.Words))</td>
+                                    <td class="muted">@item.From</td>
+                                    <td class="row-actions">
+                                        @if (item.Kind == Library)
+                                        {
+                                            <button type="button" class="btn small" @onclick="() => PinAsync(item)">@(item.Pinned == true ? "Unpin" : "Pin")</button>
+                                            @if (item.Latest is { } latest && latest != item.Version)
+                                            {
+                                                <button type="button" class="btn small" @onclick="() => UpdateAsync(item)">Update to @latest</button>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            @if (item.Kind is Table or Structure)
+                                            {
+                                                <button type="button" class="btn small" @onclick="() => OpenAsync(item)">Open</button>
+                                            }
+                                            @if (item.Kind != Setting)
+                                            {
+                                                <button type="button" class="btn small ghost" @onclick="() => RenameAsync(item)">Rename</button>
+                                                <button type="button" class="btn small ghost" @onclick="() => RemoveAsync(item)">Remove</button>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                <p class="muted">The project's tables use @answer.Memory of memory.</p>
+            }
+        </Busy>
+    </div>
+</section>

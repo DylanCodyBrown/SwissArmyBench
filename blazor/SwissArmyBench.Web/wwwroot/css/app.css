@@ -268,3 +268,9 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .new-query { display: grid; gap: 10px; max-width: 900px; padding: 18px 24px; }
 .new-query h1 { font-size: 18px; }
 .query-sql { width: 100%; }
+
+/* ===== the Environment and Catalog pages ===== */
+.row-actions { white-space: nowrap; text-align: right; }
+.environment-search, .catalog-search { width: min(360px, 60vw); }
+.environment-value { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.environment-python { display: flex; align-items: center; gap: 6px; }

@@ -2,14 +2,16 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.FluentUI.AspNetCore.Components;
 
-using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
+using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
+using SwissArmyBench.Web.Api.Environment;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Grids;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
+using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web;
@@ -43,6 +45,8 @@ public static class Program
         services.AddScoped<ProjectsClient>();
         services.AddScoped<SessionLogClient>();
         services.AddScoped<FileChooser>();
+        services.AddScoped<CatalogClient>();
+        services.AddScoped<EnvironmentClient>();
         services.AddScoped<SettingsClient>();
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<GridsClient>();
