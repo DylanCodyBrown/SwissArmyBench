@@ -1,0 +1,44 @@
+@* Rename a saved set (the classic relationshipsDialog.ts renameSet): its new name; Enter renames. *@
+@inject RelationshipsClient Relationships
+
+<AppDialog Title="@($"Rename {Set.Name}")" OnClose="OnClose">
+    <ChildContent>
+        <label class="field"><span>Name</span><input type="text" maxlength="64" aria-label="New name" @bind="_name" @bind:event="oninput" @onkeydown="KeyAsync" /></label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="GoAsync"><Icon Name="rename" /> Rename</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _name = string.Empty;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public SavedSet Set { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<string> OnRenamed { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized() => _name = Set.Name;
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? GoAsync() : Task.CompletedTask;
+
+    private async Task GoAsync()
+    {
+        try
+        {
+            await Relationships.RenameSetAsync(Set.Name, _name.Trim());
+            await OnRenamed.InvokeAsync(_name.Trim());
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

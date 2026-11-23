@@ -1,0 +1,107 @@
+@* In use now (the classic relationshipsDialog.ts drawCurrent): the joins managed: a filter by table or column,
+   Group by From table, the count, Run on, Run off and Delete selected for the ticked rows; the project's tables or
+   all; a checkbox per row (Select all of the rows shown, Shift+click a range), each column sortable, a row's Kind and
+   Run changed in place, its check, its note and its menu; the tables' keys; Check against the open tables.
+   Logic in JoinsInUse.razor.cs. *@
+
+<section class="rel-section rel-current" aria-labelledby="rel-current">
+    <h3 id="rel-current">In use now @if (Model is { Name: not "current" } named)
+        {
+            <span class="hint rel-model-name" title="@named.Name">(@named.Name)</span>
+        }</h3>
+    @if (Model is { Relationships.Count: > 0 } model)
+    {
+        var shown = Visible(model);
+        var picked = model.Relationships.Where(r => _selected.Contains(r.Key)).ToList();
+        <div class="rel-tools" role="toolbar" aria-label="Relationships in use">
+            <input type="search" class="cat-search rel-filter" placeholder="Filter by table or column" aria-label="Filter relationships" @bind="_filter" @bind:event="oninput" />
+            <button type="button" class="btn ghost" aria-pressed="@(_grouped ? "true" : "false")" @onclick="() => _grouped = !_grouped"><Icon Name="group" /> Group by From table</button>
+            <span class="rel-count" role="status">@(picked.Count > 0 ? $"{picked.Count} selected" : $"{shown.Count} of {model.Relationships.Count}")</span>
+            <button type="button" class="btn ghost" title="Use the selected joins" disabled="@(picked.Count == 0)" @onclick='() => OnUpdate.InvokeAsync((picked, null, true, "Run on"))'><Icon Name="play" /> Run on</button>
+            <button type="button" class="btn ghost" title="Keep the selected joins but do not use them" disabled="@(picked.Count == 0)" @onclick='() => OnUpdate.InvokeAsync((picked, null, false, "Run off"))'><Icon Name="stop" /> Run off</button>
+            <button type="button" class="btn danger" disabled="@(picked.Count == 0)" @onclick="() => DeletePickedAsync(picked)"><Icon Name="trash" /> Delete selected</button>
+        </div>
+        @if (Scope is { Project: true } scope)
+        {
+            <div class="rel-scope">
+                <span class="scope-switch" role="group" aria-label="Which tables">
+                    <button type="button" class="btn ghost scope-choice" aria-pressed="@(!_showAll ? "true" : "false")" @onclick="() => _showAll = false">Tables in this project</button>
+                    <button type="button" class="btn ghost scope-choice" aria-pressed="@(_showAll ? "true" : "false")" @onclick="() => _showAll = true">All tables</button>
+                </span>
+                @if (scope.Words.Length > 0)
+                {
+                    <span class="hint rel-hidden" title="@scope.Words">@scope.Words</span>
+                }
+            </div>
+        }
+        <div class="rel-scroll">
+            <table class="small rel-table">
+                <thead>
+                    <tr>
+                        <th scope="col" class="rel-col-pick"><input type="checkbox" aria-label="Select all" checked="@(shown.Count > 0 && shown.All(r => _selected.Contains(r.Key)))" @onchange="e => SelectAll(shown, e.Value is true)" /></th>
+                        @foreach (var (key, label, css) in _columns)
+                        {
+                            <th scope="col" class="@css" aria-sort="@SortWord(key)">
+                                <button type="button" class="rel-sort" title="@($"Sort by {label}")" @onclick="() => SortBy(key)">@label @if (_sort?.Key == key)
+                                    {
+                                        <Icon Name="@(_sort.Value.Down ? "sortdown" : "sortup")" />
+                                    }</button>
+                            </th>
+                        }
+                        <th scope="col" class="rel-col-note">Note</th>
+                        <th scope="col" class="rel-col-menu"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (join, group) in WithGroups(shown))
+                    {
+                        if (group is { } heading)
+                        {
+                            <tr class="rel-group"><th colspan="9" scope="rowgroup" title="@heading.Name">@heading.Name<span class="hint"> · @heading.Count</span></th></tr>
+                        }
+                        var ran = Run(join);
+                        <tr class="@RowClass(join, ran)" data-key="@join.Key">
+                            <td class="rel-col-pick"><input type="checkbox" aria-label="@($"Select {join.From} to {join.To}")" checked="@_selected.Contains(join.Key)" @onclick="e => Pick(join, shown, e.ShiftKey)" /></td>
+                            <td class="rel-cut rel-col-from" title="@join.From">@join.From</td>
+                            <td class="rel-cut rel-col-to" title="@join.To">@join.To</td>
+                            <td class="rel-cut rel-col-on" title="@join.On">@join.On</td>
+                            <td class="rel-col-kind">
+                                <select class="rel-kind" aria-label="@($"Kind of {join.From} to {join.To}")" value="@join.Kind" @onchange='e => OnUpdate.InvokeAsync(([join], e.Value?.ToString(), null, $"Kind {e.Value}"))'>
+                                    @foreach (var kind in _kinds)
+                                    {
+                                        <option value="@kind">@kind</option>
+                                    }
+                                </select>
+                            </td>
+                            <td class="rel-col-run"><input type="checkbox" class="rel-run-switch" role="switch" checked="@join.Active" aria-label="@($"Run {join.From} to {join.To}")" title="@(join.Active ? "On: used" : "Off: kept but not used")"
+                                                           @onchange='e => OnUpdate.InvokeAsync(([join], null, e.Value is true, e.Value is true ? "Run on" : "Run off"))' /></td>
+                            <td class="rel-cut rel-col-check" title="@(ran?.Detail ?? "Not checked yet")">@if (ran is { } checkedRun)
+                                {
+                                    <Icon Name="@Status(checkedRun.Status).Icon" /><span class="rel-check-word"> @Status(checkedRun.Status).Words</span>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }</td>
+                            <td class="rel-cut rel-col-note hint" title="@NoteOf(join, ran)">@NoteOf(join, ran)</td>
+                            <td class="rel-col-menu"><button type="button" class="btn ghost icon small" aria-label="@($"More for {join.From} to {join.To}")" @onclick="e => RowMenu(join, e)"><Icon Name="more" /></button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Keys(model) is { Count: > 0 } keys)
+        {
+            <p class="hint rel-keys">Keys: @string.Join(" · ", keys)</p>
+        }
+        <div class="row-actions"><button type="button" class="btn" disabled="@_checking" @onclick="CheckAsync"><Icon Name="play" /> @(_checking ? "Checking…" : "Check against the open tables")</button></div>
+    }
+    else
+    {
+        <p class="hint">No joins in use yet.</p>
+    }
+</section>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}

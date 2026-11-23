@@ -116,6 +116,9 @@
         case "connection":
             <ConnectionDialog Table="@open.Dataset" Grid="@open.Grid" Current="_connection" OnSwapped="SwappedAsync" OnClose="CloseDialog" />
             break;
+        case "relationships":
+            <RelationshipsDialog Grid="@open.Grid" OnClose="CloseDialog" />
+            break;
         case StepsPanel:
             <StepsPanel Info="open" PreviewUpto="_previewUpto" OnPreview="PreviewAsync" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditFromPanel" OnReorder="ReorderStepsAsync" OnClose="CloseDialog" />
             break;

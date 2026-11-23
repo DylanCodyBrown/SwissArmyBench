@@ -70,7 +70,7 @@ public partial class GridsPage
                 await AutoSizeAsync([]);
                 break;
             case "relationships":
-                Nav.NavigateTo("erd");
+                _dialog = tool;
                 break;
             case "variant":
                 await MakeVariantAsync(info.Dataset);

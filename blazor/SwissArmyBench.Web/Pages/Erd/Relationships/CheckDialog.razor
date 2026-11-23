@@ -1,0 +1,49 @@
+@* A saved set's check (the classic relationshipsDialog.ts showRunDialog): each join's result and detail, a few orphan
+   values, its notes. *@
+
+<AppDialog Title="@($"Check {Answer.Set}")" Wide="true" OnClose="OnClose">
+    <ChildContent>
+        <table class="small rel-run">
+            <thead><tr><th scope="col">Join</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead>
+            <tbody>
+                @foreach (var r in Answer.Results)
+                {
+                    <tr class="@($"run-{r.Status.Replace(' ', '-')}")">
+                        <td>@r.From → @r.To on @string.Join(", ", r.FromColumns.Zip(r.ToColumns).Select(p => p.First == p.Second ? p.First : $"{p.First} = {p.Second}"))</td>
+                        <td>@Words(r.Status)</td>
+                        <td>
+                            @r.Detail
+                            @if (r.OrphanSamples is { Count: > 0 } samples)
+                            {
+                                <div class="hint">Orphans, for example: @string.Join(", ", samples.Select(v => v.GetRawText()))</div>
+                            }
+                            @foreach (var note in r.Notes ?? [])
+                            {
+                                <div class="hint">@note</div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    [Parameter, EditorRequired]
+    public CheckAnswer Answer { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private static string Words(string status) => status switch
+    {
+        "holds" => "Holds",
+        "orphans" => "Holds, with orphans",
+        "broken" => "Broken",
+        _ => "Not open",
+    };
+}
