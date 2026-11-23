@@ -1,0 +1,94 @@
+@using SwissArmyBench.Web.Api.Sandbox
+@* Add a table to the sandbox (the classic dataSandbox.ts chooseSource): From an open table (its view, after its
+   steps), a file (CSV, Excel, Parquet, JSON) or an empty table by its columns ("id integer key" a line); its name in
+   the sandbox. *@
+@inject SandboxClient Sandbox
+@inject FileChooser Files
+
+<AppDialog Title="Add a table to the sandbox" OnClose="() => OnClose.InvokeAsync(false)">
+    <ChildContent>
+        <label class="field form-row"><span>From</span>
+            <select aria-label="From" @bind="_from">
+                <option value="grid">An open table (its view, after its steps)</option>
+                <option value="file">A file (CSV, Excel, Parquet, JSON)</option>
+                <option value="columns">An empty table, by its columns</option>
+            </select>
+        </label>
+        @switch (_from)
+        {
+            case "grid":
+                <div class="field"><input aria-label="The open table" placeholder="The open table's name" @bind="_table" /></div>
+                break;
+            case "file":
+                <div class="field"><button type="button" class="btn" @onclick="ChooseAsync">Choose file…</button> <span class="muted mono">@_path</span></div>
+                break;
+            default:
+                <div class="field"><textarea aria-label="Columns" rows="4" spellcheck="false" placeholder="@ColumnsHint" @bind="_columns"></textarea></div>
+                break;
+        }
+        <label class="field form-row"><span>Its name in the sandbox</span><input aria-label="Its name in the sandbox" placeholder="orders" spellcheck="false" @bind="_name" /></label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnClose.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_adding" Words="Adding the table…">
+            <button type="button" class="btn primary" @onclick="AddAsync">Add</button>
+        </Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private const string ColumnsHint = "id integer key\nnote text\nwhen date";
+
+    private string _from = "grid";
+    private string _table = string.Empty;
+    private string _path = string.Empty;
+    private string _columns = string.Empty;
+    private string _name = string.Empty;
+    private bool _adding;
+    private Exception? _error;
+
+    /// <summary>Closed: whether a table was added.</summary>
+    [Parameter]
+    public EventCallback<bool> OnClose { get; set; }
+
+    private async Task ChooseAsync()
+    {
+        if (await Files.ChooseAsync("file", "A table's file", null, "table") is { } chosen)
+        {
+            _path = chosen;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        var given = new Dictionary<string, object?> { ["from"] = _from, ["name"] = _name.Trim().Length > 0 ? _name.Trim() : null };
+        switch (_from)
+        {
+            case "grid":
+                given["table"] = _table.Trim();
+                break;
+            case "file":
+                given["path"] = _path;
+                break;
+            default:
+                given["columns"] = _columns.Split('\n')
+                    .Select(line => line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    .Where(parts => parts.Length > 0)
+                    .Select(parts => new { name = parts[0], type = parts.Length > 1 ? parts[1] : "text", key = parts.Length > 2 && parts[2] == "key" })
+                    .ToList();
+                break;
+        }
+        _adding = true;
+        try
+        {
+            await Sandbox.AddAsync(given);
+            await OnClose.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _adding = false;
+    }
+}

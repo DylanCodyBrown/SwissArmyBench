@@ -1,0 +1,44 @@
+@* A table's or a file's first rows (the classic previewOf and tablePreview): one line of what it is, then the rows. *@
+
+<p class="hint">@Line</p>
+<div class="connection-preview" tabindex="0" role="region" aria-label="@Region">
+    <table class="small rows">
+        <thead><tr>@foreach (var column in Preview.Columns)
+        {
+            <th>@column</th>
+        }</tr></thead>
+        <tbody>
+            @foreach (var row in Preview.Rows)
+            {
+                <tr>@foreach (var value in row)
+                {
+                    <td class="@(value.ValueKind == JsonValueKind.Number ? "num" : null)">@ConnectionWords.Cell(value)</td>
+                }</tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TablePreview Preview { get; set; } = default!;
+
+    private string Region => Preview.Table is null ? "The file's first rows" : "The table's first rows";
+
+    /// <summary>"Sheet Q1: 3 columns, the first 20 rows"; a table's "main.orders: the first 20 rows".</summary>
+    private string Line
+    {
+        get
+        {
+            var n = Preview.Rows.Count;
+            var rows = ConnectionWords.Count(n, "row");
+            if (Preview.Table is { } table)
+            {
+                var of = Preview.Total is { } all && all > n ? $" of {all:N0}" : string.Empty;
+                var word = n == 1 && of.Length == 0 ? "row" : "rows";
+                return $"{(Preview.Schema is { Length: > 0 } schema ? $"{schema}." : string.Empty)}{table}: the first {n:N0}{of} {word}";
+            }
+            return $"{(Preview.Sheet is { } sheet ? $"Sheet {sheet}: " : string.Empty)}{ConnectionWords.Count(Preview.Columns.Count, "column")}, the first {rows}";
+        }
+    }
+}

@@ -4,8 +4,8 @@
    Test and Save. Logic in PythonConnectionForm.razor.cs. *@
 
 <div class="connection-form python-form settings-page">
+    <h3>@(Editing is null ? "New Python connection" : $"Edit {Editing}")</h3>
     <fieldset class="fieldset">
-        <legend>@(Editing is null ? "New Python connection" : $"Edit {Editing}")</legend>
         <label class="form-row"><span>Name</span><input class="connection-name" aria-label="Name" maxlength="64" @bind="_name" /></label>
         <label class="form-row"><span>Description</span><input class="connection-description" aria-label="Description" placeholder="Optional" @bind="_description" /></label>
     </fieldset>
@@ -52,8 +52,13 @@
     {
         <p class="status-ok" role="status">@_tested</p>
     }
+    @if (_testRows is not null)
+    {
+        <TablePreviewView Preview="_testRows" />
+    }
     <Busy IsBusy="_busy" Words="@_busyWords">
         <div class="form-row">
+            <BackLink To="@(Editing ?? "Add connection")" Href="@(Editing is null ? "connections?add=1" : $"connections?name={Uri.EscapeDataString(Editing)}")" />
             <button type="button" class="btn" @onclick="TestAsync"><Icon Name="play" /> Test connection</button>
             <button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
         </div>

@@ -1,49 +1,76 @@
-@* Add connection: every kind the backend offers, by its group (Databases, Lakes and SharePoint, Files, Your own
-   code), each its own icon; a click opens its form. Key vaults are added on the Environment's Settings and secrets
-   tab, not here. *@
+@* Add connection's types (the classic connectionsWindow.ts showTypes): every type the backend offers by its group
+   (Databases, Lakes and SharePoint, Files, Your own code), each its own icon over its name, the ones opened last
+   first (this browser's memory). Typing filters them; Enter opens the first one left. Key vaults are added on the
+   Environment's Settings and secrets tab, not here. *@
 @inject ConnectionsClient Connections
+@inject NavigationManager Nav
+@inject IJSRuntime Js
 
+<div class="connection-detail-top">
+    <BackLink To="Connections" Href="connections" />
+    <nav class="crumbs" aria-label="Where you are"><a href="connections">Connections</a> › <span>Add connection</span></nav>
+</div>
 <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-<Busy IsBusy="_forms is null && _error is null" Words="Loading the kinds of connection…">
-    @if (_forms is { } forms)
+<Busy IsBusy="_forms is null && _error is null" Words="Loading the connection types…">
+    @if (_forms is not null)
     {
-        <input type="search" class="add-search" placeholder="Search the kinds" aria-label="Search the kinds" @bind="_search" @bind:event="oninput" />
-        @foreach (var group in forms.Where(Matches).GroupBy(f => f.Group))
+        <div class="connection-type-find">
+            <input type="search" class="connection-type-search add-search" placeholder="Search the types" aria-label="Search the connection types" @bind="_search" @bind:event="oninput" @onkeydown="KeyAsync" @ref="_searchBox" />
+        </div>
+        @if (!Groups.Any())
         {
-            <section class="section">
-                <div class="section-head"><h2>@group.Key</h2></div>
-                <div class="kind-grid">
-                    @foreach (var form in group)
-                    {
-                        <a class="card kind-card" href="@($"connections?kind={Uri.EscapeDataString(form.Id)}")" data-kind="@form.Id">
-                            <div class="card-title"><Icon Name="@form.Id" /> <span>@form.Label</span></div>
-                            @if (form.Local.Count > 0)
-                            {
-                                <span class="only-here" title="@form.Local[0].Words"><Icon Name="warning" /> Only works on your machine</span>
-                            }
-                        </a>
-                    }
-                </div>
-            </section>
+            <p class="empty-note">No connection type matches.</p>
         }
-        <p class="muted">Key vaults are added on the <a href="environment?at=settings">Environment's Settings and secrets</a> tab.</p>
+        @foreach (var (title, types) in Groups)
+        {
+            <h3>@title</h3>
+            <div class="connection-types kind-grid">
+                @foreach (var form in types)
+                {
+                    <a class="card kind-card connection-type fam-@form.Connection @(_recent.Contains(form.Id) ? "recent" : null)" href="@Href(form)" data-kind="@form.Id" data-type="@form.Id" @onclick="() => RememberAsync(form.Id)">
+                        <div class="card-title"><Icon Name="@ConnectionWords.IconOf(form.Id, form.Connection)" /> <span>@ConnectionWords.Plain(form.Label)</span></div>
+                        @if (form.Local.Count > 0)
+                        {
+                            <span class="only-here" title="@form.Local[0].Words"><Icon Name="warning" /> Only works on your machine</span>
+                        }
+                    </a>
+                }
+            </div>
+        }
     }
 </Busy>
 
 @code {
-    private const string VaultGroup = "Vaults";
+    private const string RecentKey = "connections.recentKinds";
+    private const int RecentKept = 6;
 
     private IReadOnlyList<ConnectionForm>? _forms;
     private Exception? _error;
     private string _search = string.Empty;
+    private List<string> _recent = [];
+    private ElementReference _searchBox;
+    private bool _focused;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        _recent = await RecentAsync();
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focused && _forms is not null)
+        {
+            _focused = true;
+            await _searchBox.FocusAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
         try
         {
-            _forms = (await Connections.FormsAsync()).Where(f => f.Group != VaultGroup).ToList();
+            _forms = await Connections.FormsAsync();
             _error = null;
         }
         catch (ApiException error)
@@ -52,6 +79,58 @@
         }
     }
 
-    private bool Matches(ConnectionForm form) =>
-        _search.Length == 0 || form.Label.Contains(_search, StringComparison.OrdinalIgnoreCase) || form.Group.Contains(_search, StringComparison.OrdinalIgnoreCase);
+    /// <summary>The groups in the classic order, each type found by every word typed, the recent ones first.</summary>
+    private IEnumerable<(string Title, IReadOnlyList<ConnectionForm> Types)> Groups
+    {
+        get
+        {
+            var words = _search.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var groups = new (string Title, Func<ConnectionForm, bool> Belongs)[]
+            {
+                ("Databases", f => f.Connection == "database" && f.Group != ConnectionWords.LakeGroup),
+                (ConnectionWords.LakeGroup, f => f.Group == ConnectionWords.LakeGroup),
+                ("Files", f => f.Connection == "file" && f.Group != ConnectionWords.LakeGroup),
+                ("Your own code", f => f.Connection == "python"),
+            };
+            return groups
+                .Select(g => (g.Title, (IReadOnlyList<ConnectionForm>)(_forms ?? [])
+                    .Where(g.Belongs)
+                    .Where(f => words.All(w => $"{ConnectionWords.Plain(f.Label)} {f.Id} {f.Group}".ToLowerInvariant().Contains(w)))
+                    .OrderBy(Rank)
+                    .ToList()))
+                .Where(g => g.Item2.Count > 0);
+        }
+    }
+
+    private int Rank(ConnectionForm form) => _recent.IndexOf(form.Id) is var at and >= 0 ? at : _recent.Count;
+
+    private static string Href(ConnectionForm form) => $"connections?kind={Uri.EscapeDataString(form.Id)}";
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Groups.SelectMany(g => g.Types).FirstOrDefault() is { } first)
+        {
+            await RememberAsync(first.Id);
+            Nav.NavigateTo(Href(first));
+        }
+    }
+
+    private async Task<List<string>> RecentAsync()
+    {
+        try
+        {
+            var kept = await Js.InvokeAsync<string?>("sab.recall", RecentKey);
+            return kept is null ? [] : (JsonSerializer.Deserialize<List<string>>(kept) ?? []).Take(RecentKept).ToList();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private async Task RememberAsync(string id)
+    {
+        var next = new[] { id }.Concat(_recent.Where(k => k != id)).Take(RecentKept).ToList();
+        await Js.InvokeVoidAsync("sab.remember", RecentKey, JsonSerializer.Serialize(next));
+    }
 }

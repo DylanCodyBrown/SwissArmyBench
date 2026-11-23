@@ -10,4 +10,11 @@ public sealed record ConnectionUsage(
     IReadOnlyList<LocalNote>? Local,
     WritesInfo? Writes,
     ConnectionConfiguration Configuration,
-    IReadOnlyList<ConnectionReference> References);
+    IReadOnlyList<ConnectionReference> References,
+    string Connection = "database",
+    string? Template = null,
+    string? Dialect = null,
+    IReadOnlyList<string>? About = null,
+    IReadOnlyList<string>? Missing = null,
+    CatalogState? CatalogState = null,
+    bool UpdateDriver = false);

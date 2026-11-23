@@ -1,0 +1,54 @@
+@* A connection's three limits as number boxes and Save (the classic connectionSlots.ts limitsForm): at once, the
+   agent's share, the wait; on the detail and in the Queries window's header (Compact). *@
+@inject QueriesClient Queries
+@inject Notes Notes
+
+<div class="connection-limits @(Compact ? "compact" : null)" role="group" aria-label="Limits">
+    <label class="connection-limit-field"><span>At once</span><input type="number" min="1" max="64" step="1" class="connection-limit" aria-label="Queries at once" name="total" @bind="_total" /></label>
+    <label class="connection-limit-field"><span>The agent's</span><input type="number" min="0" max="@_total" step="1" class="connection-limit" aria-label="The agent's share" name="agent" @bind="_agent" /></label>
+    <label class="connection-limit-field"><span>Wait (s)</span><input type="number" min="1" max="3600" step="1" class="connection-limit" aria-label="Wait limit in seconds" name="wait" @bind="_wait" /></label>
+    <button type="button" class="btn" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+</div>
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+
+@code {
+    private int _total = 8;
+    private int _agent = 4;
+    private int _wait = 120;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Compact { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Fill(await Queries.LimitsAsync(Name));
+        }
+        catch (ApiException)
+        {
+            // the defaults stay
+        }
+    }
+
+    private void Fill(SlotLimits limits) => (_total, _agent, _wait) = (limits.Total, limits.Agent, limits.Wait);
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var saved = await Queries.SaveLimitsAsync(Name, new SlotLimits(_total, _agent, _wait));
+            Fill(saved);
+            _error = null;
+            _ = Notes.SayAsync($"{Name}: {saved.Total} at once, {saved.Agent} of them the agent's");
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

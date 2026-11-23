@@ -14,6 +14,7 @@ using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Grids;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
+using SwissArmyBench.Web.Api.Sandbox;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Api.Structures;
@@ -56,6 +57,8 @@ public static class Program
         services.AddScoped<EnvironmentClient>();
         services.AddScoped<SettingsClient>();
         services.AddScoped<ConnectionsClient>();
+        services.AddScoped<QueriesClient>();
+        services.AddScoped<SandboxClient>();
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
         services.AddScoped<AnalyzeClient>();
@@ -74,5 +77,7 @@ public static class Program
         services.AddScoped<Dialogs>();
         services.AddScoped<GridStatus>();
         services.AddScoped<PythonSession>();
+        services.AddScoped<ConnectionColours>();
+        services.AddScoped<ConnectionSlots>();
     }
 }

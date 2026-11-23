@@ -53,6 +53,10 @@
         <div class="loading-block">Loading the table…</div>
     }
 </section>
+@if (_variantOf is { } variantOf)
+{
+    <SwissArmyBench.Web.Pages.Connections.Sandbox.SandboxVariantDialog Origin="@variantOf" OnClose="_ => _variantOf = null" />
+}
 @if (_info is { } open)
 {
     @if (_editor is { } editor)

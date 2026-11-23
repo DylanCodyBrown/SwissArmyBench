@@ -1,6 +1,6 @@
 namespace SwissArmyBench.Web.Api.Connections;
 
-/// <summary>One card of the Connections page (GET /connections/usage): its type, its status word (a cheap check, never a run) and its calls.</summary>
+/// <summary>One card of the Connections page (GET /connections/usage): its type, its status word (a cheap check, never a run), its calls, what it is (about), the Sandbox's own words.</summary>
 public sealed record ConnectionCard(
     string Name,
     string Connection,
@@ -18,4 +18,8 @@ public sealed record ConnectionCard(
     WritesInfo? Writes = null,
     string? Colour = null,
     string? Words = null,
-    int? Tables = null);
+    int? Tables = null,
+    IReadOnlyList<string>? About = null,
+    CatalogState? CatalogState = null,
+    bool UpdateDriver = false,
+    string? LogWords = null);

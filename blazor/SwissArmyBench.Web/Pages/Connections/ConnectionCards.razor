@@ -1,9 +1,12 @@
-@* The connections as cards: each its type's icon, name, status in a word, type, description, calls this session
-   ("2 calls · 3 min ago · usually 380 ms"), the amber Only works on your machine, what it writes. Live: a saved,
-   removed or used connection redraws them. *@
+@* The connections as cards (the classic connectionsWindow.ts showList), grouped: Databases, Lakes and SharePoint,
+   Files, Your own code, and the project's Sandbox. Each its type's icon, name, type, status in a word, calls this
+   session, what the server said it is, the amber Only works on your machine, the live slot line; its colour its
+   border and tint. Key vaults (the Environment's) and APIs (the APIs page's) are not here. Live: drawn again on a
+   connection's change and as catalogs load. *@
 @implements IDisposable
 @inject ConnectionsClient Connections
 @inject LiveUpdates Live
+@inject ConnectionColours Colours
 
 <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
 <Busy IsBusy="_cards is null" Words="Loading the connections…">
@@ -11,60 +14,84 @@
     {
         <div class="empty-state">
             <Icon Name="plug" />
-            <p>No connections yet: a connection is a database, a lake, SharePoint or a folder of files whose tables DuckDB SQL can name.</p>
+            <p>A connection lists a database's or a folder's tables, so DuckDB SQL can read them by name.</p>
             <a class="btn primary" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
         </div>
     }
     else if (_cards is { } cards)
     {
-        <div class="card-grid">
-            @foreach (var card in cards)
+        <div class="connection-groups">
+            @foreach (var (title, belongs) in ConnectionWords.CardGroups)
             {
-                <a class="card connection-card" href="@($"connections?name={Uri.EscapeDataString(card.Name)}")" data-name="@card.Name" style="@(card.Colour is null ? null : $"border-left: 4px solid {card.Colour}")">
-                    <div class="card-title">
-                        <Icon Name="@(card.Template ?? card.TablesKind)" />
-                        <span>@card.Name</span>
-                        <StatusPill Status="@card.Status" Why="@WhyOf(card)" />
-                    </div>
-                    <div class="card-meta"><span>@card.Type</span></div>
-                    @if (!string.IsNullOrWhiteSpace(card.Description))
+                var these = cards.Where(belongs).ToList();
+                if (these.Count == 0)
+                {
+                    continue;
+                }
+                <h2 class="connection-group-title">@title</h2>
+                <ul class="connection-cards" aria-label="@title">
+                    @foreach (var card in these)
                     {
-                        <p class="muted">@card.Description</p>
+                        <li class="connection-card-item">
+                            <a class="connection-card fam-@card.Connection st-@card.Status @(Colours.Of(card.Name) is null ? null : "conn-worn")" href="@($"connections?name={Uri.EscapeDataString(card.Name)}")" data-name="@card.Name" data-connection="@card.Name" style="@Worn(card.Name)">
+                                <span class="connection-card-icon" aria-hidden="true"><Icon Name="@ConnectionWords.IconOf(card.Template, card.Connection)" /></span>
+                                <span class="connection-card-text"><strong class="connection-card-name">@card.Name</strong><span class="connection-card-type">@ConnectionWords.TypeOf(card.Type, card.Connection)</span></span>
+                                <span class="connection-card-marks"><StatusPill Status="@card.Status" Why="@WhyOf(card)" /></span>
+                                <span class="connection-card-calls" title="@CallWords.Title(card.Calls?.Figures)">@CallWords.Of(card.Calls)</span>
+                                @if (card.About is [var about, ..])
+                                {
+                                    <span class="connection-card-about">@about</span>
+                                }
+                                @if (card.Local is [var local, ..])
+                                {
+                                    <span class="connection-card-local"><span class="error-mark warning" title="@string.Join("\n", card.Local.Select(n => n.Words))"><Icon Name="warning" /> @local.Words</span></span>
+                                }
+                                <SlotLine Name="@card.Name" />
+                            </a>
+                        </li>
                     }
-                    @if (card.Words is { } words)
+                </ul>
+            }
+            @if (cards.Where(c => c.Connection == SandboxKind).ToList() is { Count: > 0 } sandboxes)
+            {
+                <h2 class="connection-group-title">Sandbox</h2>
+                <ul class="connection-cards" aria-label="Sandbox">
+                    @foreach (var card in sandboxes)
                     {
-                        <p class="muted">@words</p>
+                        <li class="connection-card-item">
+                            <a class="connection-card fam-sandbox st-works" href="connections?sandbox=1" data-name="@card.Name" data-connection="@card.Name" style="@Worn(card.Name)">
+                                <span class="connection-card-icon" aria-hidden="true"><Icon Name="sandbox" /></span>
+                                <span class="connection-card-text"><strong class="connection-card-name">@card.Name</strong><span class="connection-card-type">Sandbox · @(card.Tables ?? 0) tables</span></span>
+                                <span class="connection-card-marks connection-card-type connection-card-log">@card.LogWords</span>
+                                <span class="connection-card-about sandbox-never-live">@card.Words</span>
+                            </a>
+                        </li>
                     }
-                    <div class="card-meta"><span>@CallWords.Of(card.Calls)</span></div>
-                    @if (card.Writes is { Words.Length: > 0 } writes)
-                    {
-                        <div class="card-meta"><span>@writes.Words</span></div>
-                    }
-                    @foreach (var local in card.Local ?? [])
-                    {
-                        <p class="only-here" title="@local.Words"><Icon Name="warning" /> Only works on your machine</p>
-                    }
-                </a>
+                </ul>
             }
         </div>
     }
 </Busy>
 
 @code {
+    private const string SandboxKind = "sandbox";
+
     private IReadOnlyList<ConnectionCard>? _cards;
     private Exception? _error;
 
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
-        await LoadAsync();
+        Colours.Changed += OnColours;
+        await Task.WhenAll(LoadAsync(), Colours.LoadAsync());
     }
 
     private async Task LoadAsync()
     {
         try
         {
-            _cards = await Connections.CardsAsync();
+            // Key vaults are the Environment's; APIs the APIs page's (the owner, 2026-11-17).
+            _cards = (await Connections.CardsAsync()).Where(c => c.Connection != "vault" && c.TablesKind != "api").ToList();
             _error = null;
         }
         catch (ApiException error)
@@ -74,16 +101,20 @@
         }
     }
 
+    /// <summary>The card wears its connection's colour: its border and a light tint of its box.</summary>
+    private string? Worn(string name) => Colours.Of(name) is { } colour ? $"--conn-a: {colour}; --conn-b: {colour}" : null;
+
     private static string? WhyOf(ConnectionCard card) => card.Status switch
     {
         "needs" => string.Join(", ", card.Missing ?? []),
-        "failing" or "resuming" => card.Error,
+        "failing" or "resuming" => card.Error.Length > 0 ? card.Error : card.CatalogState?.Error,
         _ => null,
     };
 
     private void OnNotice(Notice notice)
     {
-        if (notice.Type.StartsWith("connection", StringComparison.Ordinal) || notice.Type is "blades_changed" or "catalog_loaded")
+        if (notice.Type.StartsWith("connection", StringComparison.Ordinal) && notice.Type != "connection_slots"
+            || notice.Type is "blades_changed" or "catalog_loaded" or "catalog_loading" or "catalogs_changed" or "sandbox_changed" or "project_changed")
         {
             _ = InvokeAsync(async () =>
             {
@@ -93,5 +124,11 @@
         }
     }
 
-    public void Dispose() => Live.NoticeArrived -= OnNotice;
+    private void OnColours() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Live.NoticeArrived -= OnNotice;
+        Colours.Changed -= OnColours;
+    }
 }

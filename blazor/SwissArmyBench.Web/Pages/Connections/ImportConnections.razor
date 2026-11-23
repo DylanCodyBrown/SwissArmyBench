@@ -1,0 +1,111 @@
+@* Import connections (the classic projectImport.ts, for connections): Another project… (its folder, by the file
+   chooser), what it offers as ticks, Import (a connection the library has is skipped and said; one that needs a
+   password on this computer is said). *@
+@inject ApiClient Api
+@inject FileChooser Files
+@inject Notes Notes
+
+<AppDialog Title="Import connections" OnClose="() => OnClose.InvokeAsync(false)">
+    <ChildContent>
+        <div class="import-from">
+            <button type="button" class="btn" @onclick="ChooseAsync"><Icon Name="project" /> Another project…</button>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_offered is { } offered)
+        {
+            <div class="import-choices">
+                <h3>@(offered.From == "computer" ? "This computer" : offered.From)</h3>
+                @if (offered.Connections.Count == 0)
+                {
+                    <p class="muted">No connections there.</p>
+                }
+                else
+                {
+                    <ul class="import-list">
+                        @foreach (var item in offered.Connections)
+                        {
+                            <li><label><input type="checkbox" data-name="@item.Name" aria-label="@item.Name" checked="@_ticked.Contains(item.Name)" @onchange="e => Tick(item.Name, e.Value is true)" /> <span>@item.Name</span> @if (item.Description.Length > 0)
+                                {
+                                    <span class="muted">@item.Description</span>
+                                }</label></li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnClose.InvokeAsync(false)">Cancel</button>
+        <button type="button" class="btn primary" disabled="@(_offered is not { Connections.Count: > 0 })" @onclick="ImportAsync"><Icon Name="import" /> Import</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private readonly HashSet<string> _ticked = [];
+    private ImportOffered? _offered;
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback<bool> OnClose { get; set; }
+
+    private async Task ChooseAsync()
+    {
+        var from = await Files.ChooseAsync("folder", "Import from a project", null, "project");
+        if (from is null)
+        {
+            return;
+        }
+        try
+        {
+            _offered = await Api.PostAsync<ImportOffered>("/project/import/sources", new { from });
+            _ticked.Clear();
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private void Tick(string name, bool on)
+    {
+        if (on)
+        {
+            _ticked.Add(name);
+        }
+        else
+        {
+            _ticked.Remove(name);
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_offered is null)
+        {
+            return;
+        }
+        if (_ticked.Count == 0)
+        {
+            _error = new ApiException(0, new Refusal("Tick what to import."), string.Empty);
+            return;
+        }
+        try
+        {
+            var result = await Api.PostAsync<ImportDone>("/project/import", new { from = _offered.From, connections = _ticked.ToList() });
+            foreach (var name in result.Skipped)
+            {
+                _ = Notes.SayAsync($"{name}: the project has one by that name.");
+            }
+            foreach (var name in result.NeedsPassword.Keys)
+            {
+                _ = Notes.SayAsync($"{name} needs a password on this computer.");
+            }
+            await OnClose.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

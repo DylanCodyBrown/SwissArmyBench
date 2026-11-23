@@ -1,0 +1,58 @@
+@using SwissArmyBench.Web.Api.Sandbox
+@* Make a sandbox variant… (the classic dataSandbox.ts makeVariant): a copy of an open table's view (From "grid") or a
+   structure's records (From "structure") in the project's sandbox, with its own designation ("orders · sandbox", or
+   the name given) and its origin kept; it never writes back. *@
+@inject SandboxClient Sandbox
+@inject Notes Notes
+
+<AppDialog Title="Make a sandbox variant" OnClose="() => OnClose.InvokeAsync(false)">
+    <ChildContent>
+        <p>A copy of @(From == "grid" ? "the open table" : "the structure's records") <strong>@Origin</strong> in the project's sandbox. It never writes back.</p>
+        <label class="field form-row"><span>Its name</span><input aria-label="Its name" placeholder="@($"{Origin} · sandbox")" spellcheck="false" @bind="_name" /></label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnClose.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_making" Words="Making…">
+            <button type="button" class="btn primary" @onclick="MakeAsync">Make</button>
+        </Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _name = string.Empty;
+    private bool _making;
+    private Exception? _error;
+
+    /// <summary>"grid" (an open table's view) or "structure" (a structure's records).</summary>
+    [Parameter]
+    public string From { get; set; } = "grid";
+
+    /// <summary>The open table's or the structure's name.</summary>
+    [Parameter, EditorRequired]
+    public string Origin { get; set; } = string.Empty;
+
+    /// <summary>A structure's file, when it has one.</summary>
+    [Parameter]
+    public string? Path { get; set; }
+
+    /// <summary>Closed: whether the variant was made.</summary>
+    [Parameter]
+    public EventCallback<bool> OnClose { get; set; }
+
+    private async Task MakeAsync()
+    {
+        _making = true;
+        try
+        {
+            var done = await Sandbox.VariantAsync(From, Origin, _name.Trim().Length > 0 ? _name.Trim() : null, Path);
+            _ = Notes.SayAsync($"{done.Title} is in the sandbox: {done.Rows:N0} rows.");
+            await OnClose.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _making = false;
+    }
+}

@@ -1,0 +1,95 @@
+@* A connection's tables as a tree with a search (the classic connectionTree.ts): a database's schemas or a Power BI
+   workspace's datasets, each with its tables. A table: Open (a grid), Preview (its first rows under it), Copy name
+   (how DuckDB SQL names it anywhere). A group: Open all (asked first), Import its relationships (Power BI), Query
+   in a notebook. Logic in ConnectionTables.razor.cs. *@
+
+<section class="connection-section connection-tables" aria-label="Tables">
+    <h2><Icon Name="rows" /> Tables <span class="count">@(_tree?.Groups.Sum(g => g.Count).ToString() ?? string.Empty)</span></h2>
+    <input type="search" class="conn-tree-search" placeholder="Search tables" aria-label="Search tables" @bind="_search" @bind:event="oninput" />
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
+        <div class="conn-tree" role="tree" aria-label="@($"{Name}'s tables")">
+            @if (_tree is null)
+            {
+                <div class="loading-block">Loading @Name's tables…</div>
+            }
+            else if (_failed is not null)
+            {
+                <ErrorNote Words="@_failed" />
+            }
+            else if (Shown().ToList() is { Count: > 0 } groups)
+            {
+                <ul class="conn-tree-groups" role="group">
+                    @foreach (var (group, tables) in groups)
+                    {
+                        var first = group.Tables.FirstOrDefault();
+                        <li class="conn-tree-group" role="treeitem" data-group="@group.Schema">
+                            <details open="@(Single || _search.Length > 0 || groups.Count == 1)">
+                                <summary>
+                                    <span class="conn-tree-group-name"><Icon Name="@(IsPowerBi ? "diagram" : "folder")" /> @TitleOf(group) <span class="count">@group.Count</span></span>
+                                    <span class="conn-tree-actions">
+                                        @if (group.Count > 1)
+                                        {
+                                            <button type="button" class="btn small line" @onclick="() => OpenAllAsync(group)"><Icon Name="grids" /> Open all</button>
+                                        }
+                                        @if (IsPowerBi)
+                                        {
+                                            <button type="button" class="btn small line" @onclick="() => ImportRelationshipsAsync(group)"><Icon Name="diagram" /> Import its relationships</button>
+                                        }
+                                        @if (first is not null)
+                                        {
+                                            <button type="button" class="btn small line" @onclick="() => QueryInNotebookAsync(first.Sql)"><Icon Name="notebook" /> Query in a notebook</button>
+                                        }
+                                    </span>
+                                </summary>
+                                <ul class="conn-tree-tables" role="group">
+                                    @foreach (var table in tables.Take(TablesShownAtOnce))
+                                    {
+                                        <li class="conn-tree-table" role="treeitem" data-table="@table.Table">
+                                            <div class="conn-tree-row">
+                                                <span class="conn-tree-name"><Icon Name="rows" /> @table.Table @if (table.Title is not null)
+                                                    {
+                                                        <span class="conn-tree-title">@table.Title</span>
+                                                    }</span>
+                                                <span class="conn-tree-actions">
+                                                    <button type="button" class="btn small" @onclick="() => OpenAsync(table)"><Icon Name="rows" /> Open</button>
+                                                    <button type="button" class="btn small line" @onclick="() => PreviewAsync(table)"><Icon Name="eye" /> Preview</button>
+                                                    <button type="button" class="btn small line" title="@table.Sql" @onclick="() => CopyAsync(table.Sql)"><Icon Name="copy" /> Copy name</button>
+                                                </span>
+                                            </div>
+                                            <div class="conn-tree-preview">
+                                                @if (_reading == table)
+                                                {
+                                                    <div class="loading-block">Reading @table.Table…</div>
+                                                }
+                                                else if (_previews.TryGetValue(table, out var preview))
+                                                {
+                                                    if (preview.Error is not null)
+                                                    {
+                                                        <ErrorNote Error="preview.Error" />
+                                                    }
+                                                    else if (preview.Rows is not null)
+                                                    {
+                                                        <TablePreviewView Preview="preview.Rows" />
+                                                    }
+                                                }
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (tables.Count > TablesShownAtOnce)
+                                {
+                                    <p class="hint">@((tables.Count - TablesShownAtOnce).ToString("N0")) more: search to find them</p>
+                                }
+                            </details>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="empty-note">@(_search.Length > 0 ? "No table matches" : "No tables")</p>
+            }
+        </div>
+    </Busy>
+</section>

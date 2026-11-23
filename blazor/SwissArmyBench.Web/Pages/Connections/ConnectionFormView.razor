@@ -1,85 +1,190 @@
-@* A connection's form, drawn from the backend's data (the kind's fields by part: where it is, who signs in,
-   security), its passwords typed here and kept in the system keyring, the name and description, the code it makes
-   (each field written into it by the server: POST /blades/fill), Test and Save. *@
+@* A connection's form (the classic connectionsWindow.ts showForm), drawn from the backend's data in the same order
+   on every form: the crumbs, the heading, the note and what only works here, Name and Description, where it is,
+   Sign in (each way its own code; switching keeps what was typed), who signs in, the passwords (one box each: a
+   variable or a typed password, kept on Save as a keyring variable), security, Options folded, a database's Rows to
+   open and Load all rows, a vault's secrets, a missing driver, the result and the Python code (edited by hand: its
+   fields read again). Test connection and Save at the foot. Logic in ConnectionFormView.razor.cs and
+   ConnectionFormView.Passwords.cs. *@
 
-<ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-<Busy IsBusy="_form is null && _error is null" Words="Loading the form…">
+<ErrorNote Error="_loadError" OnRetry="LoadAsync" />
+<Busy IsBusy="_form is null && _loadError is null" Words="Loading the form…">
     @if (_form is { Id: PythonKind })
     {
         <PythonConnectionForm Form="_form" Editing="@_editing" />
     }
     else if (_form is { } form)
     {
-        <div class="connection-form settings-page">
-            <div class="form-row">
-                <Icon Name="@form.Id" /> <strong>@form.Label</strong> <span class="muted">@form.Group</span>
-            </div>
-            @if (!string.IsNullOrWhiteSpace(form.Note))
-            {
-                <p class="muted">@form.Note</p>
-            }
-            @foreach (var local in form.Local)
-            {
-                <ErrorNote Warning="true" Words="@local.Words" />
-            }
-            @foreach (var package in form.Packages.Where(p => !p.Installed))
-            {
-                <ErrorNote Warning="true" Words="@($"It needs {package.Pip}, which is not installed in the app's Python.")" />
-            }
-
-            <fieldset class="fieldset">
-                <legend>Name</legend>
-                <label class="form-row"><span>Name</span><input class="connection-name" @bind="_name" placeholder="A name for it" /></label>
-                <label class="form-row"><span>Description</span><input class="connection-description" @bind="_description" placeholder="What it holds (optional)" /></label>
-            </fieldset>
-
-            @foreach (var (part, title) in _parts)
-            {
-                var fields = FieldsOf(part).ToList();
-                if (fields.Count == 0 && !(part == WhoPart && form.Secrets.Count > 0))
+        <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
+            <div class="connection-form">
+                @if (_editing is null)
                 {
-                    continue;
+                    <nav class="crumbs" aria-label="Where you are"><a href="connections">Connections</a> › <a href="connections?add=1">Add connection</a> › <span>@ConnectionWords.Plain(form.Label)</span></nav>
                 }
-                <fieldset class="fieldset" data-part="@part">
-                    <legend>@title</legend>
-                    @foreach (var field in fields)
-                    {
-                        <label class="form-row">
-                            <span>@Label(field.Name)</span>
-                            <input class="connection-field" data-field="@field.Name" value="@TextOf(field)" placeholder="@(field.Placeholder ? TextOf(field) : null)" @onchange="e => FillAsync(field, e.Value?.ToString() ?? string.Empty)" />
-                            @if (field.Picker is "file" or "folder")
-                            {
-                                <button type="button" class="btn small" @onclick="() => PickAsync(field)"><Icon Name="folder" /> Choose…</button>
-                            }
+                <h3>@Heading</h3>
+                @if (form.Note.Length > 0)
+                {
+                    <p class="hint">@form.Note</p>
+                }
+                @foreach (var local in form.Local)
+                {
+                    <ErrorNote Warning="true" Words="@local.Words" />
+                }
+                <label class="field"><span>Name</span><input type="text" class="connection-name" aria-label="Name" maxlength="64" value="@_name" @oninput="NameTyped" @ref="_nameBox" /></label>
+                <label class="field"><span>Description</span><input type="text" class="connection-description" aria-label="Description" placeholder="Optional" @bind="_description" /></label>
+
+                @FieldsOf(WherePart)
+                @if (form.SignIns is { Count: > 1 } ways)
+                {
+                    <div>
+                        <label class="field"><span>Sign in</span>
+                            <select aria-label="Sign in" value="@_way" @onchange="SwitchSignInAsync">
+                                @for (var i = 0; i < ways.Count; i++)
+                                {
+                                    <option value="@i">@ways[i].Label</option>
+                                }
+                            </select>
                         </label>
-                    }
-                    @if (part == WhoPart)
-                    {
-                        @foreach (var secret in form.Secrets)
+                        <div class="sign-in-local">
+                            @foreach (var local in ways[_way].Local ?? [])
+                            {
+                                <ErrorNote Warning="true" Words="@local.Words" />
+                            }
+                            @if (ways[_way].Note is { Length: > 0 } note)
+                            {
+                                <p class="sign-in-note">@note</p>
+                            }
+                        </div>
+                    </div>
+                }
+                @FieldsOf(WhoPart)
+                @if (_passwords.Count > 0)
+                {
+                    <fieldset class="connection-passwords">
+                        <legend>@(form.Dialect is "dax" or "dataverse" ? "App registration" : "Passwords")</legend>
+                        @foreach (var box in _passwords)
                         {
-                            <label class="form-row">
-                                <span>@Label(secret)</span>
-                                <input type="password" autocomplete="off" class="connection-secret" placeholder="@(_editing is null ? "Typed here, kept in the system keyring" : "Leave empty to keep the saved one")" @bind="_secrets[secret]" />
-                            </label>
+                            <div class="connection-password">
+                                <label class="field password-box"><span>@ConnectionWords.Words(box.Label)</span>
+                                    <input type="@box.InputType" class="mono connection-secret" autocomplete="new-password" spellcheck="false" aria-label="@ConnectionWords.Words(box.Label)" placeholder="@PasswordPlaceholder(box)" value="@box.Text" @oninput="e => box.Text = e.Value?.ToString() ?? string.Empty" @onchange="() => SettleAsync(box)" @onblur="() => SettleAsync(box)" />
+                                </label>
+                                @if (box.Typed && form.KeyringNote is { } keyring)
+                                {
+                                    <div class="password-note"><ErrorNote Warning="true" Words="@keyring.Words" /></div>
+                                }
+                            </div>
                         }
+                    </fieldset>
+                }
+                @FieldsOf(SecurityPart)
+                @if (Parts(OptionsPart).Any())
+                {
+                    <details class="connection-options">
+                        <summary>Options</summary>
+                        @FieldsOf(OptionsPart)
+                    </details>
+                }
+                @if (form.Connection == "database")
+                {
+                    <div class="field row-limit-field form-row">
+                        <label class="field"><span>Rows to open</span><input type="number" min="1" step="1" placeholder="10000" aria-label="Rows to open" disabled="@_allRows" @bind="_rowLimit" /></label>
+                        <label class="check"><input type="checkbox" aria-label="Load all rows" @bind="_allRows" /> Load all rows</label>
+                    </div>
+                }
+                @if (IsVault)
+                {
+                    <VaultSecrets @ref="_vault" Body="Body" Editing="@_editing" EveryAtFirst="@(_editing is null || form.VaultAll)" Mapping="@(form.VaultMapping ?? [])" />
+                }
+                @if (_missing is { } missing)
+                {
+                    <MissingNote Missing="missing" OnInstalled="InspectAgainAsync" />
+                }
+                <div class="connection-result" role="status">
+                    <ErrorNote Error="_error" OnRetry="_again" OnClose="() => _error = null" />
+                    @if (_tested is not null)
+                    {
+                        <p class="status-ok">@_tested</p>
                     }
-                </fieldset>
-            }
-
-            <details class="connection-code">
-                <summary>Its code</summary>
-                <pre class="mono">@_code</pre>
-            </details>
-
-            @if (_tested is not null)
-            {
-                <p class="status-ok" role="status">@_tested</p>
-            }
-            <div class="form-row">
-                <button type="button" class="btn" disabled="@_busy" @onclick="TestAsync"><Icon Name="play" /> Test</button>
-                <button type="button" class="btn primary" disabled="@_busy" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
-                <a class="btn ghost" href="@(_editing is null ? "connections?add=1" : $"connections?name={Uri.EscapeDataString(_editing)}")">Cancel</a>
+                    @if (_testRows is not null)
+                    {
+                        <TablePreviewView Preview="_testRows" />
+                    }
+                    @if (_rowsError is not null)
+                    {
+                        <ErrorNote Words="@($"Its rows could not be read: {_rowsError}")" />
+                    }
+                </div>
+                <details class="connection-code-box connection-code">
+                    <summary>Python code</summary>
+                    <textarea class="mono connection-code-text" rows="8" spellcheck="false" aria-label="The Python this connection runs" value="@_code" @onchange="CodeEditedAsync"></textarea>
+                </details>
+                <div class="form-row connection-form-foot">
+                    <BackLink To="@BackLabel" Href="@BackHref" />
+                    <button type="button" class="btn" @onclick="TestAsync"><Icon Name="play" /> @(IsVault ? "Test" : "Test connection")</button>
+                    <button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+                </div>
             </div>
-        </div>
+        </Busy>
     }
 </Busy>
+
+@code {
+    /// <summary>One part's boxes (where, who, security, options), in the form's order: an on/off one a checkbox, a
+    /// choice a list, the rest one box (its text, a variable's reference where it reads one) with Browse… for a file.</summary>
+    private static string PartClass(string part) => part switch
+    {
+        WhoPart => "connection-fields connection-who",
+        SecurityPart => "connection-fields connection-security",
+        OptionsPart => "connection-fields connection-options-fields",
+        _ => "connection-fields",
+    };
+
+    private RenderFragment FieldsOf(string part) =>
+        @<div class="@PartClass(part)">
+            @foreach (var field in Parts(part))
+            {
+                var label = ConnectionWords.Words(field.Name);
+                if (field.Type == "flag")
+                {
+                    <label class="field field-flag"><input type="checkbox" aria-label="@label" checked="@IsOn(field)" @onchange="e => FlagAsync(field, e)" /> <span>@label</span></label>
+                }
+                else if (_form?.Choices?.GetValueOrDefault(field.Name) is { Count: > 0 } offered)
+                {
+                    var now = ValueText(field);
+                    <label class="field"><span>@label</span>
+                        <select aria-label="@label" @onchange="e => FillAsync(field, e.Value?.ToString() ?? string.Empty, false)">
+                            @foreach (var choice in offered.Contains(now) ? offered : offered.Prepend(now))
+                            {
+                                <option value="@choice" selected="@(choice == now)">@choice</option>
+                            }
+                        </select>
+                    </label>
+                }
+                else
+                {
+                    var text = field.Text ?? ValueText(field);
+                    var list = field.Suggestions is { Count: > 0 } ? $"conn-suggest-{field.Name.Replace(' ', '-')}" : null;
+                    <label class="field @(field.Picker is null ? null : "wide")" data-setting="@field.Name"><span>@label @if (field.Key.Length > 0 && !string.Equals(field.Key, field.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="hint"> (@field.Key)</span>
+                        }</span>
+                        <span class="field-row">
+                            <input type="text" class="connection-field" data-field="@field.Name" inputmode="@(field.Type == "number" && !text.Contains("${") ? "numeric" : "text")" spellcheck="false" aria-label="@label" value="@(field.Placeholder ? string.Empty : text)" placeholder="@text" list="@list" @onchange="e => BoxChangedAsync(field, e.Value?.ToString() ?? string.Empty)" />
+                            @if (field.Picker is not null)
+                            {
+                                <button type="button" class="btn" @onclick="() => BrowseAsync(field)"><Icon Name="folder" /> Browse…</button>
+                            }
+                        </span>
+                        @if (list is not null)
+                        {
+                            <datalist id="@list">
+                                @foreach (var suggestion in field.Suggestions!)
+                                {
+                                    <option value="@suggestion.Value">@suggestion.From</option>
+                                }
+                            </datalist>
+                        }
+                    </label>
+                }
+            }
+        </div>;
+}

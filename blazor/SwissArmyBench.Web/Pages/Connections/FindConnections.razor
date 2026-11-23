@@ -1,83 +1,128 @@
-@* Find connections on this computer (the classic findConnections.ts): the known tools' settings read (never a
-   password), the list with search, Select all, Already added and the kinds with no connection yet; Import makes the
-   ticked ones library connections, their passwords variables to set. *@
+@* Find connections on this computer (the classic findConnections.ts), a dialog over the cards: the known tools'
+   settings read (never a password), the scan gated with Cancel (it answers with what it found by then); the list
+   with Select all, a search and the count; each row its kind, where it points, its user, where it was found (found
+   by searching), Already added, why there is no connection of its kind yet, what only works here; Import makes the
+   ticked ones library connections (a row skipped is said). *@
 @inject ConnectionsClient Connections
+@inject Notes Notes
 
-<ErrorNote Error="_error" OnRetry="ScanAsync" OnClose="() => _error = null" />
-<Busy IsBusy="_scanning" Words="Looking at this computer's tools…" OnCancel="CancelAsync">
-    @if (_found is { } found)
-    {
-        <div class="toolbar-row">
-            <input type="search" placeholder="Search" aria-label="Search" @bind="_search" @bind:event="oninput" />
-            <button type="button" class="btn small" @onclick="SelectAll">Select all</button>
-            <button type="button" class="btn primary" disabled="@(_ticked.Count == 0)" @onclick="ImportAsync">Import @(_ticked.Count > 0 ? _ticked.Count.ToString() : string.Empty)</button>
-            <span class="muted">@found.Files settings files read</span>
+<AppDialog Title="Find connections on this computer" OnClose="() => OnClose.InvokeAsync(false)">
+    <ChildContent>
+        <div class="find-connections">
+            <ErrorNote Error="_error" OnRetry="ScanAsync" OnClose="() => _error = null" />
+            <Busy IsBusy="_scanning" Words="Looking for connections…" OnCancel="CancelAsync">
+                @if (_found is { Connections.Count: 0 })
+                {
+                    <p class="find-empty">No connections found.</p>
+                }
+                else if (_found is { } found)
+                {
+                    <div class="find-bar">
+                        <label class="find-all"><input type="checkbox" aria-label="Select all" checked="@AllTicked" disabled="@(Importable.Count == 0)" @onchange="e => SelectAll(e.Value is true)" /> <span>Select all</span></label>
+                        <input type="search" placeholder="Search" aria-label="Search the found connections" @bind="_search" @bind:event="oninput" @ref="_searchBox" />
+                        <span class="find-count" aria-live="polite">@CountWords(found)</span>
+                    </div>
+                    <ul class="find-list" aria-label="Found connections">
+                        @foreach (var row in found.Connections.Where(Matches))
+                        {
+                            var off = !row.Supported || row.Already is not null;
+                            <li class="find-row @(off ? "find-off" : null)" data-id="@row.Id">
+                                <label class="find-main">
+                                    <input type="checkbox" data-id="@row.Id" aria-label="@($"Import {row.Name}")" disabled="@off" checked="@_ticked.Contains(row.Id)" @onchange="e => Tick(row.Id, e.Value is true)" />
+                                    <span class="find-icon" aria-hidden="true"><Icon Name="@(Components.IconSet.Paths.ContainsKey(row.Kind) ? row.Kind : "plug")" /></span>
+                                    <span class="find-text">
+                                        <strong class="find-name">@row.Name</strong>
+                                        <span class="find-kind">@row.KindLabel</span>
+                                        <span class="find-place">@PlaceOf(row)</span>
+                                        @if (row.User.Length > 0)
+                                        {
+                                            <span class="find-user"><Icon Name="user" /> @row.User</span>
+                                        }
+                                    </span>
+                                </label>
+                                <span class="find-marks">
+                                    <span class="find-from" title="@string.Join("\n", (row.From ?? []).Select(f => f.Where).Where(w => w.Length > 0))">@string.Join(", ", (row.From ?? []).Select(f => f.Tool).Distinct())
+                                        @if (row.Searched)
+                                        {
+                                            <span class="badge">found by searching</span>
+                                        }
+                                    </span>
+                                    @if (row.Already is { } already)
+                                    {
+                                        <span class="badge ok" title="@already">Already added</span>
+                                    }
+                                    @if (row.Why is { } why)
+                                    {
+                                        <span class="find-why">@why</span>
+                                    }
+                                    @if (!off && row.Local is [var local, ..])
+                                    {
+                                        <span class="only-here" title="@string.Join("\n", row.Local.Select(n => n.Words))" aria-label="@local.Words"><Icon Name="warning" /></span>
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                    <div class="find-notes">
+                        @foreach (var note in found.Notes)
+                        {
+                            <p class="muted">@note</p>
+                        }
+                    </div>
+                }
+            </Busy>
         </div>
-        @if (_imported is not null)
-        {
-            <p class="status-ok" role="status">@_imported</p>
-        }
-        @if (found.Connections.Count == 0)
-        {
-            <p class="muted">No connections were found in the tools this app knows.</p>
-        }
-        else
-        {
-            <table class="rows found-list">
-                <thead><tr><th></th><th>Name</th><th>Kind</th><th>Where</th><th>Found in</th></tr></thead>
-                <tbody>
-                    @foreach (var row in found.Connections.Where(Matches))
-                    {
-                        <tr data-id="@row.Id">
-                            <td>
-                                @if (row.Already is null && row.Supported)
-                                {
-                                    <input type="checkbox" aria-label="Import @row.Name" checked="@_ticked.Contains(row.Id)" @onchange="() => Toggle(row.Id)" />
-                                }
-                            </td>
-                            <td>@row.Name</td>
-                            <td>@row.KindLabel</td>
-                            <td class="mono">@WhereOf(row)</td>
-                            <td class="muted">
-                                @string.Join(", ", (row.From ?? []).Select(f => f.Tool).Distinct())
-                                @if (row.Already is { } already)
-                                {
-                                    <div>Already added as @already</div>
-                                }
-                                else if (!row.Supported)
-                                {
-                                    <div>@(row.Why ?? "No connection of this kind yet")</div>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-        @foreach (var note in found.Notes)
-        {
-            <p class="muted">@note</p>
-        }
-    }
-</Busy>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnClose.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_importing" Words="Importing…">
+            <button type="button" class="btn primary" disabled="@(Ticked.Count == 0)" aria-label="@ImportWords" @onclick="ImportAsync"><Icon Name="import" /> @ImportWords</button>
+        </Busy>
+    </Foot>
+</AppDialog>
 
 @code {
+    private readonly HashSet<string> _ticked = [];
     private FoundList? _found;
     private Exception? _error;
     private bool _scanning;
+    private bool _importing;
     private string _search = string.Empty;
-    private string? _imported;
-    private readonly HashSet<string> _ticked = [];
+    private ElementReference _searchBox;
+    private bool _focusSearch;
+
+    /// <summary>Closed: whether it imported anything (the cards are drawn again).</summary>
+    [Parameter]
+    public EventCallback<bool> OnClose { get; set; }
+
+    private IReadOnlyList<string> Ticked => (_found?.Connections ?? []).Where(r => _ticked.Contains(r.Id) && r.Supported && r.Already is null).Select(r => r.Id).ToList();
+
+    private IReadOnlyList<FoundRow> Importable => (_found?.Connections ?? []).Where(r => r.Supported && r.Already is null && Matches(r)).ToList();
+
+    private bool AllTicked => Importable.Count > 0 && Importable.All(r => _ticked.Contains(r.Id));
+
+    private string ImportWords => Ticked.Count > 0 ? $"Import {Ticked.Count}" : "Import";
 
     protected override Task OnInitializedAsync() => ScanAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusSearch)
+        {
+            _focusSearch = false;
+            await _searchBox.FocusAsync();
+        }
+    }
 
     private async Task ScanAsync()
     {
         _scanning = true;
+        _error = null;
         try
         {
             _found = await Connections.FindAsync();
-            _error = null;
+            _ticked.Clear();
+            _focusSearch = _found.Connections.Count > 0;
         }
         catch (ApiException error)
         {
@@ -86,45 +131,83 @@
         _scanning = false;
     }
 
-    private async Task CancelAsync()
+    // Cancelled: the search stops and answers with what it found until then.
+    private Task CancelAsync() => Connections.CancelFindAsync();
+
+    private static string CountWords(FoundList found)
     {
-        await Connections.CancelFindAsync();
+        var can = found.Connections.Count(r => r.Supported && r.Already is null);
+        return $"{found.Connections.Count} found{(can != found.Connections.Count ? $" · {can} to import" : string.Empty)}";
     }
 
-    private bool Matches(FoundRow row) =>
-        _search.Length == 0 || $"{row.Name} {row.KindLabel} {row.Server} {row.Database} {row.Path}".Contains(_search, StringComparison.OrdinalIgnoreCase);
-
-    private static string WhereOf(FoundRow row) =>
-        row.Path.Length > 0 ? row.Path : string.Join(" / ", new[] { row.Server, row.Database }.Where(p => p.Length > 0));
-
-    private void Toggle(string id)
+    /// <summary>Where a row reads from: a file, a data source, or server and database.</summary>
+    private static string PlaceOf(FoundRow row)
     {
-        if (!_ticked.Remove(id))
+        if (row.Path.Length > 0)
+        {
+            return row.Path;
+        }
+        if (row.SignIn == "dsn")
+        {
+            return row.DataSource;
+        }
+        var server = row.Port is { } port ? $"{row.Server}:{port}" : row.Server;
+        return string.Join(" / ", new[] { server, row.Database }.Where(p => p.Length > 0));
+    }
+
+    private bool Matches(FoundRow row)
+    {
+        var words = _search.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var text = string.Join(" ", row.Name, row.KindLabel, row.Server, row.Database, row.User, row.DataSource, row.Path, string.Join(" ", (row.From ?? []).Select(f => f.Tool))).ToLowerInvariant();
+        return words.All(text.Contains);
+    }
+
+    private void Tick(string id, bool on)
+    {
+        if (on)
         {
             _ticked.Add(id);
         }
+        else
+        {
+            _ticked.Remove(id);
+        }
     }
 
-    private void SelectAll()
+    private void SelectAll(bool on)
     {
-        var importable = (_found?.Connections ?? [])
-            .Where(r => r.Already is null && r.Supported && Matches(r))
-            .Select(r => r.Id);
-        _ticked.UnionWith(importable);
+        foreach (var row in Importable)
+        {
+            Tick(row.Id, on);
+        }
     }
 
     private async Task ImportAsync()
     {
+        if (_found is null || Ticked.Count == 0)
+        {
+            return;
+        }
+        _importing = true;
         try
         {
-            await Connections.ImportAsync([.. _ticked]);
-            _imported = $"Imported {_ticked.Count}: each password is a variable to set on the Environment's Settings and secrets tab.";
-            _ticked.Clear();
-            await ScanAsync();
+            var result = await Connections.ImportAsync(Ticked);
+            foreach (var skipped in result.Skipped)
+            {
+                var name = _found.Connections.FirstOrDefault(r => r.Id == skipped.Id)?.Name ?? skipped.Id;
+                _ = Notes.SayAsync($"{name}: {skipped.Why}");
+            }
+            if (result.Imported.Count > 0)
+            {
+                await OnClose.InvokeAsync(true);
+                return;
+            }
+            _error = new ApiException(0, new Refusal(result.Skipped.FirstOrDefault()?.Why ?? "Nothing was imported."), string.Empty);
         }
         catch (ApiException error)
         {
             _error = error;
         }
+        _importing = false;
     }
 }

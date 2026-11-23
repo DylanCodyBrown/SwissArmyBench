@@ -22,6 +22,7 @@ public partial class PythonConnectionForm : IDisposable
     private string? _rowLimit;
     private IReadOnlyList<VariableRead> _reads = [];
     private string? _tested;
+    private TablePreview? _testRows;
     private bool _busy;
     private string _busyWords = string.Empty;
     private Exception? _error;
@@ -114,10 +115,11 @@ public partial class PythonConnectionForm : IDisposable
     private Task TestAsync() => GuardAsync($"Connecting to {(_name.Trim().Length > 0 ? _name.Trim() : "the connection")}…", async () =>
     {
         var answer = await Connections.TestAsync(Body());
-        _tested = $"It works: {answer.Found ?? $"made a {answer.Type}"}.";
+        _tested = $"It works: {ConnectionWords.Worked(answer)}.";
+        _testRows = answer.Preview;
     });
 
-    private Task SaveAsync() => GuardAsync($"Saving {_name.Trim()}…", async () =>
+    private Task SaveAsync() => GuardAsync($"Saving {(_name.Trim().Length > 0 ? _name.Trim() : "the connection")}…", async () =>
     {
         if (_name.Trim().Length == 0)
         {
@@ -132,7 +134,7 @@ public partial class PythonConnectionForm : IDisposable
             await Connections.ChangeAsync(Editing, Body());
         }
         _ = Notes.SayAsync($"Saved {_name.Trim()}.");
-        Nav.NavigateTo($"connections?name={Uri.EscapeDataString(_name.Trim())}");
+        Nav.NavigateTo($"connections?name={Uri.EscapeDataString(_name.Trim())}", replace: true);
     });
 
     private async Task GuardAsync(string words, Func<Task> work)
@@ -140,6 +142,7 @@ public partial class PythonConnectionForm : IDisposable
         _busy = true;
         _busyWords = words;
         _tested = null;
+        _testRows = null;
         try
         {
             await work();

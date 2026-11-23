@@ -1,0 +1,53 @@
+@* A workbook's sheets to open (the classic openFile.ts pickSheets): each a tick, the first ticked; Open opens the
+   ticked ones, each its own grid. *@
+
+<AppDialog Title="@($"Open {File}")" OnClose="() => OnDone.InvokeAsync([])">
+    <ChildContent>
+        <div class="sheet-list">
+            @foreach (var sheet in Sheets)
+            {
+                <label class="field-flag"><input type="checkbox" aria-label="@sheet" checked="@_ticked.Contains(sheet)" @onchange="e => Tick(sheet, e.Value is true)" /> <span>@sheet</span></label>
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnDone.InvokeAsync([])">Cancel</button>
+        <button type="button" class="btn primary" @onclick="OpenAsync"><Icon Name="folder" /> Open</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private readonly HashSet<string> _ticked = [];
+
+    [Parameter, EditorRequired]
+    public string File { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Sheets { get; set; } = [];
+
+    /// <summary>The sheets chosen (none: closed).</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<string>> OnDone { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Sheets.Count > 0)
+        {
+            _ticked.Add(Sheets[0]);
+        }
+    }
+
+    private void Tick(string sheet, bool on)
+    {
+        if (on)
+        {
+            _ticked.Add(sheet);
+        }
+        else
+        {
+            _ticked.Remove(sheet);
+        }
+    }
+
+    private Task OpenAsync() => OnDone.InvokeAsync(Sheets.Where(_ticked.Contains).ToList());
+}

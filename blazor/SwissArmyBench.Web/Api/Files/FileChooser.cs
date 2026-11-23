@@ -18,14 +18,16 @@ public sealed class FileChooser
         _dialogs = dialogs;
     }
 
-    /// <param name="mode">open, save or folder.</param>
+    /// <param name="mode">file (or open), save or folder.</param>
     /// <param name="title">The dialog's heading.</param>
     /// <param name="start">The folder it opens in.</param>
     /// <param name="kind">The kind of pick, so its recent folders are its own (project, table, notebook...).</param>
+    /// <param name="suffixes">The file kinds it offers (".csv", ".pem"); none: every file.</param>
     /// <returns>The path, or null when the user cancelled.</returns>
-    public async Task<string?> ChooseAsync(string mode, string title, string? start = null, string kind = "file")
+    public async Task<string?> ChooseAsync(string mode, string title, string? start = null, string kind = "file", IReadOnlyList<string>? suffixes = null)
     {
-        var answer = await _api.PostAsync<ChooseAnswer>("/dialogs/choose", new { mode, title, start, kind });
+        mode = mode == "open" ? "file" : mode; // the server's word for a file to open is "file"
+        var answer = await _api.PostAsync<ChooseAnswer>("/dialogs/choose", new { mode, title, start, kind, suffixes = suffixes ?? [] });
         if (answer.Path is not null || answer.Cancelled || answer.Busy)
         {
             return answer.Path;

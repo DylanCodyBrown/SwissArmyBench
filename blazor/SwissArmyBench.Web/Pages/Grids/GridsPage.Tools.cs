@@ -206,17 +206,11 @@ public partial class GridsPage
         }
     }
 
-    private async Task MakeVariantAsync(string dataset)
+    /// <summary>Make a sandbox variant…: its dialog (a name of its own, its origin kept) over the grid.</summary>
+    private Task MakeVariantAsync(string dataset)
     {
-        try
-        {
-            var made = await Grids.SandboxVariantAsync(dataset);
-            _ = Notes.SayAsync($"In the project's sandbox: {made.Title ?? made.Added ?? dataset}.");
-        }
-        catch (ApiException error)
-        {
-            _error = error;
-        }
+        _variantOf = dataset;
+        return Task.CompletedTask;
     }
 
     private async Task LoadConnectionAsync()

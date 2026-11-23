@@ -30,12 +30,41 @@ public static class CallWords
         {
             words += $" · {Ago(last)}";
         }
-        if (calls.Figures?.P50 is { } usual)
+        if (calls.Figures is { Count: > 0, P50: { } usual })
         {
-            words += $" · usually {usual:0} ms";
+            words += $" · usually {Ms(usual)}";
         }
         return words;
     }
+
+    /// <summary>140 ms, 1.2 s, 2 min.</summary>
+    public static string Ms(double ms) => ms switch
+    {
+        < 1000 => $"{Math.Round(ms):0} ms",
+        < 10_000 => $"{ms / 1000:0.0} s",
+        < 60_000 => $"{ms / 1000:0} s",
+        _ => $"{Math.Round(ms / 60_000):0} min",
+    };
+
+    /// <summary>Every figure in words, one a line: the card's hover.</summary>
+    public static string? Title(CallFigures? f) => f is not { Count: > 0 } ? null : string.Join("\n", new[]
+    {
+        $"{f.Count:N0} call{(f.Count == 1 ? string.Empty : "s")} in this project",
+        $"Usually {Ms(f.P50 ?? 0)}; 1 in 20 over {Ms(f.P95 ?? 0)}",
+        f.WaitP95 > 0 ? $"Waited for a slot up to {Ms(f.WaitP95)}" : string.Empty,
+        f.Rows > 0 ? $"Typically {f.Rows:N0} rows" : string.Empty,
+        f.Pages > 1 ? $"Typically {f.Pages} pages" : string.Empty,
+        f.Errors > 0 ? $"{f.Errors} failed ({Math.Round(f.ErrorRate * 100):0}%)" : string.Empty,
+    }.Where(line => line.Length > 0));
+
+    /// <summary>The figures as the detail's Calls terms.</summary>
+    public static IReadOnlyList<(string Name, string Value)> Terms(CallFigures? f) => f is not { Count: > 0 } ? [] : new[]
+    {
+        ("Usual time", $"{Ms(f.P50 ?? 0)} (1 in 20 over {Ms(f.P95 ?? 0)})"),
+        ("Typical rows", f.Rows > 0 ? $"{f.Rows:N0}" : string.Empty),
+        ("Waited for a slot", f.WaitP95 > 0 ? $"up to {Ms(f.WaitP95)}" : string.Empty),
+        ("Failed", f.Errors > 0 ? $"{f.Errors} of {f.Count:N0}" : string.Empty),
+    }.Where(t => t.Item2.Length > 0).ToList();
 
     /// <summary>How long ago a time (seconds since 1970) was: just now, 3 min ago, 2 h ago.</summary>
     public static string Ago(double seconds)

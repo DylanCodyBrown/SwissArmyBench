@@ -2,7 +2,9 @@ using System.Text.Json;
 
 namespace SwissArmyBench.Web.Api.Connections;
 
-/// <summary>A connection kind's Add connection form (GET /connections/types), or a saved connection as its form (GET /connections/{name}): the code, its fields by part, its passwords; a Python connection's three boxes (Code, Catalog and Read's commands) and the variables they read.</summary>
+/// <summary>A connection kind's Add connection form (GET /connections/types), or a saved connection as its form (GET
+/// /connections/{name}): the code, its fields by part, its passwords, its ways to sign in, a vault's secrets; a Python
+/// connection's three boxes (Code, Catalog and Read's commands) and the variables they read.</summary>
 public sealed record ConnectionForm(
     string Id,
     string Label,
@@ -24,4 +26,15 @@ public sealed record ConnectionForm(
     string? Description = null,
     JsonElement? Read = null,
     IReadOnlyList<VariableRead>? Reads = null,
-    int? RowLimit = null);
+    int? RowLimit = null,
+    IReadOnlyDictionary<string, FieldPlace>? FieldPlaces = null,
+    IReadOnlyList<string>? Options = null,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? Choices = null,
+    IReadOnlyList<SignInWay>? SignIns = null,
+    LocalNote? KeyringNote = null,
+    string SecretsFrom = "",
+    IReadOnlyList<VaultMapping>? VaultMapping = null,
+    bool VaultAll = false,
+    MissingPackages? Missing = null,
+    string? InstallHere = null,
+    FormSummary? Summary = null);

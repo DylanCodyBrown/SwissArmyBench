@@ -122,6 +122,28 @@ window.sab = {
     target.focus();
   },
 
+  /** The first element under `root` that matches `selector` takes the focus (a palette's chosen colour). */
+  focusFirst(root, selector) {
+    root?.querySelector(selector)?.focus();
+  },
+
+  /** The focus moves `step` places among `root`'s elements that match `selector` (the arrow keys of a palette or
+   *  a list), round from the end to the start. */
+  moveFocus(root, selector, step) {
+    const all = [...(root?.querySelectorAll(selector) ?? [])];
+    if (all.length === 0) return;
+    const at = all.indexOf(document.activeElement);
+    all[((at < 0 ? 0 : at + step) + all.length) % all.length].focus();
+  },
+
+  /** A page of the app in a window of its own, reused by its name (the Queries window); false when blocked. */
+  openWindow(url, name, features) {
+    const opened = window.open(url, name, features);
+    if (!opened) return false;
+    opened.focus();
+    return true;
+  },
+
   /** An HTML output's frame as tall as its content (at most 640 px): its own page grows to the frame's, so it is
    *  measured once it has loaded. */
   fitFrame(frame) {

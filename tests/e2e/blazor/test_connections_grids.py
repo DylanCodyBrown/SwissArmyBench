@@ -35,14 +35,14 @@ def test_add_a_connection_then_open_its_table_as_a_grid(browser: Browser, server
     path = page.locator(".connection-field[data-field=path]")
     path.fill(str(shop))
     path.press("Tab")  # the change: the server writes the path into the code
-    expect(page.locator(".connection-code pre")).to_contain_text("shop.duckdb")
-    page.click("button:has-text('Test')")
+    expect(page.locator(".connection-code-text")).to_have_value(re.compile("shop.duckdb"))
+    page.click("button:has-text('Test connection')")
     expect(page.locator(".status-ok")).to_contain_text("It works")
     page.click("button:has-text('Save')")
     expect(page.locator("h1")).to_contain_text("Shop")
-    expect(page.locator(".connection-tables")).to_contain_text("[Shop].orders")
+    expect(page.locator(".conn-tree-table[data-table=orders] button:has-text('Copy name')")).to_have_attribute("title", "[Shop].orders")
 
-    page.locator(".connection-tables tr", has_text="orders").locator("button:has-text('Open')").click()
+    page.locator(".conn-tree-table[data-table=orders]").locator("button:has-text('Open')").click()
     expect(page.locator(".grid-title")).to_contain_text("orders")
     expect(page.locator(".ag-row").first).to_be_visible()
     expect(page.locator(".grid-title-row")).to_contain_text("250 rows")

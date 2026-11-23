@@ -17,6 +17,7 @@ public partial class GridsPage : IDisposable
     private long? _rows;
     private bool _loaded;
     private Exception? _error;
+    private string? _variantOf;
     private AgGrid? _grid;
 
     [Inject]
