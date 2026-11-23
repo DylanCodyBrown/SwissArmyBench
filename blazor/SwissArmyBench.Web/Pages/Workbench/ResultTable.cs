@@ -6,7 +6,12 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 /// <summary>A table result of another kernel (a mode's TypeScript or SQL cell; the classic workbenchOutputs.ts
 /// TABLE_MIME bundle): its id, columns, DuckDB's types, its first rows and its total, drawn as data (never markup).
 /// Open as grid writes it whole by its id.</summary>
-public sealed record ResultTable(string Id, IReadOnlyList<string> Columns, IReadOnlyList<string> Types, IReadOnlyList<JsonElement> Rows, long Total)
+public sealed record ResultTable(
+    string Id,
+    IReadOnlyList<string> Columns,
+    IReadOnlyList<string> Types,
+    IReadOnlyList<JsonElement> Rows,
+    long Total)
 {
     public const string Mime = "application/vnd.swissarmybench.table+json";
 

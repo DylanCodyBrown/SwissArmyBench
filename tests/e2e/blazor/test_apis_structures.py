@@ -196,7 +196,7 @@ def test_open_a_structure_asks_for_a_file(browser: Browser, server: dict[str, An
     with page.expect_response(lambda r: r.url.endswith("/dialogs/choose")) as asked:
         page.locator(".area-page-actions button:has-text('Open…')").click()
     assert asked.value.status == 200
-    assert asked.value.request.post_data_json["mode"] == "file"
+    assert (asked.value.request.post_data_json or {}).get("mode") == "file"
     choose_path(page, made)
     expect(page.locator(".structures-tab", has_text="made_up_regions")).to_be_visible()
     expect(page.locator(".structure-tree")).to_contain_text("regions")
