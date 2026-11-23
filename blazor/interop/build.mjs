@@ -21,7 +21,6 @@ const entries = {
   plotly: "plotly.js",
   vega: "vega.js",
   mermaid: "mermaid.js",
-  "editor.worker": path.join(modules, "monaco-editor", "esm", "vs", "editor", "editor.worker.js"),
 };
 
 const started = Date.now();

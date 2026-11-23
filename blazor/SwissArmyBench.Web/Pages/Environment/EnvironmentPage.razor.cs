@@ -102,7 +102,9 @@ public partial class EnvironmentPage : IDisposable
         await RunAsync(async () =>
         {
             var opened = await Environment.OpenAsync(item.Kind, item.Name);
-            var grid = opened.TryGetProperty("grid", out var found) && found.ValueKind == JsonValueKind.String ? found.GetString() : null;
+            // {"link": {"to": "grid", "grid": id}}: the grid that shows it.
+            var link = opened.TryGetProperty("link", out var found) ? found : default;
+            var grid = link.ValueKind == JsonValueKind.Object && link.TryGetProperty("grid", out var id) ? id.GetString() : null;
             Nav.NavigateTo(grid is null ? "grids" : $"grids?grid={Uri.EscapeDataString(grid)}");
         });
     }

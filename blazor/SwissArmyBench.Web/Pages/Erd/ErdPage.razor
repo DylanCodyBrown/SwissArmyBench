@@ -1,0 +1,79 @@
+@* The ERD (the classic diagram view, ?view=erd): the relationship model drawn by Mermaid from the server's text (the
+   project's tables, or all of them), the joins in use with Delete and Undo, and Find relationships among the open
+   tables with each suggestion's evidence and Add. *@
+@page "/erd"
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="diagram" /> ERD</h1>
+        <div class="area-page-actions">
+            <div class="form-grid" role="radiogroup" aria-label="Which tables">
+                <button type="button" class="btn small" aria-pressed="@(_scope == ProjectScope ? "true" : "false")" @onclick="() => ScopeAsync(ProjectScope)">This project's tables</button>
+                <button type="button" class="btn small" aria-pressed="@(_scope == AllScope ? "true" : "false")" @onclick="() => ScopeAsync(AllScope)">All tables</button>
+            </div>
+            <button type="button" class="btn primary" @onclick="FindAsync"><Icon Name="zoom" /> Find relationships</button>
+            <button type="button" class="btn" disabled="@(!(_model?.CanUndo ?? false))" @onclick="UndoAsync"><Icon Name="undo" /> Undo</button>
+        </div>
+    </header>
+    <div class="area-page-body">
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        @if (_erdWords is not null)
+        {
+            <p class="muted">@_erdWords</p>
+        }
+        else if (_erd is { Mermaid.Length: > 0 } erd)
+        {
+            <div class="erd-diagram"><MermaidDiagram Text="@erd.Mermaid" /></div>
+        }
+        @if (_suggestions is { } found)
+        {
+            <section class="section erd-found">
+                <div class="section-head"><h2>Found among the open tables</h2></div>
+                @if (found.Count == 0)
+                {
+                    <p class="muted">No relationship found among the open tables.</p>
+                }
+                <table class="rows">
+                    <tbody>
+                        @foreach (var suggestion in found)
+                        {
+                            <tr>
+                                <td><strong>@suggestion.From</strong>.@string.Join(", ", suggestion.FromColumns) → <strong>@suggestion.To</strong>.@string.Join(", ", suggestion.ToColumns)</td>
+                                <td>@suggestion.Kind</td>
+                                <td class="muted">@string.Join("; ", suggestion.Reasons)</td>
+                                <td class="row-actions">
+                                    @if (suggestion.Known)
+                                    {
+                                        <span class="chip">In use</span>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn small" @onclick="() => AddAsync(suggestion)">Add</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+        }
+        @if (_model is { Relationships.Count: > 0 } model)
+        {
+            <section class="section">
+                <div class="section-head"><h2>Relationships in use</h2></div>
+                <table class="rows erd-joins">
+                    <tbody>
+                        @foreach (var join in model.Relationships)
+                        {
+                            <tr>
+                                <td><strong>@join.From</strong>.@string.Join(", ", join.FromColumns) → <strong>@join.To</strong>.@string.Join(", ", join.ToColumns)</td>
+                                <td>@join.Kind</td>
+                                <td class="row-actions"><button type="button" class="btn small ghost" @onclick="() => DeleteAsync(join)">Delete</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+        }
+    </div>
+</section>

@@ -274,3 +274,7 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .environment-search, .catalog-search { width: min(360px, 60vw); }
 .environment-value { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .environment-python { display: flex; align-items: center; gap: 6px; }
+
+/* ===== the ERD ===== */
+.erd-diagram { margin-bottom: 18px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); overflow: auto; }
+.mermaid-host svg { max-width: 100%; height: auto; }
