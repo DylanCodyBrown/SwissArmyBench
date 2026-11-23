@@ -92,10 +92,10 @@ flowchart TB
     server -->|9| adapters
     server -.->|1| bootstrap
     server -->|10| client
-    server -->|47| domain
+    server -->|48| domain
     server -->|10| root
     server -->|82| services
-    server -->|2| settings
+    server -->|3| settings
     services -->|351| domain
     services -->|3| settings
     settings -->|1| domain
@@ -125,14 +125,14 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 123 | 158 | 0 | 0.00 | 323 | 1 | 0.00 | 1.00 |
-| settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
+| domain | the model and its rules | 123 | 159 | 0 | 0.00 | 323 | 1 | 0.00 | 1.00 |
+| settings | every limit, one frozen record | 1 | 7 | 1 | 0.12 | 2 | 0 | 0.00 | 0.88 |
 | services | the use cases | 86 | 91 | 108 | 0.54 | 304 | 157 | 0.52 | 0.06 |
 | adapters | the driven edge: DuckDB, files, the keyring | 45 | 22 | 34 | 0.61 | 108 | 2 | 0.02 | 0.37 |
 | cli | the agent's commands | 41 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 4 | 0 | 0.00 | 0.47 |
-| server | the HTTP door and what starts a process | 87 | 12 | 127 | 0.91 | 41 | 2 | 0.05 | 0.04 |
+| server | the HTTP door and what starts a process | 87 | 12 | 128 | 0.91 | 42 | 2 | 0.05 | 0.04 |
 | bootstrap | the composition root | 1 | 1 | 157 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
 | accounting | an extension | 9 | 0 | 10 | 1.00 | 5 | 1 | 0.20 | 0.20 |
