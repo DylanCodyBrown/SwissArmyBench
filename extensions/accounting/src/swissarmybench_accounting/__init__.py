@@ -4,4 +4,4 @@ Its entry point (extension.py) is what the base reads; the one workbook builder 
 (Plans/excel.plan.md): the same in the app and, the parts a design uses, in the workbook.py it exports.
 """
 
-__version__ = "0.0.32"
+__version__ = "0.0.33"

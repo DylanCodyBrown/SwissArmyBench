@@ -6302,3 +6302,38 @@ Windows (the preview photographer's hidden-window way, the update's restart on t
 - A worktree's browser tests start the MAIN checkout's server through the shared .venv's editable install, so they
   test the main checkout's pages unless PYTHONPATH names the worktree's src (found by the E4 builder; the Blazor tests
   now fail loudly when the server is not the branch's).
+
+## 2026-11-23: the Blazor front end merged; every suite on the merged branch; the two front ends measured
+
+- Merged: the Blazor front end (blazor/, served at /blazor/, the classic pages still the default; Settings' Front end
+  and `app_frontend` switch it). Its parity check marked all 3,059 classic elements: 2,894 ported, 162 ported better,
+  3 impossible (two classic messages never shown in practice, and the Catalog's "Insert its call").
+- Quick suite: 5,924 passed, 2 failed, both passing alone: the architecture map (regenerated after the merge) and
+  test_performance's million-row timing under load.
+- bUnit: 137 passed. `dotnet build -warnaserror` and `dotnet format --verify-no-changes` clean on both projects;
+  `npm run typecheck` clean. Run bUnit as the README says (`dotnet test --project SwissArmyBench.Web.Tests` inside
+  blazor/): its global.json chooses Microsoft.Testing.Platform, which .NET 10's VSTest path refuses.
+- Classic browser suite: 395 passed, 4 failed, 31 skipped. Three (two Canvas wiring tests and the project session
+  test) failed because Streamlit and xlrd had left the shared .venv (a `uv sync` takes out what no group lists);
+  reinstalled, they pass (7 of 7). The structure tab test fails only under load: 3 of 3 alone.
+- Blazor browser suite: 132 passed, 2 failed (the Canvas: the same missing Streamlit prompt over the page), 2
+  skipped; with Streamlit back, test_canvas passes (3 passed, 1 skipped). Never run the classic and Blazor browser
+  suites in one pytest process: each holds its own sync Playwright, and the second refuses to start inside the
+  first's loop.
+- The two front ends, the same server, a made-up 200,000-row table, Chromium, median of 3 (scratchpad speed.py):
+
+  | | Classic | Blazor |
+  |---|---|---|
+  | First load | 0.46 s | 2.18 s |
+  | Cached load | 0.31 s | 1.83 s |
+  | Memory per window (script heap) | 6.2 MB | 9.9 MB |
+  | Page switch (a rail click) | 0.07 s | 0.13 s |
+  | Grid scroll | 60.6 frames a second | 60.4 frames a second |
+
+  The Blazor build here is published without the wasm-tools workload (no ahead-of-time compiling, no relinking),
+  so its load is the slow end of what Blazor can do.
+- The 0.0.33 wheel (20.7 MB, the Blazor front end inside as swissarmybench/web_blazor, 121 files) installed fresh
+  with dist/install.sh: the installed app answers version 0.0.33, the Streamlit extension installed, the classic
+  front end the default, and /blazor/ serving the Blazor app. tools/smoke_install.py's checks pass (pages, the
+  kernel, Send to the agent) up to the Streamlit check, which here started the throwaway client environment's own
+  `swissarmybench` script (first on its PATH) instead of the installed one; the release machine's run passes it.
