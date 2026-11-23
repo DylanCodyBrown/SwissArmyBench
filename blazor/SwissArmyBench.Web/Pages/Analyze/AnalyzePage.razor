@@ -1,7 +1,8 @@
 @* The Analyze page (?view=analyze in the classic; the owner 2026-11-19: every analysis lives here and every result
    lands on the board by itself): the toolbar of every analysis by group, the one guided form beside the board, and
    the board's cards (a note, a Plotly figure, a picture, a diagram), each result's actions under its card. Logic in
-   AnalyzePage.razor.cs. *@
+   AnalyzePage.razor.cs and AnalyzePage.Board.cs (the board's bar: notes, Page view, print, markdown, themes,
+   dashboards). *@
 @page "/analyze"
 @implements IDisposable
 
@@ -40,15 +41,52 @@
                 <p class="muted">Pick an analysis above: its form shows here, and its result lands on the board.</p>
             }
         </aside>
-        <div class="analyze-board" aria-label="The board">
-            @if (_cards.Count == 0)
+        <div class="analyze-board-host">
+            <BoardBar PageView="_pageView" Paper="@_paper" OnAddNote="() => _note = (true, null)" OnPageView="SetPageViewAsync" OnPaper="SetPaperAsync"
+                      OnPrint="PrintAsync" OnExportMarkdown="ExportMarkdownAsync" OnDashboards="() => _dashboards = true" OnTheme="t => _theme = t" />
+            @if (_pageView)
             {
-                <p class="muted">The board is empty: every analysis's result lands here.</p>
+                <div class="analyze-pages" style="@ThemeStyle" data-sandbox-theme="@_theme?.Id" @ref="_board">
+                    @foreach (var page in BoardPages.Pages(_cards, Paper))
+                    {
+                        <div class="board-page" style="@PageStyle">
+                            <div class="analyze-board">
+                                @foreach (var card in page)
+                                {
+                                    @CardFragment(card)
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
             }
-            @foreach (var card in _cards)
+            else
             {
-                <BoardCardView @key="card.Id" Card="card" Fresh="_fresh.Contains(card.Id)" OnRemove="RemoveAsync" OnAgain="AgainAsync" />
+                <div class="analyze-board" aria-label="The board" style="@ThemeStyle" data-sandbox-theme="@_theme?.Id" @ref="_board">
+                    @if (_cards.Count == 0)
+                    {
+                        <p class="muted">The board is empty: every analysis's result lands here.</p>
+                    }
+                    @foreach (var card in _cards)
+                    {
+                        @CardFragment(card)
+                    }
+                </div>
             }
         </div>
     </div>
 </section>
+@if (_note is { Open: true } note)
+{
+    <NoteDialog Existing="note.Card" OnClose="() => _note = null" OnSaved="NoteSavedAsync" />
+}
+@if (_dashboards)
+{
+    <DashboardsDialog CardsNow="_cards.Count" OnClose="() => _dashboards = false" OnOpened="LoadCardsAsync" />
+}
+
+@code {
+    private RenderFragment CardFragment(BoardCard card) =>
+        @<BoardCardView @key="card.Id" Card="card" Fresh="_fresh.Contains(card.Id)" OnRemove="RemoveAsync" OnAgain="AgainAsync"
+                        Previous="@PreviousOf(card)" Later="LaterOf(card)" OnChanged="LoadCardsAsync" OnEditNote="c => _note = (true, c)" />;
+}

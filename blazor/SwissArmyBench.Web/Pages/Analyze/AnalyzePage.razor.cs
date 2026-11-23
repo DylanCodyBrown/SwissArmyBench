@@ -35,6 +35,7 @@ public partial class AnalyzePage
     {
         Live.NoticeArrived += OnNotice;
         await Js.InvokeVoidAsync("sab.setTitle", "Analyze");
+        await RecallBoardAsync();
         await LoadAsync();
     }
 
@@ -55,10 +56,8 @@ public partial class AnalyzePage
     /// <summary>The board's cards in their order on the board (an analysis's land at its top).</summary>
     private async Task LoadCardsAsync()
     {
-        _cards = (await AnalyzeApi.CardsAsync()).Cards
-            .OrderBy(c => c.Order)
-            .ThenByDescending(c => c.Created)
-            .ToList();
+        // In the server's order: pinned first, then each card's place on the board.
+        _cards = (await AnalyzeApi.CardsAsync()).Cards;
     }
 
     private void Choose(string analysis)

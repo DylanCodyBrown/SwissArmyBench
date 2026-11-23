@@ -67,7 +67,9 @@ public partial class BoardCardView
         {
             var width = Size("w", DefaultWidth);
             var height = Size("h", DefaultHeight);
-            return string.Create(CultureInfo.InvariantCulture, $"grid-column: span {Math.Clamp(width, 1, BoardColumns)}; min-height: {height * RowUnitPixels}px;");
+            // A card the viewer sized keeps exactly that height; else it is at least its kind's.
+            var tall = height * RowUnitPixels + (height - 1) * GapPixels;
+            return string.Create(CultureInfo.InvariantCulture, $"grid-column: span {Math.Clamp(width, 1, BoardColumns)}; {(Sized ? "height" : "min-height")}: {tall}px;");
         }
     }
 
@@ -79,6 +81,7 @@ public partial class BoardCardView
     private Task GridAsync(string run) => DoAsync(async () =>
     {
         var made = await AnalyzeApi.OpenGridAsync(run);
+        _ = Notes.SayAsync($"Opened as {made.Dataset}.");
         Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(made.Grid ?? string.Empty)}");
     });
 
@@ -87,7 +90,7 @@ public partial class BoardCardView
         var code = await AnalyzeApi.CodeAsync(run);
         var text = string.Join("\n", code.Imports) + "\n\n" + code.Code;
         await Js.InvokeAsync<bool>("sab.copy", text);
-        _ = Notes.SayAsync("Copied the analysis as Python.");
+        _ = Notes.SayAsync("Copied.");
     });
 
     /// <summary>A hand-off: its step added to the table the analysis ran on, then that table shown.</summary>
@@ -98,6 +101,8 @@ public partial class BoardCardView
             return;
         }
         await Grids.AddStepAsync(grid, step.GetProperty("kind").GetString() ?? string.Empty, step.GetProperty("params"));
+        var dataset = analysis.TryGetProperty("dataset", out var named) ? named.GetString() : null;
+        _ = Notes.SayAsync($"Added a step to {dataset ?? grid}.");
         Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
     });
 
