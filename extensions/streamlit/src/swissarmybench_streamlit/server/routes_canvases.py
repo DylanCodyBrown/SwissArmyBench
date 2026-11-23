@@ -1,6 +1,6 @@
 """The Canvas (services/canvas.py), for the Canvas page and the agent.
 
-GET    /streamlit/canvas                       the Canvas page (canvas.html)
+(/streamlit/canvas, the old Canvas page's address, answers with its Blazor page: server/frontend_pages.py)
 GET    /streamlit/canvases?folder=             the project's canvases (and old .stapp.json files, said)
 POST   /streamlit/canvases                     {"path"} or {"name", "folder"?}: open (a new one is made)
 GET    /streamlit/canvases/{canvas}            its model, version, read-only, broken, missing, marks, notes
@@ -18,28 +18,22 @@ POST   /streamlit/canvases/{canvas}/export     {"folder"}: the app that runs alo
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import FileResponse, Response
+from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_streamlit.services.canvas import Canvases
 
 
-def routes(canvases: Canvases, web_root: Path | None) -> list[BaseRoute]:
+def routes(canvases: Canvases) -> list[BaseRoute]:
     async def body_of(request: Request) -> Any:
         return await read_json(request) if int(request.headers.get("content-length") or 0) else {}
 
     def name_of(request: Request) -> str:
         return str(request.path_params["canvas"])
-
-    async def page(request: Request) -> Response:
-        if web_root is None or not (web_root / "canvas.html").is_file():
-            return Response("The Canvas page is not here.", 404)
-        return FileResponse(web_root / "canvas.html", headers={"Cache-Control": "no-store"})
 
     async def listing(request: Request) -> Response:
         if request.method == "POST":
@@ -75,7 +69,6 @@ def routes(canvases: Canvases, web_root: Path | None) -> list[BaseRoute]:
         return json_response(await canvases.export(name_of(request), await body_of(request), actor(request)))
 
     return [
-        Route("/streamlit/canvas", page),
         Route("/streamlit/canvases", listing, methods=["GET", "POST"]),
         Route("/streamlit/canvases/{canvas}", one, methods=["GET", "DELETE"]),
         Route("/streamlit/canvases/{canvas}/command", command, methods=["POST"]),

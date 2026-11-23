@@ -188,7 +188,7 @@ def client_path() -> str:
         shutil.copytree(
             package,
             holder / "swissarmybench",
-            ignore=shutil.ignore_patterns("web_static", "__pycache__", "*.pyc"),
+            ignore=shutil.ignore_patterns("web_blazor", "__pycache__", "*.pyc"),
         )
         _client_copy.append(str(holder))
     return _client_copy[0]

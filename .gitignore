@@ -2,8 +2,7 @@
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-web/node_modules
-web/static/build/
+blazor/node_modules
 src/swissarmybench/web_blazor/
 dist/
 # Written by every e2e run (the visual review reads them); forced-colors.png is kept as the reference.

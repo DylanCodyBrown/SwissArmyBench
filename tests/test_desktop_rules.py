@@ -73,8 +73,8 @@ def test_a_page_is_named_without_its_token_and_given_the_running_servers() -> No
     # The same shape as the browser launch's (server/lifecycle.py's page_address).
     from swissarmybench.server.lifecycle import page_address
 
-    assert rules.address_of("/workspace", 8800, "tok") == page_address({"port": 8800, "token": "tok"})
-    assert rules.page_for("blades") == "/scripts?pane=blades"
+    assert rules.address_of("/blazor/", 8800, "tok") == page_address({"port": 8800, "token": "tok"})
+    assert rules.page_for("blades") == "/blazor/scripts?pane=blades"
     with pytest.raises(rules.ShellError):
         rules.page_for("settings")
 

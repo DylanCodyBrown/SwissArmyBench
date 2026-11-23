@@ -1,4 +1,4 @@
-@* The rail's areas this front end does not draw yet: each its address, one line and its classic place. An extension's
+@* The rail's areas with no page of their own: each its address and one line. An extension's
    area with a panel route (GET /app/areas) is drawn from that panel's data (ExtensionAreaPage). *@
 @page "/{Area}"
 @implements IDisposable
@@ -10,11 +10,11 @@
 }
 else if (Found is { } area)
 {
-    <NotYet Title="@area.Name" Classic="@area.Classic" />
+    <NotYet Title="@area.Name" />
 }
 else
 {
-    <NotYet Title="This page" Classic="/workspace" />
+    <NotYet Title="This page" />
 }
 
 @code {
@@ -22,7 +22,7 @@ else
     public string Area { get; set; } = string.Empty;
 
     private RailArea? Found => Areas.All.FirstOrDefault(a => a.Route == Area)
-        ?? (Area.StartsWith("x-", StringComparison.Ordinal) ? new RailArea(Area[2..], Area[2..], "extensions", Area, $"/workspace?open={Area[2..]}") : null);
+        ?? (Area.StartsWith("x-", StringComparison.Ordinal) ? new RailArea(Area[2..], Area[2..], "extensions", Area) : null);
 
     /// <summary>An extension's area that names a panel route: its page is drawn from data.</summary>
     private SwissArmyBench.Web.Api.App.AreaInfo? Panel => Area.StartsWith("x-", StringComparison.Ordinal)

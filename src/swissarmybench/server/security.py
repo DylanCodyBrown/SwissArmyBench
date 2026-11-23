@@ -33,9 +33,9 @@ header, so the path carries that app's own secret instead (random, made when the
 the server's token), which the route checks. Those frames are sandboxed without this server's origin,
 so their requests say `Origin: null`: allowed on these paths only. Host is still checked.
 
-Deliberate exception: GET requests for the grid page shell (/g/...) and its static files
-(/static/...) skip the token check. They hold no data, only the page and the vendored grid
-library. The token reaches the page in the URL fragment (#token=...), which browsers never
+Deliberate exception: GET requests for the front end's files (/blazor/...) and the old pages'
+addresses that answer with them (/g/..., /workspace...) skip the token check. They hold no data,
+only the page and its code. The token reaches the page in the URL fragment (#token=...), which browsers never
 send to the server, and the page's script attaches it to every data request. Host and Origin
 are still checked on these paths.
 """
@@ -54,10 +54,10 @@ from swissarmybench.domain.lifecycle import from_a_page
 
 WEBSOCKET_SUBPROTOCOL: str = "swissarmybench"
 
-# The page shell and its files: prefixes for /g/<id> and /static/..., and the exact paths of the
-# workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).
-# The Blazor front end's files (/blazor/...) are the same kind: the page and its code, no data.
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/static/", "/blazor/")
+# The front end's files (/blazor/...: the page and its code, no data), the old pages' addresses that answer
+# with their Blazor page (/g/<id>; the exact paths of the workspace, catalog and workbench pages: a prefix
+# would also let "/workspaceanything" skip the token check).
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/blazor/")
 _PUBLIC_PATHS: frozenset[str] = frozenset(
     {"/", "/workspace", "/catalog", "/workbench", "/notebooks", "/scripts", "/blazor"}
 )

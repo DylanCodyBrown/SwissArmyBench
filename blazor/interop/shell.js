@@ -2,6 +2,10 @@
 // Nothing here holds data or a secret: the token is read from the address once, traded for the page's cookie and
 // dropped (the same as the classic front end's api.ts openSession).
 
+// The app's first window is the home window, named so another window (or the desktop app's channel) finds it
+// by name (domain/desktop.py HOME_WINDOW); a window this one opened keeps the name it was given.
+if (!window.name && !window.opener) window.name = "sab-home";
+
 /** A refusal's one sentence (domain/refusals.py's shape), else the answer's text. */
 async function refusalWords(answer) {
   const text = await answer.text();

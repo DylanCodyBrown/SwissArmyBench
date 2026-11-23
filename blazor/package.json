@@ -1,12 +1,9 @@
 {
-  "name": "swissarmybench-web",
+  "name": "swissarmybench-blazor-interop",
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "node build.mjs",
-    "watch": "node build.mjs --watch",
-    "typecheck": "tsc --noEmit",
-    "build:release": "node build.mjs --release"
+    "build:interop": "node interop/build.mjs node_modules"
   },
   "dependencies": {
     "ag-grid-community": "36.2.0",
@@ -19,7 +16,6 @@
     "vega-lite": "6.5.0"
   },
   "devDependencies": {
-    "esbuild": "0.28.2",
-    "typescript": "7.0.2"
+    "esbuild": "0.28.2"
   }
 }

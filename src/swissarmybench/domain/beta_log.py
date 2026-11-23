@@ -224,7 +224,7 @@ _FIREFOX_FRAME = re.compile(r"^\s*(?P<fn>[^@]*)@(?P<url>\S+?):(?P<line>\d+):(?P<
 
 
 def page_frames(stack: Any) -> list[str]:
-    """A page error's stack as `fn @ /static/build/main.js:1:2345` lines: only frames in the app's own
+    """A page error's stack as `fn @ /blazor/js/agGrid.js:1:2345` lines: only frames in the app's own
     files (by their path on this server, no host, no query); a line that is not a frame is dropped."""
     if not isinstance(stack, str):
         return []
@@ -234,7 +234,7 @@ def page_frames(stack: Any) -> list[str]:
         if not found:
             continue
         url = re.sub(r"^[a-z]+://[^/]+", "", found.group("url")).split("?", 1)[0].split("#", 1)[0]
-        if not re.fullmatch(r"/static/[\w./\-]+\.js", url):
+        if not re.fullmatch(r"/blazor/[\w./\-]+\.js", url):
             url = HIDDEN
         fn = re.sub(r"[^\w$.<> ]", "", (found.group("fn") or "").strip())[:60] or "?"
         shown.append(f"{fn} @ {url}:{found.group('line')}:{found.group('col')}")

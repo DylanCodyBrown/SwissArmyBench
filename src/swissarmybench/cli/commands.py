@@ -285,9 +285,7 @@ OLD_NAMES: dict[str, str] = {
 
 
 # An old argument's name, one release: (command, old) -> new. A tang became a relationship set.
-OLD_ARGS: dict[tuple[str, str], str] = {
-    ("relationships_check", "tang"): "set",
-}
+OLD_ARGS: dict[tuple[str, str], str] = {("relationships_check", "tang"): "set"}
 
 
 # Commands that went, one release: an old call says why instead of "unknown".
@@ -298,6 +296,7 @@ GONE_NAMES: dict[str, str] = {
     "form starts on (never an identifier), and analyze_check each column's fit.",
     "app_autostart": "app_autostart went (2026-11-18): there is no tray and no start at sign-in any more; the "
     "server runs while the app is open (app_lifecycle says when it stops).",
+    "app_frontend": "app_frontend went (2026-11-23): the Blazor front end is the only one, nothing to choose.",
 }
 
 

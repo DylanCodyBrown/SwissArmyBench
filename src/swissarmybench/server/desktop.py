@@ -193,18 +193,18 @@ def file_page(path: str, info: dict[str, Any]) -> str:
         name = rules.table_name(target.name, taken)
         loaded = post_json(info, f"/datasets/{quote(name, safe='')}/load", {"path": full})
         grid = loaded.get("grid") if isinstance(loaded, dict) else None
-        return f"/workspace#grid={grid}" if isinstance(grid, str) else rules.HOME_PAGE
+        return f"{rules.GRID_PAGE}{quote(grid, safe='')}" if isinstance(grid, str) else rules.HOME_PAGE
     if kind == rules.BLADE:
         stem = rules.blade_stem(target.name)
         try:
             get_json(info, f"/blades/{quote(stem, safe='')}")
-            return f"/scripts?pane=blades&blade={quote(stem, safe='')}"  # its tab on the Scripts page
+            return f"/blazor/scripts?pane=blades&blade={quote(stem, safe='')}"  # its tab on the Scripts page
         except OSError:
             pass  # not one of the library's: its file in the Workbench
     # A notebook on the Notebooks page, a .py on the Scripts page (the owner, 2026-11-21); a structure's
     # file a tab beside the code on the Scripts page (2026-11-22).
     home = workbench_pages.home_of_path(full) or "notebooks"
-    page = workbench_pages.url_of(home)
+    page = "/blazor" + workbench_pages.url_of(home)
     told = {"command": "file.open", "args": {"path": full}}
     if kind == rules.STRUCTURE:
         told["page"] = home
@@ -212,7 +212,7 @@ def file_page(path: str, info: dict[str, Any]) -> str:
         post_json(info, "/workbench/window", told, timeout=30)
         return page  # the page's window that opened it, brought forward
     except OSError:
-        return f"{page}?file={quote(full, safe='')}"  # no window of that page: one that opens it
+        return f"{page}?path={quote(full, safe='')}"  # no window of that page: one that opens it
 
 
 def quit_app(info_file: Path | None = None, wait: float = QUIT_WAIT_SECONDS) -> bool:

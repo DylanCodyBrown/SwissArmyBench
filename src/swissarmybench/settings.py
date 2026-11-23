@@ -21,12 +21,9 @@ from swissarmybench.domain.updates import FEEDS
 MIB: int = 1024 * 1024
 GIB: int = 1024 * MIB
 
-# The page's files: bundled inside the package when installed from a wheel (the uv tool), or
-# web/static in the repo when running from source (uv sync's editable install).
-_PACKAGED_WEB: Path = Path(__file__).resolve().parent / "web_static"
-_REPO_WEB: Path = Path(__file__).resolve().parents[2] / "web" / "static"
-# The Blazor front end's published files (blazor/README.md): in the wheel, or a checkout's `python
-# blazor/publish.py` output. Absent: /blazor/ says so in one line.
+# The front end's files (the Blazor front end, blazor/README.md): bundled inside the package when installed
+# from a wheel (the uv tool), or a checkout's `python blazor/publish.py` output. Absent: /blazor/ says so in
+# one line.
 _PACKAGED_BLAZOR: Path = Path(__file__).resolve().parent / "web_blazor"
 _REPO_BLAZOR: Path = Path(__file__).resolve().parents[2] / "blazor" / "publish" / "wwwroot"
 
@@ -60,30 +57,13 @@ def _state_dir() -> Path:
     return Path(override) if override else (Path.home() / ".swissarmybench")
 
 
-def _web_root() -> Path:
-    """The pages' files: the wheel's web_static, else this checkout's web/static; SWISSARMYBENCH_WEB_ROOT
-    names another (tests: an update's new build beside the old one)."""
-    override = os.environ.get("SWISSARMYBENCH_WEB_ROOT", "")
+def _blazor_root() -> Path:
+    """The front end's files: the wheel's web_blazor, else this checkout's blazor/publish/wwwroot;
+    SWISSARMYBENCH_BLAZOR_ROOT names another (tests: an update's new build beside the old one)."""
+    override = os.environ.get("SWISSARMYBENCH_BLAZOR_ROOT", "")
     if override:
         return Path(override)
-    return _PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB
-
-
-def blazor_built() -> bool:
-    """Whether the Blazor front end is here (the wheel's, or a checkout's `python blazor/publish.py`)."""
-    return ((_PACKAGED_BLAZOR if _PACKAGED_BLAZOR.is_dir() else _REPO_BLAZOR) / "index.html").is_file()
-
-
-def frontend_override() -> str:
-    """SWISSARMYBENCH_FRONTEND=classic or blazor: the front end whatever frontend.json says (the classic
-    pages' browser tests, while those pages last: one release after the swap, the owner 2026-11-23)."""
-    return os.environ.get("SWISSARMYBENCH_FRONTEND", "")
-
-
-def state_folder() -> Path:
-    """The state folder (~/.swissarmybench; SWISSARMYBENCH_STATE for tests): the launcher reads its small
-    files (frontend.json) before any server runs."""
-    return _state_dir()
+    return _PACKAGED_BLAZOR if _PACKAGED_BLAZOR.is_dir() else _REPO_BLAZOR
 
 
 def _workbench_dir() -> Path:
@@ -271,12 +251,8 @@ class Settings:
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4
-    # The browser files: index.html and build/ from `npm run build` (the pages load build/grid.css).
-    web_root: Path = field(default_factory=_web_root)
-    # The Blazor front end's files (served at /blazor/, side by side with the classic pages).
-    blazor_root: Path = field(default=_PACKAGED_BLAZOR if _PACKAGED_BLAZOR.is_dir() else _REPO_BLAZOR)
-    # The front end whatever this computer chose (SWISSARMYBENCH_FRONTEND; empty: frontend.json's choice).
-    frontend_override: str = field(default_factory=frontend_override)
+    # The front end's files (the Blazor front end's publish output, served at /blazor/).
+    blazor_root: Path = field(default_factory=_blazor_root)
     # Where the audit log and the other state files live (plan section 18, question 5: user folder for now).
     state_dir: Path = field(default_factory=_state_dir)
     # Exports requested by an agent (MCP) land only here, never as a browser download.

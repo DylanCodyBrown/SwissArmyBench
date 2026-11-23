@@ -37,7 +37,7 @@
                     <SqlForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" Dataset="@Dataset" />
                     break;
                 default:
-                    <p>@StepKinds.Label(Kind) steps are edited in the classic front end.</p>
+                    <p>@StepKinds.Label(Kind) steps have no form to edit them: remove the step and add it again.</p>
                     break;
             }
             @if (_problem is not null)

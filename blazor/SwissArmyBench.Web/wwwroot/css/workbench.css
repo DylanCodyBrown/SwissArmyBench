@@ -116,7 +116,6 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .monaco-editor .wb-problem-line { background: color-mix(in srgb, var(--error) 9%, transparent); }
 
 .wb-err-send { margin-left: auto; }
-  margin-left: 0 !important; }
 .wb-elsewhere { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--warn-soft); color: var(--fg); border-bottom: 1px solid var(--border); font-size: 0.88rem; }
 .ide-results-file { margin: 4px 0 10px; }
 .ide-results-file > strong { display: flex; align-items: center; gap: 6px; }

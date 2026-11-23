@@ -41,7 +41,7 @@ MAX_CACHE: int = 200
 # What `sab.` offers: the package's public calls, never its own layers.
 _SAB_INTERNAL = frozenset(
     {"adapters", "bootstrap", "cli", "client", "domain", "mcp", "server", "services", "settings", "renamed",
-     "starters", "stats", "annotations", "import_module", "warnings", "sys", "os", "web_static"}
+     "starters", "stats", "annotations", "import_module", "warnings", "sys", "os", "web_blazor"}
 )  # fmt: skip
 _PREAMBLE = "import swissarmybench as sab\n"
 _IN_KERNEL = "__import__('swissarmybench.client.kernel_intel', fromlist=['ask'])"

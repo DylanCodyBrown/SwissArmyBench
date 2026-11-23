@@ -1,6 +1,6 @@
 """Every theme's token pairs meet contrast targets (plan section 13, M8 acceptance).
 
-Reads the four theme blocks from web/static/grid.css and checks WCAG 2 contrast ratios:
+Reads the four theme blocks from the front end's tokens.css and checks WCAG 2 contrast ratios:
 text on its backgrounds at least 4.5:1 (7:1 in the high-contrast themes), interface parts such
 as borders, focus rings and meter fills at least 3:1. A new token or a tweaked color that
 breaks a pair fails here before anyone sees it.
@@ -13,7 +13,9 @@ from pathlib import Path
 
 import pytest
 
-CSS = (Path(__file__).resolve().parents[1] / "web" / "static" / "grid.css").read_text(encoding="utf-8")
+CSS = (
+    Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web" / "wwwroot" / "css" / "tokens.css"
+).read_text(encoding="utf-8")
 THEMES = ("light", "dark", "hc-light", "hc-dark")
 
 # (foreground token, background token, minimum normal, minimum high contrast)

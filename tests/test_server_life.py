@@ -170,8 +170,9 @@ def test_the_route_reads_it_and_the_guard_reports_requests(tmp_path: Path) -> No
 
 
 def test_a_pages_fetch_with_the_token_is_not_a_client(tmp_path: Path) -> None:
-    """The pages send the token as a Bearer header (web/src/api.ts): without the browser's Sec-Fetch-Site
-    mark every click held the server 10 minutes after the app closed (seen on 0.0.22's release check)."""
+    """The pages send the token as a Bearer header (the front end's ApiClient): without the browser's
+    Sec-Fetch-Site mark every click held the server 10 minutes after the app closed (seen on 0.0.22's
+    release check)."""
     assert rules.from_a_page("same-origin") and rules.from_a_page(" Same-Origin ")
     assert not any(rules.from_a_page(value) for value in (None, "cross-site", "none"))
     with make_client(tmp_path) as client:

@@ -3,8 +3,6 @@
 POST /navigate   {"to": "home" | "back" | "forward" | a view, "window": "home" | "catalog" | "workbench"}
 GET  /rail       {"labels": true}: the rail shows its names (false: icons only)
 PUT  /rail       {"labels": false}: every window follows (rail_changed); kept in rail.json
-GET  /app/frontend  {"frontend": "classic" | "blazor", "home": its home page}
-PUT  /app/frontend  {"frontend": "blazor"}: the front end the app opens (frontend.json; frontend_changed)
 """
 
 from __future__ import annotations
@@ -21,13 +19,8 @@ def routes(navigation: Navigation) -> list[BaseRoute]:
     async def rail(request: Request) -> Response:
         return json_response(navigation.rail())
 
-    async def frontend(request: Request) -> Response:
-        return json_response(navigation.frontend())
-
     return [
         Route("/navigate", with_body(navigation.go), methods=["POST"]),
         Route("/rail", rail),
         Route("/rail", with_body(navigation.set_rail), methods=["PUT"]),
-        Route("/app/frontend", frontend),
-        Route("/app/frontend", with_body(navigation.set_frontend), methods=["PUT"]),
     ]

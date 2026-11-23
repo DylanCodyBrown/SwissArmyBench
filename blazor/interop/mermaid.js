@@ -1,4 +1,4 @@
-// mermaid.js: Mermaid (the classic front end's same version) for the <MermaidDiagram> component: the ERD and lineage.
+// mermaid.js: Mermaid (blazor/package.json's pinned version) for the <MermaidDiagram> component: the ERD and lineage.
 // The text is the server's (domain/relationships.py mermaid_erd); "strict" security keeps any label from running
 // script, and the drawing's colours are the app's tokens, read at each render so both themes draw right.
 import mermaid from "mermaid";

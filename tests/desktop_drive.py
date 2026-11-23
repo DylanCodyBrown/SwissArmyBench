@@ -120,7 +120,9 @@ def main(folder: Path, shots: Path | None) -> int:
         pasted = call("POST", "/datasets/orders/paste", ORDERS.encode())
         grid = pasted.get("grid") or pasted.get("grid_id") or pasted.get("id")
         results["grid"] = grid
-        wait(lambda: js(home, "document.body.innerText.includes('North')"), 30, "the grid's rows")
+        shell.open_page(rules.GRID_PAGE + str(grid))  # the grid's page, in the home window (its name)
+        wait(lambda: js(home, "document.body.innerText.includes('North')"), 60, "the grid's rows")
+        results["windows_after_grid"] = len(shell.windows)
         shot(home, "desktop-home-window.png")
 
         # 3. window.open: a second app window (the Workbench); the same name again reuses it.

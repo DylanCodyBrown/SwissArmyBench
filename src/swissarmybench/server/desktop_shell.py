@@ -935,10 +935,12 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         self.bridge.file_shown.emit(page)
 
     def _file_shown(self, page: str) -> None:
-        # A table's grid: the home window brought forward (its page shows the new tab by itself: the server's
-        # grid_shown); with none open, one opens on the grid.
-        if page.startswith(rules.HOME_PAGE + "#") and any(w.kind == "home" for w in self.windows.values()):
-            page = rules.HOME_PAGE
+        # A table's grid: the home window brought forward, not loaded again (its Grids page shows the new tab
+        # by itself: the server's grid_shown); with none open, one opens on the grid.
+        home = next((w for w in self.windows.values() if w.kind == "home"), None)
+        if page.startswith(rules.GRID_PAGE) and home is not None:
+            home.bring_forward()
+            return
         self.open_page(page)
 
     def _say(self, text: str) -> None:

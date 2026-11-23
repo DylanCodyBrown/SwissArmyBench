@@ -80,8 +80,8 @@ def test_page_url() -> None:
 
 def test_the_two_pages_and_the_old_address(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
-        for path in ("/notebooks", "/scripts"):
-            assert "workbench.js" in client.get(path).text
+        for path in ("/notebooks", "/scripts"):  # each its Blazor page now
+            assert client.get(path, follow_redirects=False).headers["location"] == f"/blazor{path}"
         moved = client.get("/workbench?kind=script&view=list", follow_redirects=False)
         assert moved.status_code == 302
         assert moved.headers["location"] == "/scripts?kind=script&view=list"

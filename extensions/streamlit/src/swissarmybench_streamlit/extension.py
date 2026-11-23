@@ -249,7 +249,6 @@ def routes(seams: Seams) -> list[Any]:
     hooks.app_pages = canvas_pages
     hooks.canvas_put = canvases.put  # Build's widget on the APIs page
     hooks.api_uses = canvases.api_uses  # the local sandbox API's Payload shapes
-    web_root = settings.web_root
     # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
     from swissarmybench_streamlit.services import sharing_target
 
@@ -257,9 +256,9 @@ def routes(seams: Seams) -> list[Any]:
     # Its own services, on its own place of the record (never an attribute of the base's).
     seams.extension[ID] = Own(widgets, canvases, launches, live_runs, previewer, live_tables, share_target)
     return [
-        *routes_widgets.routes(widgets, previewer, web_root),
-        *routes_canvases.routes(canvases, web_root),
-        *routes_launch.routes(launches, web_root),
+        *routes_widgets.routes(widgets, previewer),
+        *routes_canvases.routes(canvases),
+        *routes_launch.routes(launches),
         # The analyzer's tap: each websocket message of a launched app it records (its kind and size only).
         *streamlit_proxy.routes(
             live_runs.port_of, prefix=LIVE_RUN, what="This widget or canvas", tap=launches.tap

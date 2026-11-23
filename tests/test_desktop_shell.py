@@ -11,7 +11,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -226,27 +225,21 @@ def test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows
 
 
 def _web_copy(target: Path) -> Path:
-    """This checkout's pages (web/static, its build) copied, without source maps."""
-    shutil.copytree(ROOT / "web" / "static", target, ignore=shutil.ignore_patterns("*.map"))
+    """This checkout's front end (its Blazor build: `python blazor/publish.py`) copied."""
+    from swissarmybench.settings import Settings
+
+    built = Settings().blazor_root
+    if not (built / "index.html").is_file():
+        pytest.skip("The front end is not built here (python blazor/publish.py).")
+    shutil.copytree(built, target)
     return target
 
 
-def _new_hashes(web: Path) -> list[str]:
-    """An update's new build, in place: every split part (build/chunks/<page>-<hash>.js) under a new name and
-    each reference to it rewritten, so the old names are no longer there (what an update's install does).
-    The old names."""
-    chunks = web / "build" / "chunks"
-    old = sorted(p.name for p in chunks.glob("*.js"))
-    renamed = {name: name[:-3] + "u.js" for name in old}
-    pattern = re.compile("|".join(re.escape(n) for n in sorted(old, key=len, reverse=True)))
-    for file in [*web.rglob("*.js"), *web.glob("*.html")]:
-        text = file.read_text(encoding="utf-8")
-        changed = pattern.sub(lambda m: renamed[m.group(0)], text)
-        if changed != text:
-            file.write_text(changed, encoding="utf-8")
-    for name, new in renamed.items():
-        (chunks / name).rename(chunks / new)
-    return old
+def _new_build(web: Path) -> None:
+    """An update's new build, in place: the page's own script changed (what an update's install does: its
+    files new, their times and sizes may be the same)."""
+    shell = web / "js" / "shell.js"
+    shell.write_text(shell.read_text(encoding="utf-8") + "\n// a newer build\n", encoding="utf-8")
 
 
 def _serve(env: dict[str, str], info: Path) -> subprocess.Popen[bytes]:
@@ -292,7 +285,7 @@ def _app_start(env: dict[str, str], folder: Path, name: str, version: str) -> di
 
 
 def test_the_first_window_after_an_update_shows_the_app(tmp_path: Path) -> None:
-    """The app run once (its profile's cache filled), then an update: a new version with new chunk names, its
+    """The app run once (its profile's cache filled), then an update: a new version with a new build, its
     server up first, the same profile folder. The first window shows the app, and each version has its own
     cache folder (the older one gone). Before the fix the shell cleared the cache in the background as the
     first page loaded, and the window stayed white (it drew on the next start)."""
@@ -302,7 +295,7 @@ def test_the_first_window_after_an_update_shows_the_app(tmp_path: Path) -> None:
     env = environment(tmp_path)
     info = tmp_path / "state" / "server.json"
     old_web = _web_copy(tmp_path / "web-old")
-    server = _serve(env | {"SWISSARMYBENCH_WEB_ROOT": str(old_web)}, info)
+    server = _serve(env | {"SWISSARMYBENCH_BLAZOR_ROOT": str(old_web)}, info)
     try:
         before = _app_start(env, tmp_path, "before", __version__)
     finally:
@@ -311,16 +304,15 @@ def test_the_first_window_after_an_update_shows_the_app(tmp_path: Path) -> None:
     assert rules.cache_folder(__version__) in before["profile"] and before["mark"] == __version__
     new_web = tmp_path / "web-new"
     old_web.rename(new_web)
-    gone = _new_hashes(new_web)
-    assert gone and not (new_web / "build" / "chunks" / gone[0]).exists()
+    _new_build(new_web)
     newer = f"{__version__}.post1"
-    server = _serve(env | {"SWISSARMYBENCH_WEB_ROOT": str(new_web)}, info)
+    server = _serve(env | {"SWISSARMYBENCH_BLAZOR_ROOT": str(new_web)}, info)
     try:
         after = _app_start(env, tmp_path, "after", newer)
     finally:
         _stop(server, info)
     assert after["drew"], after
-    assert after["loads"][-1] == "loaded" and after["address"].endswith("/workspace")
+    assert after["loads"][-1] == "loaded" and after["address"].endswith("/blazor/")
     assert rules.cache_folder(newer) in after["profile"]
     assert rules.cache_folder(__version__) not in after["profile"] and after["mark"] == newer
     assert {"Cookies", "Local Storage"} <= set(after["profile"])  # kept across the update

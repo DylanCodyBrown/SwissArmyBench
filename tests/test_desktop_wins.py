@@ -231,18 +231,18 @@ def test_a_file_opened_with_the_app_is_read_by_its_path(
     with make_client(tmp_path) as client:
         info = server_through(client, monkeypatch)
         page = launch.file_page(str(csv), info)
-        grid = page.split("#grid=")[1]
+        grid = page.split("?grid=")[1]
         # A table: read by its path, so its origin is the file (a project reads it again; the watch sees it).
         assert client.get(f"/grids/{grid}", headers=AUTH).json()["dataset"] == "orders"
         origins = client.app.state.ctx.datasets.origins  # type: ignore[attr-defined]
         assert origins.get("orders").path == str(csv.resolve())
         # The same file again: another table beside it, never the first replaced.
-        assert "#grid=" in launch.file_page(str(csv), info)
+        assert "?grid=" in launch.file_page(str(csv), info)
         names = sorted(d["name"] for d in client.get("/datasets", headers=AUTH).json()["datasets"])
         assert names == ["orders", "orders_2"]
         # A notebook with no Workbench window open: a Workbench window that opens it (no token in the page).
         page = launch.file_page(str(notebook), info)
-        assert page.startswith("/notebooks?file=") and "analysis.ipynb" in page
+        assert page.startswith("/blazor/notebooks?path=") and "analysis.ipynb" in page
         assert rules.page_of(page) == page
         with pytest.raises(rules.ShellError, match="opens CSV"):
             launch.file_page(str(tmp_path / "notes.docx"), info)

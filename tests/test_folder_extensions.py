@@ -465,7 +465,10 @@ def test_a_missing_package_is_installed_on_install_then_it_loads(
         assert client.get("/plots/ok", headers=AUTH).json() == {"ok": True}
 
 
-def test_nothing_in_web_names_a_folder_extension() -> None:
-    web = Path(__file__).resolve().parents[1] / "web" / "src"
-    text = "\n".join(p.read_text(encoding="utf-8") for p in web.rglob("*.ts"))
+def test_nothing_in_the_front_end_names_a_folder_extension() -> None:
+    web = Path(__file__).resolve().parents[1] / "blazor"
+    files = [*web.rglob("*.cs"), *web.rglob("*.razor"), *(web / "interop").glob("*.js")]
+    text = "\n".join(
+        p.read_text(encoding="utf-8") for p in files if not {"bin", "obj", "node_modules"} & set(p.parts)
+    )
     assert "stockroom" not in text.lower() and "sab_ext_" not in text

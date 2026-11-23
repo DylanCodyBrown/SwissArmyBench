@@ -28,7 +28,7 @@ public partial class Rail : IDisposable
         get
         {
             var extensions = RailState.ExtensionAreas
-                .Select(extra => new RailArea(extra.Area, extra.Name, extra.Icon, $"x-{extra.Area}", $"/workspace?open={extra.Area}"));
+                .Select(extra => new RailArea(extra.Area, extra.Name, extra.Icon, $"x-{extra.Area}"));
             var shown = Areas.All
                 .Where(area => RailState.CanvasOn || area.Area is not (Areas.Canvas or Areas.Widgets))
                 .Where(area => RailState.CodeAppOn || area.Area != Areas.CodeApp)

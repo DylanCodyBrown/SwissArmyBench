@@ -39,7 +39,7 @@ and does nothing but read the request, call the use case and shape the answer:
   (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
-  frontend_pages.py        the swap: a classic page's address answers with its Blazor page (ClassicToBlazor)
+  frontend_pages.py        an old page's address answers with its Blazor page (OldAddresses)
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
@@ -64,7 +64,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
   routes_snapshots.py      a PNG of the page the user sees, drawn by the page, for an agent
-plus here: the WebSocket for live updates, the grid page shell and its static files.
+plus here: the WebSocket for live updates and the front end's files (the Blazor front end, at /blazor/).
 
 All DuckDB work runs on the priority worker pool (adapters/database.py), never on the event loop.
 """
@@ -89,6 +89,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from swissarmybench import __version__
 from swissarmybench.bootstrap import bootstrap
+from swissarmybench.domain import navigation as navigation_rules
 from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.domain import workbench_pages
 from swissarmybench.extensions import manifest
@@ -156,7 +157,7 @@ from swissarmybench.server import (
     routes_workbench,
 )
 from swissarmybench.server.beta_requests import BetaRequests
-from swissarmybench.server.frontend_pages import ClassicToBlazor, chosen_by
+from swissarmybench.server.frontend_pages import OldAddresses
 from swissarmybench.server.http import guarded
 from swissarmybench.server.routes_connection_slots import CallerAtTheDoor
 from swissarmybench.server.security import (
@@ -189,17 +190,6 @@ def not_installed(name: str, ident: str) -> Callable[[Request], Awaitable[Respon
     return answer
 
 
-# A page's split parts are named for their content (web/build.mjs: build/chunks/<page>-<hash>.js): a saved
-# copy is good for ever. Every other file is checked first (a 304 when it has not changed).
-FOREVER = "public, max-age=31536000, immutable"
-
-
-def cache_header(path: str) -> str:
-    """The Cache-Control of a page's file (`path` under /static/): the hashed chunks kept for ever, the rest
-    checked before a saved copy is used again."""
-    return FOREVER if path.replace("\\", "/").startswith("build/chunks/") else "no-cache"
-
-
 def versioned_etag(etag: str, version: str) -> str:
     """The file's ETag with the app's version in it: another version's saved copy never answers a 304, even
     when its file's time and size happen to be the same (an update's install sets both)."""
@@ -210,8 +200,7 @@ def versioned_etag(etag: str, version: str) -> str:
 class CheckedStaticFiles(StaticFiles):
     """The page's files, each checked before a saved copy is used again (`Cache-Control: no-cache`; a 304 when
     it has not changed and is this version's). Without it the desktop app's browser kept an update's old
-    scripts (the owner, 2026-11-19: the {x} buttons still showing in 0.0.27). The hashed chunks are kept for
-    ever (their names change with them)."""
+    scripts (the owner, 2026-11-19: the {x} buttons still showing in 0.0.27)."""
 
     def file_response(self, full_path: Any, stat_result: Any, scope: Any, status_code: int = 200) -> Response:
         answer = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
@@ -219,7 +208,7 @@ class CheckedStaticFiles(StaticFiles):
         # Only the ETag says whether a saved copy is good: an update's files may keep their old times.
         if "last-modified" in answer.headers:
             del answer.headers["last-modified"]
-        answer.headers["Cache-Control"] = cache_header(self.get_path(scope))
+        answer.headers["Cache-Control"] = "no-cache"
         if self.is_not_modified(answer.headers, Headers(scope=scope)):
             return NotModifiedResponse(answer.headers)
         return answer
@@ -228,8 +217,8 @@ class CheckedStaticFiles(StaticFiles):
 # Said at /blazor/ when the Blazor front end is not built here (blazor/README.md says how).
 BLAZOR_MISSING: str = (
     "<!doctype html><html><head><meta charset='utf-8'><title>Swiss Army Bench</title></head><body "
-    "style='font:15px system-ui,sans-serif;margin:48px'><p>The Blazor front end is not built here. "
-    "<a href='/workspace'>Open the classic front end</a>.</p></body></html>"
+    "style='font:15px system-ui,sans-serif;margin:48px'><p>The app's pages are not built here: run "
+    "<code>python blazor/publish.py</code> (blazor/README.md).</p></body></html>"
 )
 
 
@@ -324,13 +313,6 @@ def create_app(
         finally:
             ctx.live.discard(websocket)
 
-    async def grid_page(request: Request) -> Response:
-        return FileResponse(settings.web_root / "index.html", headers={"Cache-Control": "no-store"})
-
-    async def workspace_page(request: Request) -> Response:
-        # The same page as /g/<id>: it shows every open grid as a tab, opened on the last one.
-        return FileResponse(settings.web_root / "index.html", headers={"Cache-Control": "no-store"})
-
     async def catalog_page(request: Request) -> Response:
         # The old blades page (the owner, 2026-11-21: blades move into the Scripts page): its Blades pane, and
         # ?blade=<name> that blade's tab there (an empty name: New blade). The #token goes with the redirect.
@@ -347,10 +329,6 @@ def create_app(
         page, kept = workbench_pages.old_address(dict(request.query_params))
         query = f"?{urlencode(kept)}" if kept else ""
         return RedirectResponse(f"{workbench_pages.url_of(page)}{query}", status_code=302)
-
-    async def code_page(request: Request) -> Response:
-        # The Notebooks page and the Scripts page: one page's code, each window says which it is by its path.
-        return FileResponse(settings.web_root / "workbench.html", headers={"Cache-Control": "no-store"})
 
     async def drop_silent_sessions() -> None:
         # A notebook that closes or crashes just stops reporting; the list notices within a few
@@ -499,16 +477,12 @@ def create_app(
                 *routes_processes.routes(ctx.sessions),
                 *routes_snapshots.routes(ctx.snapshots),
                 WebSocketRoute("/ws", live),
-                Route("/g/{grid_id}", grid_page),
                 # The bare address goes to the app's page; the browser keeps the #token fragment across it.
-                Route("/", lambda request: RedirectResponse("/workspace", status_code=307)),
+                Route("/", lambda request: RedirectResponse(navigation_rules.HOME, status_code=307)),
                 Route("/session", session, methods=["GET", "POST"]),
-                Route("/workspace", workspace_page),
+                # Two older addresses, sent to the old page's address they became (then to its Blazor page).
                 Route("/catalog", catalog_page),
                 Route("/workbench", workbench_page),
-                Route("/notebooks", code_page),
-                Route("/scripts", code_page),
-                Mount("/static", CheckedStaticFiles(directory=settings.web_root, check_dir=False)),
                 *blazor_routes(settings.blazor_root),
             ]
         ),
@@ -521,12 +495,8 @@ def create_app(
                 secret_paths=secret_paths,
                 activity=ctx.lifecycle.request,
             ),
-            # The swap: a classic page's address answers with its Blazor page while Blazor is the one opened.
-            Middleware(
-                ClassicToBlazor,
-                chosen=chosen_by(ctx.navigation.frontend),
-                built=(settings.blazor_root / "index.html").is_file(),
-            ),
+            # An old page's address (/workspace, /g/<grid>, /notebooks...) answers with its Blazor page.
+            Middleware(OldAddresses),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
             Middleware(CallerAtTheDoor),  # who each request's connection calls are for (their slots)
         ],

@@ -1,4 +1,4 @@
-"""The one icon set (web/src/dom.ts ICONS; the owner, 2026-11-16: "it needs a glow up with icons. For
+"""The one icon set (the front end's IconSet.cs; the owner, 2026-11-16: "it needs a glow up with icons. For
 example our connection panel has no icons on the connection types"): every connection type the server
 offers has an icon of its own, no two databases share one, Add API's presets have theirs, and every icon
 name the page asks for is in the set (none drawn blank)."""
@@ -11,33 +11,22 @@ from pathlib import Path
 from swissarmybench.domain import apis
 from tests.conftest import AUTH, make_client
 
-WEB = Path(__file__).resolve().parents[1] / "web" / "src"
+WEB = Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web"
 
 
 def icon_set() -> dict[str, str]:
-    """The set's names and each one's markup, as written (a part's name kept: CYL + '...')."""
-    text = (WEB / "dom.ts").read_text(encoding="utf-8")
-    body = text.split("const ICONS: Record<string, string> = {", 1)[1].split("\n};", 1)[0]
-    found: dict[str, str] = {}
-    for line in body.splitlines():
-        match = re.match(r'\s{2}"?([\w-]+)"?:\s*(.+),$', line)
-        if match:
-            found[match.group(1)] = match.group(2)
-    return found
+    """The set's names and each one's markup, as written (IconSet.Paths: ["name"] = "markup",)."""
+    text = (WEB / "Components" / "IconSet.cs").read_text(encoding="utf-8")
+    return dict(re.findall(r'^\s+\["([\w-]+)"\] = (.+),$', text, re.M))
 
 
 def names_used() -> set[str]:
-    """Every icon name web/src asks for: icon("x"), { icon: "x" }, a menu entry ["x", "Label", ...],
-    registerAnalysis("x", ...), and the values of each *_ICONS map."""
+    """Every icon name a page asks for by its literal name: <Icon Name="x" />."""
     used: set[str] = set()
-    for path in WEB.rglob("*.ts"):
-        text = path.read_text(encoding="utf-8")
-        used |= set(re.findall(r'\bicon\(\s*"([\w-]+)"', text))
-        used |= set(re.findall(r'\bicon:\s*"([\w-]+)"', text))
-        used |= set(re.findall(r'registerAnalysis\(\s*"([\w-]+)"', text))
-        used |= set(re.findall(r'\[\s*"([\w-]+)",\s*"[^"]+",\s*\(\)\s*=>', text))
-        for block in re.findall(r"const \w*ICONS\b[^=]*=\s*\{([^}]*)\}", text):
-            used |= set(re.findall(r':\s*"([\w-]+)"', block))
+    for path in WEB.rglob("*.razor"):
+        if "bin" in path.parts or "obj" in path.parts:
+            continue
+        used |= set(re.findall(r'<Icon Name="([\w-]+)"', path.read_text(encoding="utf-8")))
     return used
 
 
@@ -46,6 +35,7 @@ def test_every_icon_the_page_asks_for_is_in_the_set() -> None:
     assert len(icons) > 120
     missing = sorted(name for name in names_used() if name not in icons)
     assert missing == []
+    assert len(names_used()) > 50
 
 
 def test_every_connection_type_and_preset_has_its_own_icon(tmp_path: Path) -> None:
@@ -54,7 +44,7 @@ def test_every_connection_type_and_preset_has_its_own_icon(tmp_path: Path) -> No
         types = client.get("/connections/types", headers=AUTH).json()["types"]
     assert len(types) > 30
     without = [t["id"] for t in types if t["id"] not in icons]
-    assert without == []  # by its type's id (connectionsWindow.ts connectionIcon)
+    assert without == []  # by its type's id (the Connections page's card)
     databases = [icons[t["id"]] for t in types if t["connection"] == "database"]
     assert len(set(databases)) == len(databases)  # no two databases look the same
     every = [icons[t["id"]] for t in types]

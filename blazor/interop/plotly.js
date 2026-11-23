@@ -1,4 +1,4 @@
-// plotly.js: Plotly (the classic front end's same version, plotly.js-dist-min) for the <PlotlyChart> component: the
+// plotly.js: Plotly (blazor/package.json's pinned version, plotly.js-dist-min) for the <PlotlyChart> component: the
 // Analyze board's cards and a notebook's figures.
 //
 // A figure is Plotly JSON ({"data": [...], "layout": {...}}), what Python's fig.to_json() writes: no functions. The

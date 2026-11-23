@@ -24,17 +24,22 @@ HOST = "127.0.0.1"
 INSIDE, OUTSIDE, REFUSE = "inside", "outside", "refuse"
 # Schemes the system opens (its browser, its mail program); every other one is refused.
 OUTSIDE_SCHEMES: tuple[str, ...] = ("http", "https", "mailto")
-# The home window's name (web/src/nav.ts's HOME_WINDOW): other windows find it by this name.
+# The home window's name (the front end's shell.js names the app's first window so): other windows find it
+# by this name.
 HOME_WINDOW = "sab-home"
-HOME_PAGE = "/workspace"
+HOME_PAGE = "/blazor/"
+# A table's grid on the Grids page (the grid's id after it).
+GRID_PAGE = "/blazor/grids?grid="
 # A page of the app the agent opens by a word (desktop_open).
 PAGES: dict[str, str] = {
-    "home": "/workspace",
-    "workbench": "/notebooks",  # the old word: the Notebooks page
-    "notebooks": "/notebooks",
-    "scripts": "/scripts",
-    "blades": "/scripts?pane=blades",  # the old blades page went (2026-11-21): the Scripts page's Blades
+    "home": HOME_PAGE,
+    "workbench": "/blazor/notebooks",  # the old word: the Notebooks page
+    "notebooks": "/blazor/notebooks",
+    "scripts": "/blazor/scripts",
+    "blades": "/blazor/scripts?pane=blades",  # the old blades page went (2026-11-21): the Scripts page's
 }
+# The pages the home window shows (the old /workspace and /g/<grid>, the front end's /blazor/ and its Grids).
+_HOME_KINDS: dict[str, str] = {"": "home", "workspace": "home", "g": "home", "grids": "home"}
 # Window sizes when nothing is remembered and the page asked for none.
 DEFAULT_SIZES: dict[str, tuple[int, int]] = {
     "home": (1360, 860),
@@ -185,23 +190,32 @@ def page_for(word: str) -> str:
 
 
 def kind_of(url: str) -> str:
-    """A window's kind, the key its size and place are remembered by: home (/workspace and a grid's /g/...),
-    workbench, catalog, a panel window (?panel=steps: panel-steps), else the path's first word."""
+    """A window's kind, the key its size and place are remembered by: home (/blazor/ and its Grids, the old
+    /workspace and a grid's /g/...), notebooks, scripts, a panel window (?panel=steps: panel-steps), else the
+    page's first word (under /blazor/: the word after it)."""
     try:
         parts = urlsplit(url if "://" in url else f"http://{HOST}{url}")
     except ValueError:
         return "other"
-    first = parts.path.strip("/").split("/", 1)[0].lower()
-    base = {"": "home", "workspace": "home", "g": "home"}.get(first, first)
+    words = parts.path.strip("/").split("/")
+    if words[0].lower() == "blazor":
+        words = words[1:] or [""]
+    first = words[0].lower()
+    base = _HOME_KINDS.get(first, first)
     panel = dict(parse_qsl(parts.query)).get("panel", "")
     kind = f"{base}-panel-{panel.lower()}" if panel else base
     return kind if _KIND.match(kind) else "other"
 
 
 def same_page(a: str, b: str) -> bool:
-    """The same page of the app (path and query), whatever the fragment says."""
+    """The same page of the app (path and query), whatever the fragment says; an old page's address
+    (/scripts) is the same page as its front end's (/blazor/scripts)."""
     pa, pb = urlsplit(a), urlsplit(b)
-    return (pa.path or "/", pa.query) == (pb.path or "/", pb.query)
+    return (_page_path(pa.path), pa.query) == (_page_path(pb.path), pb.query)
+
+
+def _page_path(path: str) -> str:
+    return (path.removeprefix("/blazor") if path.startswith("/blazor/") else path).rstrip("/") or "/"
 
 
 def _extra(url: str) -> bool:

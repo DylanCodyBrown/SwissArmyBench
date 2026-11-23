@@ -234,8 +234,8 @@ def test_a_push_while_a_workspace_is_open_counts_as_shown(client: TestClient) ->
         assert again["watched"] is True  # the workspace adds it as a tab: no new window
         assert ws.receive_json()["type"] == "dataset_updated"
         assert ws.receive_json() == {"type": "grid_shown", "grid": again["grid"], "dataset": "tabbed2"}
-    page = client.get("/workspace")
-    assert page.status_code == 200 and "main.js" in page.text  # the grid page; the shell needs no token
+    page = client.get("/workspace", follow_redirects=False)
+    assert page.status_code == 302 and page.headers["location"] == "/blazor/"  # no token needed to land
 
 
 def test_the_name_written_in_the_call_wins_over_a_loop_variable() -> None:

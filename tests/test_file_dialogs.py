@@ -350,16 +350,18 @@ def test_the_page_picker_lists_places_recent_new_folder_and_hidden(tmp_path: Pat
 
 
 def test_every_pick_in_the_page_goes_through_choose_file() -> None:
-    """One door for every path the user picks: only fileChooser.ts lists folders or asks for a system dialog,
-    and it asks for the system's own first; the callers (Open file, projects, the Workbench, Settings, Add
-    API, connections, imports, exports) all import chooseFile from it."""
-    web = Path(__file__).resolve().parents[1] / "web" / "src"
-    sources = {p.name: p.read_text(encoding="utf-8") for p in web.rglob("*.ts")}
-    doors = ('"/folders', "`/folders", "/dialogs/choose")
-    assert [n for n, s in sources.items() if any(d in s for d in doors)] == ["fileChooser.ts"]
-    chooser = sources["fileChooser.ts"]
-    assert chooser.index('"/dialogs/choose"') < chooser.index("return choosePage(options)")
-    callers = sorted(n for n, s in sources.items() if "chooseFile(" in s and n != "fileChooser.ts")
+    """One door for every path the user picks: only the front end's FileChooser asks for a system dialog, and
+    it asks for the system's own first, then the page's own picker (FilePicker, the one that lists folders for
+    a pick); the callers (Open file, projects, the Workbench, Settings, Add API, connections, imports,
+    exports) all call its ChooseAsync."""
+    web = Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web"
+    sources = {
+        p.name: p.read_text(encoding="utf-8")
+        for p in [*web.rglob("*.cs"), *web.rglob("*.razor")]
+        if "bin" not in p.parts and "obj" not in p.parts
+    }
+    assert [n for n, s in sources.items() if '"/dialogs/choose"' in s] == ["FileChooser.cs"]
+    chooser = sources["FileChooser.cs"]
+    assert chooser.index('"/dialogs/choose"') < chooser.index("_picks.")
+    callers = sorted(n for n, s in sources.items() if ".ChooseAsync(" in s and n != "FileChooser.cs")
     assert len(callers) >= 15
-    for name in callers:
-        assert 'import { chooseFile } from "./fileChooser"' in sources[name], name

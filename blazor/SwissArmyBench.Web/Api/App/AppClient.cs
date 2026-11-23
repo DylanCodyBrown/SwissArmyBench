@@ -28,8 +28,4 @@ public sealed class AppClient
     public Task<RailAnswer> RailAsync() => _api.GetAsync<RailAnswer>("/rail");
 
     public Task<RailAnswer> SetRailAsync(bool labels) => _api.PutAsync<RailAnswer>("/rail", new { labels });
-
-    public Task<FrontendAnswer> FrontendAsync() => _api.GetAsync<FrontendAnswer>("/app/frontend");
-
-    public Task<FrontendAnswer> SetFrontendAsync(string frontend) => _api.PutAsync<FrontendAnswer>("/app/frontend", new { frontend });
 }

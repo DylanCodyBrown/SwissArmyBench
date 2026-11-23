@@ -5,11 +5,13 @@ APIs pages came out unstyled)."""
 import re
 from pathlib import Path
 
-CSS = Path(__file__).resolve().parents[1] / "web" / "static"
+CSS = Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web" / "wwwroot" / "css"
 
 
 def test_every_stylesheet_closes_every_brace() -> None:
-    for sheet in sorted(CSS.glob("*.css")):
+    sheets = sorted(CSS.glob("*.css"))
+    assert len(sheets) > 5
+    for sheet in sheets:
         text = re.sub(r"/\*.*?\*/", "", sheet.read_text(encoding="utf-8"), flags=re.S)
         depth = 0
         for line_number, line in enumerate(text.splitlines(), 1):

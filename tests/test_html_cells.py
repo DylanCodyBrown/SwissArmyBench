@@ -221,6 +221,17 @@ def test_the_frame_loads_nothing_over_the_network() -> None:
     assert not any(word in rules.FRAME_POLICY for word in ("http", "*", "'self'"))
 
 
+def test_the_frames_page_carries_the_policy_the_rules_name() -> None:
+    """The design frame's page (/blazor/design.html, blazor/interop/workbench.js loads it) says the same
+    policy as the rules, once."""
+    root = Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web" / "wwwroot"
+    shell = (root / "design.html").read_text(encoding="utf-8")
+    assert f'content="{rules.FRAME_POLICY}"' in shell
+    assert shell.count("Content-Security-Policy") == 1
+    frame = (root.parents[1] / "interop" / "workbench.js").read_text(encoding="utf-8")
+    assert '"/blazor/design.html"' in frame
+
+
 # ===== in a notebook file =====
 
 

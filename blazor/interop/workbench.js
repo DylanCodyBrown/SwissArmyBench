@@ -69,7 +69,15 @@ export function keys(dotnet) {
     dotnet.invokeMethodAsync("PageKey", name).catch(() => {});
   };
   window.addEventListener("keydown", listener, true);
-  return { stop: () => window.removeEventListener("keydown", listener, true) };
+  // The desktop app's F11 is the page's while it is open: the shell asks window.sabFullScreen first.
+  const full = () => dotnet.invokeMethodAsync("PageKey", "fullScreen").catch(() => {});
+  window.sabFullScreen = full;
+  return {
+    stop: () => {
+      window.removeEventListener("keydown", listener, true);
+      if (window.sabFullScreen === full) delete window.sabFullScreen;
+    },
+  };
 }
 
 /** A sash between two groups: dragged, the share of the pair's room before it goes to C# as it moves. */
@@ -100,9 +108,12 @@ export function sash(element, dotnet, row) {
   });
 }
 
-/** The page full screen (F11): the rail, the top bar and the side panes go (body.wb-full). */
+/** The page full screen (F11): the rail, the top bar and the side panes go (body.wb-full); in the desktop app, the
+ * window too. */
 export function fullScreen(on) {
   document.body.classList.toggle("wb-full", !!on);
+  // In the desktop app the window itself goes full screen too (and back).
+  if (window.sabApp?.app === true) window.sabApp.fullScreen?.(!!on);
 }
 
 /** Where a control is on screen, for a menu opened under it. */
@@ -113,7 +124,7 @@ export function under(element) {
 
 // An HTML cell's design (the classic workbenchHtml.ts designPane): drawn in a frame of its own, sandboxed (its
 // scripts run, but not as the app's origin: it cannot reach the app, its cookie, its storage or the user's data), whose
-// page (/static/design.html) loads nothing over the network. The page's HTML goes in once the frame says it is ready;
+// page (/blazor/design.html) loads nothing over the network. The page's HTML goes in once the frame says it is ready;
 // the design tells its own height back.
 const REPORTER =
   `<script>(function(){var last=0;function say(){var h=Math.ceil(Math.max(document.documentElement.scrollHeight,` +
@@ -150,7 +161,7 @@ export function design(stage, dotnet) {
       fresh.setAttribute("sandbox", "allow-scripts");
       fresh.title = "Design";
       fresh.referrerPolicy = "no-referrer";
-      fresh.src = "/static/design.html";
+      fresh.src = "/blazor/design.html";
       frame = fresh;
       stage.replaceChildren(fresh);
     },

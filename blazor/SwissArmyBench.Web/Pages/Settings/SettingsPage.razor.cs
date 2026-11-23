@@ -11,9 +11,6 @@ namespace SwissArmyBench.Web.Pages.Settings;
 
 public partial class SettingsPage
 {
-    private const string Classic = "classic";
-    private const string Blazor = "blazor";
-
     /// <summary>What an agent needs to connect (the classic MCP_PROMPT, word for word).</summary>
     private const string McpPrompt =
         "Connect the Swiss Army Bench MCP server so you can work on my local data:\n"
@@ -23,7 +20,6 @@ public partial class SettingsPage
         + "3. Call its guide tool first; it explains the app and its tools.";
 
     private Exception? _error;
-    private string _frontend = Blazor;
     private GatesAnswer? _gates;
     private bool _follow = true;
 
@@ -48,7 +44,6 @@ public partial class SettingsPage
     protected override async Task OnInitializedAsync()
     {
         await Js.InvokeVoidAsync("sab.setTitle", "Settings");
-        await RunAsync(async () => _frontend = (await App.FrontendAsync()).Frontend);
         await RunAsync(async () => _gates = await App.GatesAsync());
         await RunAsync(async () => _follow = (await SessionLog.ListingAsync("agent", changesOnly: true)).Follow);
     }
@@ -58,8 +53,6 @@ public partial class SettingsPage
         _error = error;
         StateHasChanged();
     }
-
-    private Task SetFrontendAsync(string frontend) => RunAsync(async () => _frontend = (await App.SetFrontendAsync(frontend)).Frontend);
 
     private Task EveryFeatureAsync(ChangeEventArgs e) => RunAsync(async () =>
     {

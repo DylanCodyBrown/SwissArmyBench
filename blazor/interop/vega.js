@@ -1,4 +1,4 @@
-// vega.js: Vega-Lite (the classic front end's same versions: vega, vega-lite, vega-embed) for the <VegaChart>
+// vega.js: Vega-Lite (blazor/package.json's pinned version: vega, vega-lite, vega-embed) for the <VegaChart>
 // component: the Analyze board's chart cards and Open large. The server already aggregated the data and made the
 // Vega-Lite spec (domain/charts.py); this draws it in the app's theme (the classic lazy/charts.ts's rules: colours
 // from the tokens, fill patterns for bar and area series so they never differ by colour alone, wheel zoom on

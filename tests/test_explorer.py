@@ -204,7 +204,7 @@ def test_the_popped_out_windows_old_address_is_the_data_page(tmp_path: Path) -> 
     with make_client(tmp_path) as client:
         page = client.get("/workbench?panel=explorer", follow_redirects=False)
         assert page.status_code == 302 and page.headers["location"] == "/workspace?open=data"
-        assert "workbench.js" in client.get("/workbench").text
+        assert client.get("/workbench", follow_redirects=True).url.path == "/blazor/notebooks"
 
 
 # ===== the Data page's browse (the owner, 2026-11-17: "a standalone DATA rail icon and page") =====

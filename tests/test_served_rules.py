@@ -1,12 +1,9 @@
 """Rules the pages used to copy, served as data instead (the front end / back end rule; the craft review of
 2026-11-22, item 11): what the Connections pages draw for a connection's kind, what an In's source picker
-offers on the Canvas, a vault secret's variable name. The page files name no kind and hold no copy.
-Made-up names only."""
+offers on the Canvas, a vault secret's variable name. Made-up names only."""
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -18,8 +15,6 @@ from swissarmybench_streamlit.domain import canvas_wiring as wiring
 from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain.widget_contract import ContractError, Port
 from tests.conftest import AUTH
-
-WEB = Path(__file__).resolve().parents[1] / "web" / "src"
 
 # ===== a connection's kind, as the pages draw it =====
 
@@ -135,15 +130,6 @@ def test_the_listings_carry_the_facts_and_the_pages_name_no_kind(client: TestCli
     assert {t["secrets_legend"] for t in types if t["dialect"] in ("dax", "dataverse")} == {
         "App registration"
     }
-    # No page asks which kind a connection is: no dialect or tables kind compared with a kind's name.
-    named = re.compile(
-        r"""(dialect|tables_kind|\.kind)\s*[!=]==\s*["'](dax|powerbi|dataverse\w*|sqlserver|sharepoint\w*|"""
-        r"""onelake|datalake|delta)["']"""
-    )
-    for name in ("connectionsWindow.ts", "connectionTree.ts", "queryTab.ts", "dataBrowse.ts"):
-        text = (WEB / name).read_text(encoding="utf-8")
-        assert not named.search(text), name
-        assert "LAKE_KINDS" not in text and "readsByCode" not in text, name
 
 
 # ===== a vault secret's variable: the server's one rule, asked =====
@@ -156,8 +142,6 @@ def test_a_typed_secrets_variable_is_asked_never_worked_out_by_the_page(client: 
     assert {n["secret"]: n["env"] for n in answered.json()["names"]} == {
         n: env_name_for_secret(n) for n in names
     }
-    text = (WEB / "connectionsWindow.ts").read_text(encoding="utf-8")
-    assert "envFor" not in text and 'replace(/--/g, "__")' not in text
 
 
 # ===== an In's source picker on the Canvas =====
@@ -213,9 +197,3 @@ def test_what_the_picker_offers_is_what_the_check_accepts(wanted: str) -> None:
     assert ("value" in offered["kinds"]) is (wanted != "Table")
     with pytest.raises(ContractError):
         wiring.check_in(port, {"tables": [{"table": "orders"}]}, context)
-
-
-def test_the_canvas_page_has_no_fits_of_its_own() -> None:
-    text = (WEB / "canvasWiring.ts").read_text(encoding="utf-8")
-    assert "function fits(" not in text and 'given.startsWith("list' not in text
-    assert '["str", "int", "float", "bool", "date", "datetime"]' not in text

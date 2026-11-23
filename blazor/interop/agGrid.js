@@ -1,4 +1,4 @@
-// agGrid.js: AG Grid Community (the classic front end's same version), wrapped for the <AgGrid> component.
+// agGrid.js: AG Grid Community (blazor/package.json's pinned version), wrapped for the <AgGrid> component.
 //
 // The infinite row model asks the server for windows of rows as the user scrolls (GET /grids/{id}/rows, as the
 // classic gridView.ts does): the rows go straight from the server into the grid, never through C#. A sort from a

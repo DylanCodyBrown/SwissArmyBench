@@ -115,8 +115,8 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
-    # The Blazor front end's page (2026-11-23): the page itself, like /workspace; app_frontend picks it.
-    "/blazor": "the Blazor front end's page (its files, no data); app_frontend makes it the app's",
+    # The front end's page (the Blazor front end, the only one since 2026-11-23): its files, no data.
+    "/blazor": "the front end's page (its files, no data)",
     "/blazor/{}": "the one line saying the Blazor front end is not built here (no data)",
     # The statistics (2026-11-22): the pages' figures by name; the agent's stats(action=connection|endpoint).
     "/stats/figures": "the Connections and APIs pages' figures by name (the agent: stats connection)",
@@ -173,23 +173,16 @@ NOT_COMMANDS = {
     "/snapshots/{}": "the page's answer to app_snapshot (page plumbing)",
     "/snapshots/{}/error": "the page's failure reply to app_snapshot (page plumbing)",
     "/ws": "reached through events",
-    "/g/{}": "page shell",
-    "/": "page shell: the bare address goes on to /workspace",
-    "/workspace": "page shell",
+    "/": "the bare address goes on to the app's page (/blazor/)",
     "/scripts/library-file": "the read-only viewer: workbench_definition(source=true) gives the text",
     "/scripts/files/delete": "Delete (to the trash) is the user's own: the agent cannot delete",
     "/catalog": "the old blades page: a redirect to the Scripts page's Blades",
     "/workbench": "the old address: redirects to the Notebooks or Scripts page",
-    "/notebooks": "page shell: the Notebooks page (the agent works its files and kernels directly)",
-    "/scripts": "page shell: the Scripts page (the agent works its files and kernels directly)",
-    "/static": "page files",
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
     "/streamlit/run/{}": "a widget alone or a canvas played, in a frame: widgets_run, canvas_play",
     "/streamlit/run/{}/{}": "the same: their pages' own files and socket",
-    "/streamlit/canvas": "page shell: the Canvas page (the agent works canvases with canvas_*)",
     "/streamlit/canvases/{}/stop": "the Canvas's Edit after Play (its run stopped): canvas_play's address",
-    "/streamlit/widget": "page shell: the Widgets window (the agent works widgets with widgets_*)",
     "/streamlit/widgets/check-name": "the Name box's live check: widgets_header says it on a rename",
     "/streamlit/widgets/context": "the pickers' choices: tabs_list and variables_list",
     "/streamlit/widgets/check-value": "a property's live check: widgets_set_property checks it",
@@ -197,7 +190,6 @@ NOT_COMMANDS = {
     "/streamlit/widgets/{}/preview.png": "the preview's picture: widgets_preview gives its address",
     "/streamlit/launch/{}": "a launched app's pages, in a window of its own: app_launch says where",
     "/streamlit/launch/{}/{}": "the same: the launched app's own files and socket",
-    "/streamlit/perf": "page shell: the Performance Analyzer's window (canvas_perf is its data)",
     "/agent/context": "current_table",
     "/beta/page-errors": "a page's own error report (page plumbing): app_beta_log reads them",
     "/blades/{}/python": "its answer holds the saved password values for sab.blade: never the agent's",
@@ -279,7 +271,7 @@ def test_every_server_route_has_a_command_or_a_stated_reason(live: Live, tmp_pat
     # Paths written inside f-strings: f"/grids/{_q(a['grid'])}/rows".
     used |= {_normal(re.sub(r"\{[^}]*\}", "{}", p)) for p in re.findall(r'f"(/[^"]*)"', source)}
     uncovered = {
-        p for p in server_paths if p not in used and p not in NOT_COMMANDS and not p.startswith("/static")
+        p for p in server_paths if p not in used and p not in NOT_COMMANDS and not p.startswith("/blazor/")
     }
     assert not uncovered, f"routes with no command and no stated reason: {sorted(uncovered)}"
 

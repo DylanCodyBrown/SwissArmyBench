@@ -1,13 +1,11 @@
-"""The swap (the owner, 2026-11-23: "blazor has my approval, do the swap"): while the Blazor front end is
-the one this computer opens, every classic page's address (/workspace, /g/<grid>, /notebooks, /scripts, the
-Canvas, the Widgets window, the analyzer) answers with its Blazor page instead, its words kept. A bookmark,
-the desktop app, a pushed grid's address and an agent's window all land on the Blazor pages. ?classic=1 shows
-the classic page anyway (those pages stay one release, then go). The #token stays with the browser."""
+"""The old pages' addresses (the classic front end's, gone 2026-11-23; the owner: "we can swap over to full
+Blazer do not keep both in sync in parallel"): /workspace, /g/<grid>, /notebooks, /scripts, the Canvas, the
+Widgets window and the analyzer each answer with their Blazor page, their words kept. A bookmark, the desktop
+app, a pushed grid's address and an agent's window all land on the Blazor pages. The #token stays with the
+browser."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
 from urllib.parse import parse_qsl, quote
 
 from starlette.responses import RedirectResponse
@@ -16,42 +14,27 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from swissarmybench.domain import navigation
 
 
-class ClassicToBlazor:
-    """ASGI middleware: a classic page's GET answers 302 to its Blazor page while `chosen()` is "blazor" and
-    the Blazor front end is built here (`built`); anything else passes through untouched."""
+class OldAddresses:
+    """ASGI middleware: an old page's GET answers 302 to its Blazor page; anything else passes through."""
 
-    def __init__(self, app: ASGIApp, chosen: Callable[[], str], built: bool) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
-        self.chosen = chosen
-        self.built = built
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if self._moves(scope):
-            query = dict(parse_qsl(scope.get("query_string", b"").decode("latin-1")))
-            if "classic" not in query:
-                address = blazor_address(scope["path"], query)
-                await RedirectResponse(address, status_code=302)(scope, receive, send)
-                return
-        await self.app(scope, receive, send)
-
-    def _moves(self, scope: Scope) -> bool:
-        return (
-            self.built
-            and scope["type"] == "http"
+        if (
+            scope["type"] == "http"
             and scope.get("method") in ("GET", "HEAD")
-            and navigation.is_classic_page(str(scope.get("path", "")))
-            and self.chosen() == "blazor"
-        )
-
-
-def chosen_by(frontend: Callable[[], dict[str, Any]]) -> Callable[[], str]:
-    """The front end the navigation service says this computer opens, read on each request (a switch in
-    Settings takes effect on the next page)."""
-    return lambda: str(frontend().get("frontend", ""))
+            and navigation.is_old_page(str(scope.get("path", "")))
+        ):
+            query = dict(parse_qsl(scope.get("query_string", b"").decode("latin-1")))
+            address = blazor_address(scope["path"], query)
+            await RedirectResponse(address, status_code=302)(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
 
 
 def blazor_address(path: str, query: dict[str, str]) -> str:
-    """The Blazor page's address for a classic page's (navigation.blazor_page, its words encoded)."""
+    """The Blazor page's address for an old page's (navigation.blazor_page, its words encoded)."""
     page, words = navigation.blazor_page(path, query)
     text = "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in words.items())
     return f"/blazor/{page}" + (f"?{text}" if text else "")

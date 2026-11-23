@@ -1,5 +1,5 @@
 """Kind colours (the owner, 2026-11-15: "App violet, notebook blue, script green"): each kind's fixed
-colour per theme (grid.css's tokens hold the same), readable in every theme, never amber."""
+colour per theme (tokens.css holds the same), readable in every theme, never amber."""
 
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ import pytest
 from swissarmybench.domain import kind_colours as rules
 from swissarmybench.domain.themes import contrast
 
-CSS = (Path(__file__).resolve().parents[1] / "web" / "static" / "grid.css").read_text(encoding="utf-8")
+CSS = (
+    Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web" / "wwwroot" / "css" / "tokens.css"
+).read_text(encoding="utf-8")
 
 
 def _block(theme: str) -> str:

@@ -64,16 +64,31 @@ def run_code(info: dict[str, Any], kernel: str, code: str) -> list[dict[str, Any
 
 
 def pages_load_whole(info: dict[str, Any]) -> None:
-    """Every page's stylesheets, scripts and lazy editors' styles are in the installed wheel. (The
-    Workbench linked a stylesheet only an old build had left behind: a clean build's wheel lacked it.)"""
+    """The front end's page (/blazor/), its stylesheets, scripts, the interop bundles and the HTML cells'
+    design frame are in the installed wheel; an old page's address lands on its Blazor page. (The classic
+    Workbench once linked a stylesheet only an old build had left behind: a clean build's wheel lacked it.)"""
     base = f"http://127.0.0.1:{info['port']}"
     headers = {"Authorization": f"Bearer {info['token']}"}
-    linked: set[str] = {"/static/build/lazy/codeEditor.css"}
-    for page in ("/notebooks", "/scripts", "/g/smoke"):  # /g/<any id> serves the grid page
-        request = urllib.request.Request(base + page, headers=headers)  # noqa: S310 (fixed local URL)
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (fixed local URL)
-            html = response.read().decode("utf-8")
-        linked |= set(re.findall(r'(?:href|src)="(/static/[^"]+)"', html))
+    linked: set[str] = {"/blazor/js/agGrid.js", "/blazor/js/codeEditor.js", "/blazor/design.html"}
+    request = urllib.request.Request(base + "/blazor/", headers=headers)  # noqa: S310 (fixed local URL)
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (fixed local URL)
+        html = response.read().decode("utf-8")
+    if "_framework/blazor.webassembly" not in html:
+        sys.exit("The front end's page is missing from the install (/blazor/).")
+    linked |= {"/blazor/" + p for p in re.findall(r'(?:href|src)="([^"/.][^"]*)"', html)}
+    for old, new in (("/notebooks", "/blazor/notebooks"), ("/g/smoke", "/blazor/grids?grid=smoke")):
+        try:
+            urllib.request.urlopen(urllib.request.Request(base + old, headers=headers), timeout=30).close()  # noqa: S310
+        except urllib.error.HTTPError as error:
+            sys.exit(f"{old} did not land on its Blazor page ({error.code}).")
+        try:
+            asked = urllib.request.Request(base + old, headers=headers)  # noqa: S310 (fixed local URL)
+            urllib.request.build_opener(_NoRedirect).open(asked, timeout=30).close()
+            where = None
+        except urllib.error.HTTPError as answer:  # the redirect, not followed
+            where = answer.headers.get("location")
+        if where != new:
+            sys.exit(f"{old} answered {where!r}, not its Blazor page {new}.")
     missing = []
     for path in sorted(linked):
         try:
@@ -84,6 +99,13 @@ def pages_load_whole(info: dict[str, Any]) -> None:
     if missing:
         sys.exit("The pages link files the wheel does not have: " + ", ".join(missing))
     print(f"Every page's {len(linked)} linked files are served.")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect answered as it is (its Location read), not followed."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
 
 
 def workbench(info: dict[str, Any]) -> None:
@@ -198,11 +220,11 @@ def main() -> None:
         print(f"All {len(tables)} tables arrived: {', '.join(sorted(datasets))}")
 
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{info['port']}/static/build/main.js", timeout=30
+            f"http://127.0.0.1:{info['port']}/blazor/js/agGrid.js", timeout=30
         ) as page:
             if page.status != 200 or len(page.read()) < 10_000:
-                sys.exit("The page's script is missing from the install.")
-        print("The page's script is served.")
+                sys.exit("The grid's script is missing from the install.")
+        print("The grid's script is served.")
 
         # Blades: a SQLite blade from its starter, refreshed in the server's own Python (a child
         # process), run here with sab.blade, and a catalog loaded with sab.load.
@@ -237,9 +259,9 @@ def main() -> None:
         if [c["column"] for c in found] != ["crust"]:
             sys.exit(f"sab.load's catalog cannot be searched: {found}")
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{info['port']}/static/build/workbench.js", timeout=30
+            f"http://127.0.0.1:{info['port']}/blazor/js/workbench.js", timeout=30
         ) as page:
-            if page.status != 200 or len(page.read()) < 5_000:
+            if page.status != 200 or len(page.read()) < 1_000:
                 sys.exit("The Scripts page's script is missing from the install.")
         print("Blades refresh, run with sab.blade, and sab.load fills a catalog.")
 

@@ -54,28 +54,24 @@ def test_both_themes_from_the_same_tokens(browser: Browser, server: dict[str, An
         page.close()
 
 
-def test_a_page_not_built_yet_links_to_the_classic_one(browser: Browser, server: dict[str, Any]) -> None:
-    # Every rail area has a page now; an extension's area with no panel is one line and its classic place.
+def test_an_address_with_no_page_says_so_in_one_line(browser: Browser, server: dict[str, Any]) -> None:
+    # Every rail area has a page; an extension's area with no panel is one line, no link anywhere else.
     page = open_page(browser, server, "x-stockroom")
-    expect(page.locator(".not-yet")).to_contain_text("not in the Blazor front end yet")
-    expect(page.locator(".not-yet a")).to_have_attribute("href", "/workspace?open=stockroom&classic=1")
+    expect(page.locator(".not-yet")).to_contain_text("not a page of this app")
+    expect(page.locator(".not-yet a")).to_have_count(0)
     page.close()
 
 
-def test_the_front_end_switch_in_settings(browser: Browser, server: dict[str, Any]) -> None:
+def test_the_status_bar_names_no_other_front_end(browser: Browser, server: dict[str, Any]) -> None:
     page = open_page(browser, server, "settings")
-    expect(page.locator("input[name=frontend][value=blazor]")).to_be_checked()  # the default since the swap
-    page.check("input[name=frontend][value=classic]")
-    expect(page.locator("input[name=frontend][value=classic]")).to_be_checked()
-    assert call(server, "GET", "/app/frontend")["frontend"] == "classic"
-    page.check("input[name=frontend][value=blazor]")
-    expect(page.locator("input[name=frontend][value=blazor]")).to_be_checked()
-    assert call(server, "GET", "/app/frontend")["frontend"] == "blazor"
+    expect(page.locator(".status-frontend")).to_have_count(0)
+    expect(page.locator("input[name=frontend]")).to_have_count(0)  # no Front end choice in Settings
+    expect(page.locator("footer")).not_to_contain_text("Classic")
     page.close()
 
 
-def test_a_classic_address_lands_on_its_blazor_page(browser: Browser, server: dict[str, Any]) -> None:
-    """The swap: /workspace?open=connections, /g/<grid> and a pushed grid's #grid= open their Blazor pages."""
+def test_an_old_address_lands_on_its_blazor_page(browser: Browser, server: dict[str, Any]) -> None:
+    """/workspace?open=connections, /g/<grid> and a pushed grid's #grid= open their Blazor pages."""
     made = call(server, "POST", "/samples/store", {})
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
     base, token = f"http://127.0.0.1:{server['port']}", server["token"]

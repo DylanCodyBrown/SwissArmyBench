@@ -57,7 +57,7 @@ def main(result: Path, version: str) -> int:
                 continue
             box: list[Any] = []
             window.page.runJavaScript(
-                "!!document.querySelector('.nav-rail') && !!document.querySelector('.tabbar')",
+                "!!document.querySelector('.nav-rail') && !!document.querySelector('.status-bar')",
                 0,
                 box.append,
             )
@@ -88,7 +88,7 @@ def main(result: Path, version: str) -> int:
 
 STAND_IN = (
     b"<!doctype html><html><head><meta charset='utf-8'><title>Stand-in</title></head>"
-    b"<body><nav class='nav-rail'></nav><nav class='tabbar'></nav></body></html>"
+    b"<body><nav class='nav-rail'></nav><footer class='status-bar'></footer></body></html>"
 )
 
 

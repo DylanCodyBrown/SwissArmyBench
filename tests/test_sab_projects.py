@@ -458,7 +458,7 @@ def test_swissarmybench_open_a_folder_asks_the_running_app_and_shows_its_page(
     monkeypatch.setattr(webbrowser, "open", opened.append)
     assert command.open_project(str(target), tmp_path / "server.json") == 0
     assert sent == [("/project/open", {"path": str(target.resolve()), "ask": True})]
-    assert opened and opened[0].startswith("http://127.0.0.1:1/workspace#token=")
+    assert opened and opened[0].startswith("http://127.0.0.1:1/blazor/#token=")
     # A home window open already: it shows the project itself.
     monkeypatch.setattr(command, "post_json", lambda info, route, body: {"page": True})
     assert command.open_project(str(target), tmp_path / "server.json") == 0 and len(opened) == 1

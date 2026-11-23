@@ -11,7 +11,7 @@ The project's own React (its node_modules, read, never changed or copied into th
 with the component by `deno bundle` (Deno's own bundler, for the browser, no remote imports, no npm
 downloads: `react` and `react-dom` resolved to the project's node_modules by an import map in the
 notebook's temporary folder). The page is one document: the bundle inline, the props as JSON, nothing
-loaded over the network. The front end hands it to the HTML cells' design frame (web/static/design.html:
+loaded over the network. The front end hands it to the HTML cells' design frame (/blazor/design.html:
 sandboxed without the app's origin, its Content-Security-Policy the base's html_cells.FRAME_POLICY).
 
 Pure rules: the caller reads and writes the files and runs the bundler.

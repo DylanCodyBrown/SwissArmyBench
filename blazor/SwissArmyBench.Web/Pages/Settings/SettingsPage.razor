@@ -25,27 +25,6 @@
 
             <TeamBox OnError="Failed" />
 
-            <fieldset class="fieldset frontend-fieldset">
-                <legend><Icon Name="desktop" /> Front end</legend>
-                <div class="form-grid" role="radiogroup" aria-label="Front end">
-                    <label class="check">
-                        <input type="radio" name="frontend" value="blazor" checked="@(_frontend == Blazor)" @onchange="() => SetFrontendAsync(Blazor)" />
-                        Blazor
-                    </label>
-                    <label class="check">
-                        <input type="radio" name="frontend" value="classic" checked="@(_frontend == Classic)" @onchange="() => SetFrontendAsync(Classic)" />
-                        Classic (the old pages, until the next release)
-                    </label>
-                </div>
-                <p class="muted">
-                    The one the app opens. The classic pages go in the next release.
-                    @if (_frontend == Classic)
-                    {
-                        <a class="frontend-open" href="/workspace?open=settings&amp;classic=1">Open the classic front end</a>
-                    }
-                </p>
-            </fieldset>
-
             @if (_gates is { Gated: true } gates)
             {
                 <fieldset class="fieldset gates-fieldset">

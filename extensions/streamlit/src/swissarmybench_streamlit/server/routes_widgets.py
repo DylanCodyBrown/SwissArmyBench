@@ -1,6 +1,6 @@
 """Widgets (services/widgets.py), for the Widgets window, the Canvas's Widgets pane and the agent.
 
-GET    /streamlit/widget                         the Widgets window (widget.html: no rail)
+(/streamlit/widget, the old Widgets window's address, answers with its Blazor page: server/frontend_pages.py)
 GET    /streamlit/widgets?framework=&q=          every widget of the framework (the library's, the prebuilt)
 POST   /streamlit/widgets                        {"name"?, "description"?, "code"?}: a new widget
 GET    /streamlit/widgets/check-name?name=&own=  the live check: available, taken, not a valid name
@@ -23,18 +23,17 @@ GET    /streamlit/widgets/{name}/preview.png?key= the preview itself
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import FileResponse, Response
+from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_streamlit.services.widgets import Widgets
 
 
-def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseRoute]:
+def routes(widgets: Widgets, previews: Any) -> list[BaseRoute]:
     async def body_of(request: Request) -> Any:
         return await read_json(request) if int(request.headers.get("content-length") or 0) else {}
 
@@ -42,11 +41,6 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
         """The widget a request means; a rename this session is followed, never for a delete."""
         name = str(request.path_params["name"])
         return name if request.method == "DELETE" else widgets.follow(name)
-
-    async def window(request: Request) -> Response:
-        if web_root is None or not (web_root / "widget.html").is_file():
-            return Response("The Widgets window's page is not here.", 404)
-        return FileResponse(web_root / "widget.html", headers={"Cache-Control": "no-store"})
 
     async def listing(request: Request) -> Response:
         if request.method == "POST":
@@ -113,7 +107,6 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
         return Response(data, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
     return [
-        Route("/streamlit/widget", window),
         Route("/streamlit/widgets", listing, methods=["GET", "POST"]),
         Route("/streamlit/widgets/check-name", check_name),
         Route("/streamlit/widgets/properties", properties, methods=["POST"]),

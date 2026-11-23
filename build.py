@@ -1,10 +1,11 @@
 """Build Swiss Army Bench: one wheel that is both the client and the server.
 
-    python build.py            # the page (release build), then the wheel in dist/
+    python build.py            # the front end (release build), then the wheel in dist/
 
-The Blazor front end (blazor/, served at /blazor/ beside the classic page) is built too when the .NET SDK is
-on PATH (blazor/publish.py), and copied into the wheel as swissarmybench/web_blazor/; without dotnet the wheel
-is built without it, and build.py says so.
+The front end (blazor/, served at /blazor/) is built by blazor/publish.py (its npm packages, then `dotnet
+publish`) and copied into the wheel as swissarmybench/web_blazor/. It needs Node.js and the .NET SDK (the
+version blazor/global.json names): without them build.py stops and says so, since a wheel without its pages
+would open nothing.
 
 The wheel is one package with two installs:
 
@@ -12,8 +13,8 @@ The wheel is one package with two installs:
     uv tool install "swissarmybench-<version>-py3-none-any.whl[server]"   # the server, once per machine
 
 The client is standard library only (`import swissarmybench as sab`), so it never touches a project's own
-packages; the server's `swissarmybench` command runs the grid. The page ships inside the wheel
-(pyproject.toml force-includes web/static), so it is built first, without source maps.
+packages; the server's `swissarmybench` command runs the app. The front end ships inside the wheel
+(pyproject.toml names src/swissarmybench/web_blazor as an artifact), so it is built first.
 """
 
 from __future__ import annotations
@@ -42,15 +43,14 @@ def run(command: list[str], cwd: Path) -> None:
 
 
 def build_blazor() -> None:
-    """The Blazor front end into src/swissarmybench/web_blazor (the wheel's), or said plainly why not."""
+    """The Blazor front end into src/swissarmybench/web_blazor (the wheel's); without dotnet, said plainly."""
     target = HERE / "src" / "swissarmybench" / "web_blazor"
     shutil.rmtree(target, ignore_errors=True)
     sys.path.insert(0, str(HERE / "blazor"))
     import publish  # type: ignore[import-not-found]  # blazor/publish.py
 
     if publish.dotnet() is None:
-        print("The .NET SDK is not on PATH: the wheel is built without the Blazor front end.", flush=True)
-        return
+        sys.exit("The .NET SDK is not on PATH: the front end (blazor/) cannot be built, nor the wheel.")
     print("> blazor/publish.py", flush=True)
     shutil.copytree(publish.publish(), target)
     if not (target / "index.html").is_file():
@@ -61,17 +61,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--skip-npm-install", action="store_true", help="Use web/node_modules as it is.")
+    parser.add_argument("--skip-npm-install", action="store_true", help="Use blazor/node_modules as it is.")
     args = parser.parse_args()
 
-    web = HERE / "web"
     if not args.skip_npm_install:
-        run([NPM, "ci"], web)
-    shutil.rmtree(web / "static" / "build", ignore_errors=True)
-    run([NPM, "run", "build:release"], web)
-    if not (web / "static" / "build" / "main.js").is_file():
-        sys.exit("The page build wrote no web/static/build/main.js.")
-
+        run([NPM, "ci"], HERE / "blazor")
     build_blazor()
 
     version = project_version()

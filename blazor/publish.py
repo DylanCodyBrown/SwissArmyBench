@@ -4,8 +4,9 @@ and what build.py copies into the wheel as swissarmybench/web_blazor/.
     python blazor/publish.py            the interop bundles (node), then `dotnet publish -c Release`
     python blazor/publish.py --debug    the same, a Debug build (quicker; source maps)
 
-Needs the .NET SDK on PATH (the version blazor/global.json names) and web/node_modules (`npm ci` in web/),
-whose packages the interop files bundle (SAB_NODE_MODULES names another folder). Standard library only.
+Needs the .NET SDK on PATH (the version blazor/global.json names) and blazor/node_modules (`npm ci` in
+blazor/), whose packages the interop files bundle (SAB_NODE_MODULES names another folder). Standard library
+only.
 """
 
 from __future__ import annotations
@@ -19,8 +20,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE / "SwissArmyBench.Web"
 OUT = HERE / "publish"
-# web/node_modules, or the folder SAB_NODE_MODULES names (a worktree may share another checkout's).
-NODE_MODULES = Path(os.environ.get("SAB_NODE_MODULES") or HERE.parent / "web" / "node_modules")
+# blazor/node_modules, or the folder SAB_NODE_MODULES names (a worktree may share another checkout's).
+NODE_MODULES = Path(os.environ.get("SAB_NODE_MODULES") or HERE / "node_modules")
 
 
 def dotnet() -> str | None:

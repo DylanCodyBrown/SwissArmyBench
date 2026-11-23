@@ -15,23 +15,22 @@ analyzer's window and the agent (app_launch, canvas_builds and canvas_perf, each
   GET    /streamlit/canvases/{canvas}/perf                the session: timeline, calls, caches, socket, hints
   GET    /streamlit/canvases/{canvas}/perf/hints          the hints alone
   POST   /streamlit/canvases/{canvas}/perf/save           the session into its build (perf-<time>.json)
-  GET    /streamlit/perf                                  the analyzer's window (perf.html)
+  (/streamlit/perf, the analyzer's old address, answers with its Blazor page: server/frontend_pages.py)
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import FileResponse, Response
+from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_streamlit.services.launch import Launches
 
 
-def routes(launches: Launches, web_root: Path | None) -> list[BaseRoute]:
+def routes(launches: Launches) -> list[BaseRoute]:
     async def body_of(request: Request) -> Any:
         return await read_json(request) if int(request.headers.get("content-length") or 0) else {}
 
@@ -84,11 +83,6 @@ def routes(launches: Launches, web_root: Path | None) -> list[BaseRoute]:
         params = request.path_params
         return json_response(await launches.saved(canvas(request), params["number"], params["name"]))
 
-    async def window(request: Request) -> Response:
-        if web_root is None or not (web_root / "perf.html").is_file():
-            return Response("The analyzer's page is not here.", 404)
-        return FileResponse(web_root / "perf.html", headers={"Cache-Control": "no-store"})
-
     base = "/streamlit/canvases/{canvas}"
     return [
         Route(f"{base}/launch", launch, methods=["GET", "POST", "DELETE"]),
@@ -101,5 +95,4 @@ def routes(launches: Launches, web_root: Path | None) -> list[BaseRoute]:
         Route(f"{base}/perf", analyzer, methods=["GET", "POST", "DELETE"]),
         Route(f"{base}/perf/hints", hints),
         Route(f"{base}/perf/save", save, methods=["POST"]),
-        Route("/streamlit/perf", window),
     ]

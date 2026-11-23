@@ -1,6 +1,6 @@
 """Getting around, for the agent (domain/navigation.py): `app_navigate` sends a window Home, Back, Forward
 or to a named view, as the user moves it (the mark, the browser's buttons, a tab, a dialog). The window
-does the move itself (web/src/nav.ts, the `navigate` notice); the server checks the place and that such a
+does the move itself (the Blazor shell, the `navigate` notice); the server checks the place and that such a
 window is open, and writes the move to the audit log. Nothing is kept."""
 
 from __future__ import annotations
@@ -37,28 +37,11 @@ class _Memory:
 
 
 class Navigation:
-    def __init__(self, ws: Workspace, kept: Kept | None = None, frontend: Kept | None = None) -> None:
+    def __init__(self, ws: Workspace, kept: Kept | None = None) -> None:
         self.ws = ws
         # The rail's names on or off: this computer's choice (rail.json), shared by every window.
         self._kept: Kept = kept or _Memory()
         self._labels = rules.rail_labels(self._kept.read())
-        # Which front end the app opens (frontend.json): blazor (the default since the swap) or classic;
-        # SWISSARMYBENCH_FRONTEND wins (the classic pages' tests).
-        self._frontend_file: Kept = frontend or _Memory()
-        override = ws.settings.frontend_override
-        self._frontend = rules.frontend({"frontend": override} if override else self._frontend_file.read())
-
-    def frontend(self) -> dict[str, Any]:
-        return {"frontend": self._frontend, "home": rules.HOME_PAGES[self._frontend]}
-
-    async def set_frontend(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """The front end the app opens: {"frontend": "classic"} or {"frontend": "blazor"}."""
-        self._frontend = rules.frontend_change(body)
-        self._frontend_file.write({"frontend": self._frontend})
-        self.ws.audit.write(who, "frontend", self._frontend)
-        said = self.frontend()
-        await self.ws.live.broadcast({"type": "frontend_changed"} | said)
-        return said
 
     def rail(self) -> dict[str, Any]:
         return {"labels": self._labels}

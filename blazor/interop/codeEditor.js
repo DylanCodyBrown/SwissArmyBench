@@ -1,4 +1,4 @@
-// codeEditor.js: Monaco (the classic front end's same version), wrapped for the <CodeEditor> component.
+// codeEditor.js: Monaco (blazor/package.json's pinned version), wrapped for the <CodeEditor> component.
 //
 // One editor per call to create(). Its text goes to C# a moment after typing stops (Changed); the keys a page acts
 // on (Shift+Enter, Ctrl+Enter, Ctrl+S...) go to C# by name (Key). The editors' intelligence is the server's, the

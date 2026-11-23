@@ -16,27 +16,27 @@ public static class Areas
 
     public static readonly IReadOnlyList<RailArea> All =
     [
-        new("projects", "Home", "home", "", "/workspace?open=projects", Keys: "Alt+Home"),
-        new("connections", "Connections", "plug", "connections", "/workspace?open=connections"),
-        new("apis", "APIs", "apis", "apis", "/workspace?open=apis"),
-        new("environment", "Environment", "environment", "environment", "/workspace?open=environment"),
-        new("data", "Catalog", "data", "catalog", "/workspace?open=data"),
-        new("grids", "Grids", "grids", "grids", "/workspace"),
-        new("erd", "ERD", "diagram", "erd", "/workspace?view=erd"),
-        new("scripts", "Scripts", "code", "scripts", "/scripts?kind=script&view=list", Kind: "script"),
-        new("notebooks", "Notebooks", "notebook", "notebooks", "/notebooks?kind=notebook&view=list", Kind: "notebook"),
+        new("projects", "Home", "home", "", Keys: "Alt+Home"),
+        new("connections", "Connections", "plug", "connections"),
+        new("apis", "APIs", "apis", "apis"),
+        new("environment", "Environment", "environment", "environment"),
+        new("data", "Catalog", "data", "catalog"),
+        new("grids", "Grids", "grids", "grids"),
+        new("erd", "ERD", "diagram", "erd"),
+        new("scripts", "Scripts", "code", "scripts", Kind: "script"),
+        new("notebooks", "Notebooks", "notebook", "notebooks", Kind: "notebook"),
         // The Power Apps extension's area: shown while the app's modes list the code app type.
-        new(CodeApp, "Code App", "codeapp", "codeapp", "/workspace?open=codeapp"),
-        new(Canvas, "Canvas", "page", "canvas", "/streamlit/canvas"),
-        new(Widgets, "Widgets", "sliders", "widgets", "/streamlit/widget"),
-        new("analyze", "Analyze", "sandbox", "analyze", "/workspace?view=analyze"),
-        new(Session, "Session", "session", "session", "/workspace?open=session"),
-        new(Extensions, "Extensions", "extensions", "extensions", "/workspace?open=extensions"),
-        new("settings", "Settings", "cog", "settings", "/workspace?open=settings"),
+        new(CodeApp, "Code App", "codeapp", "codeapp"),
+        new(Canvas, "Canvas", "page", "canvas"),
+        new(Widgets, "Widgets", "sliders", "widgets"),
+        new("analyze", "Analyze", "sandbox", "analyze"),
+        new(Session, "Session", "session", "session"),
+        new(Extensions, "Extensions", "extensions", "extensions"),
+        new("settings", "Settings", "cog", "settings"),
     ];
 
     /// <summary>The structures viewer (off the rail: the Environment's rows open into it), marked as Environment.</summary>
-    public static readonly RailArea Structures = new("structures", "Structures", "structures", "structures", "/workspace?open=structures");
+    public static readonly RailArea Structures = new("structures", "Structures", "structures", "structures");
 
     /// <summary>The area an address of this app belongs to (its first part), for the rail's mark.</summary>
     public static string? AreaOfPath(string relativePath)

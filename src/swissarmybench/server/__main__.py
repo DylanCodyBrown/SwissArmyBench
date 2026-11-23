@@ -6,8 +6,6 @@
     swissarmybench open orders.csv        a file in the app: a table (CSV, Parquet, Excel, JSON), a notebook,
                                           a blade (Open with and the installers' registrations run this)
     swissarmybench open --browser         the app in the browser instead (a tab; the same server)
-    swissarmybench open --classic         the classic pages' home this once (until the next release; Settings'
-                                          Front end makes them the ones the app opens)
     swissarmybench start                  the server in this console, then the app's window (--no-window not)
     swissarmybench start --background     the server detached, no console, returns at once
     swissarmybench --port 8790 start      on exactly this port, or fail clearly
@@ -115,8 +113,6 @@ def main() -> None:
         "--no-window", "--no-browser", dest="no_window", action="store_true", help="No window when it starts."
     )
     parser.add_argument("--browser", action="store_true", help="open: in the browser instead of the app.")
-    parser.add_argument("--blazor", action="store_true", help="open: the Blazor front end, this once.")
-    parser.add_argument("--classic", action="store_true", help="open: the classic pages, this once.")
     parser.add_argument("--no-tray", action="store_true", help=argparse.SUPPRESS)  # gone; one release
     parser.add_argument(
         "--background", action="store_true", help="Start detached, with no console, and return at once."
@@ -140,13 +136,11 @@ def main() -> None:
     if command == "open" and args.switch:
         sys.exit(open_target(args.switch, path, browser=args.browser))
     if command == "open":
-        # --blazor or --classic: that front end this once (?classic=1: past the swap's redirect).
-        home = BLAZOR_HOME if args.blazor else CLASSIC_HOME if args.classic else None
         if args.browser:
-            sys.exit(0 if open_in_browser(path, home) else 1)
+            sys.exit(0 if open_in_browser(path) else 1)
         if desktop.can_run():
-            sys.exit(desktop.main(home, path))
-        sys.exit(0 if open_in_browser(path, home) else 1)
+            sys.exit(desktop.main(None, path))
+        sys.exit(0 if open_in_browser(path) else 1)
     if command == "start" and args.background:
         start_in_background(args.port, window=not args.no_window)
         return
@@ -240,9 +234,6 @@ def open_page(path: Path | None = None) -> bool:
     open_address(address)
     return True
 
-
-BLAZOR_HOME: str = "/blazor/"
-CLASSIC_HOME: str = "/workspace?classic=1"
 
 OLD_SAB_FILE: str = "{name}: this version opens project folders only."
 

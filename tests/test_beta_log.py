@@ -117,13 +117,13 @@ def test_server_frames_keep_files_and_functions_only() -> None:
 
 def test_page_frames_keep_the_apps_own_files() -> None:
     stack = (
-        "TypeError: x\n    at draw (http://127.0.0.1:8123/static/build/main.js?token=SECRET:1:2345)\n"
-        "    at http://127.0.0.1:8123/static/build/workbench.js:3:4\n    at evil (https://elsewhere/a.js:1:1)\n"
+        "TypeError: x\n    at draw (http://127.0.0.1:8123/blazor/js/agGrid.js?token=SECRET:1:2345)\n"
+        "    at http://127.0.0.1:8123/blazor/js/workbench.js:3:4\n    at evil (https://elsewhere/a.js:1:1)\n"
         f"    {VALUE}"
     )
     assert rules.page_frames(stack) == [
-        "draw @ /static/build/main.js:1:2345",
-        "? @ /static/build/workbench.js:3:4",
+        "draw @ /blazor/js/agGrid.js:1:2345",
+        "? @ /blazor/js/workbench.js:3:4",
         "evil @ \u2039\u2026\u203a:1:1",
     ]
 
@@ -163,7 +163,7 @@ def test_no_kind_of_event_lets_the_users_data_through(opened: Any, monkeypatch: 
     # A page's error and its stack.
     page = {
         "message": NAUGHTY,
-        "stack": f"Error\n    at f (http://127.0.0.1:1/static/build/main.js?x={SECRET}:1:2)",
+        "stack": f"Error\n    at f (http://127.0.0.1:1/blazor/js/agGrid.js?x={SECRET}:1:2)",
     }
     assert client.post("/beta/page-errors", json=page, headers=AUTH).status_code == 200
     # A note whose element description (worked out by the page) carries data.

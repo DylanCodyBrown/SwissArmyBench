@@ -241,8 +241,6 @@ def _wheel(version: str, out: Path) -> Path:
     """This repository's wheel, its version set to `version` (pyproject and __version__)."""
     tree = out / f"src-{version}"
     shutil.copytree(ROOT / "src", tree / "src", ignore=shutil.ignore_patterns("__pycache__"))
-    (tree / "web").mkdir()
-    shutil.copytree(ROOT / "web" / "static", tree / "web" / "static", ignore=shutil.ignore_patterns("build"))
     for name in ("README.md", "LICENSE-MIT", "LICENSE-APACHE"):
         shutil.copy(ROOT / name, tree / name)
     text = (

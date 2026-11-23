@@ -165,7 +165,7 @@ def test_the_door_and_the_agents_commands(monkeypatch: pytest.MonkeyPatch, tmp_p
         assert said["name"] == "Swiss Army Bench" and said["running"] is False and said["windows"] == []
         opened = client.post("/desktop/open", headers=AGENT, json={"page": "workbench"})
         assert opened.status_code == 200 and opened.json() == {"opened": "workbench"}
-        assert shell.opened == ["/notebooks"]
+        assert shell.opened == ["/blazor/notebooks"]
         assert client.post("/desktop/open", headers=AUTH, json={}).json() == {"opened": "home"}
         said = client.get("/desktop", headers=AUTH).json()
         assert said["running"] is True
@@ -194,7 +194,7 @@ def test_the_service_keeps_only_what_the_agent_reads() -> None:
     shell = Shell()
     service = Desktop(shell, audit, "6.12.0")
     assert asyncio.run(service.open({"page": "blades"}, "agent")) == {"opened": "blades"}
-    assert shell.opened == ["/scripts?pane=blades"] and audit.said == [
+    assert shell.opened == ["/blazor/scripts?pane=blades"] and audit.said == [
         ("agent", "desktop_open", {"page": "blades"})
     ]
     said = asyncio.run(service.status())

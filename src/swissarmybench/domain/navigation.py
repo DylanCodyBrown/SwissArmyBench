@@ -1,12 +1,10 @@
 """Getting around (the owner, 2026-11-16: "there is no navigation in the app to get back to the home page or
 go back anywhere"): the places an agent can send a window to, as `app_navigate` names them.
 
-The rail (web/src/rail.ts) names the areas, the same from every window; each is a page (the owner,
-2026-11-16: "clicking the rail should land on a page not open a form"). The pages keep their views in
-the address (web/src/nav.ts): the home page's tabs, the Settings and Connections pages over any page
-(open=settings, open=connections: a connection's detail and its forms), the blades page's blade screen
-(its catalog panel went, the owner 2026-11-17: a connection's tables are on the Connections page), the
-Workbench's landing page for a kind (?kind=notebook&view=list). The agent moves them as the user does:
+The rail (the Blazor shell's Layout/Rail.razor) names the areas, the same from every window; each is a
+page (the owner, 2026-11-16: "clicking the rail should land on a page not open a form"). The pages keep
+their views in their addresses (under /blazor/): a connection's detail and its forms, a blade's tab on the
+Scripts page, the Workbench's landing page for a kind. The agent moves them as the user does:
 Home (the mark), Back and Forward (the browser's own), or a named view where the page has one.
 Pure rules, no I/O: a request read into the notice the window acts on.
 """
@@ -25,7 +23,7 @@ CODE_WINDOWS: tuple[str, ...] = ("notebooks", "scripts")
 
 # The rail's areas (the owner, 2026-11-16: "this app needs a navigation pane somehow"; a slim icon
 # rail down the left of every page and window), in its order: each is a place from every window, as a
-# rail click goes there (web/src/rail.ts). A window that does not show the area brings forward the one
+# rail click goes there (Layout/Rail.razor). A window that does not show the area brings forward the one
 # that does (the home window for the grids, Analyze and the ERD; the Workbench for notebooks,
 # scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids, only the
 # grids; projects (the mark, the rail's first item: the owner, 2026-11-18) is the Projects page over the
@@ -155,42 +153,16 @@ def rail_change(sent: Any) -> bool:
     return bool(sent["labels"])
 
 
-# ===== the front end (the owner, 2026-11-23: "blazor has my approval, do the swap") =====
-# Which front end the app opens: the Blazor one (blazor/, at /blazor/), the default since the swap, or the
-# classic one (web/, at /workspace), kept one release as the fallback ("Swap now, delete next release").
-# This computer's choice is frontend.json; none kept: the Blazor one.
+# ===== the front end: Blazor only =====
+# The owner, 2026-11-23: "we can swap over to full Blazer do not keep both in sync in parallel".
+# The app's pages are the Blazor front end's (blazor/, at /blazor/); the classic pages (web/) are gone.
 
-FRONTENDS: tuple[str, ...] = ("blazor", "classic")
-DEFAULT_FRONTEND: str = "blazor"
-HOME_PAGES: dict[str, str] = {"classic": "/workspace", "blazor": "/blazor/"}
+HOME: str = "/blazor/"
 
-
-def frontend(saved: Any) -> str:
-    """The front end frontend.json kept, else the Blazor one."""
-    if isinstance(saved, dict) and saved.get("frontend") in FRONTENDS:
-        return str(saved["frontend"])
-    return DEFAULT_FRONTEND
-
-
-def frontend_change(sent: Any) -> str:
-    """The switch as sent: {"frontend": "blazor"} or {"frontend": "classic"}."""
-    if not isinstance(sent, dict) or sent.get("frontend") not in FRONTENDS:
-        raise NavigationError('Send {"frontend": "blazor"} or {"frontend": "classic"} (the old pages).')
-    return str(sent["frontend"])
-
-
-def home_page(saved: Any, blazor_built: bool = True) -> str:
-    """The home page of the front end frontend.json names; the classic one where the Blazor one is not built
-    (a checkout without `python blazor/publish.py`)."""
-    chosen = frontend(saved)
-    return HOME_PAGES["classic" if chosen == "blazor" and not blazor_built else chosen]
-
-
-# A classic page's address, and the Blazor page that shows the same thing (the swap: every way in that names a
-# classic page, a bookmark, the desktop app, a pushed grid, an agent's window, lands on the Blazor page). The
-# address's own words go with it: the Blazor pages read the same ones (?path=, ?grid=, ?name=, ?at=...).
-# The classic pages the server serves (their shells), each with the Blazor page it is now.
-CLASSIC_PAGES: dict[str, str] = {
+# An old page's address (the classic pages', gone 2026-11-23), and the Blazor page that shows the same thing:
+# every way in that names one, a bookmark, the desktop app, a pushed grid, an agent's window, lands on the
+# Blazor page. The address's own words go with it: the Blazor pages read the same ones (?path=, ?grid=...).
+OLD_PAGES: dict[str, str] = {
     "/workspace": "",
     "/notebooks": "notebooks",
     "/scripts": "scripts",
@@ -208,25 +180,27 @@ VIEW_PAGES: dict[str, str] = {
     "new": "grids",
     "start": "",
 }
-# The words the classic page reads and the Blazor page does not (said by the path now).
-CLASSIC_ONLY: frozenset[str] = frozenset({"open", "view", "kind"})
+# The words an old page read and the Blazor page does not (said by the path now).
+OLD_WORDS: frozenset[str] = frozenset({"open", "view", "kind", "classic"})
 
 
-def is_classic_page(path: str) -> bool:
-    """A classic page's shell (/workspace, /g/<grid>, /notebooks...): the swap sends it to its Blazor page."""
-    return path in CLASSIC_PAGES or (path.startswith("/g/") and len(path) > 3)
+def is_old_page(path: str) -> bool:
+    """An old page's address (/workspace, /g/<grid>, /notebooks...): it answers with its Blazor page."""
+    return path in OLD_PAGES or (path.startswith("/g/") and len(path) > 3)
 
 
 def blazor_page(path: str, query: dict[str, str]) -> tuple[str, dict[str, str]]:
-    """The Blazor page for a classic page's address and the words that go with it: /workspace?open=connections
+    """The Blazor page for an old page's address and the words that go with it: /workspace?open=connections
     is ("connections", {}), /g/<id> is ("grids", {"grid": <id>}), /notebooks?path=x is ("notebooks",
     {"path": "x"}). The rest of the address's words kept; ?panel= (a grid's pop-out panel): the panel page."""
-    words = {k: v for k, v in query.items() if k not in CLASSIC_ONLY}
+    words = {k: v for k, v in query.items() if k not in OLD_WORDS}
+    if path in ("/notebooks", "/scripts") and "file" in words and "path" not in words:
+        words["path"] = words.pop("file")  # the old pages' ?file= is the Blazor pages' ?path=
     if path.startswith("/g/"):
         page, words = "grids", {"grid": path[3:]} | words
     elif path == "/workspace":
         opened, view = query.get("open", ""), query.get("view", "")
         page = OPEN_PAGES.get(opened, opened) if opened else VIEW_PAGES.get(view, "")
     else:
-        page = CLASSIC_PAGES.get(path, "")
+        page = OLD_PAGES.get(path, "")
     return ("panel" if "panel" in words else page), words

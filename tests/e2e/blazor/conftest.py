@@ -1,6 +1,7 @@
-"""The Blazor front end's browser tests (blazor/): a real server per module with its own state folder and
-made-up data only, and Chromium driven by Playwright. Skipped when the Blazor front end is not built here
-(`python blazor/publish.py` writes blazor/publish/wwwroot; a wheel carries swissarmybench/web_blazor)."""
+"""The browser tests (the front end, blazor/): a real server per module with its own state folder and
+made-up data only, and Chromium driven by Playwright. Each test leaves no project open behind it. Skipped
+when the front end is not built here (`python blazor/publish.py` writes blazor/publish/wwwroot; a wheel
+carries swissarmybench/web_blazor)."""
 
 from __future__ import annotations
 
@@ -19,10 +20,12 @@ from playwright.sync_api import Browser, Page, expect, sync_playwright
 
 from swissarmybench.settings import Settings
 
-# The Chromium these tests drive (not the classic suite's Edge).
+# The Chromium these tests drive.
 CHROMIUM = os.environ.get("SAB_CHROMIUM", "/opt/pw-browsers/chromium")
-# The Blazor app's first load (its .NET runtime) is slower than a classic page's.
+# The app's first load (its .NET runtime) is slow on a busy machine.
 FIRST_LOAD_MS = 60_000
+# What a browser test's expect waits for at most (Playwright's own five seconds failed on a busy machine).
+expect.set_options(timeout=15_000)
 
 if not (Settings().blazor_root / "index.html").is_file():
     pytest.skip("The Blazor front end is not built here (python blazor/publish.py).", allow_module_level=True)
@@ -42,8 +45,6 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         # The file chooser falls back to the page's own picker (no system dialog opens during a test).
         "SWISSARMYBENCH_SYSTEM_DIALOGS": "off",
         "SWISSARMYBENCH_PROJECT_VENV": "off",
-        # The Blazor front end, the default since the swap (the classic pages' tests pin classic).
-        "SWISSARMYBENCH_FRONTEND": "",
     }
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     info: dict[str, Any] | None = None
@@ -56,9 +57,6 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
     if info is None:
         process.kill()
         raise AssertionError("the server did not start")
-    # This branch's server, not another checkout's installed one (run the tests with
-    # PYTHONPATH=<checkout>/src): only this branch answers GET /app/frontend and serves /blazor/.
-    assert call(info, "GET", "/app/frontend")["frontend"] == "blazor", "a server without the Blazor switch"
     yield info | {"tmp": tmp}
     process.terminate()
     process.wait(timeout=20)
@@ -70,6 +68,21 @@ def browser() -> Iterator[Browser]:
         launched = playwright.chromium.launch(executable_path=CHROMIUM)
         yield launched
         launched.close()
+
+
+@pytest.fixture(autouse=True)
+def no_project_left_open(request: pytest.FixtureRequest) -> Iterator[None]:
+    """A project opened by a test is THE open project of the module's server: closed after it (its unsaved
+    changes let go), so the next test's pages do not show it."""
+    yield
+    if "server" not in request.fixturenames:
+        return
+    server: dict[str, Any] = request.getfixturevalue("server")
+    try:
+        if call(server, "GET", "/project")["project"]:
+            call(server, "POST", "/project/close", {"discard": True})
+    except Exception:  # noqa: S110 (a server that stopped: nothing is open)
+        pass
 
 
 def call(info: dict[str, Any], method: str, path: str, body: Any = None) -> Any:
@@ -111,7 +124,7 @@ def choose_path(page: Page, path: Any, folder: bool = False, save: bool = False)
         picker.locator(".file-row", has_text=where.name).dblclick()
 
 
-# The accessibility check run in the page (axe-core is not among web/'s packages, so it is our own): every
+# The accessibility check run in the page (axe-core is not among our npm packages, so it is our own): every
 # visible button, link, field and menu line has an accessible name (aria-label, aria-labelledby, its words, a
 # <label>, a title, a field's placeholder). AG Grid's, Monaco's and Plotly's own insides are theirs.
 UNNAMED = """() => {

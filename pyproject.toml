@@ -78,14 +78,9 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/swissarmybench"]
-# The Blazor front end's published files (build.py copies blazor/publish/wwwroot here when dotnet is on PATH):
-# ignored by Git, so named as artifacts to go in the wheel all the same.
+# The front end's published files (build.py copies blazor/publish/wwwroot here): ignored by Git, so named as
+# artifacts to go in the wheel all the same.
 artifacts = ["src/swissarmybench/web_blazor/**"]
-
-# The plugin installs from the wheel, so the page ships inside it (built by build.py
-# with `npm run build:release`, which writes no source maps).
-[tool.hatch.build.targets.wheel.force-include]
-"web/static" = "swissarmybench/web_static"
 
 [tool.mypy]
 strict = true
@@ -128,7 +123,8 @@ ignore_missing_imports = true
 line-length = 110
 target-version = "py312"
 # A project made by the app (its API.py and its widget are the user's own files, formatted by the app's Format:
-# Ruff's defaults, not this repository's), checked by running it: tests/e2e/test_forms_recon_app.py, test_field_service_app.py.
+# Ruff's defaults, not this repository's), checked by running it: tests/e2e/blazor/test_forms_recon_app.py and
+# tests/test_field_service_app.py.
 extend-exclude = ["examples/forms_recon", "examples/field_service"]
 src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "extensions/powerbi/src", "tests"]
 
@@ -138,7 +134,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # The stress test and the app's browser test read made-up Parquet files with DuckDB by their own paths.
 "tests/stress/test_local_api_stress.py" = ["S608", "S310"]
-"tests/e2e/test_forms_recon_app.py" = ["S608"]
+"tests/e2e/blazor/test_forms_recon_app.py" = ["S608"]
 # Tests use assert and fixed fake tokens; golden cases hold deliberate Greek letters.
 "tests/**" = ["S101", "S105", "S106", "RUF001"]
 # These modules build SQL text by design (domain/codegen.py also holds the templates for generated
@@ -222,7 +218,6 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "tests/github_standin.py" = ["E501"]
 "tests/test_accounting_*.py" = ["E501", "S603", "S608"]
 "tests/test_streamlit_extension.py" = ["E501", "S603", "S607", "RUF012"]
-"tests/e2e/test_accounting_page.py" = ["E501", "S603"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
