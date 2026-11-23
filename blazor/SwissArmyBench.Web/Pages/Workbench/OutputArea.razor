@@ -4,11 +4,11 @@
 <div class="wb-outputs" aria-live="polite">
     @foreach (var output in Outputs.Where(o => ErrorDetail is null || OutputReader.Type(o) != "error"))
     {
-        <OutputView Output="output" />
+        <OutputView Output="output" Document="@Document" />
     }
     @if (ErrorDetail is { } detail)
     {
-        <ErrorPanel Detail="detail" Traceback="@Traceback" Document="@Document" OnFix="OnFix" OnGoTo="OnGoTo" OnOpenGrid="OnOpenGrid" />
+        <ErrorPanel Detail="detail" Traceback="@Traceback" Document="@Document" OnFix="OnFix" OnGoTo="OnGoTo" OnOpenGrid="OpenGridAsync" />
     }
     @if (Asking is { } asking)
     {
@@ -36,6 +36,38 @@
     /// <summary>The line typed for the kernel's question.</summary>
     [Parameter]
     public EventCallback<string> OnAnswer { get; set; }
+
+    [Inject]
+    private SwissArmyBench.Web.Api.Workbench.WorkbenchClient Workbench { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.State.PythonSession Session { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
+
+    /// <summary>A value of the error's (a table) opened as a grid: the page's own way, else by its name in the kernel.</summary>
+    private async Task OpenGridAsync(string name)
+    {
+        if (OnOpenGrid.HasDelegate)
+        {
+            await OnOpenGrid.InvokeAsync(name);
+            return;
+        }
+        if (Session.Kernel is not { } kernel)
+        {
+            return;
+        }
+        try
+        {
+            await Workbench.OpenGridAsync(kernel, null, name);
+            await Notes.SayAsync($"{name} is open as a grid.");
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
 
     private async Task AnswerAsync()
     {

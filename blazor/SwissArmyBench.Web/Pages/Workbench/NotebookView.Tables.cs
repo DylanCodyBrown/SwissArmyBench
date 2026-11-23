@@ -16,6 +16,9 @@ public partial class NotebookView
 
     private int _arrangeAsked;
 
+    // Tables added to this document from Grids (the palette's tables.add): their read-only cells join its group.
+    private readonly HashSet<string> _added = [];
+
     // Counts the changes to the cells' list (added, moved, deleted): an arrange asked before one is asked again.
     private int _shape;
 
@@ -27,7 +30,7 @@ public partial class NotebookView
         {
             var open = (await Workbench.TablesAsync()).Tables;
             var mine = open
-                .Where(t => t.Document == Path || (IsData && t.Document is null) || _kept.Cells.Any(c => c.IsAppCell && c.Table == t.Name))
+                .Where(t => t.Document == Path || (IsData && t.Document is null) || _added.Contains(t.Name) || _kept.Cells.Any(c => c.IsAppCell && c.Table == t.Name))
                 .Select(t => t.Name)
                 .ToList();
             if (mine.Count == 0 && _kept.Cells.All(c => !c.IsAppCell))
@@ -82,6 +85,43 @@ public partial class NotebookView
         Table = arranged.Table,
         Grouped = arranged.Grouped,
     };
+
+    /// <summary>A table open in Grids added to this document: its read-only cell (false: no such table is open).</summary>
+    public async Task<bool> AddTableAsync(string table)
+    {
+        if ((await Workbench.TablesAsync()).Tables.All(t => t.Name != table))
+        {
+            return false;
+        }
+        _added.Add(table);
+        await ArrangeTablesAsync();
+        await OnChanged.InvokeAsync();
+        StateHasChanged();
+        return true;
+    }
+
+    /// <summary>Point the cells at another connection (unsaved until Save): a SQL or DAX cell's connection, and the
+    /// name where code names it (sab.connection("..."), [Name].table).</summary>
+    public async Task<int> RepointAsync(string from, string to)
+    {
+        var changed = 0;
+        foreach (var cell in _kept.Cells.Where(c => !c.IsAppCell))
+        {
+            var before = (cell.Connection, cell.Source);
+            if (cell.Connection == from)
+            {
+                cell.Connection = to;
+            }
+            cell.Source = cell.Source.Replace($"\"{from}\"", $"\"{to}\"", StringComparison.Ordinal).Replace($"[{from}]", $"[{to}]", StringComparison.Ordinal);
+            changed += before != (cell.Connection, cell.Source) ? 1 : 0;
+        }
+        if (changed > 0)
+        {
+            await OnChanged.InvokeAsync();
+            StateHasChanged();
+        }
+        return changed;
+    }
 
     private void OnNotice(Notice notice)
     {

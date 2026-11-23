@@ -24,6 +24,19 @@ const KEYS = [
   { name: "explorer", ctrl: true, shift: true, key: "e", always: true },
 ];
 
+/** What a key does in command mode (the classic notebookCells.ts commandFor): Enter edits, Shift+Enter runs and
+ * moves on, Ctrl+Enter runs; A and B insert above and below; D (twice) deletes; Y, M, S, X and H make a cell Python,
+ * Markdown, SQL, DAX or HTML; C and V copy and paste; Z undoes; J and K (or Down and Up) move; O hides the output. */
+function commandFor(event) {
+  const ctrl = event.ctrlKey || event.metaKey;
+  if (event.key === "Enter" && event.shiftKey) return "runNext";
+  if (event.key === "Enter" && ctrl) return "run";
+  if (event.key === "Enter" && !event.altKey) return "edit";
+  if (ctrl || event.altKey) return null;
+  const keys = { a: "above", b: "below", d: "d", y: "code", m: "markdown", s: "sql", x: "dax", h: "html", c: "copy", v: "paste", z: "undo", j: "down", k: "up", o: "output", arrowdown: "down", arrowup: "up" };
+  return event.shiftKey ? null : keys[event.key.toLowerCase()] ?? null;
+}
+
 function named(event) {
   const ctrl = event.ctrlKey || event.metaKey;
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
@@ -33,6 +46,14 @@ function named(event) {
 /** The page's keys for as long as it is open: stop() lets them go. */
 export function keys(dotnet) {
   const listener = (event) => {
+    // Jupyter's command mode: the focus on a cell itself (not its editor), its keys told by name.
+    const cell = event.target.classList?.contains("wb-cell") ? commandFor(event) : null;
+    if (cell) {
+      event.preventDefault();
+      event.stopPropagation();
+      dotnet.invokeMethodAsync("PageKey", `cell:${cell}`).catch(() => {});
+      return;
+    }
     const found = named(event);
     if (!found) return;
     const inEditor = !!event.target.closest?.(".monaco-editor");
@@ -173,4 +194,27 @@ export function cyclePane(by) {
   const next = panes[(now + by + panes.length) % panes.length];
   const target = next.querySelector(".monaco-editor textarea, button, input, [tabindex]") ?? next;
   target.focus?.();
+}
+
+/** This page is a document's own window (opened by Open in its own window): it has the window that opened it. */
+export function popped() {
+  try {
+    return !!window.opener && window.opener.location.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Open a document in a window of its own. */
+export function popOut(address) {
+  window.open(address, "_blank", "popup,width=1100,height=800");
+}
+
+/** Move the document back: the window that opened this one opens it, and this window closes. */
+export function moveToMain(address) {
+  if (!popped()) return false;
+  window.opener.location.href = new URL(address, window.location.href).href;
+  window.opener.focus();
+  window.close();
+  return true;
 }

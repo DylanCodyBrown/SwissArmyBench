@@ -24,7 +24,7 @@ public partial class WorkbenchPage
         return
         [
             new("console.clear", "Console", "Clear the console", () => Toggle(() => script?.ClearConsole()), Disabled: noScript),
-            new("console.go", "Console", "Go to the console", () => script?.FocusConsoleAsync() ?? Task.CompletedTask, Disabled: noScript),
+            new("console.go", "Console", "Go to the console", () => script?.FocusConsoleAsync() ?? Notes.SayAsync("No console")),
             new("console.run", "Console", "Run code in the console", RunInConsoleAsync, Disabled: noScript),
             new("console.shows", "Console", "What the console shows", () => ShowHelp("The console", script?.ConsoleText ?? string.Empty), Disabled: noScript),
             new("data.addConnection", "Data", "Add connection…", () => Go("connections?add=1")),

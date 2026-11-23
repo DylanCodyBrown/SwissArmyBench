@@ -37,6 +37,9 @@ public partial class WorkbenchPage
             new("html.run", "HTML", "Run an HTML cell (or a Markdown cell with names): fill its names", () => notebook!.RunHtmlCellsAsync(), Disabled: noNotebook),
             new("html.resize", "HTML", "Size an HTML cell's pane", ResizeHtmlAsync, Disabled: noNotebook),
             new("html.edit", "HTML", "Open an HTML cell's HTML", () => notebook!.EditSelectedAsync(), Disabled: noNotebook),
+            new("tables.add", "Tables", "Add a table open in Grids to the document in front (its read-only cell)", () => AskTableAsync("Add a table", AddTableAsync), Disabled: noNotebook),
+            new("doc.repoint", "Documents", "Point an open document's cells at another connection (unsaved until Save)", RepointAsync, Disabled: noNotebook),
+            new("explorer.insert", "Data", "Insert a Data Explorer result's code into the focused document", InsertFoundAsync, Disabled: code),
             new("tabs.reopen", "Tabs", "Reopen the last closed table (in the home window)", ReopenTableAsync),
             new("help.atCursor", "Help", "Help on the name at the cursor", HelpAtCursorAsync, "F1", code),
         ];
@@ -69,6 +72,46 @@ public partial class WorkbenchPage
         if (await Dialogs.AskTextAsync(title, "The table's name.", "Table", string.Empty, "Go") is { Length: > 0 } table)
         {
             await then(table.Trim());
+        }
+    }
+
+    private async Task AddTableAsync(string table)
+    {
+        if (Front?.NotebookView is { } notebook && !await notebook.AddTableAsync(table))
+        {
+            await Notes.SayAsync($"{table} is not open in Grids.");
+        }
+    }
+
+    private async Task RepointAsync()
+    {
+        if (Front?.NotebookView is not { } notebook
+            || await Dialogs.AskTextAsync("Point the cells at another connection", "The connection the cells name now.", "From", string.Empty, "Next") is not { Length: > 0 } from
+            || await Dialogs.AskTextAsync("Point the cells at another connection", $"The connection to name instead of {from}.", "To", string.Empty, "Point") is not { Length: > 0 } to)
+        {
+            return;
+        }
+        var changed = await notebook.RepointAsync(from.Trim(), to.Trim());
+        await Notes.SayAsync(changed == 0 ? $"No cell names {from}." : $"{changed} cell{(changed == 1 ? string.Empty : "s")} now name {to}: unsaved until Save.");
+    }
+
+    /// <summary>explorer.insert: the Data Explorer's first result for the words, its code where the cursor is.</summary>
+    private async Task InsertFoundAsync()
+    {
+        if (await Dialogs.AskTextAsync("Insert from the Data Explorer", "What to find (a table, a column, a connection…).", "Search", string.Empty, "Insert") is not { Length: > 0 } text)
+        {
+            return;
+        }
+        _showExplorer = true;
+        StateHasChanged();
+        await Task.Yield();
+        if (_explorer is not null && (await _explorer.SearchAsync(text)).FirstOrDefault(r => r.Insert is not null) is { Insert: { } insert })
+        {
+            await InsertExplorerAsync(insert);
+        }
+        else
+        {
+            await Notes.SayAsync($"Nothing found for {text}.");
         }
     }
 

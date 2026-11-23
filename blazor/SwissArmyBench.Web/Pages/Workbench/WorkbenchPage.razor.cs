@@ -119,7 +119,7 @@ public partial class WorkbenchPage
         Live.NoticeArrived += OnInlineNotice;
         Live.NoticeArrived += OnFileNotice;
         Live.NoticeArrived += OnPythonNotice;
-        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync());
+        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync(), LoadVaultsAsync());
     }
 
     private async Task LoadBetaAsync()
@@ -141,6 +141,7 @@ public partial class WorkbenchPage
             _self = DotNetObjectReference.Create(this);
             _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/workbench.js");
             _keys = await _module.InvokeAsync<IJSObjectReference>("keys", _self);
+            await ReadWindowAsync();
         }
         await RevealPendingAsync();
     }
@@ -184,6 +185,7 @@ public partial class WorkbenchPage
 
     private Task PageKeyAsync(string name) => name switch
     {
+        _ when name.StartsWith("cell:", StringComparison.Ordinal) => Front?.NotebookView?.CommandAsync(name[5..]) ?? Task.CompletedTask,
         "palette" => Toggle(() => _palette = !_palette),
         "save" => SaveFrontAsync(),
         "saveAs" => SaveAsAsync(Front),

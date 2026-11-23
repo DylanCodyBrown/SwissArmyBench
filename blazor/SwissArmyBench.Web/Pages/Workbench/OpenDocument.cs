@@ -33,6 +33,21 @@ public sealed class OpenDocument
 
     public StructureDoc? StructureDoc { get; set; }
 
+    /// <summary>A project's data.ipynb's view: cells, lineage or dictionary.</summary>
+    public string DataView { get; set; } = "cells";
+
+    /// <summary>data.ipynb's data dictionary's descriptions (kept in its metadata, saved with it).</summary>
+    public System.Text.Json.JsonElement? Descriptions { get; set; }
+
+    /// <summary>A notebook shown as a document (no code): Present.</summary>
+    public bool Presenting { get; set; }
+
+    /// <summary>A script's Run settings shown beside it.</summary>
+    public bool RunSettingsOpen { get; set; }
+
+    /// <summary>A project's data.ipynb: its Cells, Lineage and Dictionary views.</summary>
+    public bool IsData => IsNotebook && Path is { } path && path.Replace('\\', '/').EndsWith("/data.ipynb", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Opened just made (New blade): its Properties open.</summary>
     public bool Fresh { get; init; }
 

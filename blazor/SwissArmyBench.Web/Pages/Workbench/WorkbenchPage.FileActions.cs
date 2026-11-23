@@ -21,6 +21,8 @@ public partial class WorkbenchPage
             FilesPane.Delete when full is not null => () => DeleteFileAsync(full),
             FilesPane.DeletePackage when folder is not null => () => DeleteFileAsync(folder),
             FilesPane.NewPackageHere => () => NewPackageAsync(asked.File is null ? null : folder),
+            "open-item" when asked.File is { } item => () => Toggle(() => _generated = item),
+            "fine-tune" when asked.File is { } table => () => FineTuneAsync(table.Name),
             _ => () => Task.CompletedTask,
         });
     }
@@ -79,5 +81,18 @@ public partial class WorkbenchPage
     private async Task OpenAtAsync((string Path, int Line) at)
     {
         await GoToPlaceAsync(new IdePlace(at.Path, at.Line, 1, string.Empty));
+    }
+
+    // A generated file's text shown read-only (a table's transformations), with Fine-tune as a script.
+    private TreeFile? _generated;
+
+    /// <summary>Fine-tune as a script: the table's transformations as a new script in scripts/, opened here.</summary>
+    private async Task FineTuneAsync(string table)
+    {
+        _generated = null;
+        var made = await Workbench.FineTuneAsync(table);
+        await LoadTreeAsync();
+        await OpenPathAsync(made.Path);
+        await FollowAddressAsync();
     }
 }

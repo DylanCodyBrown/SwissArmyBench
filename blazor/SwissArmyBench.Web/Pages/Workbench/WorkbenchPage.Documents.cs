@@ -233,7 +233,7 @@ public partial class WorkbenchPage
         if (doc.IsNotebook && doc.NotebookView is { } view)
         {
             var (cells, next) = view.ToSave();
-            return Workbench.SaveNotebookAsync(path, cells, next, modified, force);
+            return Workbench.SaveNotebookAsync(path, cells, next, modified, force, doc.IsData ? doc.Descriptions ?? doc.Notebook?.Dictionary : null);
         }
         return Workbench.SaveScriptAsync(path, doc.ScriptText, modified, force);
     }
@@ -244,6 +244,38 @@ public partial class WorkbenchPage
         Front?.NotebookView?.InsertAsync(line) ?? Front?.ScriptView?.InsertAsync(line) ?? Task.CompletedTask;
 
     /// <summary>A group's main Run: Run all for a notebook, Run file for a script (F5).</summary>
-    private Task RunMainAsync(OpenDocument doc) =>
-        doc.NotebookView?.RunAllAsync() ?? doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask;
+    private Task RunMainAsync(OpenDocument doc) => IsApiFile(doc) ? RunApiAsync(doc)
+        : doc.NotebookView?.RunAllAsync() ?? doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask;
+
+    /// <summary>API.py, the project's local sandbox API: its main Run is Run API.</summary>
+    private static bool IsApiFile(OpenDocument doc) =>
+        !doc.IsNotebook && !doc.IsStructure && !doc.IsBlade && doc.Path is { } path && (path.EndsWith("/API.py", StringComparison.Ordinal) || path.EndsWith("\\API.py", StringComparison.Ordinal) || path == "API.py");
+
+    /// <summary>Run API: saved first, then hosted as the APIs page's Run hosts it; another project's API.py runs as a plain file.</summary>
+    private Task RunApiAsync(OpenDocument doc) => GuardAsync(async () =>
+    {
+        if (doc.Dirty)
+        {
+            await SaveAsync(doc);
+        }
+        var now = await Workbench.LocalApiAsync();
+        if (now.File is null || !SamePath(now.File, doc.Path))
+        {
+            await (doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask);
+            return;
+        }
+        var done = await Workbench.RunLocalApiAsync();
+        if (done.Failed is { } failed)
+        {
+            if (failed.Line is { } line)
+            {
+                await (doc.ScriptView?.RevealLineAsync(line) ?? Task.CompletedTask);
+            }
+            throw new InvalidOperationException(failed.Line is { } at ? $"{failed.Error} (API.py line {at})" : failed.Error);
+        }
+        if (done.Running is { } running)
+        {
+            await Notes.SayAsync($"Running on {running.Url} · {running.Endpoints} {(running.Endpoints == 1 ? "endpoint" : "endpoints")}");
+        }
+    });
 }

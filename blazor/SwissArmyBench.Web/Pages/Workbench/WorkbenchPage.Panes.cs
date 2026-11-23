@@ -49,6 +49,7 @@ public partial class WorkbenchPage
         List<MenuEntry> entries =
         [
             new("Open file…", "file", OpenFileAsTableAsync),
+            .. _connections.Select(name => new MenuEntry(name, "data", () => Go($"connections?name={Uri.EscapeDataString(name)}"))),
             new("Search the catalog…", "zoom", () => Go("catalog")),
             MenuEntry.Separator,
             new("Add connection…", "plug", () => Go("connections?add=1")),

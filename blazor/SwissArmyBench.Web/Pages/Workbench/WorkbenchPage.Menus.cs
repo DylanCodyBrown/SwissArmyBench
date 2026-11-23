@@ -73,11 +73,14 @@ public partial class WorkbenchPage
     private List<MenuEntry> NewEntries() =>
     [
         new($"New {KindWord}", IsNotebooks ? "notebook" : "code", NewAsync),
+        .. CanvasEntries(),
+        .. LanguageEntries(),
         MenuEntry.Separator,
         .. ProjectEntries(),
         MenuEntry.Separator,
         new("Open…", "folder", OpenAsync, Keys: "Ctrl+O"),
         new("In this project…", "more", () => InThisProjectAsync(_lastClick)),
+        new("Import…", "import", () => Toggle(() => _importKind = "documents"), Project.Current is null ? NoProject : null),
     ];
 
     private (string, IReadOnlyList<MenuEntry>) NewTabMenu() => ("New tab", NewEntries());
@@ -133,8 +136,19 @@ public partial class WorkbenchPage
             new("DAX", "group", add("dax")),
             new("HTML", "image", add("html")),
             new("Markdown", "edit", add("markdown")),
+            .. ModeCellEntries(),
         ]);
     }
+
+    private static readonly string[] _baseCellKinds = ["code", "python", "sql", "dax", "html", "markdown"];
+
+    private static readonly Dictionary<string, string> _languageWords = new() { ["typescript"] = "TypeScript", ["tsx"] = "TSX", ["javascript"] = "JavaScript" };
+
+    /// <summary>The open project's mode's own cell kinds (a code app's TypeScript and TSX): run in the classic data
+    /// notebook's kernel, so offered here as coming.</summary>
+    private IEnumerable<MenuEntry> ModeCellEntries() => _cellKinds
+        .Where(k => !_baseCellKinds.Contains(k))
+        .Select(k => new MenuEntry($"{_languageWords.GetValueOrDefault(k, k)} (coming)", "code", () => Task.CompletedTask, "Coming: a later version runs these cells"));
 
     /// <summary>A group's "…": the rest of what the document in front does.</summary>
     private (string, IReadOnlyList<MenuEntry>) DocumentMenu(OpenDocument doc)
@@ -147,6 +161,7 @@ public partial class WorkbenchPage
             MenuEntry.Separator,
             new("Open…", "folder", OpenAsync, Keys: "Ctrl+O"),
             new("In this project…", "more", () => InThisProjectAsync(_lastClick)),
+            new("Import…", "import", () => Toggle(() => _importKind = "documents"), Project.Current is null ? NoProject : null),
             new("Save", "save", () => SaveAsync(doc), Keys: "Ctrl+S"),
             new("Save as…", "save", () => SaveAsAsync(doc), Keys: "Ctrl+Shift+S"),
             new("Export as one Python script…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "script"))),
@@ -156,6 +171,8 @@ public partial class WorkbenchPage
             MenuEntry.Separator,
             SplitEntry(doc, SplitSide.Right, "Ctrl+\\"),
             SplitEntry(doc, SplitSide.Down),
+            new("Open in its own window", "popout", () => PopOutAsync(doc), doc.Path is null ? "Save it first: its own window opens its file" : null),
+            _popped ? new("Move to the main window", "back", () => MoveToMainAsync(doc)) : MenuEntry.Separator,
             new("Close", "close", () => CloseAsync(doc.Key)),
         ]);
         return ("Document menu", entries);

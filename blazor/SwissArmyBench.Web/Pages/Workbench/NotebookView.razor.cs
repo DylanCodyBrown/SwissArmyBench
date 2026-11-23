@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Workbench;
@@ -168,6 +169,10 @@ public partial class NotebookView
                 await OnChanged.InvokeAsync();
                 await RunAsync(cell);
                 await AfterRunAsync(cell, key.Name);
+                return;
+            case "escape":
+                // Escape leaves the editor for the cell itself: Jupyter's command mode.
+                await Js.InvokeVoidAsync("sab.focus", $".wb-cell[data-number='{cell.Number}']");
                 return;
             default:
                 return;

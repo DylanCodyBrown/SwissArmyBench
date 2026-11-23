@@ -86,4 +86,29 @@ public partial class WorkbenchPage
         }
         doc.Elsewhere = null;
     }
+
+    private (string Title, string File, string Yours, string Language)? _compare;
+
+    /// <summary>Compare: the file as it is now on disk beside this page's text (a notebook's cells as text).</summary>
+    private async Task CompareAsync(OpenDocument doc)
+    {
+        if (doc.Path is not { } path)
+        {
+            return;
+        }
+        if (doc.IsNotebook)
+        {
+            var file = await Workbench.OpenNotebookAsync(path);
+            var yours = doc.NotebookView?.ToSave().Cells ?? [];
+            _compare = (doc.Title, CellsText(file.Cells), CellsText(yours), "python");
+        }
+        else
+        {
+            var file = await Workbench.OpenScriptAsync(path);
+            _compare = (doc.Title, file.Text, doc.ScriptText, "python");
+        }
+    }
+
+    private static string CellsText(IEnumerable<SwissArmyBench.Web.Api.Workbench.NotebookCell> cells) =>
+        string.Join("\n\n", cells.Select(c => $"# [{c.Number}] {c.Kind}\n{c.Source}"));
 }

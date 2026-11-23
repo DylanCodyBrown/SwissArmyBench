@@ -66,7 +66,7 @@
         }
         @if (_showBlades)
         {
-            <BladesPane Editing="@(Front is { IsBlade: true, Dirty: true })" OnInsert="InsertAsync" OnOpen="n => OpenBladeAsync(n)" OnMade="n => OpenBladeAsync(n, fresh: true)" />
+            <BladesPane @ref="_bladesPane" OnImportProject='() => _importKind = "blades"' Editing="@(Front is { IsBlade: true, Dirty: true })" OnInsert="InsertAsync" OnOpen="n => OpenBladeAsync(n)" OnMade="n => OpenBladeAsync(n, fresh: true)" />
         }
     </div>
     <footer class="wb-status" aria-label="Python session">
@@ -105,6 +105,10 @@
         @if (Front?.ScriptView is { } scriptFront)
         {
             <button type="button" class="btn small ghost" aria-pressed="@(scriptFront.ConsoleHidden ? "false" : "true")" @onclick="ToggleConsoleAsync">Console</button>
+        }
+        @if (Front is { ScriptView: not null } runFront)
+        {
+            <button type="button" class="btn small ghost wb-toggle wb-mode-toggle-runSettings" aria-pressed="@(runFront.RunSettingsOpen ? "true" : "false")" @onclick="() => ToggleRunSettingsAsync(runFront)">Run settings</button>
         }
         <button type="button" class="btn small ghost" @onclick='() => Go("environment")'>Environment</button>
         <button type="button" class="btn small ghost" aria-pressed="@(_showExplorer ? "true" : "false")" title="Data Explorer (Ctrl+Shift+E)" @onclick="ToggleExplorerAsync">Data Explorer</button>
@@ -159,6 +163,27 @@
             <ChildContent><pre class="code-box wb-help-text">@_helpText</pre></ChildContent>
             <Foot><button type="button" class="btn" @onclick="() => _helpTitle = null">Close</button></Foot>
         </AppDialog>
+    }
+    @if (_generated is { } generated)
+    {
+        <AppDialog Title="@($"{generated.Name}: its transformations (read-only)")" Wide="true" OnClose="() => _generated = null">
+            <ChildContent><pre class="mono wb-generated code-box">@generated.Text</pre></ChildContent>
+            <Foot>
+                <button type="button" class="btn primary" @onclick="() => GuardAsync(() => FineTuneAsync(generated.Name))">Fine-tune as a script</button>
+                <button type="button" class="btn ghost" @onclick="() => _generated = null">Close</button>
+            </Foot>
+        </AppDialog>
+    }
+    @if (_compare is { } compare)
+    {
+        <AppDialog Title="@($"{compare.Title}: the file, and yours")" Wide="true" OnClose="() => _compare = null">
+            <ChildContent><DiffView Original="@compare.File" Modified="@compare.Yours" Language="@compare.Language" Label="@($"{compare.Title}: the file, and yours")" /></ChildContent>
+            <Foot><button type="button" class="btn" @onclick="() => _compare = null">Close</button></Foot>
+        </AppDialog>
+    }
+    @if (_importKind is { } importKind)
+    {
+        <ImportDialog Kind="@importKind" OnDone="ImportedAsync" />
     }
     @if (_newEnvironment && Front is { } envFront)
     {
@@ -232,6 +257,7 @@
                     {
                         <button type="button" class="btn small primary" @onclick="() => GuardAsync(() => ReloadAsync(doc))">Reload</button>
                         <button type="button" class="btn small line" @onclick="() => GuardAsync(() => KeepMineAsync(doc))">Keep mine</button>
+                        <button type="button" class="btn small ghost" @onclick="() => GuardAsync(() => CompareAsync(doc))">Compare</button>
                     }
                 </div>
             }
@@ -247,14 +273,37 @@
             }
             else if (doc.IsNotebook)
             {
+                @if (doc.IsData && doc.DataView == "dictionary")
+                {
+                    <DataDictionaryView Tables="DictionaryTablesOf(doc)" Descriptions="@((doc.Descriptions ?? doc.Notebook?.Dictionary) ?? default)" OnDescribe="d => DescribeAsync(doc, d)" />
+                }
+                else if (doc.IsData && doc.DataView == "lineage")
+                {
+                    @if (DataLineageCell(doc) is { } traced)
+                    {
+                        <LineageOverlay Inline="true" Ask="() => TraceAsync(doc, traced)" OnGo="n => DataLineageGoAsync(doc, n)" />
+                    }
+                    else
+                    {
+                        <div class="dict-lineage-empty"><Icon Name="lineage" /><p class="hint">Lineage</p></div>
+                    }
+                }
+                <div class="wb-notebook-host @(doc.Presenting ? "presenting" : string.Empty)" hidden="@(doc.IsData && doc.DataView != "cells")">
                 <NotebookView @key="doc.Version" @ref="doc.NotebookView" Kept="doc.Kept" Inline="_inline" Opened="doc.Notebook" Path="@doc.Path" Connections="_connections"
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" OnLineage="n => ShowLineageAsync(doc, n)" />
+                </div>
             }
             else
             {
+                <div class="wb-script-host">
                 <ScriptView @ref="doc.ScriptView" Console="doc.Console" Inline="_inline" Text="@doc.ScriptText" Path="@doc.Path" Saved="!doc.Dirty && doc.Path is not null"
                             OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)"
                             OnIde="m => IdeAsync(doc, m)" OnLineage="n => ShowLineageAsync(doc, n)" />
+                @if (doc.RunSettingsOpen)
+                {
+                    <RunSettingsPanel Path="@doc.Path" Vaults="_vaults" OnClose="() => doc.RunSettingsOpen = false" />
+                }
+                </div>
             }
         </text>;
 
@@ -273,11 +322,31 @@
                 <button type="button" class="btn small line wb-add-cell" aria-label="Add cell" title="Add cell" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, CellMenu(doc))">
                     <Icon Name="plus" /> <span class="btn-label">Cell</span> <Icon Name="down" />
                 </button>
+                <span class="cv-mode wb-view-switch" role="group" aria-label="View">
+                    @if (doc.IsData)
+                    {
+                        <button type="button" class="btn small wb-view-cells" aria-pressed="@(doc.DataView == "cells" ? "true" : "false")" @onclick='() => SetDataViewAsync(doc, "cells")'><Icon Name="notebook" /> Cells</button>
+                        <button type="button" class="btn small wb-view-lineage" aria-pressed="@(doc.DataView == "lineage" ? "true" : "false")" @onclick='() => SetDataViewAsync(doc, "lineage")'><Icon Name="lineage" /> Lineage</button>
+                        <button type="button" class="btn small wb-view-dictionary" aria-pressed="@(doc.DataView == "dictionary" ? "true" : "false")" @onclick="() => OpenDictionaryAsync(doc)"><Icon Name="book" /> Dictionary</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn small wb-view-cells" aria-pressed="@(doc.Presenting ? "false" : "true")" @onclick="() => PresentAsync(doc, false)"><Icon Name="notebook" /> Cells</button>
+                        <button type="button" class="btn small wb-view-present" aria-pressed="@(doc.Presenting ? "true" : "false")" @onclick="() => PresentAsync(doc, true)"><Icon Name="eye" /> Present</button>
+                    }
+                </span>
                 <button type="button" class="btn small primary wb-run-all" title="Run all (F5)" disabled="@(doc.NotebookView?.RunningAll == true)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run all</span></button>
             }
             else
             {
-                <button type="button" class="btn small primary wb-run-file" title="Run file (F5)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
+                @if (IsApiFile(doc))
+                {
+                    <button type="button" class="btn small primary wb-run-api" title="Run the local sandbox API (F5)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run API</span></button>
+                }
+                else
+                {
+                    <button type="button" class="btn small primary wb-run-file" title="Run file (F5)" @onclick="() => RunMainAsync(doc)"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
+                }
                 <button type="button" class="btn small ghost icon wb-debug-start" aria-label="Start debugging" title="Start debugging (Ctrl+Shift+D)" @onclick="() => DebugAsync(doc)"><Icon Name="bug" /></button>
             }
             @if (!doc.IsBlade && !doc.IsStructure)

@@ -4,7 +4,7 @@
    NotebookCellView.razor.cs. *@
 
 <section class="@(Cell.IsAppCell ? "wb-tcell" : "wb-cell") kind-@Cell.Kind @(Selected ? "selected" : string.Empty) @(Cell.Running ? "running" : string.Empty)"
-         data-number="@Cell.Number" aria-label="@Label" @onfocusin="() => OnSelect.InvokeAsync(Cell)">
+         data-number="@Cell.Number" aria-label="@Label" tabindex="-1" @onfocusin="() => OnSelect.InvokeAsync(Cell)">
     <div class="wb-cell-head">
         <span class="wb-number" title="@($"Cell {Cell.Number}: this number never changes. @cell{Cell.Number} in a comment links here.")">#@Cell.Number</span>
         @if (!Cell.IsAppCell)

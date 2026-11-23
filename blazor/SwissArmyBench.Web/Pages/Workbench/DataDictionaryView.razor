@@ -1,0 +1,98 @@
+@* data.ipynb's Dictionary (the classic workbenchDocModes.ts drawDictionary): its tables down the side (each with its
+   count of columns), the table picked: where it comes from, its steps and rows, its description, and each column's
+   plain type, description and where it comes from. A description typed is kept in data.ipynb (unsaved until Save)
+   and data.py's next export carries it; Enter keeps it. *@
+@inject DocumentModesClient Modes
+
+<div class="wb-data-view wb-dictionary">
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_tables is { Count: 0 })
+    {
+        <p class="hint app-empty">No tables in data.ipynb</p>
+    }
+    else if (_tables is { } tables && Chosen(tables) is { } table)
+    {
+        <nav class="dict-tables" aria-label="Tables">
+            @foreach (var t in tables)
+            {
+                var name = t.Table;
+                <button type="button" class="dict-table @(t == table ? "active" : string.Empty)" @onclick="() => _chosen = name"><span>@t.Table</span> <span class="hint">@t.Columns.Count</span></button>
+            }
+        </nav>
+        <section class="dict-page" aria-label="@table.Table">
+            <h2>@table.Table</h2>
+            <p class="hint dict-meta"><Icon Name="file" /> <span>@Meta(table)</span></p>
+            <input type="text" class="dict-input" placeholder="Add a description" aria-label="@($"{table.Table}'s description")" maxlength="500" value="@table.Description"
+                   @onchange="e => OnDescribe.InvokeAsync((table.Table, null, e.Value?.ToString() ?? string.Empty))" @onkeydown:stopPropagation="true" onkeydown="if (event.key === 'Enter') this.blur()" />
+            <table class="dict-columns">
+                <thead><tr><th>Column</th><th>Type</th><th>Description</th><th>Comes from</th></tr></thead>
+                <tbody>
+                    @foreach (var column in table.Columns)
+                    {
+                        var c = column;
+                        <tr data-column="@c.Name">
+                            <td class="mono">@c.Name</td>
+                            <td>@c.Type</td>
+                            <td><input type="text" class="dict-input" placeholder="Add a description" aria-label="@($"{c.Name}'s description")" maxlength="500" value="@c.Description"
+                                       @onchange="e => OnDescribe.InvokeAsync((table.Table, c.Name, e.Value?.ToString() ?? string.Empty))" @onkeydown:stopPropagation="true" onkeydown="if (event.key === 'Enter') this.blur()" /></td>
+                            <td class="dict-from"><Icon Name="@(c.ComesFrom.StartsWith("Step ", StringComparison.Ordinal) ? "steps" : "file")" /> <span>@c.ComesFrom</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+    else
+    {
+        <div class="loading-block">Reading the dictionary…</div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<DictionaryTable>? _tables;
+    private string? _chosen;
+    private Exception? _error;
+
+    /// <summary>data.ipynb's tables and where each comes from.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(string Name, string Source)> Tables { get; set; } = [];
+
+    /// <summary>The descriptions data.ipynb keeps (its metadata).</summary>
+    [Parameter]
+    public System.Text.Json.JsonElement Descriptions { get; set; }
+
+    /// <summary>A description typed: its table, its column (null: the table's own), its words.</summary>
+    [Parameter]
+    public EventCallback<(string Table, string? Column, string Text)> OnDescribe { get; set; }
+
+    private string? _readFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var descriptions = Descriptions.ValueKind == System.Text.Json.JsonValueKind.Object ? Descriptions : System.Text.Json.JsonSerializer.SerializeToElement(new { });
+        var wanted = $"{string.Join(',', Tables.Select(t => t.Name))}|{descriptions.GetRawText()}";
+        if (wanted == _readFor)
+        {
+            return;
+        }
+        _readFor = wanted;
+        try
+        {
+            _tables = (await Modes.DictionaryAsync(Tables, descriptions)).Tables;
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private DictionaryTable? Chosen(IReadOnlyList<DictionaryTable> tables) => tables.FirstOrDefault(t => t.Table == _chosen) ?? tables.FirstOrDefault();
+
+    private static string Meta(DictionaryTable table) => string.Join(" · ", new[]
+    {
+        table.Source,
+        table.Steps > 0 ? $"{table.Steps} step{(table.Steps == 1 ? string.Empty : "s")}" : string.Empty,
+        $"{table.Rows:N0} row{(table.Rows == 1 ? string.Empty : "s")}",
+    }.Where(p => p.Length > 0));
+}

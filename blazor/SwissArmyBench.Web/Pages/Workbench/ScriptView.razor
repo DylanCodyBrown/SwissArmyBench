@@ -9,6 +9,7 @@
         <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" OnIde="OnIde" OnGutter="GutterAsync"
                     Inline="Inline" InlineDocument="InlineDocument" AgentWhere="@DocumentName" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
     </div>
+    <ScriptHtmlCells Cells="HtmlCells" OnGoTo="RevealCellAsync" OnRun="RunHtmlAsync" />
     <DebugPanel @ref="_debug" Editor="_editor" Path="@Path" />
     <section class="wb-console" aria-label="Console" hidden="@ConsoleHidden">
         <div class="wb-console-head">

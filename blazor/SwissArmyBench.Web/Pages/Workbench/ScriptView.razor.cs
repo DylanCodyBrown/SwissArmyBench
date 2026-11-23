@@ -112,6 +112,31 @@ public partial class ScriptView
         StateHasChanged();
     }
 
+    private readonly Dictionary<int, CellModel> _htmlCells = [];
+
+    /// <summary>The script's HTML cells, each kept by its number (its design's run and size stay).</summary>
+    private IReadOnlyList<CellModel> HtmlCells
+    {
+        get
+        {
+            var cells = ScriptHtml.Cells(Text, _htmlCells);
+            foreach (var cell in cells)
+            {
+                _htmlCells[cell.Number] = cell;
+            }
+            return cells;
+        }
+    }
+
+    /// <summary>An HTML cell run: its names filled from the script's session.</summary>
+    private async Task RunHtmlAsync(CellModel cell)
+    {
+        if (_runner is not null)
+        {
+            await _runner.RunAsync(cell, new RunRequest(cell.Source, "html", Document: Path), Path, () => InvokeAsync(StateHasChanged));
+        }
+    }
+
     public Task<int> CursorLineAsync() => _editor?.CursorLineAsync() ?? Task.FromResult(0);
 
     public Task<string?> HelpAsync() => _editor?.HelpAtCursorAsync() ?? Task.FromResult<string?>(null);

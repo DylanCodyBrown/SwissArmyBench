@@ -8,4 +8,6 @@ public sealed record ModeInfo(
     string Title = "",
     string Explain = "",
     IReadOnlyList<InlineProvider>? InlineCompletion = null,
-    IReadOnlyList<string>? Families = null);
+    IReadOnlyList<string>? Families = null,
+    IReadOnlyList<string>? CellKinds = null,
+    IReadOnlyList<string>? Languages = null);

@@ -30,7 +30,7 @@
     {
         <p class="muted side-pane-note wb-codex-none">No project is open. <a href="./" class="link">Home</a></p>
     }
-    else if (Shown.Count == 0)
+    else if (Shown.All(g => g.Files.Count == 0) && _find.Trim().Length > 0)
     {
         <p class="hint">@(_find.Trim().Length > 0 ? "Nothing matches." : $"No {Words.One}s yet.")</p>
     }
@@ -40,6 +40,10 @@
         {
             <details class="files-group" open>
                 <summary>@group.Name <span class="muted">@files.Count</span></summary>
+                @if (files.Count == 0)
+                {
+                    <p class="hint wb-codex-empty">None</p>
+                }
                 <ul class="files-list" role="tree" aria-label="@group.Name">
                     @foreach (var file in files)
                     {
@@ -58,7 +62,8 @@
                                 {
                                     <span class="wb-codex-fold"></span>
                                 }
-                                <a class="files-item @(Same(full) ? "current" : string.Empty)" role="treeitem" href="@AddressOf(full)" data-path="@file.Path"
+                                <a class="files-item @(Same(full) ? "current" : string.Empty)" role="treeitem" href="@(file.Item is null ? AddressOf(full) : null)"
+                                   @onclick='e => file.Item is null ? Task.CompletedTask : OnAction.InvokeAsync((file, "open-item"))' @onclick:preventDefault="file.Item is not null" data-path="@file.Path"
                                    title="@(file.MadeFrom is { } from ? $"{file.Path}: made from {from}" : file.Path)" aria-current="@(Same(full) ? "page" : null)"
                                    @oncontextmenu="e => MenuAsync(e, file)" @oncontextmenu:preventDefault="Own(file)" @onkeydown="e => KeyAsync(e, file)">
                                     <Icon Name="@(full.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebook" : "code")" />
@@ -72,6 +77,11 @@
                                         <span class="chip" title="@(file.MadeFrom is null ? "Read-only" : $"Made from {file.MadeFrom}: read-only")">read-only</span>
                                     }
                                 </a>
+                                @foreach (var action in file.Actions ?? [])
+                                {
+                                    var picked = action;
+                                    <button type="button" class="btn small ghost wb-codex-action" title="@picked.Label" @onclick="() => OnAction.InvokeAsync((file, picked.Id))">@picked.Label</button>
+                                }
                             </div>
                             @if (shows)
                             {

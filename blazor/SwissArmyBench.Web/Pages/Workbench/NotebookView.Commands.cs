@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
 namespace SwissArmyBench.Web.Pages.Workbench;
 
 // What the palette asks of a notebook (the classic workbenchCommandList.ts's cell, tables and html commands): edit
@@ -71,5 +74,69 @@ public partial class NotebookView
         {
             await editor.RevealAsync(line, col);
         }
+    }
+
+    private DateTime _firstD;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    /// <summary>Jupyter's command mode on the selected cell (the focus on the cell, not its editor): its keys by name.</summary>
+    public async Task CommandAsync(string command)
+    {
+        if (_selected is not { } cell)
+        {
+            return;
+        }
+        var at = _kept.Cells.IndexOf(cell);
+        switch (command)
+        {
+            case "edit":
+                cell.Editing = cell.Kind is "markdown" or "html" || cell.Editing;
+                _focusNext = cell;
+                break;
+            case "run" or "runNext":
+                await RunAsync(cell);
+                if (command == "runNext")
+                {
+                    await AfterRunAsync(cell, "run");
+                }
+                break;
+            case "above":
+                await InsertAboveAsync();
+                break;
+            case "below":
+                await InsertBelowAsync();
+                break;
+            case "d" when DateTime.UtcNow - _firstD < TimeSpan.FromMilliseconds(800):
+                await DeleteCellAsync(cell);
+                break;
+            case "d":
+                _firstD = DateTime.UtcNow;
+                break;
+            case "code" or "markdown" or "sql" or "dax" or "html" when !cell.IsAppCell:
+                await MakeKindAsync(command);
+                break;
+            case "copy":
+                CopySelected();
+                break;
+            case "paste":
+                await PasteBelowAsync();
+                break;
+            case "undo":
+                await UndoAsync();
+                break;
+            case "down" or "up":
+                var next = Math.Clamp(at + (command == "down" ? 1 : -1), 0, _kept.Cells.Count - 1);
+                _selected = _kept.Cells[next];
+                await Js.InvokeVoidAsync("sab.focus", $".wb-cell[data-number='{_selected.Number}']");
+                break;
+            case "output":
+                ToggleSelectedOutput();
+                break;
+            default:
+                break;
+        }
+        StateHasChanged();
     }
 }

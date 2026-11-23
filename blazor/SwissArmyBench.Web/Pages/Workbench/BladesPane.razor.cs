@@ -110,7 +110,7 @@ public partial class BladesPane
 
     public void Dispose() => Live.NoticeArrived -= OnNotice;
 
-    private async Task LoadAsync()
+    public async Task LoadAsync()
     {
         try
         {

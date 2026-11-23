@@ -24,7 +24,11 @@ public partial class WorkbenchPage
     {
         try
         {
-            _inline = (await AppApi.ModeAsync()).Mode.InlineCompletion ?? [];
+            var mode = (await AppApi.ModeAsync()).Mode;
+            _canvases = mode.Canvases;
+            _cellKinds = mode.CellKinds ?? [];
+            _languages = mode.Languages ?? [];
+            _inline = mode.InlineCompletion ?? [];
             _inlineStatus = _inline.FirstOrDefault()?.Status is { } route ? await AppApi.InlineStatusAsync(route) : null;
         }
         catch (ApiException)

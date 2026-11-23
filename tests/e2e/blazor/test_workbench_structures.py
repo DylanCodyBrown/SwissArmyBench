@@ -1,7 +1,8 @@
-"""The Blazor Notebooks and Scripts pages, more of them on made-up data: a JSON file as a structure's tab beside the
-code (the tree and the text, the search with Next, a node's menu and an edit of the file, Transform's steps, Save),
-a script opened at a line and a notebook at a cell (?line=, ?cell=), a cell's lineage, the Tables group's lines
-(their fold and Run), the Data Explorer pane, the status bar's Problems list and F1's help."""
+"""The Blazor Notebooks and Scripts pages, more of them on made-up data: a JSON file as a structure's tab
+beside the code (the tree and the text, the search with Next, a node's menu and an edit of the file,
+Transform's steps, Save), a script opened at a line and a notebook at a cell (?line=, ?cell=), a cell's
+lineage, the Tables group's lines (their fold and Run), the Data Explorer pane, the status bar's Problems
+list and F1's help."""
 
 from __future__ import annotations
 

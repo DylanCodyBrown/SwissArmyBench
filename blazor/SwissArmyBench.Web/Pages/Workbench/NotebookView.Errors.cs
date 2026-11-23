@@ -35,6 +35,13 @@ public partial class NotebookView
             case "define" when fix.Name is { } name:
                 await RunMakerAsync(running, name);
                 return;
+            case "table" when fix.Name is { } table:
+                // A table open in Grids that the code names: its read-only cell added to this document.
+                if (await AddTableAsync(table))
+                {
+                    await Notes.SayAsync($"Added {table}'s table cell: run the cell again");
+                }
+                return;
             default:
                 await Notes.SayAsync("Fix not available here");
                 return;

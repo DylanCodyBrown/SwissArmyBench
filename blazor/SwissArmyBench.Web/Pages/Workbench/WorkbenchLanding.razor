@@ -14,6 +14,10 @@
     }
     else
     {
+        <h2 class="wb-landing-section">Your @(Page == "notebooks" ? "notebooks" : "scripts")</h2>
+        <div class="form-row">
+            <button type="button" class="btn primary" @onclick="OnNew"><Icon Name="plus" /> New @(Page == "notebooks" ? "notebook" : "script")</button>
+        </div>
         <div class="card-grid">
             @foreach (var (name, path, where) in Documents)
             {

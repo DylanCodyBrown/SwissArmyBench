@@ -1,7 +1,8 @@
-"""The Blazor Analyze page's side and board, on the made-up sample store: a slot's chips (Add to… and ×), the
-table line's Change with its tables and Find data…, Check this table's ranking and its one-click buttons, What can I
-do with a column?, the panel's dock, maximize and collapse buttons; Add chart, a chart card (Vega-Lite) with Open
-large, its menu (Download image, Download as HTML, Copy as Python) and the cross-filter."""
+"""The Blazor Analyze page's side and board, on the made-up sample store: a slot's chips (Add to… and x),
+the table line's Change with its tables and Find data…, Check this table's ranking and its one-click
+buttons, What can I do with a column?, the panel's dock, maximize and collapse buttons; Add chart, a
+chart card (Vega-Lite) with Open large, its menu (Download image, Download as HTML, Copy as Python) and
+the cross-filter."""
 
 from __future__ import annotations
 

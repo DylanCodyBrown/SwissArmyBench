@@ -20,7 +20,7 @@
         if (cell.Role is "tables" or "table")
         {
             <TableGroupBar @key="cell" Cell="cell" Folded="IsFolded(cell)" Tables="TableCount" Runnable="TableCell(cell.Table) is not null"
-                           OnFold="() => ToggleFold(cell)" OnGoToCell="GoToNumberAsync" OnRunTable="RunTableAsync" />
+                           OnFold="() => ToggleFold(cell)" OnGoToCell="GoToNumberAsync" OnRunTable="RunTableAsync" OnRunTables="RunTablesAsync" />
             continue;
         }
         <NotebookCellView @key="cell" @ref="_views[cell]" Cell="cell" Selected="cell == _selected" Connections="Connections" IntelFor="IntelFor"

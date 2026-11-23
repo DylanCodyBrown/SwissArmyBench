@@ -11,4 +11,7 @@ public sealed record TreeFile(
     bool ReadOnly,
     bool Edited = false,
     bool Library = false,
-    IReadOnlyList<TreeSymbol>? Outline = null);
+    IReadOnlyList<TreeSymbol>? Outline = null,
+    string? Item = null,
+    string? Text = null,
+    IReadOnlyList<TreeAction>? Actions = null);

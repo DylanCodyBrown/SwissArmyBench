@@ -59,6 +59,8 @@ public static class Program
         services.AddScoped<GridsClient>();
         services.AddScoped<WorkbenchClient>();
         services.AddScoped<LineageClient>();
+        services.AddScoped<ImportClient>();
+        services.AddScoped<DocumentModesClient>();
         services.AddScoped<PythonsClient>();
         services.AddScoped<StructureTabClient>();
         services.AddScoped<ExportsClient>();

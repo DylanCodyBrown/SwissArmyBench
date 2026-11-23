@@ -54,7 +54,7 @@ public partial class FilesPane
             var q = _find.Trim();
             return (Tree?.Groups ?? [])
                 .Select(g => (Group: g, Files: q.Length == 0 ? g.Files.ToList() : g.Files.Where(f => Matches(f.Path) || Matches(f.Module ?? string.Empty) || (f.Outline ?? []).Any(SymbolMatches)).ToList()))
-                .Where(g => g.Files.Count > 0)
+                .Where(g => g.Files.Count > 0 || q.Length == 0)
                 .ToList();
         }
     }

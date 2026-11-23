@@ -24,6 +24,10 @@
             </span>
         }
         <span class="spacer"></span>
+        @if (Cell.Role == "tables" && Tables > 0)
+        {
+            <button type="button" class="btn small ghost wb-run-tables" title="Run each table's cell that is not up to date" @onclick="OnRunTables"><Icon Name="play" /> Run tables</button>
+        }
         @if (Cell.Role == "table" && Runnable)
         {
             <button type="button" class="btn small ghost wb-run-table" title="Run @Cell.Table's cell" @onclick="() => OnRunTable.InvokeAsync(Cell.Table ?? string.Empty)"><Icon Name="play" /> Run</button>
@@ -54,6 +58,10 @@
 
     [Parameter]
     public EventCallback<string> OnRunTable { get; set; }
+
+    /// <summary>The heading's Run tables: every table's read-only cell run again.</summary>
+    [Parameter]
+    public EventCallback OnRunTables { get; set; }
 
     private string Words => Cell.Role == "tables"
         ? $"Tables · {Tables} table{(Tables == 1 ? string.Empty : "s")}"

@@ -552,3 +552,26 @@ export function create(host, dotnet, options) {
     },
   };
 }
+
+/** Compare: Monaco's diff editor, the file's text (left) against this page's (right), read-only. */
+export function diff(host, original, modified, language, theme) {
+  const lang = LANGUAGES[language] ?? language ?? "plaintext";
+  const editor = monaco.editor.createDiffEditor(host, {
+    theme: THEMES[theme] ?? "vs",
+    readOnly: true,
+    originalEditable: false,
+    automaticLayout: true,
+    renderSideBySide: true,
+    minimap: { enabled: false },
+  });
+  const left = monaco.editor.createModel(original, lang);
+  const right = monaco.editor.createModel(modified, lang);
+  editor.setModel({ original: left, modified: right });
+  return {
+    dispose: () => {
+      editor.dispose();
+      left.dispose();
+      right.dispose();
+    },
+  };
+}
