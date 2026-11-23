@@ -1,0 +1,52 @@
+@* The Key Finder (the classic keyFinder.ts, in a dialog): another open table to compare with, then the likely join
+   keys best first (shared values, how much of each side is found, the relationship it reads as), each one Add as a
+   relationship. Logic in KeyFinderDialog.razor.cs. *@
+
+<AppDialog Title="@($"Key Finder: {Dataset}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="form-row">
+            <label class="field"><span>Compare with</span>
+                <select aria-label="Compare with" @bind="_target">
+                    @foreach (var target in _targets.Where(t => !t.Self))
+                    {
+                        <option value="@target.Grid">@target.Label</option>
+                    }
+                </select>
+            </label>
+            <button type="button" class="btn primary" disabled="@(_target.Length == 0 || _running)" @onclick="FindAsync"><Icon Name="zoom" /> Find keys</button>
+        </div>
+        @if (_targets.Count > 0 && _targets.All(t => t.Self))
+        {
+            <p class="muted">Open another table to compare this one with.</p>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_running)
+        {
+            <div class="loading-block">Comparing…</div>
+        }
+        else if (_result is { } result)
+        {
+            @if (result.Pairs.Count == 0)
+            {
+                <p class="muted">No column here shares values with that table.</p>
+            }
+            <table class="rows key-pairs">
+                <tbody>
+                    @foreach (var pair in result.Pairs)
+                    {
+                        <tr>
+                            <td><strong>@pair.SourceColumn</strong> → @pair.TargetDataset.@pair.TargetColumn</td>
+                            <td>@pair.Shared.ToString("N0") shared</td>
+                            <td class="muted">@pair.Relationship</td>
+                            <td>@pair.Score.ToString("0.00")</td>
+                            <td class="row-actions"><button type="button" class="btn small" @onclick="() => AddAsync(pair)">Add relationship</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

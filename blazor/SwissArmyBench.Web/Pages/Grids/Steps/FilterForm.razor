@@ -1,0 +1,52 @@
+@* The filter's form: a column, a condition by its type, its value (or two, or a checklist of its values with their
+   counts, as Excel's filter). Logic in FilterForm.razor.cs. *@
+@inherits StepFormBase
+
+<div class="form-grid step-form">
+    <label class="field"><span>Column</span>
+        <select aria-label="Column" value="@_column" @onchange="ColumnChangedAsync">
+            @foreach (var column in Columns)
+            {
+                <option value="@column.Name">@column.Name (@column.Type.ToLowerInvariant())</option>
+            }
+        </select>
+    </label>
+    <label class="field"><span>Condition</span>
+        <select aria-label="Condition" value="@_op" @onchange="OpChangedAsync">
+            @foreach (var (op, words) in Conditions)
+            {
+                <option value="@op">@words</option>
+            }
+        </select>
+    </label>
+    @if (NeedsValue)
+    {
+        <label class="field"><span>@(IsRange ? "From" : "Value")</span><input type="@InputType" aria-label="Value" @bind="_value" /></label>
+    }
+    @if (IsRange)
+    {
+        <label class="field"><span>To</span><input type="@InputType" aria-label="Upper value" @bind="_high" /></label>
+    }
+</div>
+@if (IsList)
+{
+    <div class="filter-values">
+        <input type="search" class="filter-values-search" placeholder="Search values" aria-label="Search values" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
+        <div class="filter-values-list" role="group" aria-label="Values">
+            @foreach (var value in Shown)
+            {
+                var key = value.Value.GetRawText();
+                <label class="check filter-value">
+                    <input type="checkbox" checked="@_picked.ContainsKey(key)" @onchange="e => Pick(value.Value, e.Value is true)" />
+                    <span class="filter-value-text">@Words(value.Value)</span>
+                    <span class="filter-value-count">@(value.Count > 0 ? value.Count.ToString("N0") : string.Empty)</span>
+                </label>
+            }
+            @if (_values is { Values.Count: 0 })
+            {
+                <p class="muted">@(_search.Length > 0 ? "No value holds that text." : "No values.")</p>
+            }
+        </div>
+        <p class="muted" role="status">@FootWords</p>
+    </div>
+}

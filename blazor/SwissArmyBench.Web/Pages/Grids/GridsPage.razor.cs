@@ -34,6 +34,12 @@ public partial class GridsPage : IDisposable
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
+    [Inject]
+    private Notes Notes { get; set; } = default!;
+
+    [Inject]
+    private GridStatus Status { get; set; } = default!;
+
     /// <summary>The tab shown (a grid's id); none: the first.</summary>
     [SupplyParameterFromQuery(Name = "grid")]
     public string? GridParameter { get; set; }
@@ -75,13 +81,20 @@ public partial class GridsPage : IDisposable
             _info = null;
             return;
         }
-        if (wanted != _active)
+        var changedTable = wanted != _active;
+        if (changedTable)
         {
             _column = null;
             _rows = null;
+            _selection = GridSelection.None;
+            Status.Set(null);
         }
         _active = wanted;
         await ReloadInfoAsync();
+        if (changedTable)
+        {
+            await LoadConnectionAsync();
+        }
     }
 
     private async Task ReloadInfoAsync()
@@ -121,6 +134,10 @@ public partial class GridsPage : IDisposable
             if (_grid is not null)
             {
                 await _grid.RefreshAsync(_info.Columns);
+            }
+            if (_info.StepError is { } broken)
+            {
+                _ = Notes.SayAsync($"Step {broken.Index + 1}: {broken.Message}");
             }
             _tabs = await Grids.ListAsync();
         }
@@ -189,6 +206,7 @@ public partial class GridsPage : IDisposable
     public void Dispose()
     {
         Live.Changed -= OnNotice;
+        Status.Set(null);
         GC.SuppressFinalize(this);
     }
 }

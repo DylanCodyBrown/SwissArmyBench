@@ -1,0 +1,53 @@
+@* The sort's form: up to three keys, each ascending or descending. *@
+@inherits StepFormBase
+
+<div class="list-editor step-form">
+    @for (var at = 0; at < KeyCount; at++)
+    {
+        var index = at;
+        <div class="form-row">
+            <label class="field"><span>@(index == 0 ? "Sort by" : "then by")</span>
+                <select aria-label="@($"Sort key {index + 1}")" @bind="_keys[index]">
+                    <option value="">(none)</option>
+                    @foreach (var column in Columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>Direction</span>
+                <select aria-label="@($"Direction {index + 1}")" @bind="_directions[index]">
+                    <option value="asc">ascending</option>
+                    <option value="desc">descending</option>
+                </select>
+            </label>
+        </div>
+    }
+</div>
+
+@code {
+    private const int KeyCount = 3;
+    private readonly string[] _keys = new string[KeyCount];
+    private readonly string[] _directions = new string[KeyCount];
+
+    protected override void OnInitialized()
+    {
+        var given = Items("keys").Where(k => k.ValueKind == System.Text.Json.JsonValueKind.Array).ToList();
+        for (var at = 0; at < KeyCount; at++)
+        {
+            var key = at < given.Count ? given[at].EnumerateArray().Select(v => v.GetString() ?? string.Empty).ToList() : [];
+            _keys[at] = key.Count > 0 ? key[0] : (at == 0 ? Columns.FirstOrDefault()?.Name ?? string.Empty : string.Empty);
+            _directions[at] = key.Count > 1 ? key[1] : "asc";
+        }
+    }
+
+    public override Dictionary<string, object?> Read()
+    {
+        var keys = Enumerable.Range(0, KeyCount).Where(at => _keys[at].Length > 0).Select(at => new[] { _keys[at], _directions[at] }).ToList();
+        if (keys.Count == 0)
+        {
+            throw new StepFormException("Pick a column to sort by.");
+        }
+        return new() { ["keys"] = keys };
+    }
+}

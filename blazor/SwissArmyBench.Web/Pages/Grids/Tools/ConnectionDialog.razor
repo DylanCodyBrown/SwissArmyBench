@@ -1,0 +1,37 @@
+@* Read this table from another connection (the classic swapConnection.ts's chooser): the connections offered, the
+   table found there by its name with its steps kept; one that needs a pick or a look at its query says so, with the
+   classic page's place for it. Logic in ConnectionDialog.razor.cs. *@
+
+<AppDialog Title="@($"Read {Table} from another connection")" OnClose="OnClose">
+    <ChildContent>
+        <p class="muted">Now: @(Current?.Connection ?? "no connection (a file, a paste, or sent from Python)")</p>
+        @if (_cards is { Count: 0 })
+        {
+            <p class="muted">No connection yet: add one on the Connections page.</p>
+        }
+        else if (_cards is { } cards)
+        {
+            <label class="field"><span>Connection</span>
+                <select aria-label="Connection" @bind="_to">
+                    @foreach (var card in cards.Where(c => c.Name != Current?.Connection))
+                    {
+                        <option value="@card.Name">@card.Name</option>
+                    }
+                </select>
+            </label>
+        }
+        @if (_words is not null)
+        {
+            <p role="status">@_words <a href="@($"/workspace?grid={Uri.EscapeDataString(Grid)}")">Open in the classic front end</a></p>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        @if (Current?.Undo == true)
+        {
+            <button type="button" class="btn" @onclick="UndoAsync"><Icon Name="undo" /> Undo the last change</button>
+        }
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" disabled="@(_to.Length == 0)" @onclick="SwapAsync">Read it from there</button>
+    </Foot>
+</AppDialog>

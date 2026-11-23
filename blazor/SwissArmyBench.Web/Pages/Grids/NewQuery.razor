@@ -33,7 +33,7 @@
         {
             var made = await Grids.QueryAsync(_name.Trim().Length == 0 ? "query" : _name.Trim(), _sql);
             _error = null;
-            if (made.TryGetProperty("grid", out var grid) && grid.GetString() is { } id)
+            if (made.Grid is { } id)
             {
                 await OnMade.InvokeAsync(id);
             }

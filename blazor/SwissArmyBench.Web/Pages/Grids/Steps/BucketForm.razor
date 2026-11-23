@@ -1,0 +1,49 @@
+@* Bucket: a number column by a fixed width or custom edges, a date column by a unit; the range starts from the
+   column's own (its profile). Logic in BucketForm.razor.cs. *@
+@inherits StepFormBase
+
+<div class="form-grid step-form">
+    <label class="field"><span>Column</span>
+        <select aria-label="Column" value="@_column" @onchange="ColumnChangedAsync">
+            @foreach (var column in Usable)
+            {
+                <option value="@column.Name">@column.Name (@column.Type.ToLowerInvariant())</option>
+            }
+        </select>
+    </label>
+    <label class="field"><span>New column</span><input type="text" aria-label="New column name" @bind="_as" /></label>
+    <label class="field"><span>Bucket by</span>
+        <select aria-label="Bucket by" value="@_mode" @onchange="ModeChangedAsync">
+            <option value="width">Fixed width</option>
+            <option value="edges">Custom edges</option>
+            <option value="date">Date unit</option>
+        </select>
+    </label>
+    @switch (_mode)
+    {
+        case "date":
+            <label class="field"><span>Unit</span>
+                <select aria-label="Unit" @bind="_unit">
+                    <option value="day">day</option>
+                    <option value="week">week (from Monday)</option>
+                    <option value="month">month</option>
+                    <option value="quarter">quarter</option>
+                    <option value="year">year</option>
+                </select>
+            </label>
+            break;
+        case "edges":
+            <label class="field"><span>Edges</span><input type="text" placeholder="0, 10, 50, 100" aria-label="Edges" @bind="_edges" /></label>
+            break;
+        default:
+            <label class="field"><span>Width</span><input type="number" aria-label="Width" @bind="_width" /></label>
+            <label class="field"><span>From</span><input type="number" aria-label="From" @bind="_low" /></label>
+            <label class="field"><span>To</span><input type="number" aria-label="To" @bind="_high" /></label>
+            break;
+    }
+    @if (_mode != "date")
+    {
+        <label class="check"><input type="checkbox" @bind="_rightClosed" /> Right-closed (a, b]</label>
+        <label class="field"><span>Outside the range</span><input type="text" aria-label="Out-of-range label" @bind="_other" /></label>
+    }
+</div>

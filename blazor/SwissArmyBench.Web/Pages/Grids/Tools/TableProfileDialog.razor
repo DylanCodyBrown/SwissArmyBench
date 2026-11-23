@@ -1,0 +1,71 @@
+@* The table's profile (the classic profileView.ts openTableProfile): every column's type, blanks, distinct values and
+   range, and the duplicate rows. *@
+
+<AppDialog Title="@($"Profile: {Dataset}")" OnClose="OnClose">
+    <ChildContent>
+        <ErrorNote Error="_error" />
+        @if (_profile is null && _error is null)
+        {
+            <div class="loading-block">Profiling every column…</div>
+        }
+        else if (_profile is { } profile)
+        {
+            <p class="muted">@profile.Rows.ToString("N0") rows · @profile.DuplicateRows.ToString("N0") duplicate rows</p>
+            <table class="rows profile-table">
+                <thead><tr><th>Column</th><th>Type</th><th>Blanks</th><th>Distinct</th><th>Smallest</th><th>Largest</th></tr></thead>
+                <tbody>
+                    @foreach (var column in profile.Columns)
+                    {
+                        <tr>
+                            <td><strong>@column.Column</strong></td>
+                            <td class="muted">@column.Type</td>
+                            <td>@column.Blanks.ToString("N0") (@column.BlankPercent.ToString("0.#")%)</td>
+                            <td>@column.Distinct.ToString("N0")</td>
+                            <td class="mono">@Words(column.Min)</td>
+                            <td class="mono">@Words(column.Max)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private TableProfile? _profile;
+    private Exception? _error;
+
+    [Inject]
+    private GridsClient Grids { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Grid { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Dataset { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _profile = await Grids.TableProfileAsync(Grid);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private static string Words(System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null => string.Empty,
+        System.Text.Json.JsonValueKind.String => value.GetString() ?? string.Empty,
+        _ => value.GetRawText(),
+    };
+}

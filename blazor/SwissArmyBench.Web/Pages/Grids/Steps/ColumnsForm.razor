@@ -1,0 +1,56 @@
+@* Choose columns: tick the ones to keep, move them up or down for their order. *@
+@inherits StepFormBase
+
+<div class="list-editor step-form">
+    @for (var at = 0; at < _order.Count; at++)
+    {
+        var index = at;
+        var name = _order[at];
+        <div class="form-row">
+            <label class="check"><input type="checkbox" checked="@_keep.Contains(name)" @onchange="e => Keep(name, e.Value is true)" /> @name</label>
+            <span class="status-spacer"></span>
+            <button type="button" class="btn ghost icon small" aria-label="@($"Move {name} up")" disabled="@(index == 0)" @onclick="() => Move(index, -1)"><Icon Name="collapse" /></button>
+            <button type="button" class="btn ghost icon small" aria-label="@($"Move {name} down")" disabled="@(index == _order.Count - 1)" @onclick="() => Move(index, 1)"><Icon Name="expand" /></button>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly HashSet<string> _keep = [];
+    private List<string> _order = [];
+
+    protected override void OnInitialized()
+    {
+        var kept = Names("keep");
+        var all = Columns.Select(c => c.Name).ToList();
+        _order = kept.Where(all.Contains).Concat(all.Where(n => !kept.Contains(n))).ToList();
+        foreach (var name in kept.Count > 0 ? kept : all)
+        {
+            _keep.Add(name);
+        }
+    }
+
+    public override Dictionary<string, object?> Read()
+    {
+        var keep = _order.Where(_keep.Contains).ToList();
+        if (keep.Count == 0)
+        {
+            throw new StepFormException("Keep at least one column.");
+        }
+        return new() { ["keep"] = keep };
+    }
+
+    private void Keep(string name, bool on)
+    {
+        if (on)
+        {
+            _keep.Add(name);
+        }
+        else
+        {
+            _keep.Remove(name);
+        }
+    }
+
+    private void Move(int index, int by) => (_order[index], _order[index + by]) = (_order[index + by], _order[index]);
+}

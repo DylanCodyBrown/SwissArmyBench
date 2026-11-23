@@ -1,0 +1,115 @@
+@* A step's editor (the classic stepForms.ts editStep): the form for its kind in the app's dialog, Add step or Save
+   step, the form's own problem or the server's refusal shown in place. Enter saves; Escape closes. *@
+
+<AppDialog Title="@Heading" OnClose="OnClose">
+    <ChildContent>
+        <div class="step-editor" @onkeydown="KeyAsync">
+            @switch (Kind)
+            {
+                case "filter":
+                    <FilterForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "sort":
+                    <SortForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "columns":
+                    <ColumnsForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "rename":
+                    <RenameForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "group_by":
+                    <GroupByForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "limit":
+                    <LimitForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "transform":
+                    <TransformForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "bucket":
+                    <BucketForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                case "categorize":
+                    <CategorizeForm @ref="_form" Columns="Columns" Start="Start" Grid="@Grid" Index="Index" />
+                    break;
+                default:
+                    <p>@StepKinds.Label(Kind) steps are edited in the classic front end.</p>
+                    break;
+            }
+            @if (_problem is not null)
+            {
+                <ErrorNote Words="@_problem" />
+            }
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="SaveAsync" disabled="@_saving">@(Index is null ? "Add step" : "Save step")</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private StepFormBase? _form;
+    private string? _problem;
+    private Exception? _error;
+    private bool _saving;
+
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Grid { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<GridColumn> Columns { get; set; } = [];
+
+    [Parameter]
+    public System.Text.Json.JsonElement Start { get; set; }
+
+    /// <summary>The step edited, or null for a new one at the end.</summary>
+    [Parameter]
+    public int? Index { get; set; }
+
+    /// <summary>Saves the parameters (the page adds the step, or saves the steps with this one changed).</summary>
+    [Parameter, EditorRequired]
+    public Func<Dictionary<string, object?>, Task> Save { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Heading => $"{(Index is null ? "Add" : "Edit")} step: {StepKinds.Label(Kind)}";
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+        _saving = true;
+        try
+        {
+            await Save(_form.Read());
+            _problem = null;
+            await OnClose.InvokeAsync();
+        }
+        catch (StepFormException problem)
+        {
+            _problem = problem.Message;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _saving = false;
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SaveAsync();
+        }
+    }
+}

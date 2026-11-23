@@ -1,7 +1,8 @@
 @* The Grids page (the classic home page's grids): a tab per open table, "+" the New query page; the active grid
-   (AG Grid, rows paged from the server), the steps strip under its title (each step in plain words, on or off,
-   removed; Undo and Redo), and a column's card on a header click (its numbers and its tools: sort, keep rows,
-   remove, rename). ?grid= names the tab shown. *@
+   (AG Grid, rows paged from the server, selected like Excel), the ribbon above it (Table, Transformations: the
+   steps strip, Column: the selected columns), the right-click menus on cells and headers, a step's editor, and a
+   column's card on a header click. The selection's numbers are in the status bar. ?grid= names the tab shown.
+   The tools are in GridsPage.Tools.cs. *@
 @page "/grids"
 
 <section class="area-page grids-page">
@@ -33,9 +34,14 @@
             <button type="button" class="btn small" disabled="@(!info.CanRedo)" @onclick="RedoAsync"><Icon Name="redo" /> Redo</button>
             <button type="button" class="btn small ghost" @onclick="CloseTableAsync"><Icon Name="close" /> Close table</button>
         </div>
-        <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" />
+        <Ribbon Info="info" Selection="_selection" ConnectionLabel="@ConnectionLabel" OnTool="RunToolAsync">
+            <Steps>
+                <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditStep" />
+            </Steps>
+        </Ribbon>
         <div class="grid-body">
-            <AgGrid @ref="_grid" GridId="@info.Grid" Columns="info.Columns" OnHeaderClicked="ShowColumn" OnCounted="Counted" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed" />
+            <AgGrid @ref="_grid" GridId="@info.Grid" Columns="info.Columns" OnHeaderClicked="ShowColumn" OnCounted="Counted" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed"
+                    OnSelectionChanged="SelectionChangedAsync" OnCellMenu="CellMenu" OnHeaderMenu="HeaderMenu" OnSaid="Say" />
             @if (_column is { } column)
             {
                 <ColumnCard Grid="@info.Grid" Column="@column" Type="@TypeOf(column)" AllColumns="info.Columns.Select(c => c.Name).ToList()" OnStep="AddStepAsync" OnClose="() => _column = null" />
@@ -47,3 +53,34 @@
         <div class="loading-block">Loading the table…</div>
     }
 </section>
+@if (_info is { } open)
+{
+    @if (_editor is { } editor)
+    {
+        <StepEditor Kind="@editor.Kind" Grid="@open.Grid" Columns="EnteringColumns(editor.Index)" Start="editor.Start" Index="editor.Index" Save="SaveStepAsync" OnClose="() => _editor = null" />
+    }
+    @switch (_dialog)
+    {
+        case "matching":
+            <MatchingDialog Settings="open.Settings ?? new TextMatching(true, false, false, false)" Save="SaveMatchingAsync" OnClose="CloseDialog" />
+            break;
+        case "export":
+            <ExportDialog Info="open" Selection="_selection.Descriptor" OnClose="CloseDialog" />
+            break;
+        case "profile":
+            <TableProfileDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
+            break;
+        case "keyfinder":
+            <KeyFinderDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
+            break;
+        case "connection":
+            <ConnectionDialog Table="@open.Dataset" Grid="@open.Grid" Current="_connection" OnSwapped="SwappedAsync" OnClose="CloseDialog" />
+            break;
+        default:
+            break;
+    }
+    @if (_menu is { } menu)
+    {
+        <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+    }
+}

@@ -1,0 +1,12 @@
+@* One ribbon button: its icon, its words (folded away when the row is narrow), greyed out with its reason. *@
+<button type="button" class="btn small ribbon-btn" data-tool="@Tool.Id" title="@(Tool.Disabled ?? Tool.Title ?? Tool.Label)" aria-label="@Tool.Label" disabled="@(Tool.Disabled is not null)" @onclick="() => OnRun.InvokeAsync(Tool.Id)">
+    <Icon Name="@Tool.Icon" /><span class="ribbon-label">@Tool.Label</span>
+</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public RibbonTool Tool { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<string> OnRun { get; set; }
+}

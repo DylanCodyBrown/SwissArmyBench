@@ -46,7 +46,7 @@ def test_add_a_connection_then_open_its_table_as_a_grid(browser: Browser, server
     expect(page.locator(".ag-row").first).to_be_visible()
     expect(page.locator(".grid-title-row")).to_contain_text("250 rows")
 
-    page.click(".ag-header-cell[col-id=status] .ag-header-cell-label")
+    page.click(".ag-header-cell[col-id=status] .sab-header-name")
     expect(page.locator(".column-card")).to_contain_text("Distinct")
     page.select_option(".keep-rows select", "eq")
     page.fill(".keep-rows input", "open")

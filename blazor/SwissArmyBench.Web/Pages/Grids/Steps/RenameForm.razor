@@ -1,0 +1,39 @@
+@* Rename: a new name per column (the picked columns only, when the Column row or a header asked). *@
+@inherits StepFormBase
+
+<div class="form-grid step-form">
+    @foreach (var name in _shown)
+    {
+        <label class="field"><span>@name</span>
+            <input type="text" placeholder="@name" aria-label="@($"New name for {name}")" value="@_names[name]" @onchange="e => _names[name] = e.Value?.ToString() ?? string.Empty" />
+        </label>
+    }
+</div>
+
+@code {
+    private readonly Dictionary<string, string> _names = [];
+    private List<string> _shown = [];
+
+    protected override void OnInitialized()
+    {
+        var mapping = Start.ValueKind == System.Text.Json.JsonValueKind.Object && Start.TryGetProperty("mapping", out var given) && given.ValueKind == System.Text.Json.JsonValueKind.Object
+            ? given.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? string.Empty)
+            : [];
+        var only = Names("only");
+        _shown = Columns.Select(c => c.Name).Where(n => only.Count == 0 || only.Contains(n) || mapping.ContainsKey(n)).ToList();
+        foreach (var name in _shown)
+        {
+            _names[name] = mapping.GetValueOrDefault(name, string.Empty);
+        }
+    }
+
+    public override Dictionary<string, object?> Read()
+    {
+        var mapping = _names.Where(n => n.Value.Trim().Length > 0 && n.Value.Trim() != n.Key).ToDictionary(n => n.Key, n => n.Value.Trim());
+        if (mapping.Count == 0)
+        {
+            throw new StepFormException("Type a new name for a column.");
+        }
+        return new() { ["mapping"] = mapping };
+    }
+}

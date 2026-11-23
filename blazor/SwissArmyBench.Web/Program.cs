@@ -62,5 +62,6 @@ public static class Program
         services.AddScoped<RailState>();
         services.AddScoped<Notes>();
         services.AddScoped<Dialogs>();
+        services.AddScoped<GridStatus>();
     }
 }

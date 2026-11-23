@@ -1,0 +1,392 @@
+using System.Globalization;
+using System.Text.Json;
+
+using Microsoft.JSInterop;
+
+using SwissArmyBench.Web.Api;
+using SwissArmyBench.Web.Api.Grids;
+using SwissArmyBench.Web.Components;
+
+namespace SwissArmyBench.Web.Pages.Grids;
+
+/// <summary>
+/// The Grids page's tools (the classic ribbon.ts, cellMenu.ts and stepForms.ts's editStep): what each ribbon button
+/// and menu line does. Every change lands as a step (filter, sort, columns...), so it can be turned off, edited and
+/// exported like any other.
+/// </summary>
+public partial class GridsPage
+{
+    // A filter list should stay short: the selection's values are read from the loaded rows, up to this many.
+    private const int MostValues = 500;
+
+    private GridSelection _selection = GridSelection.None;
+    private StepRequest? _editor;
+    private string? _dialog;
+    private OpenMenu? _menu;
+    private TableConnection? _connection;
+    private int _statsAsked;
+
+    private string ConnectionLabel => _connection switch
+    {
+        null => "Connection…",
+        { Connection: { } name } => $"Connection: {name}",
+        { How: "query" } => "Connection: Query",
+        _ => "Connection…",
+    };
+
+    /// <summary>The columns entering a step: an edited step offers what it sees, a new one the view's.</summary>
+    private IReadOnlyList<GridColumn> EnteringColumns(int? index)
+    {
+        var stages = _info?.StageColumns;
+        if (index is { } at && stages is { Count: > 0 })
+        {
+            return stages[Math.Min(at, stages.Count - 1)];
+        }
+        return _info?.Columns ?? [];
+    }
+
+    private IReadOnlyList<string> Target => _selection.Target;
+
+    private async Task RunToolAsync(string tool)
+    {
+        if (_info is not { } info)
+        {
+            return;
+        }
+        var target = Target;
+        var one = target.Count == 1 ? target[0] : null;
+        switch (tool)
+        {
+            case "matching" or "export" or "profile" or "keyfinder" or "connection":
+                _dialog = tool;
+                break;
+            case "filter":
+                OpenEditor("filter", target.Count > 0 ? new { column = target[0] } : null);
+                break;
+            case "distinct":
+                await AddStepAsync(("distinct", new Dictionary<string, object>()));
+                break;
+            case "sort" or "columns" or "rename" or "group_by" or "limit" or "transform":
+                OpenEditor(tool, null);
+                break;
+            case "autowidth":
+                await AutoSizeAsync([]);
+                break;
+            case "relationships":
+                Nav.NavigateTo("erd");
+                break;
+            case "variant":
+                await MakeVariantAsync(info.Dataset);
+                break;
+            default:
+                await RunColumnToolAsync(tool, target, one);
+                break;
+        }
+    }
+
+    /// <summary>The Column row's tools, on the selected columns (or the clicked cell's).</summary>
+    private async Task RunColumnToolAsync(string tool, IReadOnlyList<string> target, string? one)
+    {
+        switch (tool)
+        {
+            case "col-sort-asc":
+                await SortAsync(target, "asc");
+                break;
+            case "col-sort-desc":
+                await SortAsync(target, "desc");
+                break;
+            case "col-filter":
+                OpenEditor("filter", new { column = one });
+                break;
+            case "col-rename":
+                OpenEditor("rename", new { only = target });
+                break;
+            case "col-autowidth":
+                await AutoSizeAsync(target);
+                break;
+            case "col-remove":
+                await KeepColumnsAsync(AllColumns().Where(c => !target.Contains(c)).ToList());
+                break;
+            case "col-keep":
+                await KeepColumnsAsync(target);
+                break;
+            case "col-clean":
+                OpenEditor("transform", new { columns = target.Where(c => ColumnTypes.IsText(TypeOf(c))).ToList() });
+                break;
+            case "col-bucket":
+                OpenEditor("bucket", new { column = one });
+                break;
+            case "col-categorize":
+                OpenEditor("categorize", new { column = one });
+                break;
+            case "col-group":
+                OpenEditor("group_by", new { keys = target });
+                break;
+            case "col-profile":
+                _column = one;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void OpenEditor(string kind, object? preset)
+    {
+        var start = preset is null ? JsonSerializer.SerializeToElement(new Dictionary<string, object>()) : JsonSerializer.SerializeToElement(preset, ApiClient.Json);
+        _editor = new StepRequest(kind, start, null);
+    }
+
+    private void EditStep(int index)
+    {
+        if (_info?.Steps is { } steps && index < steps.Count)
+        {
+            _editor = new StepRequest(steps[index].Kind, steps[index].Params, index);
+        }
+    }
+
+    private void CloseDialog() => _dialog = null;
+
+    private IReadOnlyList<string> AllColumns() => _info?.Columns.Select(c => c.Name).ToList() ?? [];
+
+    /// <summary>A step's editor saved: a new step at the end, or the edited one in its place.</summary>
+    private async Task SaveStepAsync(Dictionary<string, object?> parameters)
+    {
+        if (_editor is not { } editor || _info is not { } info)
+        {
+            return;
+        }
+        if (editor.Index is { } index)
+        {
+            var edited = JsonSerializer.SerializeToElement(parameters, ApiClient.Json);
+            var steps = info.Steps.Select((step, at) => at == index ? step with { Params = edited } : step).ToList();
+            await ChangedOrThrowAsync(() => Grids.SaveStepsAsync(info.Grid, steps));
+            return;
+        }
+        await ChangedOrThrowAsync(() => Grids.AddStepAsync(info.Grid, editor.Kind, parameters));
+    }
+
+    private Task SaveMatchingAsync(TextMatching settings) =>
+        ChangedOrThrowAsync(() => Grids.SaveStepsAsync(_info!.Grid, _info.Steps, settings));
+
+    /// <summary>A change whose refusal the caller shows in place (a step's editor, the matching dialog).</summary>
+    private async Task ChangedOrThrowAsync(Func<Task<GridInfo>> change)
+    {
+        _info = await change();
+        if (_grid is not null)
+        {
+            await _grid.RefreshAsync(_info.Columns);
+        }
+        _tabs = await Grids.ListAsync();
+        StateHasChanged();
+    }
+
+    private Task SortAsync(IReadOnlyList<string> columns, string direction) =>
+        AddStepAsync(("sort", new { keys = columns.Select(c => new[] { c, direction }).ToList() }));
+
+    private async Task KeepColumnsAsync(IReadOnlyList<string> keep)
+    {
+        if (keep.Count == 0)
+        {
+            _ = Notes.SayAsync("That would remove every column.");
+            return;
+        }
+        var gone = AllColumns().Count - keep.Count;
+        await AddStepAsync(("columns", new { keep }));
+        if (gone > 0)
+        {
+            _ = Notes.SayAsync(gone == 1 ? "Removed a column: Undo brings it back." : $"Removed {gone} columns: Undo brings them back.");
+        }
+    }
+
+    private async Task AutoSizeAsync(IReadOnlyList<string> columns)
+    {
+        if (_grid is not null)
+        {
+            await _grid.AutoSizeAsync(columns);
+        }
+    }
+
+    private async Task MakeVariantAsync(string dataset)
+    {
+        try
+        {
+            var made = await Grids.SandboxVariantAsync(dataset);
+            _ = Notes.SayAsync($"In the project's sandbox: {made.Title ?? made.Added ?? dataset}.");
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task LoadConnectionAsync()
+    {
+        if (_info is not { } info)
+        {
+            return;
+        }
+        try
+        {
+            _connection = await Grids.ConnectionOfAsync(info.Dataset);
+        }
+        catch (ApiException)
+        {
+            _connection = null; // the label says Connection… and the dialog asks again
+        }
+    }
+
+    private async Task SwappedAsync()
+    {
+        await ReloadInfoAsync();
+        await LoadConnectionAsync();
+        if (_grid is not null && _info is not null)
+        {
+            await _grid.RefreshAsync(_info.Columns);
+        }
+    }
+
+    // ===== the selection and its numbers =====
+
+    private async Task SelectionChangedAsync(GridSelection selection)
+    {
+        _selection = selection;
+        var mine = ++_statsAsked;
+        if (selection.Descriptor is not { } descriptor || _active is null)
+        {
+            Status.Set(null);
+            return;
+        }
+        try
+        {
+            var stats = await Grids.SelectionStatsAsync(_active, descriptor);
+            if (mine == _statsAsked)
+            {
+                Status.Set(StatsWords(stats));
+            }
+        }
+        catch (ApiException)
+        {
+            // The status bar keeps its last numbers.
+        }
+    }
+
+    /// <summary>Excel's status bar: Count, and Sum and Average over the numbers (not over identifiers).</summary>
+    private static string StatsWords(SelectionStats stats)
+    {
+        var words = new List<string> { $"Count {stats.Count.ToString("N0", CultureInfo.InvariantCulture)}" };
+        var idOnly = stats.IdLike is { Count: > 0 } && stats.Sum is null;
+        if (stats.Numeric > 0 && !idOnly && stats.Sum is { } sum)
+        {
+            words.Add($"Sum {sum.ToString("N2", CultureInfo.InvariantCulture)}");
+            if (stats.Mean is { } mean)
+            {
+                words.Add($"Average {mean.ToString("N2", CultureInfo.InvariantCulture)}");
+            }
+        }
+        return string.Join(" · ", words);
+    }
+
+    private void Say(string words) => _ = Notes.SayAsync(words);
+
+    // ===== the right-click menus (the classic cellMenu.ts) =====
+
+    private void CellMenu(GridPoint at)
+    {
+        var where = $"{at.Column}, row {(at.Row + 1).ToString("N0", CultureInfo.InvariantCulture)}";
+        _menu = new OpenMenu(where,
+        [
+            new("Keep these", "filter", () => FilterByCellsAsync(at.Column, keep: true)),
+            new("Exclude these", "exclude", () => FilterByCellsAsync(at.Column, keep: false)),
+            new("Filter…", "filter", () => Open("filter", new { column = at.Column })),
+            MenuEntry.Separator,
+            new("Copy", "copy", () => CopyAsync("plain")),
+            new("Copy with headers", "copy", () => CopyAsync("headers")),
+            new("Copy as Markdown", "copy", () => CopyAsync("markdown")),
+            MenuEntry.Separator,
+            new("Sort A→Z", "sortup", () => SortAsync([at.Column], "asc")),
+            new("Sort Z→A", "sortdown", () => SortAsync([at.Column], "desc")),
+            new("Profile", "profile", () => ShowProfile(at.Column)),
+        ], at.X, at.Y);
+    }
+
+    private void HeaderMenu(GridPoint at)
+    {
+        var columns = Target.Contains(at.Column) ? Target : [at.Column];
+        _menu = new OpenMenu(at.Column,
+        [
+            new("Sort A→Z", "sortup", () => SortAsync(columns, "asc")),
+            new("Sort Z→A", "sortdown", () => SortAsync(columns, "desc")),
+            new("Filter…", "filter", () => Open("filter", new { column = at.Column })),
+            new("Rename…", "rename", () => Open("rename", new { only = columns })),
+            new("Remove", "trash", () => KeepColumnsAsync(AllColumns().Where(c => !columns.Contains(c)).ToList())),
+            new("Keep only", "columns", () => KeepColumnsAsync(columns)),
+            new("Group by…", "group", () => Open("group_by", new { keys = columns })),
+            MenuEntry.Separator,
+            new("Profile", "profile", () => ShowProfile(at.Column)),
+        ], at.X, at.Y);
+    }
+
+    private Task Open(string kind, object preset)
+    {
+        OpenEditor(kind, preset);
+        return Task.CompletedTask;
+    }
+
+    private Task ShowProfile(string column)
+    {
+        _column = column;
+        return Task.CompletedTask;
+    }
+
+    private async Task CopyAsync(string style)
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+        try
+        {
+            if (await _grid.CopyAsync(style) is { } words)
+            {
+                _ = Notes.SayAsync(words);
+            }
+        }
+        catch (JSException error)
+        {
+            _ = Notes.SayAsync($"Could not copy: {error.Message}");
+        }
+    }
+
+    /// <summary>Keep (or exclude) the rows whose value in the column is one of the selected cells' values.</summary>
+    private async Task FilterByCellsAsync(string column, bool keep)
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+        var values = (await _grid.ValuesAsync(column)).Take(MostValues).ToList();
+        var present = values.Where(v => v.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined).ToList();
+        object parameters;
+        if (present.Count == 0)
+        {
+            parameters = new { column, op = keep ? "blank" : "not_blank" };
+        }
+        else if (present.Count == 1 && present[0].ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            parameters = new { column, op = keep == present[0].GetBoolean() ? "true" : "false" };
+        }
+        else if (present.Count == 1)
+        {
+            parameters = new { column, op = keep ? "eq" : "ne", value = present[0] };
+        }
+        else
+        {
+            parameters = new { column, op = keep ? "in" : "not_in", values = present };
+        }
+        if (present.Count > 0 && present.Count < values.Count)
+        {
+            _ = Notes.SayAsync("Blank cells left out of the filter.");
+        }
+        await AddStepAsync(("filter", parameters));
+    }
+}

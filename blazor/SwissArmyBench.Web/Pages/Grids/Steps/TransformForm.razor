@@ -1,0 +1,60 @@
+@* Clean text: trim or change case, on every text column or the ones ticked. *@
+@inherits StepFormBase
+
+<div class="list-editor step-form">
+    <label class="field"><span>Clean-up</span>
+        <select aria-label="Clean-up" @bind="_fn">
+            <option value="trim_both">Trim both ends</option>
+            <option value="trim_left">Trim left</option>
+            <option value="trim_right">Trim right</option>
+            <option value="upper">UPPER CASE</option>
+            <option value="lower">lower case</option>
+        </select>
+    </label>
+    <label class="check"><input type="checkbox" @bind="_every" /> Every text column</label>
+    @if (!_every)
+    {
+        <div class="form-grid">
+            @foreach (var column in Columns.Where(c => ColumnTypes.IsText(c.Type)))
+            {
+                var name = column.Name;
+                <label class="check"><input type="checkbox" checked="@_picked.Contains(name)" @onchange="e => Pick(name, e.Value is true)" /> @name</label>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private readonly HashSet<string> _picked = [];
+    private string _fn = "trim_both";
+    private bool _every = true;
+
+    protected override void OnInitialized()
+    {
+        _fn = Text("fn", _fn);
+        var picked = Names("columns");
+        _every = picked.Count == 0;
+        _picked.UnionWith(picked);
+    }
+
+    public override Dictionary<string, object?> Read()
+    {
+        if (!_every && _picked.Count == 0)
+        {
+            throw new StepFormException("Tick a text column, or Every text column.");
+        }
+        return new() { ["fn"] = _fn, ["columns"] = _every ? "*text" : _picked.ToList() };
+    }
+
+    private void Pick(string name, bool on)
+    {
+        if (on)
+        {
+            _picked.Add(name);
+        }
+        else
+        {
+            _picked.Remove(name);
+        }
+    }
+}

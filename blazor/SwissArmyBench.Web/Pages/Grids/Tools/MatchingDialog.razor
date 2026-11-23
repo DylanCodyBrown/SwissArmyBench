@@ -1,0 +1,44 @@
+@* How this table's text compares (the classic textMatching.ts): each switch saved with the grid's steps at once, so
+   the filters, the categorize rules and the exported code compare text the same way. *@
+
+<AppDialog Title="Text matching" OnClose="OnClose">
+    <ChildContent>
+        <div class="list-editor">
+            <label class="check" title="Oslo ≠ oslo"><input type="checkbox" checked="@Settings.CaseSensitive" @onchange="e => SetAsync(Settings with { CaseSensitive = e.Value is true })" /> <strong>Match case</strong></label>
+            <label class="check" title="Acme% or %Corp"><input type="checkbox" checked="@Settings.Wildcards" @onchange="e => SetAsync(Settings with { Wildcards = e.Value is true })" /> <strong>Wildcards</strong></label>
+            <label class="check" title="' Rome ' = 'Rome'"><input type="checkbox" checked="@Settings.TrimSpaces" @onchange="e => SetAsync(Settings with { TrimSpaces = e.Value is true })" /> <strong>Ignore spaces at the ends</strong></label>
+            <label class="check" title="'' is blank"><input type="checkbox" checked="@Settings.EmptyIsBlank" @onchange="e => SetAsync(Settings with { EmptyIsBlank = e.Value is true })" /> <strong>Empty text is blank</strong></label>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public TextMatching Settings { get; set; } = default!;
+
+    /// <summary>Saves the new settings with the grid's steps.</summary>
+    [Parameter, EditorRequired]
+    public Func<TextMatching, Task> Save { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private async Task SetAsync(TextMatching settings)
+    {
+        try
+        {
+            await Save(settings);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

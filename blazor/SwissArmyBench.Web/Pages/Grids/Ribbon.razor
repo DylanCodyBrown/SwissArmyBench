@@ -1,0 +1,31 @@
+@* The grid's toolbar (the classic ribbon.ts), rows labelled by what they act on: Table (the whole view),
+   Transformations (the steps strip), Column (the selected columns, named in its caption). A row too narrow for its
+   buttons folds their words away from the end, icons kept. Logic in Ribbon.razor.cs. *@
+
+<div class="ribbon" aria-label="Grid tools">
+    <div class="ribbon-group" role="toolbar" aria-label="Table tools">
+        <div class="ribbon-caption"><strong>Table</strong></div>
+        <div class="ribbon-tools">
+            @foreach (var tool in TableTools)
+            {
+                <RibbonButton Tool="tool" OnRun="OnTool" />
+            }
+        </div>
+    </div>
+    @if (Steps is not null)
+    {
+        <div class="ribbon-group" role="toolbar" aria-label="Transformations">
+            <div class="ribbon-caption"><strong>Transformations</strong></div>
+            <div class="ribbon-tools">@Steps</div>
+        </div>
+    }
+    <div class="ribbon-group" role="toolbar" aria-label="@($"Column tools: {ColumnCaption}")">
+        <div class="ribbon-caption" title="@ColumnCaption"><strong>Column</strong><span class="ribbon-target">@ColumnCaption</span></div>
+        <div class="ribbon-tools">
+            @foreach (var tool in ColumnTools)
+            {
+                <RibbonButton Tool="tool" OnRun="OnTool" />
+            }
+        </div>
+    </div>
+</div>

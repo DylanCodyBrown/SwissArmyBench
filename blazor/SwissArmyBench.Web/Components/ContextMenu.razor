@@ -1,0 +1,58 @@
+@* A menu at the pointer (the classic dom.ts showMenu: the right-click menus): its heading, its lines, a click anywhere
+   else or Escape closes it. *@
+<div class="menu-shade" @onclick="OnClose" @oncontextmenu="OnClose" @oncontextmenu:preventDefault="true"></div>
+<div class="menu context-menu" role="menu" aria-label="@Title" style="@Place" @onkeydown="KeyAsync">
+    @if (Title.Length > 0)
+    {
+        <div class="menu-title">@Title</div>
+    }
+    @foreach (var entry in Entries)
+    {
+        if (entry.IsSeparator)
+        {
+            <div class="menu-separator" role="separator"></div>
+        }
+        else
+        {
+            <button type="button" class="menu-item" role="menuitem" disabled="@(entry.Disabled is not null)" title="@entry.Disabled" @onclick="() => RunAsync(entry)">
+                <Icon Name="@entry.Icon" /> @entry.Label
+            </button>
+        }
+    }
+</div>
+
+@code {
+    // The menu keeps clear of the window's right and bottom edges by this much (a menu is about this wide).
+    private const double MenuWidth = 240;
+
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MenuEntry> Entries { get; set; } = [];
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Place => FormattableString.Invariant($"left: min({X}px, calc(100vw - {MenuWidth}px)); top: min({Y}px, calc(100vh - {Entries.Count * 30 + 40}px));");
+
+    private async Task RunAsync(MenuEntry entry)
+    {
+        await OnClose.InvokeAsync();
+        await entry.Run();
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}
