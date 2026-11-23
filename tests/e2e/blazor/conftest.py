@@ -50,6 +50,9 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
     if info is None:
         process.kill()
         raise AssertionError("the server did not start")
+    # This branch's server, not another checkout's installed one (run the tests with
+    # PYTHONPATH=<checkout>/src): only this branch answers GET /app/frontend and serves /blazor/.
+    assert call(info, "GET", "/app/frontend")["frontend"] == "classic", "a server without the Blazor switch"
     yield info | {"tmp": tmp}
     process.terminate()
     process.wait(timeout=20)

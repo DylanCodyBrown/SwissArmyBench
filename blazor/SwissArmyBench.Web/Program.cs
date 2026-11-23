@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.FluentUI.AspNetCore.Components;
 
+using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.App;
 using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
@@ -12,7 +13,6 @@ using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
-using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web;
