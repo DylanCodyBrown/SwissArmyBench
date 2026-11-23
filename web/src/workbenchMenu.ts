@@ -6,7 +6,7 @@
  *   back to its button; a click outside closes it. An entry with nothing to act on is disabled and
  *   its tooltip says why (design principle 5.1)
  */
-import { extraMenuItems, h, icon } from "./dom";
+import { clear, type MenuEntry as Shown, extraMenuItems, h, icon, showEntries } from "./dom";
 
 export interface MenuItem {
   label: string;
@@ -26,91 +26,72 @@ export interface MenuItem {
 /** null: a line between entries. */
 export type MenuEntry = MenuItem | null;
 
-let shown: { menu: HTMLElement; away: (e: Event) => void } | null = null;
+let shown: HTMLElement | null = null;
 
 export function closeMenu(): void {
-  if (!shown) return;
-  shown.menu.remove();
-  document.removeEventListener("mousedown", shown.away, true);
+  shown?.remove();
   shown = null;
 }
 
-/** Open a menu under (or over) its button; `beside`: to its right, level with it (the rail's menus). */
+/** Open a menu under (or over) its button; `beside`: to its right, level with it (the rail's menus). It is
+ *  the app's one menu (dom.ts showEntries) in the Workbench's look: its entries' keys at the right, a kind's
+ *  colour on an icon, headings between groups. */
 export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[], options: { align?: "left" | "right"; above?: boolean; beside?: boolean } = {}): HTMLElement {
   closeMenu();
-  document.querySelector(".menu")?.remove(); // another module's menu
   // Opened by a right-click (a tab's menu): beta mode's "Leave a note…" at its end.
   const extra = extraMenuItems();
   if (extra.length) entries = [...entries, null, ...extra.map((e): MenuItem => ({ label: e.label, icon: e.icon, run: e.run }))];
-  const menu = h("div", { class: "menu wb-menu", role: "menu", "aria-label": label });
-  let lastWasLine = true;
+  // A line between entries only: never first, last or twice.
+  const rows: Shown[] = [];
+  const from = new Map<Shown, MenuItem>();
+  let line = false;
   for (const entry of entries) {
     if (entry === null) {
-      if (!lastWasLine) menu.append(h("div", { class: "wb-menu-line", role: "separator" }));
-      lastWasLine = true;
+      line = rows.length > 0;
       continue;
     }
-    lastWasLine = false;
-    if (entry.heading) {
-      menu.append(h("div", { class: "menu-label" }, entry.label));
-      continue;
-    }
-    const item = h(
-      "button",
-      {
-        type: "button",
-        role: "menuitem",
-        class: entry.mark ? `km-${entry.mark}` : undefined,
-        disabled: entry.disabled,
-        title: entry.title,
-        "aria-keyshortcuts": entry.keys,
-        onclick: () => {
-          closeMenu();
-          anchor.setAttribute("aria-expanded", "false");
-          entry.run?.();
-        },
-      },
-      entry.icon ? icon(entry.icon) : h("span", { class: "wb-menu-gap", "aria-hidden": "true" }),
-      h("span", { class: "wb-menu-text" }, entry.label),
-      // The keys are seen, not read into the entry's name (aria-keyshortcuts carries them).
-      entry.keys ? h("kbd", { "aria-hidden": "true" }, entry.keys) : null,
-    );
-    menu.append(item);
+    const row: Shown = { label: entry.label, run: entry.run, disabled: entry.disabled, why: entry.title, heading: entry.heading, group: line };
+    line = false;
+    from.set(row, entry);
+    rows.push(row);
   }
-  if (menu.lastElementChild?.classList.contains("wb-menu-line")) menu.lastElementChild.remove();
-  document.body.append(menu);
-  const box = anchor.getBoundingClientRect();
-  const left = options.beside ? box.right + 4 : options.align === "right" ? box.right - menu.offsetWidth : box.left;
-  menu.style.left = `${Math.max(8, Math.min(left, innerWidth - menu.offsetWidth - 8))}px`;
-  if (options.beside) menu.style.top = `${Math.max(8, Math.min(box.top, innerHeight - menu.offsetHeight - 8))}px`;
-  else if (options.above) menu.style.top = `${Math.max(8, box.top - menu.offsetHeight - 4)}px`;
-  else menu.style.top = `${Math.min(box.bottom + 4, innerHeight - menu.offsetHeight - 8)}px`;
-  anchor.setAttribute("aria-expanded", "true");
-  const items = (): HTMLButtonElement[] => [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-  items()[0]?.focus();
-  menu.addEventListener("keydown", (e) => {
-    const list = items();
-    const at = list.indexOf(document.activeElement as HTMLButtonElement);
-    if (e.key === "ArrowDown") list[(at + 1) % list.length]?.focus();
-    else if (e.key === "ArrowUp") list[(at - 1 + list.length) % list.length]?.focus();
-    else if (e.key === "Home") list[0]?.focus();
-    else if (e.key === "End") list[list.length - 1]?.focus();
-    else if (e.key === "Escape" || e.key === "Tab") {
-      closeMenu();
+  const menu = showEntries(0, 0, label, rows, {
+    menu: "menu wb-menu",
+    rule: "wb-menu-line",
+    heading: false,
+    anchor,
+    closing: () => {
+      shown = null;
       anchor.setAttribute("aria-expanded", "false");
-      if (e.key === "Escape") anchor.focus();
-      else return;
-    } else return;
-    e.preventDefault();
-    e.stopPropagation();
+    },
+    place: (made) => {
+      const box = anchor.getBoundingClientRect();
+      const left = options.beside ? box.right + 4 : options.align === "right" ? box.right - made.offsetWidth : box.left;
+      const top = options.beside
+        ? Math.max(8, Math.min(box.top, innerHeight - made.offsetHeight - 8))
+        : options.above
+          ? Math.max(8, box.top - made.offsetHeight - 4)
+          : Math.min(box.bottom + 4, innerHeight - made.offsetHeight - 8);
+      return { left: Math.max(8, Math.min(left, innerWidth - made.offsetWidth - 8)), top };
+    },
+    dress: (row, shownAs) => {
+      const entry = from.get(shownAs)!;
+      if (entry.mark) row.className = `km-${entry.mark}`;
+      else row.removeAttribute("class");
+      // "disabled" follows the entry alone: its tooltip may say what it adds, not only why it is off.
+      row.disabled = Boolean(entry.disabled);
+      if (entry.keys) row.setAttribute("aria-keyshortcuts", entry.keys);
+      clear(
+        row,
+        entry.icon ? icon(entry.icon) : h("span", { class: "wb-menu-gap", "aria-hidden": "true" }),
+        h("span", { class: "wb-menu-text" }, entry.label),
+        // The keys are seen, not read into the entry's name (aria-keyshortcuts carries them).
+        entry.keys ? h("kbd", { "aria-hidden": "true" }, entry.keys) : null,
+      );
+    },
   });
-  const away = (e: Event): void => {
-    if (menu.contains(e.target as Node) || anchor.contains(e.target as Node)) return;
-    closeMenu();
-    anchor.setAttribute("aria-expanded", "false");
-  };
-  document.addEventListener("mousedown", away, true);
-  shown = { menu, away };
+  anchor.setAttribute("aria-expanded", "true");
+  shown = menu;
   return menu;
 }
 
@@ -119,7 +100,7 @@ export function menuButton(anchor: HTMLButtonElement, label: string, entries: ()
   anchor.setAttribute("aria-haspopup", "menu");
   anchor.setAttribute("aria-expanded", "false");
   anchor.onclick = () => {
-    if (shown && anchor.getAttribute("aria-expanded") === "true") {
+    if (shown?.isConnected && anchor.getAttribute("aria-expanded") === "true") {
       closeMenu();
       anchor.setAttribute("aria-expanded", "false");
       return;

@@ -668,6 +668,8 @@ export interface MenuEntry {
   group?: boolean;
   /** A menu of its own, opened beside it (on a click or resting on it): given where. */
   sub?: (x: number, y: number) => void;
+  /** Not an entry: a small muted label over the entries after it. */
+  heading?: boolean;
 }
 
 export interface MenuLook {
@@ -679,8 +681,16 @@ export interface MenuLook {
   heading?: boolean;
   /** Close on a press outside it (default: yes; no: the caller closes it with its own floating panels). */
   away?: boolean;
-  /** Before an entry's `run`: the caller's own closing (its submenus). */
+  /** Before an entry's `run`, and when Escape or a press outside closes it: the caller's own closing (its
+   *  submenus, its button's state). */
   closing?: () => void;
+  /** The button it opened from: a press on it is not a press outside, Escape gives it the focus back and Tab
+   *  closes the menu on its way on. */
+  anchor?: HTMLElement;
+  /** Where it goes, once it can be measured (default: at x and y, kept inside the window). */
+  place?: (menu: HTMLElement) => { left: number; top: number };
+  /** Each entry's button as it is made: the caller's own contents and attributes (the Workbench's menus). */
+  dress?: (row: HTMLButtonElement, entry: MenuEntry) => void;
 }
 
 /** The app's one menu (the craft review of 2026-11-22: five menus had each their own): at the pointer, kept
@@ -688,12 +698,17 @@ export interface MenuLook {
  *  menu is this one: showMenu's plain entries, and a menu with keys, ticks and submenus (the Canvas's). */
 export function showEntries(x: number, y: number, label: string, entries: MenuEntry[], look: MenuLook = {}): HTMLElement {
   const plain = !look.menu;
-  if (plain) document.querySelector(".menu")?.remove();
+  // A menu that wears the class "menu" is the one such menu open.
+  if ((look.menu ?? "menu").split(" ").includes("menu")) document.querySelector(".menu")?.remove();
   const menu = h("div", { class: look.menu ?? "menu context-menu", role: "menu", "aria-label": label });
   if (look.heading !== false) menu.append(h("div", { class: "menu-label" }, label));
   const close = (): void => menu.remove();
   for (const item of entries) {
     if (item.group) menu.append(h("div", { class: look.rule ?? "menu-rule", role: "separator" }));
+    if (item.heading) {
+      menu.append(h("div", { class: "menu-label" }, item.label));
+      continue;
+    }
     const row = h(
       "button",
       {
@@ -723,24 +738,31 @@ export function showEntries(x: number, y: number, label: string, entries: MenuEn
       item.run?.();
     });
     if (item.sub) row.addEventListener("mouseenter", () => row.click());
+    look.dress?.(row as HTMLButtonElement, item);
     menu.append(row);
   }
   // A modal dialog makes the rest of the page inert: a menu opened from one lives inside it (as toasts do).
   ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body).append(menu);
-  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
+  const placed = look.place?.(menu);
+  menu.style.left = `${placed?.left ?? Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${placed?.top ?? Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
   (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
   if (look.away !== false) {
     setTimeout(() => {
-      const away = (event: Event): void => {
-        if (!menu.contains(event.target as Node)) {
-          close();
-          document.removeEventListener("mousedown", away);
-          document.removeEventListener("contextmenu", away);
-        }
+      // Heard on its way down, so a press that something else keeps to itself still closes the menu.
+      const forget = (): void => {
+        document.removeEventListener("mousedown", away, true);
+        document.removeEventListener("contextmenu", away, true);
       };
-      document.addEventListener("mousedown", away);
-      document.addEventListener("contextmenu", away);
+      const away = (event: Event): void => {
+        if (!menu.isConnected) return forget(); // closed already (an entry, a key, another menu)
+        if (menu.contains(event.target as Node) || look.anchor?.contains(event.target as Node)) return;
+        close();
+        look.closing?.();
+        forget();
+      };
+      document.addEventListener("mousedown", away, true);
+      document.addEventListener("contextmenu", away, true);
     });
   }
   menu.addEventListener("keydown", (event) => {
@@ -749,8 +771,15 @@ export function showEntries(x: number, y: number, label: string, entries: MenuEn
     if (event.key === "Escape") {
       close();
       look.closing?.();
+      look.anchor?.focus();
+    } else if (event.key === "Tab" && look.anchor) {
+      close();
+      look.closing?.();
+      return; // the focus goes on to what is next
     } else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();
     else if (event.key === "ArrowUp") buttons[(at - 1 + buttons.length) % buttons.length]?.focus();
+    else if (event.key === "Home") buttons[0]?.focus();
+    else if (event.key === "End") buttons[buttons.length - 1]?.focus();
     else return;
     event.preventDefault();
     event.stopPropagation(); // the key was the menu's: a page's own arrows and Escape do not also act
