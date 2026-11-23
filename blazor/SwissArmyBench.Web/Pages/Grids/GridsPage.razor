@@ -95,7 +95,7 @@
             <MatchingDialog Settings="open.Settings" Save="SaveMatchingAsync" OnClose="CloseDialog" />
             break;
         case "export":
-            <ExportDialog Info="open" Selection="_selection.Descriptor" OnClose="CloseDialog" />
+            <ExportDialog Info="open" Selection="_selection.Descriptor" SelectedRows="_selectedRows" OnClose="CloseDialog" />
             break;
         case "profile":
             <TableProfileDialog Grid="@open.Grid" Dataset="@open.Dataset" Upto="_previewUpto" OnSend="p => SendCardsAsync(ProfileCards.Table(p, open.Dataset))" OnClose="CloseDialog" />
@@ -114,7 +114,7 @@
             <CodeDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
             break;
         case "connection":
-            <ConnectionDialog Table="@open.Dataset" Grid="@open.Grid" Current="_connection" OnSwapped="SwappedAsync" OnClose="CloseDialog" />
+            <ConnectionDialog Table="@open.Dataset" OnSwapped="SwappedAsync" OnReview="Review" OnUndone="UndoActiveSwapAsync" OnClose="CloseDialog" />
             break;
         case "relationships":
             <RelationshipsDialog Grid="@open.Grid" OnClose="CloseDialog" />
@@ -149,6 +149,14 @@
 @if (_sheets is { } asking)
 {
     <SheetsDialog File="@asking.File" Sheets="asking.Sheets" OnPicked="SheetsPicked" />
+}
+@if (_reviewing is { } reviewing)
+{
+    <ConnectionSqlDialog To="@reviewing.To" Tables="reviewing.Tables" Sql="@reviewing.Sql" OnSwapped="SwappedAsync" OnClose="ReviewedAsync" />
+}
+@if (_repointing is { } repointing)
+{
+    <RepointDialog From="@repointing.From" To="@repointing.To" References="repointing.References" OnClose="() => _repointing = null" />
 }
 @if (_editing is { } editing)
 {

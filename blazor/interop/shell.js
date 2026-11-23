@@ -166,6 +166,23 @@ window.sab = {
     box?.select?.();
   },
 
+  /** A file the server answers with, fetched first (so a refusal is said in place, not saved as a file), then saved
+   *  by the browser under the server's name; the answer's X-Export-Message words, if any. */
+  async fetchDownload(url) {
+    const answer = await fetch(url);
+    if (!answer.ok) throw new Error(await refusalWords(answer));
+    const name = /filename="([^"]+)"/.exec(answer.headers.get("Content-Disposition") ?? "")?.[1] ?? "export";
+    const blob = await answer.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    return answer.headers.get("X-Export-Message") ?? "";
+  },
+
   /** A file the server answered with (an export), saved by the browser's own download. */
   download(url) {
     const a = document.createElement("a");

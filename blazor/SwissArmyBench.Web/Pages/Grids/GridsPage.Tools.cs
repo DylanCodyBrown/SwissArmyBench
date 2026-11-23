@@ -22,6 +22,7 @@ public partial class GridsPage
     private OpenMenu? _menu;
     private TableConnection? _connection;
     private int _statsAsked;
+    private long _selectedRows;
 
     private string ConnectionLabel => _connection switch
     {
@@ -262,16 +263,6 @@ public partial class GridsPage
         }
     }
 
-    private async Task SwappedAsync()
-    {
-        await ReloadInfoAsync();
-        await LoadConnectionAsync();
-        if (_grid is not null && _info is not null)
-        {
-            await _grid.RefreshAsync(_info.Columns);
-        }
-    }
-
     // ===== the selection and its numbers =====
 
     private async Task SelectionChangedAsync(GridSelection selection)
@@ -288,7 +279,8 @@ public partial class GridsPage
             var stats = await Grids.SelectionStatsAsync(_active, descriptor);
             if (mine == _statsAsked)
             {
-                Status.Set(StatsWords(stats));
+                Status.Set(StatsWords(selection.Kind, stats));
+                _selectedRows = stats.Rows;
             }
         }
         catch (ApiException)
@@ -297,20 +289,36 @@ public partial class GridsPage
         }
     }
 
-    /// <summary>Excel's status bar: Count, and Sum and Average over the numbers (not over identifiers).</summary>
-    private static string StatsWords(SelectionStats stats)
+    /// <summary>Excel's status bar (the classic bottomBar.ts): what is selected, Count (non-blank cells), then Average
+    /// and Sum over the number cells to the columns' scale (an identifier column is counted only).</summary>
+    private static string StatsWords(string kind, SelectionStats stats)
     {
-        var words = new List<string> { $"Count {stats.Count.ToString("N0", CultureInfo.InvariantCulture)}" };
-        var idOnly = stats.IdLike is { Count: > 0 } && stats.Sum is null;
-        if (stats.Numeric > 0 && !idOnly && stats.Sum is { } sum)
+        var what = kind switch
         {
-            words.Add($"Sum {sum.ToString("N2", CultureInfo.InvariantCulture)}");
-            if (stats.Mean is { } mean)
-            {
-                words.Add($"Average {mean.ToString("N2", CultureInfo.InvariantCulture)}");
-            }
+            "rows" => $"{stats.Rows.ToString("N0", CultureInfo.CurrentCulture)} row{(stats.Rows == 1 ? string.Empty : "s")} selected",
+            "all" => "All selected",
+            _ => $"{stats.Cells.ToString("N0", CultureInfo.CurrentCulture)} cell{(stats.Cells == 1 ? string.Empty : "s")} selected",
+        };
+        var words = new List<string> { what, $"Count {stats.Count.ToString("N0", CultureInfo.CurrentCulture)}" };
+        if (stats.Mean is { } mean && stats.Sum is { } sum)
+        {
+            words.Add($"Average {Scaled(mean, Digits(stats, "mean"))}");
+            words.Add($"Sum {Scaled(sum, Digits(stats, "sum"))}");
         }
         return string.Join(" · ", words);
+    }
+
+    private static int Digits(SelectionStats stats, string name) =>
+        stats.Digits is { ValueKind: JsonValueKind.Object } digits && digits.TryGetProperty(name, out var d) && d.ValueKind == JsonValueKind.Number ? d.GetInt32() : 2;
+
+    /// <summary>A number with `digits` after the point, grouped; a small fraction keeps four significant digits.</summary>
+    private static string Scaled(double value, int digits)
+    {
+        if (value != 0 && Math.Abs(value) < 1 && digits > 0 && Math.Abs(value) < Math.Pow(10, -digits) * 10)
+        {
+            return value.ToString("G4", CultureInfo.CurrentCulture);
+        }
+        return value.ToString($"N{digits}", CultureInfo.CurrentCulture);
     }
 
     private void Say(string words) => _ = Notes.SayAsync(words);

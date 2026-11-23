@@ -208,3 +208,15 @@ body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offs
 .erd-diagram[data-fitted="true"] svg { width: 100% !important; max-width: 100%; height: auto !important; max-height: calc(100vh - 220px); }
 .erd-diagram[data-fitted="false"] svg { max-width: none !important; }
 .warning-text { color: var(--warn); }
+
+/* ===== a table's connection swapped (swapConnection.ts) ===== */
+.swap-chooser { display: grid; gap: 8px; }
+.swap-current, .swap-was { display: flex; align-items: center; gap: 6px; margin: 0; }
+.swap-current.missing strong { text-decoration: line-through; color: var(--muted); }
+.swap-missing { padding: 0 6px; border-radius: 999px; background: var(--error-soft); color: var(--error); font-size: 0.85em; }
+.swap-others, .swap-candidates { display: flex; flex-wrap: wrap; gap: 6px; }
+.swap-tree, .swap-tables { margin: 0; padding-left: 14px; list-style: none; }
+.swap-repoint { display: grid; gap: 4px; }
+.swap-ref { display: flex; align-items: center; gap: 6px; }
+.swap-ref code { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.empty-note { color: var(--muted); }

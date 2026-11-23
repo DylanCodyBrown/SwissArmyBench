@@ -98,9 +98,32 @@ public sealed class GridsClient
 
     public Task<TableConnection> ConnectionOfAsync(string table) => _api.GetAsync<TableConnection>($"/tables/{ApiClient.Part(table)}/connection");
 
-    /// <summary>The table read from another connection, its steps kept.</summary>
-    public Task<ConnectionSwap> SwapConnectionAsync(string table, string to) =>
-        _api.PostAsync<ConnectionSwap>($"/tables/{ApiClient.Part(table)}/connection", new { to });
+    /// <summary>The table read from another connection, its steps kept; with a place (a pick) or SQL (a reviewed
+    /// query) when the first answer asked for one.</summary>
+    public Task<ConnectionSwap> SwapConnectionAsync(string table, string to, SwapPlace? place = null, string? sql = null) =>
+        _api.PostAsync<ConnectionSwap>($"/tables/{ApiClient.Part(table)}/connection", (place, sql) switch
+        {
+            ({ } p, _) => new { to, place = new { database = p.Database, schema = p.Schema, table = p.Table } },
+            (_, { } q) => new { to, sql = q },
+            _ => (object)new { to },
+        });
+
+    /// <summary>A schema's tables in a connection's catalog (the swap's pick).</summary>
+    public async Task<IReadOnlyList<SwapPlace>> CatalogTablesAsync(string connection, SwapSchema schema)
+    {
+        var address = $"/catalogs/{ApiClient.Part(connection)}/tables?schema={ApiClient.Part(schema.Schema)}&limit=500";
+        if (schema.Database.Length > 0)
+        {
+            address += $"&database={ApiClient.Part(schema.Database)}";
+        }
+        return (await _api.GetAsync<CatalogTablesAnswer>(address)).Tables;
+    }
+
+    public async Task<IReadOnlyList<CodeReference>> ReferencesAsync(string connection) =>
+        (await _api.GetAsync<ReferencesAnswer>($"/connections/{ApiClient.Part(connection)}/references")).References;
+
+    public Task<RepointAnswer> RepointAsync(string from, string to, IEnumerable<CodeReference> picks) =>
+        _api.PostAsync<RepointAnswer>($"/connections/{ApiClient.Part(from)}/repoint", new { to, picks = picks.Select(p => new { document = p.Document, cell = p.Cell }) });
 
     public Task UndoSwapAsync(string table) => _api.PostAsync($"/tables/{ApiClient.Part(table)}/connection/undo");
 
