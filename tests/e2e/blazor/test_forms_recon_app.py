@@ -1,8 +1,8 @@
-# ruff: noqa: F811
 """The forms and reconciliation app (examples/forms_recon, made by the app: the owner's first app POC,
-2026-11-21) in a real browser: its three canvas pages played, and one full loop through them as a user clicks
-it: a form designed and saved, a small Excel workbook uploaded for a month, the month reconciled against the
-copy of a Trino table in the sandbox, and the differences seen. Made-up data (Larkfield Goods, small).
+2026-11-21) in a real browser, on the Blazor Canvas: its three canvas pages played, and one full loop through
+them as a user clicks it: a form designed and saved, a small Excel workbook uploaded for a month, the month
+reconciled against the copy of a Trino table in the sandbox, and the differences seen. Made-up data
+(Larkfield Goods, small).
 Screenshots (scale 2) when SAB_APP_SHOTS names a folder."""
 
 from __future__ import annotations
@@ -10,7 +10,8 @@ from __future__ import annotations
 import io
 import os
 import shutil
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -18,14 +19,12 @@ import duckdb
 import pytest
 from playwright.sync_api import Browser, FrameLocator, Page, expect
 
-from tests.e2e.test_canvas_page import open_canvas
-from tests.e2e.test_table_cells_page import close_tables
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
-from tests.e2e.test_widgets_shared import until
+from tests.e2e.blazor.conftest import call
+from tests.e2e.blazor.test_canvas import open_canvas
 from tests.streamlit_helpers import needs_streamlit
 from tests.stress.test_local_api_stress import TABLES, source_files
 
-EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "forms_recon"
+EXAMPLE = Path(__file__).resolve().parents[3] / "examples" / "forms_recon"
 SHOTS = os.environ.get("SAB_APP_SHOTS")
 
 
@@ -38,6 +37,21 @@ def shot(page: Page, name: str) -> None:
 
 # A reconciliation's runs: the wizard's Search pattern over recon_runs (its recon_id a filter).
 RUNS = "/recon_runs/search?recon_id=sales_ledger"
+
+
+def until(read: Callable[[], Any], wanted: Any, seconds: float = 15.0) -> None:
+    """The server holds what the page wrote (a change made in the page reaches it a moment later)."""
+    end = time.monotonic() + seconds
+    seen = read()
+    while seen != wanted and time.monotonic() < end:
+        time.sleep(0.2)
+        seen = read()
+    assert seen == wanted
+
+
+def close_tables(server: dict[str, Any]) -> None:
+    for dataset in call(server, "GET", "/datasets")["datasets"]:
+        call(server, "DELETE", f"/datasets/{dataset['name']}")
 
 
 def api(server: dict[str, Any], method: str, path: str, body: Any = None) -> Any:
@@ -127,14 +141,12 @@ def test_design_a_form_upload_excel_reconcile_a_month_and_see_the_differences(
     data, want = workbook(app["trino"])
     excel = app["tmp"] / "october.xlsx"
     excel.write_bytes(data)
-    page = open_canvas(browser, server, app["folder"] / "forms_recon.canvas.json")
+    page = open_canvas(browser, server, str(app["folder"] / "forms_recon.canvas.json"))
     expect(page.locator(".cvs-tab")).to_have_text(["Form designer", "Fill and load", "Reconcile"])
     shot(page, "canvas-form-designer")
-    page.locator(".cvs-bottom button", has_text="Phone").click()
+    page.locator(".cvs-layouts [data-layout=phone]").click()
     shot(page, "canvas-form-designer-phone")
-    page.locator(".cvs-bottom button", has_text="Desktop").click()
-    for pane in ("Widgets", "Properties"):  # the played page gets the window's width
-        page.locator(".cvs-bottom button", has_text=pane).click()
+    page.locator(".cvs-layouts [data-layout=desktop]").click()
     page.locator(".cvs-top .cvs-play").click()
     frame = page.frame_locator(".cvs-live-frame")
     # 1. Form designer: the Sales ledger starter, its title changed, saved through the API.

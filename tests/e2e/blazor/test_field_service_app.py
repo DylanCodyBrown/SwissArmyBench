@@ -1,10 +1,10 @@
-# ruff: noqa: F811
 """Test app two, the field service app (examples/field_service, made by the app through the agent's commands:
-tests/test_field_service_app.py), in a real browser: its three canvas pages played, and one loop through them
-as a dispatcher clicks it: the visits to do listed for everyone, one marked done with a note (an Event that
-calls the app's own endpoint, sets a page value and reruns), the work order changed in the sandbox, the
-page value seen on the second page, the invoices that differ counted on the third. Made-up data (Brightline
-Field Services, tests/field_service_data.py). Screenshots (scale 2) when SAB_APP_SHOTS names a folder."""
+tests/test_field_service_app.py), in a real browser on the Blazor Canvas: its three canvas pages played,
+and one loop through them as a dispatcher clicks it: the visits to do listed for everyone, one marked done
+with a note (an Event that calls the app's own endpoint, sets a page value and reruns), the work order
+changed in the sandbox, the page value seen on the second page, the invoices that differ counted on the third.
+Made-up data (Brightline Field Services, tests/field_service_data.py). Screenshots (scale 2) when
+SAB_APP_SHOTS names a folder."""
 
 from __future__ import annotations
 
@@ -20,10 +20,9 @@ from playwright.sync_api import Browser, FrameLocator, Page, expect
 
 from tests import field_service_data as data
 from tests.api_standins import Service
-from tests.e2e.test_canvas_page import open_canvas
-from tests.e2e.test_table_cells_page import close_tables
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
-from tests.e2e.test_widgets_shared import until
+from tests.e2e.blazor.conftest import call
+from tests.e2e.blazor.test_canvas import open_canvas
+from tests.e2e.blazor.test_forms_recon_app import close_tables, until
 from tests.field_service_app import CANVAS, EXAMPLE, Agent, Approver, depot_connection, fill_sandbox
 from tests.streamlit_helpers import needs_streamlit
 
@@ -47,11 +46,13 @@ def api(server: dict[str, Any], method: str, path: str) -> Any:
 
 
 @pytest.fixture
-def app(server: dict[str, Any], tmp_path: Path) -> Iterator[dict[str, Any]]:
+def app(server: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, Any]]:
+    # The agent's commands find this module's server by its connection file.
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(Path(server["tmp"]) / "server.json"))
     close_tables(server)
     folder = tmp_path / "field_service"
     shutil.copytree(EXAMPLE, folder, ignore=shutil.ignore_patterns("sandbox", "builds", "exports"))
-    agent = Agent()  # the e2e server's door (SWISSARMYBENCH_INFO names it)
+    agent = Agent()  # the module server's door (SWISSARMYBENCH_INFO names it)
     approver = Approver(server["port"], server["token"]).start()
     orders = Service().start()  # the other API the third page reads
     try:
@@ -94,14 +95,12 @@ def test_dispatch_marks_a_visit_done_and_the_other_pages_follow(
 ) -> None:
     key = FIRST["work_order_id"]
     assert api(server, "GET", f"/work_orders/{key}")["status"] == "scheduled"
-    page = open_canvas(browser, server, app["folder"] / CANVAS)
+    page = open_canvas(browser, server, str(app["folder"] / CANVAS))
     expect(page.locator(".cvs-tab")).to_have_text(["Dispatch", "Work order", "Parts and billing"])
     shot(page, "canvas-dispatch")
-    page.locator(".cvs-bottom button", has_text="Phone").click()
+    page.locator(".cvs-layouts [data-layout=phone]").click()
     shot(page, "canvas-dispatch-phone")
-    page.locator(".cvs-bottom button", has_text="Desktop").click()
-    for pane in ("Widgets", "Properties"):  # the played page gets the window's width
-        page.locator(".cvs-bottom button", has_text=pane).click()
+    page.locator(".cvs-layouts [data-layout=desktop]").click()
     page.locator(".cvs-top .cvs-play").click()
     frame = page.frame_locator(".cvs-live-frame")
     # 1. Dispatch: the title, the visits to do for everyone (the viewer named), one marked done with a note.
