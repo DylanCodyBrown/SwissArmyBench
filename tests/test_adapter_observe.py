@@ -119,4 +119,4 @@ def test_no_hook_leaves_the_reader_as_the_source_gave_it() -> None:
     store = _store()
     reader, _ = sab.read(store, "orders", sab.Plan(limit=2))
     assert reader.read_all().num_rows == 2
-    assert sab.VERSION.split(".")[:2] >= ["1", "2"]
+    assert tuple(int(p) for p in sab.VERSION.split(".")[:2]) >= (1, 2)

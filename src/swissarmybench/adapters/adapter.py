@@ -40,7 +40,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.9.2 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.10.0 (2026-11-23). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -94,6 +94,9 @@ Version 1.9.2 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   1.9.2    sheet_value agrees with sab_excel.cell_value on every value (tests/test_cell_value_copies.py holds
            the two copies equal): numpy's scalars as their Python values (a numpy whole number was written
            as text), pandas' missing time a blank cell, a number that is not one as its plain word (nan)
+  1.10.0   a connection's client may say what it is: its `sab_source` (SAB_SOURCES: odata, lake, list, rows)
+           is read by source_from and Rows.write before its methods are looked at; a client that says
+           nothing (an older saved connection's) is told by its methods as before
 """
 
 from __future__ import annotations
@@ -117,7 +120,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.9.2"  # the docstring's change list says what each version added
+VERSION = "1.10.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null", "contains")
@@ -466,6 +469,25 @@ class Source(Protocol):
 
     # and, for a source that speaks SQL: query(self, sql: str, params: Sequence[Any]) -> pa.RecordBatchReader
     # and, with a transaction across writes: write_all(self, writes: Sequence[OneWrite]) -> list[Counts]
+
+
+# What a connection's own client may say it is (its class's `sab_source`), read before its methods are looked
+# at (source_from, Rows.write). Each word names the calls the adapter then makes on it:
+#   odata  Dataverse's Web API (OData): catalog(), described(table), rows(table, columns, filter, order_by,
+#          limit) -> (records, total), and its writes' calls (_Dataverse)
+#   lake   a lake (Rows): catalog(), rows(table, schema, limit, columns, filters), write_delta(path, rows,
+#          mode, keys), delete_delta, write_file
+#   list   a SharePoint list (Rows): catalog(), rows(...), create(table, rows), update, delete, and
+#          ids(table, values)
+#   rows   any other client that reads a table itself (Rows: catalog(), rows(...)); it takes no writes
+# A client that says nothing, or a word this version does not know, is told by which of those calls it has.
+SAB_SOURCES = ("odata", "lake", "list", "rows")
+
+
+def said_source(client: Any) -> str:
+    """The word a client says it is (its `sab_source`, one of SAB_SOURCES), or "" when it says none."""
+    word = getattr(client, "sab_source", None)
+    return word if isinstance(word, str) and word in SAB_SOURCES else ""
 
 
 # one of write_all's writes: (table, batches, key, mode)
@@ -2536,9 +2558,16 @@ class Rows:
         update, delete, ids): the connection's own calls."""
         _checked_write(mode, key)
         conn = self.connection
-        if callable(getattr(conn, "write_delta", None)):
+        said = said_source(conn)  # what it says it is, else what its methods show (an older client)
+        lake = said == "lake" if said else callable(getattr(conn, "write_delta", None))
+        listed = (
+            said == "list"
+            if said
+            else callable(getattr(conn, "create", None)) and callable(getattr(conn, "ids", None))
+        )
+        if lake:
             return _lake_written(self, table, batches.read_all(), list(key), mode)
-        if callable(getattr(conn, "create", None)) and callable(getattr(conn, "ids", None)):
+        if listed:
             one = _one_key(key, "A SharePoint item")
             rows = [r for batch in batches for r in batch.to_pylist()]
             return _list_written(self, table, rows, one, mode)
@@ -4163,8 +4192,9 @@ _DRIVERS = {
 def source_from(client: Any, dialect: str = "", name: str = "") -> Source:
     """A connection's own client (what its code made) as the adapter's source: a DuckDB connection; a file
     connection's path (a file or folder of CSV, Parquet, JSON); a client that reads a table with OData
-    (Dataverse: rows, described, catalog) or by its own rows (the lakes, SharePoint); a DB-API connection
-    in its dialect (`dialect`, else its `dbms`, else its driver's)."""
+    (Dataverse: rows, described, catalog) or by its own rows (the lakes, SharePoint), as its `sab_source`
+    says (SAB_SOURCES), else as its methods show; a DB-API connection in its dialect (`dialect`, else its
+    `dbms`, else its driver's)."""
     if isinstance(client, DuckDB | Sql | OData | Rows | Remote | Files | Excel):
         return client
     if isinstance(client, bytes | bytearray | memoryview):  # a workbook's bytes (an upload, a document)
@@ -4175,6 +4205,11 @@ def source_from(client: Any, dialect: str = "", name: str = "") -> Source:
         return Files(str(client), name)
     if isinstance(client, duckdb.DuckDBPyConnection):
         return DuckDB.over(client, name or "DuckDB")
+    said = said_source(client)  # what the client says it is, first (its methods: an older one's)
+    if said == "odata":
+        return OData(client, name or "Dataverse")
+    if said:
+        return Rows(client, name)
     if callable(getattr(client, "rows", None)) and callable(getattr(client, "catalog", None)):
         if callable(getattr(client, "described", None)):
             return OData(client, name or "Dataverse")
@@ -4400,6 +4435,7 @@ define, table, refresh = TABLES.define, TABLES.table, TABLES.refresh
 
 __all__ = [
     "DIALECTS",
+    "SAB_SOURCES",
     "AdapterError",
     "Column",
     "Connection",
@@ -4433,6 +4469,7 @@ __all__ = [
     "query",
     "read",
     "refresh",
+    "said_source",
     "source_from",
     "table",
     "tables",
