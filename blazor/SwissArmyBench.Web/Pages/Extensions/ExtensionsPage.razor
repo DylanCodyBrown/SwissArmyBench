@@ -1,40 +1,66 @@
-@* The Extensions page (the classic extensionsPage.ts): a card per extension (what it adds, its status: Preinstalled,
-   Available, Installed, Coming), Install (one click; the app restarts with it) and Remove (asked first). A copy that
-   cannot install (a development checkout) says what to run instead. Folder extensions and an extension's own panel
-   are the classic page's for now. Logic in ExtensionsPage.razor.cs. *@
+@* The Extensions page (the classic extensionsPage.ts): New extension… in its heading; a card per extension (its
+   name, status: Preinstalled, Available, Installed, Installed (folder), Coming; its version, what it does and adds,
+   the project type it adds, a folder's path, its error, its note, its own panel), Install and Remove (asked first when
+   the server would), Install's progress through the app's restart; a folder extension's Install <packages>, Load
+   again, Remove and Show its folder. Logic in ExtensionsPage.razor.cs. *@
 @page "/extensions"
+@using SwissArmyBench.Web.Api.Extensions
 @implements IDisposable
 
 <section class="area-page">
     <header class="area-page-head">
-        <h1 class="area-page-title"><Icon Name="extensions" /> Extensions</h1>
+        <h1 class="area-page-title">Extensions</h1>
+        <div class="area-page-actions"><button type="button" class="btn extension-new" @onclick="() => _newing = true"><Icon Name="plus" /> New extension…</button></div>
     </header>
-    <div class="area-page-body">
+    <div class="area-page-body extensions-page">
         <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-        @if (_list?.Changing is { ValueKind: System.Text.Json.JsonValueKind.Object })
-        {
-            <p role="status" class="muted">An extension is being installed or removed: the app restarts with it.</p>
-        }
-        <div class="card-grid">
-            @foreach (var card in _list?.Extensions ?? [])
+        <div class="extension-cards">
+            @foreach (var ext in _list?.Extensions ?? [])
             {
-                <article class="card extension-card @card.Status" data-extension="@card.Id">
-                    <span class="card-title"><Icon Name="extensions" /> @card.Name <span class="chip">@StatusWords(card)</span></span>
-                    <p>@card.Description</p>
-                    <ul class="plain-list">
-                        @foreach (var adds in card.Adds)
+                <article class="extension-card @ext.Status" data-extension="@ext.Id" aria-disabled="@(ext.Status == "coming" ? "true" : null)" data-installable="@(_list!.Installable ? "true" : "false")">
+                    <header class="extension-head">
+                        <span class="extension-name"><Icon Name="extensions" /> @ext.Name</span>
+                        <span class="extension-status status-@ext.Status">@StatusWords(ext)</span>
+                        @if (ext.Version is { } version)
                         {
-                            <li>@adds</li>
+                            <span class="extension-version muted">@version</span>
                         }
-                    </ul>
-                    <div class="card-actions">
-                        @if (card.Status == "available")
+                    </header>
+                    <p class="extension-description">@ext.Description</p>
+                    @if (ext.Adds.Count > 0)
+                    {
+                        <ul class="extension-adds">
+                            @foreach (var adds in ext.Adds)
+                            {
+                                <li>@adds</li>
+                            }
+                        </ul>
+                    }
+                    @if (ProjectLine(ext) is { } project)
+                    {
+                        <p class="extension-project muted">@project</p>
+                    }
+                    @if (ext.Path is { } path)
+                    {
+                        <p class="extension-path muted" title="@path">@path</p>
+                    }
+                    @if (ext.Error is { } problem)
+                    {
+                        <ErrorNote Error="@(new ApiException(0, new Refusal(problem, ext.Name), string.Empty))" />
+                    }
+                    @if (ext.Note is { } note)
+                    {
+                        <p class="extension-said" role="status">@note</p>
+                    }
+                    @if (ext.Panel is { } panel && ext.Status == "installed")
+                    {
+                        <ExtensionPanel Route="@panel" />
+                    }
+                    <div class="extension-foot @(ext.Source == "folder" ? "folder" : null)">
+                        @Foot(ext)
+                        @if (_said.GetValueOrDefault(ext.Id) is { } said)
                         {
-                            <button type="button" class="btn small primary" @onclick="() => InstallAsync(card)"><Icon Name="import" /> Install</button>
-                        }
-                        else if (card.Status == "installed")
-                        {
-                            <button type="button" class="btn small" @onclick="() => RemoveAsync(card)"><Icon Name="trash" /> Remove</button>
+                            <p class="extension-said" role="status">@said</p>
                         }
                     </div>
                 </article>
@@ -42,3 +68,50 @@
         </div>
     </div>
 </section>
+@if (_newing)
+{
+    <NewExtensionDialog OnDone="NewDoneAsync" />
+}
+@if (_asking is { } asking)
+{
+    <AppDialog Title="@($"Remove {asking.Ext.Name}")" OnClose="() => _asking = null">
+        <ChildContent><p>@asking.Question</p></ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _asking = null">Cancel</button>
+            <button type="button" class="btn danger" @onclick="ConfirmedAsync">Remove @asking.Ext.Name</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    /// <summary>A card's foot: a folder's own actions, the progress of a change, Install or Remove.</summary>
+    private RenderFragment Foot(ExtensionInfo ext) => __builder =>
+    {
+        if (ext.Source == "folder")
+        {
+            if (ext.Missing is { } missing)
+            {
+                <Busy IsBusy="_busy == ext.Id" Words="Installing…"><button type="button" class="btn primary extension-install" title="@missing.Command" @onclick="() => LoadAgainAsync(ext)"><Icon Name="import" /> Install @string.Join(", ", missing.Packages)</button></Busy>
+            }
+            else if (ext.Error is not null)
+            {
+                <Busy IsBusy="_busy == ext.Id" Words="Loading…"><button type="button" class="btn extension-load" @onclick="() => LoadAgainAsync(ext)"><Icon Name="reset" /> Load again</button></Busy>
+            }
+            <button type="button" class="btn extension-remove" @onclick='() => ChangeAsync(ext, "remove", false)'><Icon Name="trash" /> Remove</button>
+            <button type="button" class="btn ghost extension-show" @onclick="() => ShowAsync(ext)"><Icon Name="folder" /> Show its folder</button>
+        }
+        else if (_changing is { } changing && changing.Id == ext.Id)
+        {
+            <progress class="extension-progress" aria-label="@StageWords(ext.Name, changing.Action)"></progress>
+            <p class="extension-stage" role="status">@StageWords(ext.Name, changing.Action)</p>
+        }
+        else if (ext.Status == "available")
+        {
+            <Busy IsBusy="_busy == ext.Id" Words="Installing…"><button type="button" class="btn primary extension-install" disabled="@(_changing is not null)" @onclick='() => ChangeAsync(ext, "install", false)'><Icon Name="import" /> Install</button></Busy>
+        }
+        else if (ext.Status == "installed")
+        {
+            <Busy IsBusy="_busy == ext.Id" Words="Removing…"><button type="button" class="btn extension-remove" disabled="@(_changing is not null)" @onclick='() => ChangeAsync(ext, "remove", false)'><Icon Name="trash" /> Remove</button></Busy>
+        }
+    };
+}
