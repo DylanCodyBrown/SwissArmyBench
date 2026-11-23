@@ -1,0 +1,67 @@
+@* A cell's (or the console's) outputs as they arrive, the error taken apart by the server (what it means, where),
+   and the kernel's question when it waits for a line (input(), getpass). *@
+
+<div class="wb-outputs" aria-live="polite">
+    @foreach (var output in Outputs)
+    {
+        <OutputView Output="output" />
+    }
+    @if (ErrorDetail is { } detail && Explained(detail) is { } explained)
+    {
+        <div class="wb-error-panel" role="note">
+            <strong>@explained.Title</strong>
+            @if (explained.Explanation.Length > 0)
+            {
+                <span>@explained.Explanation</span>
+            }
+            @if (explained.Where.Length > 0)
+            {
+                <span class="muted">In @explained.Where</span>
+            }
+        </div>
+    }
+    @if (Asking is { } asking)
+    {
+        <form class="wb-input" @onsubmit="AnswerAsync" @onsubmit:preventDefault="true">
+            <label class="field"><span>@(asking.Prompt.Length > 0 ? asking.Prompt : "The code asks for a line")</span>
+                <input type="@(asking.Password ? "password" : "text")" aria-label="@(asking.Prompt.Length > 0 ? asking.Prompt : "Input")" @bind="_line" autocomplete="off" />
+            </label>
+            <button type="submit" class="btn small">Send</button>
+        </form>
+    }
+</div>
+
+@code {
+    private string _line = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<System.Text.Json.JsonElement> Outputs { get; set; } = [];
+
+    [Parameter]
+    public System.Text.Json.JsonElement? ErrorDetail { get; set; }
+
+    [Parameter]
+    public (string Prompt, bool Password)? Asking { get; set; }
+
+    /// <summary>The line typed for the kernel's question.</summary>
+    [Parameter]
+    public EventCallback<string> OnAnswer { get; set; }
+
+    private async Task AnswerAsync()
+    {
+        var line = _line;
+        _line = string.Empty;
+        await OnAnswer.InvokeAsync(line);
+    }
+
+    /// <summary>The first error of the chain in the server's words (domain/errors.py): its title, what it means, where.</summary>
+    private static (string Title, string Explanation, string Where)? Explained(System.Text.Json.JsonElement detail)
+    {
+        if (!detail.TryGetProperty("chain", out var chain) || chain.ValueKind != System.Text.Json.JsonValueKind.Array || chain.GetArrayLength() == 0)
+        {
+            return null;
+        }
+        var first = chain[0];
+        return (OutputReader.Text(first, "title"), OutputReader.Text(first, "explanation"), OutputReader.Text(detail, "where"));
+    }
+}

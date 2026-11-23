@@ -1,0 +1,27 @@
+@* A notebook (the classic workbenchNotebook.ts): its cells in order, each run in the document's Python session with
+   its outputs as they arrive; Run all; a new Python, SQL or Markdown cell; the Tables group (each open table's
+   read-only cell, kept by the server's rules) and the Blades pane's lines put into the selected cell. Logic in
+   NotebookView.razor.cs (the cells) and NotebookView.Tables.cs (the Tables group). *@
+@implements IDisposable
+
+<div class="wb-notebook-bar" role="toolbar" aria-label="Notebook">
+    <button type="button" class="btn small" @onclick="RunAllAsync" disabled="@_runningAll"><Icon Name="play" /> Run all</button>
+    <button type="button" class="btn small" @onclick='() => AddCellAsync("code")'><Icon Name="plus" /> Python</button>
+    <button type="button" class="btn small" @onclick='() => AddCellAsync("sql")'><Icon Name="plus" /> SQL</button>
+    <button type="button" class="btn small" @onclick='() => AddCellAsync("markdown")'><Icon Name="plus" /> Markdown</button>
+</div>
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+<div class="wb-cells">
+    @if (_cells.Count == 0)
+    {
+        <div class="empty-state">
+            <p>An empty notebook: add a cell to start.</p>
+            <button type="button" class="btn primary" @onclick='() => AddCellAsync("code")'><Icon Name="plus" /> Python cell</button>
+        </div>
+    }
+    @foreach (var cell in _cells)
+    {
+        <NotebookCellView @key="cell" @ref="_views[cell]" Cell="cell" Selected="cell == _selected" Connections="Connections" IntelFor="IntelFor"
+                          OnRun="RunAsync" OnSelect="Select" OnChanged="ChangedAsync" OnKey="KeyAsync" OnMove="MoveAsync" OnDelete="DeleteAsync" OnAnswer="AnswerAsync" />
+    }
+</div>

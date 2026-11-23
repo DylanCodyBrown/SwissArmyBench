@@ -121,4 +121,11 @@ window.sab = {
     const target = first ?? dialog.querySelector(".dialog-foot button, .dialog button:not([aria-label=Close])") ?? dialog;
     target.focus();
   },
+
+  /** An HTML output's frame as tall as its content (at most 640 px): its own page grows to the frame's, so it is
+   *  measured once it has loaded. */
+  fitFrame(frame) {
+    const body = frame.contentDocument?.body;
+    if (body) frame.style.height = `${Math.min(Math.ceil(body.getBoundingClientRect().height) + 6, 640)}px`;
+  },
 };

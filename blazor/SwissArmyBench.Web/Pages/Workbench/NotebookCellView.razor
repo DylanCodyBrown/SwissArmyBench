@@ -1,0 +1,61 @@
+@* One notebook cell (the classic workbenchNotebook.ts): its number, its kind (Python, SQL with its connection,
+   Markdown, DAX), Run, Move, Delete, its editor (Monaco), and its outputs. A Markdown cell shows its text drawn
+   until it is edited. A cell of the Tables group is the app's: read-only, it follows the grid. Logic in
+   NotebookCellView.razor.cs. *@
+
+<section class="@(Cell.IsAppCell ? "wb-tcell" : "wb-cell") kind-@Cell.Kind @(Selected ? "selected" : string.Empty) @(Cell.Running ? "running" : string.Empty)"
+         data-number="@Cell.Number" aria-label="@Label" @onfocusin="() => OnSelect.InvokeAsync(Cell)">
+    <div class="wb-cell-head">
+        <span class="wb-cell-number" title="Cell @Cell.Number">[@(Cell.ExecutionCount?.ToString() ?? " ")]</span>
+        @if (Cell.IsAppCell)
+        {
+            <span class="chip">@AppWords</span>
+        }
+        else
+        {
+            <select class="wb-cell-kind" aria-label="@($"Cell {Cell.Number} kind")" value="@Cell.Kind" @onchange="KindChangedAsync">
+                <option value="code">Python</option>
+                <option value="sql">SQL</option>
+                <option value="markdown">Markdown</option>
+                <option value="dax">DAX</option>
+            </select>
+            @if (Cell.Kind is "sql" or "dax")
+            {
+                <select class="wb-cell-connection" aria-label="@($"Cell {Cell.Number} connection")" value="@(Cell.Connection ?? string.Empty)" @onchange="ConnectionChangedAsync">
+                    <option value="">@(Cell.Kind == "sql" ? "DuckDB (open tables)" : "Choose a dataset")</option>
+                    @foreach (var name in Connections)
+                    {
+                        <option value="@name">@name</option>
+                    }
+                </select>
+            }
+        }
+        <span class="status-spacer"></span>
+        @if (Cell.Kind != "markdown" && (!Cell.IsAppCell || Cell.Role == "transformations"))
+        {
+            <button type="button" class="btn small ghost wb-run" aria-label="@($"Run cell {Cell.Number}")" title="Run (Shift+Enter)" disabled="@Cell.Running" @onclick="() => OnRun.InvokeAsync(Cell)"><Icon Name="play" /></button>
+        }
+        @if (!Cell.IsAppCell)
+        {
+            <button type="button" class="btn small ghost" aria-label="@($"Move cell {Cell.Number} up")" @onclick="() => OnMove.InvokeAsync((Cell, -1))"><Icon Name="up" /></button>
+            <button type="button" class="btn small ghost" aria-label="@($"Move cell {Cell.Number} down")" @onclick="() => OnMove.InvokeAsync((Cell, 1))"><Icon Name="down" /></button>
+            <button type="button" class="btn small ghost" aria-label="@($"Delete cell {Cell.Number}")" @onclick="() => OnDelete.InvokeAsync(Cell)"><Icon Name="trash" /></button>
+        }
+    </div>
+    @if (Cell.Kind == "markdown" && !Cell.Editing && Cell.Source.Trim().Length > 0)
+    {
+        <div class="wb-markdown" tabindex="0" role="button" aria-label="@($"Cell {Cell.Number}: Markdown, Enter to edit")" @ondblclick="EditAsync" @onkeydown="MarkdownKeyAsync">
+            @((MarkupString)MarkdownText.ToHtml(Cell.Source))
+        </div>
+    }
+    else
+    {
+        <CodeEditor @ref="_editor" Value="@Cell.Source" Language="@EditorLanguage" ReadOnly="Cell.IsAppCell" Grow="true" MinLines="2"
+                    Label="@Label" Intel="EditorIntel"
+                    OnChange="TextChangedAsync" OnKey="KeyAsync" />
+    }
+    @if (Cell.Outputs.Count > 0 || Cell.ErrorDetail is not null || Cell.Asking is not null)
+    {
+        <OutputArea Outputs="Cell.Outputs" ErrorDetail="Cell.ErrorDetail" Asking="Cell.Asking" OnAnswer="line => OnAnswer.InvokeAsync((Cell, line))" />
+    }
+</section>

@@ -1,0 +1,67 @@
+@* The Files pane (the classic codeExplorer.ts), on the right of the code: the page's groups of files from the server
+   (the Scripts page: Your scripts, Project code, the library's Connections, APIs and Key vaults, Generated; the
+   Notebooks page: the project's notebooks), each opened on its click; a made file is marked read-only. *@
+
+<aside class="side-pane files-pane" aria-label="Files">
+    <div class="side-pane-head">
+        <strong>Files</strong>
+        @if (Tree?.Project is { } project)
+        {
+            <span class="muted" title="@Tree.Folder">@project</span>
+        }
+        <button type="button" class="btn ghost icon small" aria-label="Refresh the files" @onclick="OnRefresh"><Icon Name="reset" /></button>
+    </div>
+    @if (Tree is null)
+    {
+        <div class="loading-block">Reading the files…</div>
+    }
+    else if (Tree.Project is null && Tree.Groups.All(g => g.Files.Count == 0))
+    {
+        <p class="muted side-pane-note">No project is open: its @(Page == "scripts" ? "scripts" : "notebooks") show here.</p>
+    }
+    else
+    {
+        @foreach (var group in Tree.Groups.Where(g => g.Files.Count > 0))
+        {
+            <details class="files-group" open>
+                <summary>@group.Name <span class="muted">@group.Files.Count</span></summary>
+                <ul class="files-list" role="list">
+                    @foreach (var file in group.Files)
+                    {
+                        var full = file.Full ?? file.Path;
+                        <li>
+                            <a class="files-item @(Same(full) ? "current" : string.Empty)" href="@AddressOf(full)" title="@full" aria-current="@(Same(full) ? "page" : null)">
+                                <Icon Name="@(full.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebook" : "code")" /> @file.Name
+                                @if (file.ReadOnly)
+                                {
+                                    <span class="chip" title="@(file.MadeFrom is null ? "Made by the app" : $"Made from {file.MadeFrom}")">read-only</span>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </details>
+        }
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Page { get; set; } = "scripts";
+
+    [Parameter]
+    public CodeTree? Tree { get; set; }
+
+    /// <summary>The document open now (marked in the list).</summary>
+    [Parameter]
+    public string? Current { get; set; }
+
+    [Parameter]
+    public EventCallback OnRefresh { get; set; }
+
+    private bool Same(string path) => string.Equals(path, Current, StringComparison.Ordinal);
+
+    /// <summary>A file opens on its kind's page (a notebook on Notebooks, a .py on Scripts).</summary>
+    private static string AddressOf(string path) =>
+        $"{(path.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebooks" : "scripts")}?path={Uri.EscapeDataString(path)}";
+}

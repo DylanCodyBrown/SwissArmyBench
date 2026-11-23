@@ -13,6 +13,7 @@ using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
+using SwissArmyBench.Web.Api.Workbench;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web;
@@ -52,6 +53,7 @@ public static class Program
         services.AddScoped<SettingsClient>();
         services.AddScoped<ConnectionsClient>();
         services.AddScoped<GridsClient>();
+        services.AddScoped<WorkbenchClient>();
     }
 
     private static void AddState(IServiceCollection services)
@@ -63,5 +65,6 @@ public static class Program
         services.AddScoped<Notes>();
         services.AddScoped<Dialogs>();
         services.AddScoped<GridStatus>();
+        services.AddScoped<PythonSession>();
     }
 }

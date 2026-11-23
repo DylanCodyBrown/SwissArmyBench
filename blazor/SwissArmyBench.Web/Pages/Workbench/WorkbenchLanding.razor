@@ -1,0 +1,64 @@
+@* The page with no document open (the classic workbenchLanding.ts): the page's documents (the project's, then the
+   recent ones of its kind), New and Open…. *@
+
+<div class="area-page-body wb-landing">
+    @if (Documents.Count == 0)
+    {
+        <div class="empty-state">
+            <p>@(Page == "notebooks" ? "No notebook yet: start one, or open one from this computer." : "No script yet: start one, or open one from this computer.")</p>
+            <div class="form-row">
+                <button type="button" class="btn primary" @onclick="OnNew"><Icon Name="plus" /> New @(Page == "notebooks" ? "notebook" : "script")</button>
+                <button type="button" class="btn" @onclick="OnOpen"><Icon Name="folder" /> Open…</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card-grid">
+            @foreach (var (name, path, where) in Documents)
+            {
+                <a class="card wb-doc-card" href="@($"{Page}?path={Uri.EscapeDataString(path)}")" title="@path">
+                    <span class="card-title"><Icon Name="@(Page == "notebooks" ? "notebook" : "code")" /> @name</span>
+                    <span class="card-meta">@where</span>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Page { get; set; } = "notebooks";
+
+    [Parameter]
+    public CodeTree? Tree { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<RecentFile> Recent { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    [Parameter]
+    public EventCallback OnOpen { get; set; }
+
+    private string Extension => Page == "notebooks" ? ".ipynb" : ".py";
+
+    /// <summary>The project's documents of this page's kind, then the recent ones not among them.</summary>
+    private IReadOnlyList<(string Name, string Path, string Where)> Documents
+    {
+        get
+        {
+            var project = (Tree?.Groups ?? [])
+                .Where(g => g.Id is "notebooks" or "scripts")
+                .SelectMany(g => g.Files)
+                .Select(f => (f.Name, Path: f.Full ?? f.Path, Where: Tree?.Project ?? "This project"))
+                .ToList();
+            var recent = Recent
+                .Where(r => r.Exists && r.Path.EndsWith(Extension, StringComparison.OrdinalIgnoreCase))
+                .Where(r => project.All(p => p.Path != r.Path))
+                .Select(r => (Name: System.IO.Path.GetFileName(r.Path), r.Path, Where: "Recent"));
+            return project.Concat(recent).ToList();
+        }
+    }
+}

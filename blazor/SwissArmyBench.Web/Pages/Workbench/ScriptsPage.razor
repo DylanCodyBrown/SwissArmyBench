@@ -1,0 +1,13 @@
+@* The Scripts page (/scripts, the classic window sab-scripts: the Python IDE): ?path= opens a script, ?new=1 starts
+   one. *@
+@page "/scripts"
+
+<WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "path")]
+    public string? PathParameter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "new")]
+    public string? NewParameter { get; set; }
+}

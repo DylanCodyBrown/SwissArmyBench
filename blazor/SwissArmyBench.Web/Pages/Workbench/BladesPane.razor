@@ -1,0 +1,27 @@
+@* The Blades pane (the classic catalogRail.ts on the Scripts page): your blades and the built-in starters by family,
+   searched by name; Insert puts a blade's line (`orders = sab.blade("Orders")`) into the code at the cursor. A
+   blade's own IDE is the classic page's for now. Logic in BladesPane.razor.cs. *@
+
+<aside class="side-pane blades-pane" aria-label="Blades">
+    <div class="side-pane-head">
+        <strong>Blades</strong>
+        <input type="search" class="side-pane-search" placeholder="Search blades" aria-label="Search blades" @bind="_search" @bind:event="oninput" />
+    </div>
+    <ErrorNote Error="_error" OnRetry="LoadAsync" />
+    @foreach (var group in Groups)
+    {
+        <details class="files-group" open="@(group.Open)">
+            <summary>@group.Name <span class="muted">@group.Blades.Count</span></summary>
+            <ul class="files-list" role="list">
+                @foreach (var blade in group.Blades)
+                {
+                    <li class="blade-item" title="@blade.Description">
+                        <span class="blade-name">@blade.Name</span>
+                        <button type="button" class="btn small ghost" aria-label="@($"Insert {blade.Name}")" @onclick="() => OnInsert.InvokeAsync(LineOf(blade))"><Icon Name="plus" /> Insert</button>
+                        <a class="btn small ghost" href="@($"/scripts?blade={Uri.EscapeDataString(blade.Name)}")" aria-label="@($"Open {blade.Name} in the classic front end")"><Icon Name="popout" /></a>
+                    </li>
+                }
+            </ul>
+        </details>
+    }
+</aside>

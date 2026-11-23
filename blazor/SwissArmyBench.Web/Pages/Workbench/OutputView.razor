@@ -1,0 +1,37 @@
+@* One output of a run (the classic workbenchOutputs.ts): a stream's text, an error's traceback, or a result drawn by
+   its richest kind: a picture, a Plotly figure, Markdown, HTML (a table) in a frame that runs no script and loads
+   nothing, else its text. Logic in OutputView.razor.cs. *@
+
+@switch (OutputReader.Type(Output))
+{
+    case "stream":
+        <pre class="wb-text @(OutputReader.Text(Output, "name") == "stderr" ? "wb-stderr" : string.Empty)">@OutputReader.Plain(OutputReader.Text(Output, "text"))</pre>
+        break;
+    case "error":
+        <pre class="wb-error">@OutputReader.Traceback(Output)</pre>
+        break;
+    case "execute_result" or "display_data":
+        @if (Picture is { } picture)
+        {
+            <img class="wb-image" src="@picture" alt="Figure" />
+        }
+        else if (OutputReader.Data(Output, PlotlyMime) is { } figure)
+        {
+            <PlotlyChart Figure="@figure" Label="Figure" />
+        }
+        else if (OutputReader.Data(Output, "text/markdown") is { } markdown)
+        {
+            <div class="wb-markdown">@((MarkupString)MarkdownText.ToHtml(markdown))</div>
+        }
+        else if (OutputReader.Data(Output, "text/html") is { } html)
+        {
+            <iframe class="wb-html" sandbox="allow-same-origin" title="Output" srcdoc="@Framed(html)" onload="sab.fitFrame(this)"></iframe>
+        }
+        else
+        {
+            <pre class="wb-text">@OutputReader.Plain(OutputReader.Data(Output, "text/plain") ?? string.Empty)</pre>
+        }
+        break;
+    default:
+        break;
+}

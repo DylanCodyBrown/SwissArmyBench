@@ -38,6 +38,9 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
         "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),
         "SWISSARMYBENCH_NO_BROWSER": "1",
+        # The file chooser falls back to the app's own typed path (no system dialog opens during a test).
+        "SWISSARMYBENCH_SYSTEM_DIALOGS": "off",
+        "SWISSARMYBENCH_PROJECT_VENV": "off",
     }
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     info: dict[str, Any] | None = None

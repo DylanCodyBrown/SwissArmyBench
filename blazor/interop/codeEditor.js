@@ -234,6 +234,7 @@ export function create(host, dotnet, options) {
   // The keys a page acts on: told to C# by name, the text sent first so C# runs what is on screen.
   const key = (name) => () => {
     clearTimeout(textTimer);
+    editor.trigger("sab", "hideSuggestWidget", {});
     dotnet.invokeMethodAsync("Key", name, editor.getValue()).catch(() => {});
   };
   const K = monaco.KeyMod;
@@ -271,6 +272,14 @@ export function create(host, dotnet, options) {
       if (selected && !selected.isEmpty()) return model.getValueInRange(selected);
       const line = editor.getPosition()?.lineNumber ?? 1;
       return model.getLineContent(line);
+    },
+    /** Text on a line of its own after the cursor's line (a blade's line dropped in from the Blades pane). */
+    insertLine: (text) => {
+      const line = editor.getPosition()?.lineNumber ?? model.getLineCount();
+      const end = model.getLineMaxColumn(line);
+      const lead = model.getLineContent(line).trim() ? "\n" : "";
+      editor.executeEdits("sab", [{ range: new monaco.Range(line, end, line, end), text: lead + text }]);
+      editor.focus();
     },
     focus: () => editor.focus(),
     revealLine: (line) => {
