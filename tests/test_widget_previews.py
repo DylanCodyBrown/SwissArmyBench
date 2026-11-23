@@ -338,6 +338,10 @@ def test_the_photographer_takes_a_drawn_widget_and_calls_a_blank_one_a_failure(t
         previewer = previews.Previewer(None, None, system="linux")
         out = str(tmp_path / "drawn.png")
         drawn = asyncio.run(previewer._shoot(f"http://127.0.0.1:{port}/drawn/", out, "offscreen"))
+        if drawn.get("kind") == "setup" and not drawn.get("started"):
+            # PySide6 is installed but Qt WebEngine cannot start a browser on this machine (the release
+            # machine's build job lacks the graphics libraries the install job adds): as without PySide6.
+            pytest.skip(f"Qt WebEngine cannot start here: {drawn.get('said')}")
         assert drawn["ok"], drawn
         assert Path(out).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
         blank = asyncio.run(previewer._shoot(f"http://127.0.0.1:{port}/blank/", str(tmp_path / "b.png")))
