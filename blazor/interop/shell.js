@@ -76,6 +76,10 @@ window.sab = {
     document.title = title ? `${title} · Swiss Army Bench` : "Swiss Army Bench";
   },
 
+  click(selector) {
+    document.querySelector(selector)?.click();
+  },
+
   focus(selector) {
     document.querySelector(selector)?.focus();
   },

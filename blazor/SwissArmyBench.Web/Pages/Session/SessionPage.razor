@@ -23,7 +23,8 @@
             {
                 <div class="empty-state">
                     <Icon Name="session" />
-                    <p>@(_who == "user" ? "Nothing you did this session yet." : "Nothing the agent did this session yet: what it makes shows here as it happens.")</p>
+                    <p>@(_who == "user" ? "What you open, change and make this session shows here, each line a link back to it." : "What your agent opens, changes and makes this session shows here, each line a link back to it.")</p>
+                    <button type="button" class="btn primary" @onclick="LaunchClaudeAsync"><Icon Name="claude" /> Launch Claude</button>
                 </div>
             }
             else if (_entries is { } entries)
@@ -35,11 +36,11 @@
                         {
                             <tr data-id="@entry.Id">
                                 <td class="muted">@TimeOf(entry.Time)</td>
-                                <td>@(entry.Actor == "agent" ? "The agent" : "You")</td>
+                                <td>@(entry.Actor == "agent" ? "Agent" : "You")</td>
                                 <td>
                                     @if (LinkOf(entry) is { } link)
                                     {
-                                        <a href="@link">@entry.What</a>
+                                        <a href="@link" class="session-link" title="@($"Go to it ({entry.Area})")">@entry.What</a>
                                     }
                                     else
                                     {
