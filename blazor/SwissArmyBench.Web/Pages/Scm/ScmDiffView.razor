@@ -1,0 +1,103 @@
+@* The editor part (the classic scmPage.ts showDiff): a tab with the file's name and which side (its commit, Yours ↔
+   Theirs, Index or Working Tree), its actions (Open File, Previous Change Shift+F7, Next Change F7, More Actions...:
+   Inline View, Previous File, Next File; Close), Monaco's diff editor (read-only), and the list's files beside it with
+   Previous File and Next File. A binary file says so. *@
+@using SwissArmyBench.Web.Api.Git
+
+<div class="title tabs show-file-icons" @onkeydown="KeyAsync">
+    <div class="tabs-container" role="tablist">
+        <div class="tab active" role="tab" aria-selected="true" title="@($"{Diff.OriginalLabel} ↔ {Diff.ModifiedLabel}")"><Codicon Name="file" Extra="file-icon-glyph" /><span class="label-name scm-diff-title">@Title</span></div>
+    </div>
+    <div class="title-actions">
+        <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+            <ScmAction Icon="go-to-file" Title="Open File" OnRun="@(() => Notes.SayAsync($"{Diff.Path}: open it in its own editor."))" />
+            <ScmAction Icon="arrow-up" Title="Previous Change (Shift+F7)" OnRun="() => MoveAsync(false)" />
+            <ScmAction Icon="arrow-down" Title="Next Change (F7)" OnRun="() => MoveAsync(true)" />
+            <ScmAction Icon="ellipsis" Title="More Actions..." OnRun="MoreMenu" />
+            <ScmAction Icon="close" Title="Close (Ctrl+F4)" OnRun="Host.CloseDiff" />
+        </ul></div>
+    </div>
+</div>
+<div class="scm-diff-body" @onkeydown="KeyAsync">
+    @if (Diff.Binary)
+    {
+        <div class="scm-binary">The file is not displayed in the text compare editor because it is either binary or uses an unsupported text encoding.</div>
+    }
+    else
+    {
+        <div class="scm-diff-host">
+            <DiffEditor @ref="_editor" Before="@Diff.Original" After="@Diff.Modified" File="@Diff.Path" Inline="_inline" Label="@Title" />
+        </div>
+    }
+    <div class="scm-diff-files monaco-list" role="listbox" aria-label="@Shown.Title">
+        <div class="scm-diff-files-title">
+            <span>@Shown.Title</span>
+            <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+                <ScmAction Icon="arrow-left" Title="Previous File" OnRun="() => StepAsync(-1)" Disabled="@(At <= 0)" />
+                <ScmAction Icon="arrow-right" Title="Next File" OnRun="() => StepAsync(1)" Disabled="@(At >= Shown.List.Count - 1)" />
+            </ul></div>
+        </div>
+        @foreach (var f in Shown.List)
+        {
+            var colour = $"color: var(--vscode-{f.Colour.Replace('.', '-')})";
+            <div class="monaco-list-row @(f.Path == Shown.Path ? "selected focused" : null)" role="option" aria-selected="@(f.Path == Shown.Path ? "true" : "false")" data-diff-file="@f.Path"
+                 @onclick="() => Host.ShowDiffAsync(Shown with { Path = f.Path })">
+                <div class="resource">
+                    <Codicon Name="file" Extra="file-icon-glyph" />
+                    <span class="label-name" style="@colour">@ScmPage.BaseName(f.Path)</span>
+                    @if (ScmPage.DirName(f.Path) is { Length: > 0 } folder)
+                    {
+                        <span class="label-description">@folder</span>
+                    }
+                    <span class="decoration-letter" style="@colour">@f.Letter</span>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private DiffEditor? _editor;
+    private bool _inline;
+
+    [Inject]
+    private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ScmDiff Diff { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ShownDiff Shown { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ScmPage Host { get; set; } = default!;
+
+    private int At => Shown.List.ToList().FindIndex(f => f.Path == Shown.Path);
+
+    private string Title
+    {
+        get
+        {
+            var resource = At >= 0 ? Shown.List[At] : null;
+            var side = Shown.Commit is { } commit ? commit[..Math.Min(8, commit.Length)]
+                : Shown.Conflict ? "Yours ↔ Theirs"
+                : resource?.Letter == "A" || Diff.Added ? "Index" : "Working Tree";
+            return $"{ScmPage.BaseName(Diff.Path)} ({side})";
+        }
+    }
+
+    private Task MoveAsync(bool next) => _editor?.MoveAsync(next) ?? Task.CompletedTask;
+
+    private Task StepAsync(int by) =>
+        At + by >= 0 && At + by < Shown.List.Count ? Host.ShowDiffAsync(Shown with { Path = Shown.List[At + by].Path }) : Task.CompletedTask;
+
+    private void MoreMenu(MouseEventArgs e) => Host.Menu(e.ClientX - 160, e.ClientY + 12, "More Actions...",
+    [
+        new("Inline View", () => { _inline = !_inline; StateHasChanged(); return Task.CompletedTask; }, Checked: _inline),
+        null,
+        new("Previous File", () => StepAsync(-1), Disabled: At <= 0),
+        new("Next File", () => StepAsync(1), Disabled: At >= Shown.List.Count - 1),
+    ]);
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "F7" ? MoveAsync(!e.ShiftKey) : Task.CompletedTask;
+}

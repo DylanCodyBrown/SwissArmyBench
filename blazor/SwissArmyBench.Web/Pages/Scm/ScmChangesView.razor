@@ -1,0 +1,215 @@
+@* SOURCE CONTROL's body (the classic scmPage.ts drawChanges): signed out, VS Code's welcome words and the sign-in;
+   no repository, Clone Repository and Connect Folder to Repository; else each repository (its row when there are
+   several), its message box, its Commit button (or Sync Changes), and Merge Changes, Staged Changes and Changes
+   with their files, as a list or a tree. Logic in ScmChangesView.razor.cs. *@
+@using SwissArmyBench.Web.Api.Git
+
+@if (Changes is null)
+{
+}
+else if (!Changes.SignedIn)
+{
+    <div class="welcome-view-content">
+        <p>In order to use Git features, you can sign in to GitHub and clone a repository or connect your team library or shared projects folder.</p>
+        <GitHubSignIn Status="Status" OnSignedIn="Host.LoadAsync" />
+    </div>
+}
+else if (Changes.Repositories.Count == 0)
+{
+    <div class="welcome-view-content">
+        <p>The team library folder and the shared projects folder are not connected to a GitHub repository. You can clone a repository from GitHub, or connect a folder to one.</p>
+        <div class="button-container"><button type="button" class="monaco-button monaco-text-button" @onclick="Host.CloneAsync">Clone Repository</button></div>
+        <div class="button-container"><button type="button" class="monaco-button monaco-text-button" @onclick="Host.ConnectAsync">Connect Folder to Repository</button></div>
+        <p>Signed in to GitHub as <strong>@Changes.Account</strong>.</p>
+    </div>
+}
+else
+{
+    <div class="monaco-list" role="tree" aria-label="Source Control Management" tabindex="0">
+        <div class="monaco-list-rows">
+            @foreach (var repo in Changes.Repositories)
+            {
+                @if (Changes.Repositories.Count > 1)
+                {
+                    @ProviderRow(repo)
+                }
+                <div class="monaco-list-row scm-input-row" role="treeitem">
+                    <div class="scm-input">
+                        <div class="scm-editor @(_focused == repo.Which ? "synthetic-focus" : null)">
+                            <div class="scm-editor-container">
+                                <textarea class="scm-input-box" rows="1" placeholder="@($"Message (Ctrl+Enter to commit on \"{repo.Branch}\")")" aria-label="Source Control Input" spellcheck="true" data-which="@repo.Which"
+                                          style="@HeightOf(repo.Which)" value="@Messages.GetValueOrDefault(repo.Which)" @oninput="e => Typed(repo.Which, e.Value as string)"
+                                          @onkeydown="e => MessageKeyAsync(e, repo)" @onfocus="() => _focused = repo.Which" @onblur="() => _focused = null"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @ButtonRow(repo)
+                @foreach (var (id, label, items) in Groups(repo))
+                {
+                    @GroupRow(repo, id, label, items)
+                    @if (!CollapsedGroups.Contains($"{repo.Which}:{id}"))
+                    {
+                        @foreach (var row in Rows(repo, items))
+                        {
+                            @if (row.Folder is { } folder)
+                            {
+                                <div class="monaco-list-row" role="treeitem" aria-level="2" aria-expanded="true" data-folder="@folder">
+                                    <div class="monaco-tl-row"><div class="monaco-tl-indent" style="width: 8px"></div><div class="monaco-tl-twistie collapsible"><Codicon Name="chevron-down" /></div>
+                                        <div class="monaco-tl-contents"><div class="resource"><div class="name"><div class="monaco-icon-label folder-icon"><Codicon Name="folder" /><span class="label-name">@folder</span></div></div></div></div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                @ResourceRow(repo, id, row.File!, row.Depth)
+                            }
+                        }
+                    }
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private RenderFragment ProviderRow(ScmRepository repo) => __builder =>
+    {
+        <div class="monaco-list-row scm-provider-row @(repo.Which == Current?.Which ? "selected" : null)" role="treeitem" aria-level="1" data-provider="@repo.Which" @onclick="() => Host.SelectRepository(repo)">
+            <div class="scm-provider">
+                <Codicon Name="repo" />
+                <div class="monaco-icon-label"><span class="monaco-highlighted-label">@repo.Name</span></div>
+                <div class="actions">
+                    <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+                        <li class="action-item scm-status-bar-action">
+                            <a class="action-label" role="button" title="@($"{repo.Branch}, Checkout Branch/Tag...")" @onclick="() => Host.CheckoutToAsync(repo)" @onclick:stopPropagation="true"><Codicon Name="git-branch" /><span>@repo.Branch</span></a>
+                        </li>
+                        <li class="action-item scm-status-bar-action">
+                            <a class="action-label" role="button" title="Synchronize Changes" @onclick="() => Host.SyncAsync(repo.Which)" @onclick:stopPropagation="true"><Codicon Name="sync" />@if (repo.Behind > 0) { <span>@repo.Behind↓</span> }</a>
+                        </li>
+                        <ScmAction Icon="check" Title="Commit" OnRun="() => Host.CommitAsync(repo)" />
+                        <ScmAction Icon="ellipsis" Title="More Actions..." OnRun="@(e => Host.Menu(e.ClientX, e.ClientY + 12, "More Actions...", Host.MoreItems(repo)))" />
+                    </ul></div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment ButtonRow(ScmRepository repo) => __builder =>
+    {
+        var anything = repo.Count > 0;
+        <div class="monaco-list-row scm-button-row" role="treeitem">
+            <div class="button-container">
+                @if (!anything && (repo.Behind > 0 || !repo.Pulled))
+                {
+                    <div class="monaco-button-dropdown">
+                        <a class="monaco-button monaco-text-button" role="button" tabindex="0" title="Pull from GitHub" @onclick="() => Host.SyncAsync(repo.Which)">
+                            <Codicon Name="sync" /><span>Sync Changes</span>
+                            @if (repo.Behind > 0)
+                            {
+                                <span> @repo.Behind</span><Codicon Name="arrow-down" />
+                            }
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="monaco-button-dropdown @(anything ? null : "disabled")">
+                        <a class="monaco-button monaco-text-button @(anything ? null : "disabled")" role="button" tabindex="0" title="@($"Commit Changes on \"{repo.Branch}\"")" aria-disabled="@(anything ? null : "true")"
+                           @onclick="() => anything ? Host.CommitAsync(repo) : Task.CompletedTask"><Codicon Name="check" /><span>Commit</span></a>
+                        <div class="monaco-button-dropdown-separator"><div></div></div>
+                        <a class="monaco-button monaco-dropdown-button @(anything ? null : "disabled")" role="button" tabindex="0" title="More Actions..." aria-label="More Actions..."
+                           @onclick="@(e => Host.Menu(e.ClientX, e.ClientY + 12, "More Actions...", Host.CommitItems(repo)))"><Codicon Name="chevron-down" /></a>
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    private RenderFragment GroupRow(ScmRepository repo, string id, string label, IReadOnlyList<ScmResource> items) => __builder =>
+    {
+        var collapsed = CollapsedGroups.Contains($"{repo.Which}:{id}");
+        <div class="monaco-list-row" role="treeitem" aria-level="1" aria-expanded="@(collapsed ? "false" : "true")" data-group="@id" tabindex="-1"
+             @onclick="() => Host.ToggleGroup(repo.Which + ':' + id)" @oncontextmenu="e => Host.Menu(e.ClientX, e.ClientY, label, Host.GroupItems(repo, id, items))" @oncontextmenu:preventDefault="true">
+            <div class="monaco-tl-row">
+                <div class="monaco-tl-indent" style="width: 0px"></div>
+                <div class="monaco-tl-twistie collapsible @(collapsed ? "collapsed" : null)"><Codicon Name="@(collapsed ? "chevron-right" : "chevron-down")" /></div>
+                <div class="monaco-tl-contents">
+                    <div class="resource-group">
+                        <div class="name">@label</div>
+                        <div class="actions" @onclick:stopPropagation="true">
+                            <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+                                @if (id == "merge")
+                                {
+                                    <ScmAction Icon="add" Title="Stage All Merge Changes" OnRun="() => Host.StageAsync(repo, items.Select(r => r.Path))" />
+                                }
+                                else if (id == "index")
+                                {
+                                    <ScmAction Icon="diff-multiple" Title="Open Staged Changes" OnRun="@(() => Host.OpenListAsync(repo, items, "Staged Changes"))" />
+                                    <ScmAction Icon="remove" Title="Unstage All Changes" OnRun="() => Host.StageAsync(repo, items.Select(r => r.Path), true)" />
+                                }
+                                else
+                                {
+                                    <ScmAction Icon="diff-multiple" Title="Open Changes" OnRun="@(() => Host.OpenListAsync(repo, items, "Changes"))" />
+                                    <ScmAction Icon="discard" Title="Discard All Changes" OnRun="() => Host.DiscardAsync(repo, items)" />
+                                    <ScmAction Icon="add" Title="Stage All Changes" OnRun="() => Host.StageAsync(repo, items.Select(r => r.Path))" />
+                                }
+                            </ul></div>
+                        </div>
+                        <div class="count"><div class="monaco-count-badge long">@items.Count</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment ResourceRow(ScmRepository repo, string group, ScmResource r, int depth) => __builder =>
+    {
+        var selected = Shown is { } s && s.Which == repo.Which && s.Path == r.Path && s.Commit is null;
+        var colour = $"color: var(--vscode-{r.Colour.Replace('.', '-')})";
+        var shownPath = Scoped(repo, r.Path);
+        <div class="monaco-list-row @(selected ? "selected focused" : null)" role="treeitem" aria-level="@(2 + depth)" aria-label="@($"{r.Path}, {r.Tooltip}")"
+             data-path="@r.Path" data-group="@group" data-letter="@r.Letter" tabindex="-1" title="@($"{shownPath} • {r.Tooltip}")"
+             @onclick="() => Host.OpenDiffAsync(repo, r, group)" @oncontextmenu="e => Host.Menu(e.ClientX, e.ClientY, r.Path, Host.ResourceItems(repo, group, r))" @oncontextmenu:preventDefault="true">
+            <div class="monaco-tl-row">
+                <div class="monaco-tl-indent" style="@($"width: {8 + (depth * 8)}px")"></div>
+                <div class="monaco-tl-twistie"></div>
+                <div class="monaco-tl-contents">
+                    <div class="resource">
+                        <div class="name">
+                            <div class="monaco-icon-label file-icon @(r.Letter == "D" ? "strikethrough" : null)">
+                                <Codicon Name="file" Extra="file-icon-glyph" />
+                                <div class="monaco-icon-label-container">
+                                    <span class="monaco-icon-name-container"><a class="label-name" style="@colour">@ScmPage.BaseName(r.Path)</a></span>
+                                    @if (!Tree && ScmPage.DirName(shownPath) is { Length: > 0 } folder)
+                                    {
+                                        <span class="monaco-icon-description-container"><span class="label-description">@folder</span></span>
+                                    }
+                                </div>
+                                <div class="actions" @onclick:stopPropagation="true">
+                                    <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+                                        <ScmAction Icon="go-to-file" Title="Open File" OnRun="() => Host.OpenFileAsync(repo, r)" />
+                                        @if (group == "index")
+                                        {
+                                            <ScmAction Icon="remove" Title="Unstage Changes" OnRun="() => Host.StageAsync(repo, [r.Path], true)" />
+                                        }
+                                        else if (group == "merge")
+                                        {
+                                            <ScmAction Icon="add" Title="Stage Changes" OnRun="() => Host.StageAsync(repo, [r.Path])" />
+                                        }
+                                        else
+                                        {
+                                            <ScmAction Icon="discard" Title="Discard Changes" OnRun="() => Host.DiscardAsync(repo, [r])" />
+                                            <ScmAction Icon="add" Title="Stage Changes" OnRun="() => Host.StageAsync(repo, [r.Path])" />
+                                        }
+                                    </ul></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="decoration-letter" style="@colour" title="@r.Tooltip">@r.Letter</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+}

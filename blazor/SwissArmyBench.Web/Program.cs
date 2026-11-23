@@ -12,6 +12,7 @@ using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
 using SwissArmyBench.Web.Api.Extensions;
 using SwissArmyBench.Web.Api.Files;
+using SwissArmyBench.Web.Api.Git;
 using SwissArmyBench.Web.Api.Grids;
 using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
@@ -69,6 +70,7 @@ public static class Program
         services.AddScoped<CanvasClient>();
         services.AddScoped<WidgetsClient>();
         services.AddScoped<SharingClient>();
+        services.AddScoped<GitClient>();
     }
 
     private static void AddState(IServiceCollection services)

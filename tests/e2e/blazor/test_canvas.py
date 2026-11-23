@@ -1,8 +1,9 @@
-"""The Blazor Canvas on a made-up project (the Streamlit extension on): the landing's canvases and New canvas; the
-page tabs (New page, Rename…, Delete page); a container drawn on the grid and its right-click menu (Insert widget
-▸ with its picker, Scrollable, the run group); a widget's Properties (its properties, Inputs, SIZE, LAYOUT) and a
-value kept by the server's check; the bottom bar (Desktop | Phone, the preview width, Snap, Undo, the panes,
-Wiring, the zoom); the Widgets pane's search and Insert; Builds…; Play in place and back to Edit."""
+"""The Blazor Canvas on a made-up project (the Streamlit extension on): the landing's canvases and New canvas;
+the page tabs (New page, Rename…, Delete page); a container drawn on the grid and its right-click menu
+(Insert widget ▸ with its picker, Scrollable, the run group); a widget's Properties (its properties,
+Inputs, SIZE, LAYOUT) and a value kept by the server's check; the bottom bar (Desktop | Phone, the preview
+width, Snap, Undo, the panes, Wiring, the zoom); the Widgets pane's search and Insert; Builds…; Play in
+place and back to Edit."""
 
 from __future__ import annotations
 
@@ -34,8 +35,8 @@ def open_canvas(browser: Browser, server: dict[str, Any], path: str) -> Page:
 
 
 def saved_nodes(path: str) -> list[dict[str, Any]]:
-    """Every container and widget the canvas file holds (read from the file: opening it again over the routes would
-    be another window's open)."""
+    """Every container and widget the canvas file holds (read from the file: opening it again over the routes
+    would be another window's open)."""
     found: list[dict[str, Any]] = []
 
     def walk(items: list[dict[str, Any]]) -> None:
@@ -96,7 +97,16 @@ def test_page_tabs_and_a_drawn_container_and_its_menu(browser: Browser, server: 
 
     page.locator(".cvs-container").click(button="right", position={"x": 40, "y": 40})
     menu = page.locator(".cvs-menu[role=menu]")
-    for words in ("Insert widget", "Insert container", "Scrollable", "Resizable by viewers", "Delete", "Play", "Launch", "Export…"):
+    for words in (
+        "Insert widget",
+        "Insert container",
+        "Scrollable",
+        "Resizable by viewers",
+        "Delete",
+        "Play",
+        "Launch",
+        "Export…",
+    ):
         expect(menu.locator(".cvs-menu-item", has_text=words).first).to_be_visible()
     menu.locator(".cvs-menu-item", has_text="Scrollable").click()
     expect(page.locator(".cvs-container.scrollable")).to_have_count(1)

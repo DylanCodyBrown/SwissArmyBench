@@ -1,7 +1,7 @@
 """The Blazor Widgets window on made-up widgets: the list's groups (Library, the starter packs) and search; a
-prebuilt widget read-only with Copy as your own; New widget; a property's default written into the code by the
-server's check; the header's Name (checked as typed, kept on Enter) and Description; Code | Preview (the widget
-run alone) and Esc back; the list folded with Ctrl+B; Delete widget asked first."""
+prebuilt widget read-only with Copy as your own; New widget; a property's default written into the code by
+the server's check; the header's Name (checked as typed, kept on Enter) and Description; Code | Preview
+(the widget run alone) and Esc back; the list folded with Ctrl+B; Delete widget asked first."""
 
 from __future__ import annotations
 

@@ -1,0 +1,44 @@
+@* One graph row's SVG (VS Code's renderSCMHistoryItemGraph through ScmGraph.Shapes); Placeholder: a file row's
+   lanes only, straight down. *@
+@using System.Globalization
+
+<svg class="graph" style="@($"height: {N(ScmGraph.SwimlaneHeight)}px; width: {N(Placeholder ? ScmGraph.SwimlaneWidth * (Row.Output.Count + 1) : ScmGraph.Width(Row))}px;")"
+     data-lanes="@Math.Max(Math.Max(Row.Input.Count, Row.Output.Count), 1)">
+    @if (Placeholder)
+    {
+        @for (var i = 0; i < Row.Output.Count; i++)
+        {
+            <path d="@($"M {N(ScmGraph.SwimlaneWidth * (i + 1))} 0 V 22")" fill="none" stroke-width="1px" style="@($"stroke: var(--vscode-{Row.Output[i].Color})")"></path>
+        }
+    }
+    else
+    {
+        @foreach (var shape in ScmGraph.Shapes(Row))
+        {
+            @if (shape.Path is { } d)
+            {
+                <path d="@d" fill="none" stroke-width="@($"{N(shape.Width)}px")" stroke-linecap="round" style="@($"stroke: var(--vscode-{shape.Stroke})")"></path>
+            }
+            else
+            {
+                <circle cx="@N(shape.Cx)" cy="@N(shape.Cy)" r="@N(shape.R)" style="@CircleStyle(shape)"></circle>
+            }
+        }
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public GraphRow Row { get; set; } = default!;
+
+    [Parameter]
+    public bool Placeholder { get; set; }
+
+    private static string N(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string CircleStyle(GraphShape shape) => string.Concat(
+        $"stroke-width: {N(shape.Width)}px;",
+        shape.Fill is { } fill ? $" fill: var(--vscode-{fill});" : string.Empty,
+        shape.Stroke is { } stroke ? $" stroke: var(--vscode-{stroke});" : string.Empty,
+        shape.Dashed ? " stroke-dasharray: 4,2;" : string.Empty);
+}
