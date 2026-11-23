@@ -529,6 +529,9 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     folder = workbench.locator(".file-chooser input[aria-label=Folder]")
     folder.fill(str(tmp_path))
     folder.press("Enter")
+    # The chooser has moved there before Save here (else it saves in the folder it started in).
+    here = workbench.locator(".file-chooser .file-crumb.current")
+    expect(here).to_have_text(tmp_path.name, timeout=20000)
     workbench.get_by_label("File name").fill("orders.ipynb")
     workbench.get_by_role("button", name="Save here").click()
     expect(workbench.locator(".wb-tabs .tab-label")).to_have_text(["orders.ipynb"])
@@ -800,7 +803,8 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
     cell.locator(".monaco-editor").click()
     frame = "{'city': ['Springfield', 'Riverton'], 'rain_mm': [3.5, 0.0]}"
-    workbench.keyboard.type(f"import pandas as pd\nrainfall = pd.DataFrame({frame})")
+    # Inserted at once, not typed key by key: no completion or closing bracket gets in the way.
+    workbench.keyboard.insert_text(f"import pandas as pd\nrainfall = pd.DataFrame({frame})")
     workbench.keyboard.press("Control+Enter")
     expect(cell.locator(".wb-count")).to_have_text("[1]", timeout=60000)
     status(workbench, "Environment")  # closed until the status bar opens it (the redesign of 2026-11-15)
@@ -813,7 +817,7 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
     # A variable the next run makes shows by itself (the watcher's trigger after each cell): no Refresh.
     cell.locator(".monaco-editor").click()
     workbench.keyboard.press("Control+End")
-    workbench.keyboard.type("\nwettest = 3.5")
+    workbench.keyboard.insert_text("\nwettest = 3.5")
     workbench.keyboard.press("Control+Enter")
     overlay.get_by_role("tab", name=re.compile("^Variables")).click()
     expect(overlay.locator('.env-row[data-name="wettest"]')).to_contain_text("3.5", timeout=30000)
