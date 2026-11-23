@@ -7,18 +7,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from playwright.sync_api import Browser, expect
+from playwright.sync_api import Browser, ViewportSize, expect
 
 from tests.e2e.blazor.conftest import call, open_page
 
 # Wide enough that every column of orders is drawn beside a column's card (AG Grid draws only columns on
 # screen).
-WIDE = {"width": 1900, "height": 900}
+WIDE: ViewportSize = {"width": 1900, "height": 900}
 
 
 def orders_grid(server: dict[str, Any]) -> str:
     made = call(server, "POST", "/samples/store", {})
-    return next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
+    return str(next(t["grid"] for t in made["tables"] if t["name"].startswith("orders")))
 
 
 def test_table_tool_opens_its_step_editor_and_adds_the_step(browser: Browser, server: dict[str, Any]) -> None:

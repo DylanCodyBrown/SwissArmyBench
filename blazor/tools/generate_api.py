@@ -438,6 +438,19 @@ ANSWERS += [
     ),
 ]
 
+ANSWERS.append(
+    Answer(
+        "Extensions",
+        "ExtensionList",
+        "GET",
+        "/extensions",
+        "GET /extensions: every extension (preinstalled, available, installed, coming) with what it adds, "
+        "whether this copy can install one, and the change under way.",
+        nested={"extensions": "ExtensionCard"},
+        types={"changing": f"{JSON}?", "version": "string?"},
+    )
+)
+
 # A made-up API's OpenAPI document (Add API reads it as text): orders by status, one order, a new order.
 STORE_SPEC: dict[str, Any] = {
     "openapi": "3.0.3",
@@ -492,6 +505,8 @@ HAND_WRITTEN: dict[str, str] = {
     "Analyze/a table card's columns and rows": "only a card Python sends carries them (read from the card's "
     "body on the page)",
     "Apis/ApiCallAnswer": "a call's answer needs the API's service to answer (the made-up API is offline)",
+    "Extensions/a folder extension's card": "its source, path, error and missing packages show only with "
+    "a folder extension in the library (none in the made-up state)",
     "Grids/StepError": "null unless a step fails (the made-up data has no failing step)",
     "Grids/ConnectionSwap": "one of four answers (swapped, pick, review, failed), each free-form",
     "Grids/MadeTable": "shared by the query and the sandbox variant, each answering different fields",

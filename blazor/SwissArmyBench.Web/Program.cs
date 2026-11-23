@@ -9,6 +9,7 @@ using SwissArmyBench.Web.Api.App;
 using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
+using SwissArmyBench.Web.Api.Extensions;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Grids;
 using SwissArmyBench.Web.Api.Projects;
@@ -60,6 +61,7 @@ public static class Program
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();
+        services.AddScoped<ExtensionsClient>();
     }
 
     private static void AddState(IServiceCollection services)

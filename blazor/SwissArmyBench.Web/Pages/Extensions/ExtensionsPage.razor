@@ -1,0 +1,44 @@
+@* The Extensions page (the classic extensionsPage.ts): a card per extension (what it adds, its status: Preinstalled,
+   Available, Installed, Coming), Install (one click; the app restarts with it) and Remove (asked first). A copy that
+   cannot install (a development checkout) says what to run instead. Folder extensions and an extension's own panel
+   are the classic page's for now. Logic in ExtensionsPage.razor.cs. *@
+@page "/extensions"
+@implements IDisposable
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="extensions" /> Extensions</h1>
+    </header>
+    <div class="area-page-body">
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        @if (_list?.Changing is { ValueKind: System.Text.Json.JsonValueKind.Object })
+        {
+            <p role="status" class="muted">An extension is being installed or removed: the app restarts with it.</p>
+        }
+        <div class="card-grid">
+            @foreach (var card in _list?.Extensions ?? [])
+            {
+                <article class="card extension-card @card.Status" data-extension="@card.Id">
+                    <span class="card-title"><Icon Name="extensions" /> @card.Name <span class="chip">@StatusWords(card)</span></span>
+                    <p>@card.Description</p>
+                    <ul class="plain-list">
+                        @foreach (var adds in card.Adds)
+                        {
+                            <li>@adds</li>
+                        }
+                    </ul>
+                    <div class="card-actions">
+                        @if (card.Status == "available")
+                        {
+                            <button type="button" class="btn small primary" @onclick="() => InstallAsync(card)"><Icon Name="import" /> Install</button>
+                        }
+                        else if (card.Status == "installed")
+                        {
+                            <button type="button" class="btn small" @onclick="() => RemoveAsync(card)"><Icon Name="trash" /> Remove</button>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    </div>
+</section>

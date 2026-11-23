@@ -26,6 +26,7 @@ PAGES = [
     "analyze",
     "apis",
     "structures",
+    "extensions",
 ]
 
 
