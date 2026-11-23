@@ -10,7 +10,6 @@ namespace SwissArmyBench.Web.Pages.Grids;
 /// </summary>
 public partial class GridsPage
 {
-    private (string To, IReadOnlyList<string> Tables, string? Sql)? _reviewing;
     private (string From, string To, IReadOnlyList<CodeReference> References)? _repointing;
 
     private async Task SwappedAsync(Swapped done)
@@ -44,18 +43,6 @@ public partial class GridsPage
     }
 
     private Task UndoActiveSwapAsync() => _info is { } info ? UndoSwapAsync(info.Dataset) : Task.CompletedTask;
-
-    private void Review((string To, IReadOnlyList<string> Tables, string? Sql) review) => _reviewing = review;
-
-    private async Task ReviewedAsync()
-    {
-        var was = _reviewing;
-        _reviewing = null;
-        if (was is { } review && _connection?.Connection is { } from)
-        {
-            await OfferRepointAsync(from, review.To);
-        }
-    }
 
     /// <summary>The cells that named the old connection, each ticked: Point these at the new one. Shown only when
     /// there are some (`always`: said when there are none).</summary>

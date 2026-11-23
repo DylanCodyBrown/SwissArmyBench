@@ -100,17 +100,19 @@ def test_the_steps_panel_previews_and_undo_brings_a_step_back(
     page = open_page(browser, server, f"grids?grid={grid}")
     strip = page.locator(".steps-strip")
     expect(strip).to_contain_text("Keep the first 10 rows")
-    page.click("[data-tool=view-steps]")
-    panel = page.locator(".dialog")
+    # View steps opens the steps in a window of their own (the classic ?panel=steps); a step's words
+    # preview it there.
+    with page.context.expect_page() as opened:
+        page.click("[data-tool=view-steps]")
+    window = opened.value
+    window.wait_for_selector(".panel-window", timeout=60_000)
+    panel = window.locator(".dialog")
     expect(panel).to_contain_text("Source: orders")
     expect(panel).to_contain_text("(120 rows, version")
     expect(panel).to_contain_text("120 → 10 rows")
     panel.locator(".step:not(.source) .text").first.click()
-    expect(page.locator(".preview-banner")).to_contain_text("Previewing")
-    expect(page.locator(".status-rows")).to_contain_text("previewing after step 1")
-    panel.locator(".dialog-foot").get_by_role("button", name="Close").click()
-    page.get_by_role("button", name="Back to the full view").click()
-    expect(page.locator(".preview-banner")).to_have_count(0)
+    expect(panel.locator(".step.previewing")).to_have_count(1)
+    window.close()
 
     # A step removed says so, with Undo; Clear the steps too.
     strip.get_by_role("button", name="Remove: Keep the first 10 rows").click()
@@ -126,7 +128,12 @@ def test_the_steps_panel_previews_and_undo_brings_a_step_back(
 def test_the_key_finder_finds_as_it_opens(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders(server)
     page = open_page(browser, server, f"grids?grid={grid}")
-    page.click("[data-tool=keyfinder]")
+    # The Key Finder opens in a window of its own (the classic ?panel=keys).
+    with page.context.expect_page() as opened:
+        page.click("[data-tool=keyfinder]")
+    grids = page
+    page = opened.value
+    page.wait_for_selector(".panel-window", timeout=60_000)
     dialog = page.locator(".dialog")
     expect(dialog).to_contain_text("Most distinct column combination in")
     expect(dialog).to_contain_text("tells every one of all 120 rows apart")
@@ -142,3 +149,4 @@ def test_the_key_finder_finds_as_it_opens(browser: Browser, server: dict[str, An
     dialog.get_by_role("button", name="Send to Analyze").click()
     expect(page.locator(".note-corner")).to_contain_text("On the Analyze board")
     page.close()
+    grids.close()

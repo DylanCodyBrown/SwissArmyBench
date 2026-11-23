@@ -25,6 +25,28 @@ public partial class AnalyzePage
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
+    /// <summary>The analysis an address names (analyze?analysis=odds&amp;table=g1: the palette's Analyze entries), its
+    /// form opened on arrival.</summary>
+    [SupplyParameterFromQuery(Name = "analysis")]
+    public string? AnalysisParameter { get; set; }
+
+    /// <summary>The table an address names for that analysis (a grid's id).</summary>
+    [SupplyParameterFromQuery(Name = "table")]
+    public string? TableParameter { get; set; }
+
+    private string? _addressTaken;
+
+    // An analysis named in the address preselects the toolbar's, once per address (a later pick on the page stands).
+    protected override void OnParametersSet()
+    {
+        var address = $"{AnalysisParameter}|{TableParameter}";
+        if (AnalysisParameter is { Length: > 0 } named && address != _addressTaken)
+        {
+            _addressTaken = address;
+            Choose(named);
+        }
+    }
+
     /// <summary>The toolbar's analyses by their group, in the server's order (everyday words first).</summary>
     private IEnumerable<IGrouping<string, AnalysisEntry>> Groups =>
         (_toolbar?.Analyses ?? [])

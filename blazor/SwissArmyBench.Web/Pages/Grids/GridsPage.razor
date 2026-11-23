@@ -34,7 +34,7 @@
         <Ribbon Info="info" Selection="_selection" ConnectionLabel="@ConnectionLabel" OnTool="RunToolAsync">
             <Steps>
                 <StepsStrip Info="info" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditStep" OnUndo="UndoAsync" OnRedo="RedoAsync"
-                            OnClear="ClearStepsAsync" OnViewSteps="() => _dialog = StepsPanel" OnFailed="e => _error = e" />
+                            OnClear="ClearStepsAsync" OnViewSteps="OpenStepsWindowAsync" OnFailed="e => _error = e" />
             </Steps>
             <Compare>
                 @if (SplitPair is { } pair)
@@ -118,9 +118,6 @@
         case ViewValue when _viewing is { } viewing:
             <ValueViewer Title="@viewing.Title" Value="viewing.Value" OnSend="v => SendCardsAsync(GridCards.Value(v.Value, v.Trail, open.Dataset))" OnClose="CloseDialog" />
             break;
-        case "keyfinder":
-            <KeyFinderDialog Grid="@open.Grid" Dataset="@open.Dataset" OnSend="SendKeyFinderAsync" OnClose="CloseDialog" />
-            break;
         case "code":
             <CodeDialog Grid="@open.Grid" Dataset="@open.Dataset" OnClose="CloseDialog" />
             break;
@@ -129,9 +126,6 @@
             break;
         case "relationships":
             <RelationshipsDialog Grid="@open.Grid" OnClose="CloseDialog" />
-            break;
-        case StepsPanel:
-            <StepsPanel Info="open" PreviewUpto="_previewUpto" OnPreview="PreviewAsync" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditFromPanel" OnReorder="ReorderStepsAsync" OnClose="CloseDialog" />
             break;
         case AddRow when SandboxOf(open.Dataset) is { } sandboxed:
             <AddRowDialog Table="sandboxed" OnClose="CloseDialog" />
@@ -160,10 +154,6 @@
 @if (_sheets is { } asking)
 {
     <SheetsDialog File="@asking.File" Sheets="asking.Sheets" OnPicked="SheetsPicked" />
-}
-@if (_reviewing is { } reviewing)
-{
-    <ConnectionSqlDialog To="@reviewing.To" Tables="reviewing.Tables" Sql="@reviewing.Sql" OnSwapped="SwappedAsync" OnClose="ReviewedAsync" />
 }
 @if (_repointing is { } repointing)
 {

@@ -1,0 +1,57 @@
+@* A pop-out window's frame (the classic ?panel= windows: the steps panel, the Key Finder, the SQL window): the page's
+   session and theme as the main frame opens them, the one panel filling the window, the notes and the app's own
+   dialogs; no rail and no status bar. The desktop app opens it as a window of its own (window.open), a browser as
+   a pop-up. *@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IJSRuntime Js
+@inject ThemeState Theme
+@inject LiveUpdates Live
+@inject BetaState Beta
+
+@switch (_state)
+{
+    case Opening:
+        <div class="boot">Opening Swiss Army Bench…</div>
+        break;
+    case SignedOut:
+        <main class="signed-out">Open Swiss Army Bench from its launcher, or run <code>swissarmybench open</code>.</main>
+        break;
+    default:
+        <FluentDesignTheme Mode="@(Theme.IsDark ? DesignThemeModes.Dark : DesignThemeModes.Light)" />
+        <main class="panel-window">
+            @Body
+        </main>
+        <NoteCorner />
+        <DialogHost />
+        <PackagePromptHost />
+        <VariableAskHost />
+        <BetaNoteHost />
+        <VariableAnywhere />
+        <FilePickerHost />
+        break;
+}
+
+@code {
+    private const string Opening = "opening";
+    private const string SignedOut = "signed-out";
+    private const string Ready = "ready";
+
+    private string _state = Opening;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await Js.InvokeAsync<bool>("sab.openSession"))
+        {
+            _state = SignedOut;
+            return;
+        }
+        Theme.Changed += StateHasChanged;
+        await Theme.StartAsync();
+        await Live.StartAsync();
+        _state = Ready;
+        await Beta.StartAsync();
+    }
+
+    public void Dispose() => Theme.Changed -= StateHasChanged;
+}

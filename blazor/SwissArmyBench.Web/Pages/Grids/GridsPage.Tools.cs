@@ -58,7 +58,10 @@ public partial class GridsPage
         var one = target.Count == 1 ? target[0] : null;
         switch (tool)
         {
-            case "matching" or "export" or "profile" or "keyfinder" or "connection" or "code":
+            case "keyfinder":
+                await OpenKeyFinderWindowAsync();
+                break;
+            case "matching" or "export" or "profile" or "connection" or "code":
                 _dialog = tool;
                 break;
             case "filter":
@@ -145,8 +148,6 @@ public partial class GridsPage
         }
     }
 
-    private const string StepsPanel = "steps";
-
     private int? _previewUpto;
 
     private void CloseDialog() => _dialog = null;
@@ -158,20 +159,6 @@ public partial class GridsPage
         Status.SetPreview(upto);
         return Task.CompletedTask;
     }
-
-    private void EditFromPanel((string Kind, int? Index) edit)
-    {
-        if (edit.Index is { } index)
-        {
-            EditStep(index);
-        }
-        else
-        {
-            OpenEditor(edit.Kind, null);
-        }
-    }
-
-    private Task ReorderStepsAsync(IReadOnlyList<GridStep> steps) => ChangedAsync(() => Grids.SaveStepsAsync(_active!, steps));
 
     private IReadOnlyList<string> AllColumns() => _info?.Columns.Select(c => c.Name).ToList() ?? [];
 
