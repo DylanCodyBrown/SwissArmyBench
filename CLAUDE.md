@@ -746,7 +746,8 @@ src/swissarmybench/
                          and its access report (names, marks, reasons; never a token or a row), Microsoft's refusals
                          in plain words, a connection's access in one line; the Microsoft kinds it checks (Azure SQL,
                          Dataverse, SharePoint, OneLake, Data Lake: each one's scope, place, refusals in words) and a
-                         connection's code made to sign in with a registration (signed_in_with: its place kept)
+                         connection's code made to sign in with a registration (signed_in_with: its place kept; whose
+                         code by the record's app_sign_in, each kind module's app_code; a storage path by entra_path)
     sandbox.py           the project's sandbox (2026-11-21): sandbox/ at the project's top (sandbox.duckdb, baseline.duckdb,
                          checkpoints/, sandbox.json: each table's source and the client its rows are mocked as, the
                          baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values);

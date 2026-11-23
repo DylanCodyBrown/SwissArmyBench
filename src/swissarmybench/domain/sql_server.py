@@ -1090,6 +1090,12 @@ ORDER: dict[str, tuple[str, ...]] = {
 }
 
 
+def app_code(kind: str, root: str = "") -> str | None:
+    """The code a connection of this kind signs in with an app registration by (domain/app_registrations.py
+    signed_in_with): SQL Server's (Azure SQL's too) app-registration way."""
+    return code("app_secret", "my-server")
+
+
 def code(way: str, server: str = "my-server") -> str:
     """The connection's code for one way to sign in: the imports, the runtime, then `conn = SqlServer(...)`
     with every setting the form shows as a keyword (or, for a credential's tenant, a name)."""

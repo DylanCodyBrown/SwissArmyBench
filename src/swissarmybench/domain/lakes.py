@@ -394,3 +394,15 @@ DELTA_SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("A folder on this computer", "# A folder on this computer", _delta("local")),
     ("Amazon S3: a profile on this computer", 'profile = "', _delta("s3profile")),
 )
+
+
+def app_code(kind: str, root: str = "") -> str | None:
+    """The code a lake connection signs in with an app registration by (app_registrations): its first way;
+    a Delta table only when it is on Azure (its root an abfss:// address)."""
+    if kind == ONELAKE:
+        return ONELAKE_SIGN_INS[0][2]
+    if kind == DATALAKE:
+        return DATALAKE_SIGN_INS[0][2]
+    if kind == DELTA:
+        return DELTA_SIGN_INS[0][2] if root.startswith("abfss://") else None
+    return None

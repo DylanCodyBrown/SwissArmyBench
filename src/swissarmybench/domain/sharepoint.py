@@ -869,3 +869,10 @@ DOCS_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
 )
 LISTS: str = LISTS_SIGN_INS[0][2]
 DOCS: str = DOCS_SIGN_INS[0][2]
+
+
+def app_code(kind: str, root: str = "") -> str | None:
+    """The code a SharePoint connection (a site's lists or its documents) signs in with an app registration
+    by (app_registrations)."""
+    ways = {"sharepoint": LISTS_SIGN_INS, "sharepoint_docs": DOCS_SIGN_INS}.get(kind, ())
+    return next((c for _label, mark, c in ways if mark == entra.APP_MARK), None)

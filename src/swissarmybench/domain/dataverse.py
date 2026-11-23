@@ -669,6 +669,12 @@ APP: str = _code(_APP)
 # with user and password"): a browser window or a code on another device, remembered (domain/entra.py).
 MFA: str = _code(entra.MFA, reads_os=False)
 
+
+def app_code(kind: str, root: str = "") -> str | None:
+    """The code a Dataverse connection signs in with an app registration by (app_registrations)."""
+    return APP
+
+
 # The form's Sign in: (label, a text only that way's code holds, its code). The app registration comes
 # first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as you, this machine's
 # only, comes last (the owner, 2026-11-17: "we want to advise against any connectors that only work

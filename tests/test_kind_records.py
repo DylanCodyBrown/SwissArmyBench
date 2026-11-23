@@ -95,6 +95,30 @@ def test_an_older_face_is_a_tables_kind_of_the_same_dialect() -> None:
     )
 
 
+def test_a_storage_check_and_a_registrations_code_are_the_records() -> None:
+    """app_registrations reads the path a storage check lists and whose app-registration code a kind signs
+    in with from the record (entra_path, app_sign_in), never from a branch per kind."""
+    from swissarmybench.domain import app_registrations as regs
+
+    assert regs.lake_place("onelake", {"workspace": "Sales", "item": "Lake.Lakehouse"}) == (
+        "onelake",
+        "Sales",
+        "Lake.Lakehouse",
+    )
+    assert regs.lake_place("datalake", {"account": "acct", "container": "c"}) == ("acct", "c", "")
+    root = {"root": "abfss://files@madeup.dfs.core.windows.net/sales/orders"}
+    assert regs.lake_place("delta", root) == ("madeup", "files", "sales/orders")
+    assert regs.lake_place("delta", {"root": "/data/orders"}) is None
+    assert regs.lake_place("sharepoint", {}) is None
+    assert kinds.KINDS["azuresql"].app_sign_in == "sqlserver" and not kinds.KINDS["sybase"].app_sign_in
+    wrong = dataclasses.replace(kinds.KINDS["azuresql"], app_sign_in="sybase")
+    assert any(
+        "app_sign_in names 'sybase'" in line for line in kinds.problems(kinds.KINDS | {"azuresql": wrong})
+    )
+    no_path = dataclasses.replace(kinds.KINDS["datalake"], entra_path=())
+    assert any("names its path" in line for line in kinds.problems(kinds.KINDS | {"datalake": no_path}))
+
+
 def test_a_dialect_is_found_by_any_of_its_names() -> None:
     assert kinds.engine(" TSQL ") is kinds.KINDS["sqlserver"]
     assert kinds.engine("azuresql") is kinds.KINDS["sqlserver"]
@@ -131,6 +155,7 @@ MADE_UP = Kind(
     entra_scope="https://lakefront.example/.default",
     entra_place=(("shore",), ""),
     entra_refusals="storage",
+    entra_path=("shore",),  # its one setting an abfss:// address
     env_prefix="LAKEFRONT",
 )
 
@@ -333,8 +358,8 @@ def test_what_a_tree_calls_a_group_is_the_records() -> None:
 NAMES_A_LAKE_KIND = {
     "domain/connection_kinds.py": "the record: the one entry a new kind writes",
     "domain/lakes.py": "its code module: each kind's own code, sign-ins and words",
+    "domain/sharepoint.py": "its code module: SharePoint's lists' and documents' code and sign-ins",
     "domain/lake_code.py": "the lakes' shared code (\"delta\" is a table's format there)",
-    "domain/app_registrations.py": "its app-registration code, and the path an Azure lake's check lists",
     "services/local_api_wizard.py": "a sandbox table mocked as a SharePoint list reads by the list's client",
 }
 

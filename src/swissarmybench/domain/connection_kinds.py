@@ -97,6 +97,10 @@ class Kind:
     entra_scope: str = ""  # the token's scope ({url}: the connection's own address)
     entra_place: tuple[tuple[str, ...], str] = ((), "")  # the settings its check names, and their joiner
     entra_refusals: str = ""  # whose words a refusal is said in: sql, dataverse, graph, storage
+    # The storage path a storage check lists: three settings (account, filesystem, directory), "=word" a
+    # word as it is; or one setting that holds an abfss:// address. () for a kind that is not storage.
+    entra_path: tuple[str, ...] = ()
+    app_sign_in: str = ""  # whose app-registration code it is signed in with (its own word, or its dialect's)
     env_prefix: str = ""  # the prefix of the variable names its form suggests
 
     @property
@@ -143,6 +147,7 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope="https://database.windows.net/.default",
         entra_place=(("database", "server"), " on "),
         entra_refusals="sql",
+        app_sign_in="sqlserver",
     ),
     Kind(
         "azuresql",
@@ -150,6 +155,7 @@ _RECORDS: tuple[Kind, ...] = (
         DATABASES,
         dialect="sqlserver",
         writes=Writable(_SQL, "T-SQL in one transaction: staged, MERGE, retried on Azure's passing errors"),
+        app_sign_in="sqlserver",  # SQL Server's own sign-in code, made for Azure
     ),
     Kind(
         "sybase",
@@ -363,6 +369,7 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope="{url}/.default",  # the environment's own
         entra_place=(("url",), ""),
         entra_refusals="dataverse",
+        app_sign_in="dataverse",
     ),
     Kind(
         "dataverse_web",
@@ -484,6 +491,8 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope=_STORAGE,
         entra_place=(("workspace", "item"), "/"),
         entra_refusals="storage",
+        entra_path=("=onelake", "workspace", "item"),
+        app_sign_in="onelake",
         env_prefix="ONELAKE",
     ),
     Kind(
@@ -510,6 +519,8 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope=_STORAGE,
         entra_place=(("account", "container", "folder_in_container"), "/"),
         entra_refusals="storage",
+        entra_path=("account", "container", "folder_in_container"),
+        app_sign_in="datalake",
         env_prefix="DATALAKE",
     ),
     Kind(
@@ -537,6 +548,8 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope=_STORAGE,
         entra_place=(("root",), ""),
         entra_refusals="storage",
+        entra_path=("root",),
+        app_sign_in="delta",
         env_prefix="DELTA_LAKE",
     ),
     Kind(
@@ -563,6 +576,7 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope=_GRAPH,
         entra_place=(("site_url",), ""),
         entra_refusals="graph",
+        app_sign_in="sharepoint",
         env_prefix="SHAREPOINT",
     ),
     # The open project's sandbox (domain/sandbox.py): local test data, never live; never exported as a
@@ -598,6 +612,7 @@ _RECORDS: tuple[Kind, ...] = (
         entra_scope=_GRAPH,
         entra_place=(("site_url",), ""),
         entra_refusals="graph",
+        app_sign_in="sharepoint_docs",
         env_prefix="SHAREPOINT",
     ),
 )
@@ -707,6 +722,16 @@ def problems(records: Mapping[str, Kind] | None = None) -> list[str]:
                 say("has a write mode the adapter does not have")
         if bool(kind.entra_area) != bool(kind.entra_scope and kind.entra_place[0] and kind.entra_refusals):
             say("an Entra check names its area, scope, place and whose refusals, all four")
+        if bool(kind.entra_path) != (kind.entra_refusals == "storage") or len(kind.entra_path) not in (
+            0,
+            1,
+            3,
+        ):
+            say("a storage check names its path: three settings, or one abfss:// address")
+        if kind.app_sign_in:
+            signer = kinds.get(kind.app_sign_in)
+            if signer is None or not signer.entra_refusals:
+                say(f"app_sign_in names {kind.app_sign_in!r}, which is not checked with a registration")
         if kind.dialect and owners[kind.dialect] is kind:
             if kind.sqlglot == "":
                 say("a dialect says its name in sqlglot, or NEVER")

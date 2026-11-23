@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -305,19 +305,20 @@ def place_words(kind: str, settings: Mapping[str, str]) -> str:
     return joiner.join(p for p in (settings.get(name, "") for name in names) if p)
 
 
+_ABFSS = re.compile(r"abfss://([^@/]+)@([^./]+)\.dfs\.[^/]+/?(.*)")  # filesystem@account.dfs.<host>/directory
+
+
 def lake_place(kind: str, settings: Mapping[str, str]) -> tuple[str, str, str] | None:
-    """(account, filesystem, directory) a lake kind's check lists; None: not an Azure path."""
-    if kind == "datalake":
-        return (
-            settings.get("account", ""),
-            settings.get("container", ""),
-            settings.get("folder_in_container", ""),
-        )
-    if kind == "onelake":
-        return "onelake", settings.get("workspace", ""), settings.get("item", "")
-    if kind == "delta":
-        found = re.fullmatch(r"abfss://([^@/]+)@([^./]+)\.dfs\.[^/]+/?(.*)", settings.get("root", ""))
-        return (found.group(2), found.group(1), found.group(3)) if found else None
+    """(account, filesystem, directory) a storage kind's check lists, as its record's entra_path names them
+    (three settings, "=word" a word as it is; or one setting's abfss:// address); None: not an Azure path."""
+    found = connection_kinds.get(kind)
+    path = found.entra_path if found is not None else ()
+    if len(path) == 1:
+        address = _ABFSS.fullmatch(settings.get(path[0], ""))
+        return (address.group(2), address.group(1), address.group(3)) if address else None
+    if len(path) == 3:
+        account, filesystem, directory = (p[1:] if p.startswith("=") else settings.get(p, "") for p in path)
+        return account, filesystem, directory
     return None
 
 
@@ -370,26 +371,26 @@ def refused_words(kind: str, status: int, said: str) -> tuple[str, str]:
 # ===== a connection signed in with a registration (re-pointing) =====
 
 
+# Each family's app-registration code (by whose refusals its record names, as the access report's probes
+# are picked), from the kind module's starter: (the kind, its root setting) -> its code, or None.
+_APP_CODES: dict[str, Callable[[str, str], str | None]] = {
+    "sql": sql_server.app_code,
+    "dataverse": dataverse.app_code,
+    "storage": lakes.app_code,
+    "graph": sharepoint.app_code,
+}
+
+
 def _app_code(kind: str, root: str) -> str | None:
-    """The kind's app-registration code, from its starter (the place settings filled after)."""
-    if kind == "sqlserver":
-        return sql_server.code("app_secret", "my-server")
-    if kind == "dataverse":
-        return dataverse.APP
-    if kind == "onelake":
-        return lakes.ONELAKE_SIGN_INS[0][2]
-    if kind == "datalake":
-        return lakes.DATALAKE_SIGN_INS[0][2]
-    if kind == "delta":
-        return lakes.DELTA_SIGN_INS[0][2] if root.startswith("abfss://") else None
-    if kind == "sharepoint":
-        return next(c for _label, mark, c in sharepoint.LISTS_SIGN_INS if mark == _APP_MARK)
-    if kind == "sharepoint_docs":
-        return next(c for _label, mark, c in sharepoint.DOCS_SIGN_INS if mark == _APP_MARK)
-    return None
+    """The kind's app-registration code, from its starter (the place settings filled after): whose code its
+    record's app_sign_in names, made by that kind's own module."""
+    found = connection_kinds.get(kind)
+    signer = connection_kinds.get(found.app_sign_in) if found is not None and found.app_sign_in else None
+    if signer is None or signer.entra_refusals not in _APP_CODES:
+        return None
+    return _APP_CODES[signer.entra_refusals](signer.name, root)
 
 
-_APP_MARK = "# Sign in as an app registration"
 _SIGN_IN_NAMES = frozenset({"tenant_id", "client_id", "tenant", "client"})
 
 
@@ -401,7 +402,7 @@ def signed_in_with(kind: str, code: str, reg: Registration) -> str | None:
         own = {s.key: s.text for s in detect_settings(code) if s.text is not None}
     except Exception:  # code the reader does not follow: its kind's defaults
         own = {}
-    made = _app_code("sqlserver" if kind == "azuresql" else kind, str(own.get("root") or ""))
+    made = _app_code(kind, str(own.get("root") or ""))
     if made is None:
         return None
     values = {k: v for k, v in own.items() if k not in _SIGN_IN_NAMES}
