@@ -1,6 +1,7 @@
-"""The Blazor Grids page's ribbon (the classic ribbon.ts, cellMenu.ts, stepForms.ts) on the made-up sample store:
-a Table tool (Keep first rows through its step editor), a Column tool on a selected column (Sort Z→A), a step
-edited from the strip, the selection's numbers in the status bar, and a cell's Copy from its right-click menu."""
+"""The Blazor Grids page's ribbon (the classic ribbon.ts, cellMenu.ts, stepForms.ts) on the made-up sample
+store: a Table tool (Keep first rows through its step editor), a Column tool on a selected column (Sort
+Z→A), a step edited from the strip, the selection's numbers in the status bar, and a cell's Copy from its
+right-click menu."""
 
 from __future__ import annotations
 
@@ -10,8 +11,8 @@ from playwright.sync_api import Browser, expect
 
 from tests.e2e.blazor.conftest import call, open_page
 
-
-# Wide enough that every column of orders is drawn beside a column's card (AG Grid draws only columns on screen).
+# Wide enough that every column of orders is drawn beside a column's card (AG Grid draws only columns on
+# screen).
 WIDE = {"width": 1900, "height": 900}
 
 

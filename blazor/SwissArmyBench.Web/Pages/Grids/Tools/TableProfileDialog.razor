@@ -62,10 +62,11 @@
         }
     }
 
-    private static string Words(System.Text.Json.JsonElement value) => value.ValueKind switch
+    private static string Words(System.Text.Json.JsonElement? value) => value switch
     {
-        System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null => string.Empty,
-        System.Text.Json.JsonValueKind.String => value.GetString() ?? string.Empty,
-        _ => value.GetRawText(),
+        null => string.Empty,
+        { ValueKind: System.Text.Json.JsonValueKind.Null } => string.Empty,
+        { ValueKind: System.Text.Json.JsonValueKind.String } text => text.GetString() ?? string.Empty,
+        { } other => other.GetRawText(),
     };
 }

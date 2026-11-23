@@ -64,7 +64,7 @@ public partial class FilterForm
         get
         {
             var listed = _values?.Values ?? [];
-            var extra = _search.Length > 0 ? [] : _picked.Where(p => listed.All(v => v.Value.GetRawText() != p.Key)).Select(p => new ValueCount(p.Value, 0));
+            var extra = _search.Length > 0 ? [] : _picked.Where(p => listed.All(v => v.Value.GetRawText() != p.Key)).Select(p => new ValueCount { Value = p.Value });
             return extra.Concat(listed);
         }
     }
@@ -163,7 +163,7 @@ public partial class FilterForm
         }
         catch (ApiException)
         {
-            _values = new ValueList([], false, 0); // the server could not list them: the value box still works
+            _values = new ValueList(); // the server could not list them: the value box still works
         }
     }
 

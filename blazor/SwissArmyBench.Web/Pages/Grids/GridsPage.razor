@@ -62,7 +62,7 @@
     @switch (_dialog)
     {
         case "matching":
-            <MatchingDialog Settings="open.Settings ?? new TextMatching(true, false, false, false)" Save="SaveMatchingAsync" OnClose="CloseDialog" />
+            <MatchingDialog Settings="open.Settings" Save="SaveMatchingAsync" OnClose="CloseDialog" />
             break;
         case "export":
             <ExportDialog Info="open" Selection="_selection.Descriptor" OnClose="CloseDialog" />

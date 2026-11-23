@@ -1,17 +1,17 @@
 """Write the Blazor front end's answer records from the server's own answers (standard library only).
 
-    python blazor/tools/generate_api.py           write blazor/SwissArmyBench.Web/Api/<Area>/Generated/*.cs
-    python blazor/tools/generate_api.py --check   exit 1, naming the files, when they differ from what is committed
+    python blazor/tools/generate_api.py           writes Api/<Area>/Generated/*.cs (the C# project's)
+    python blazor/tools/generate_api.py --check   exit 1 naming each file that differs from the committed
 
-The server has no OpenAPI document: its routes answer `json_response(dict)` with no schema (server/http.py), so
-there is nothing typed to read. This script reads the answers themselves instead. It starts a server of its own
-the way the browser tests do (a temporary state folder, made-up data only: the sample store and a small made-up
-notebook), calls each route listed in ANSWERS, and writes one C# record per JSON object it sees: its fields in
-the server's order, snake_case as PascalCase, each typed by its value (text, a whole number, a number, true or
-false, a list, an object). What a value cannot tell (a number that may have a fraction, a field that may be null,
-a free-form object) is said in the answer's `types`. A field the server renames or drops changes the generated
-file, so `--check` (tests/test_blazor_api_types.py) fails and the C# that read it no longer builds: a renamed
-field is a build error, not a blank on screen.
+The server has no OpenAPI document: its routes answer `json_response(dict)` with no schema (server/http.py),
+so there is nothing typed to read. This script reads the answers themselves instead. It starts a server of
+its own the way the browser tests do (a temporary state folder, made-up data only: the sample store and a
+small made-up notebook), calls each route listed in ANSWERS, and writes one C# record per JSON object it
+sees: its fields in the server's order, snake_case as PascalCase, each typed by its value (text, a whole
+number, a number, true or false, a list, an object). What a value cannot tell (a number that may have a
+fraction, a field that may be null, a free-form object) is said in the answer's `types`. A field the server
+renames or drops changes the generated file, so `--check` (tests/test_blazor_api_types.py) fails and the C#
+that read it no longer builds: a renamed field is a build error, not a blank on screen.
 
 Answers whose shape no sample can pin (free-form, or needing a running kernel or a connection) keep their
 hand-written records: HAND_WRITTEN names each one and why.
@@ -62,7 +62,8 @@ ANSWERS: list[Answer] = [
         "GridInfo",
         "GET",
         "/grids/{grid}",
-        "GET /grids/{id}: a grid's dataset, columns, steps and whether a change can be undone or redone; the columns "
+        "GET /grids/{id}: a grid's dataset, columns, steps and whether a change can be undone or redone; "
+        "the columns "
         "entering each step (StageColumns) and how its filters compare text (Settings).",
         nested={
             "columns": "GridColumn",
@@ -88,7 +89,8 @@ ANSWERS: list[Answer] = [
         "SelectionStats",
         "POST",
         "/grids/{grid}/selection-stats",
-        "POST /grids/{id}/selection-stats: Excel's status bar over the whole selection, counted by the server; "
+        "POST /grids/{id}/selection-stats: Excel's status bar over the whole selection, counted by the "
+        "server; "
         "IdLike names the number columns that look like identifiers, whose sum would mean nothing.",
         body={"selection": {"rows": [[0, 4]], "columns": ["amount", "order_id"]}},
         types={"sum": "double?", "mean": "double?", "min": "double?", "max": "double?", "digits": f"{JSON}?"},
@@ -98,7 +100,8 @@ ANSWERS: list[Answer] = [
         "TableProfile",
         "GET",
         "/grids/{grid}/profile",
-        "GET /grids/{id}/profile (no column): every column's counts, blanks and range, and the duplicate rows.",
+        "GET /grids/{id}/profile (no column): every column's counts, blanks and range, and the duplicate "
+        "rows.",
         nested={"columns": "TableProfileColumn"},
         types={"min": f"{JSON}?", "max": f"{JSON}?", "blank_percent": "double"},
     ),
@@ -107,7 +110,8 @@ ANSWERS: list[Answer] = [
         "ValueList",
         "GET",
         "/grids/{grid}/values?column=status",
-        "GET /grids/{id}/values: a column's values with their row counts (the filter's checklist), whether there "
+        "GET /grids/{id}/values: a column's values with their row counts (the filter's checklist), whether "
+        "there "
         "are more than listed, and how many are blank.",
         nested={"values": "ValueCount"},
         types={"value": JSON},
@@ -143,7 +147,8 @@ ANSWERS: list[Answer] = [
         "TableConnection",
         "GET",
         "/tables/orders/connection",
-        "GET /tables/{name}/connection: the connection a table is read from (none: a file, a paste, a push), and "
+        "GET /tables/{name}/connection: the connection a table is read from (none: a file, a paste, a "
+        "push), and "
         "whether its last change can be undone.",
         types={
             "connection": "string?",
@@ -167,7 +172,8 @@ ANSWERS: list[Answer] = [
         "OpenedNotebook",
         "POST",
         "/workbench/open",
-        "POST /workbench/open of a notebook: its cells, the number the next new cell gets, its Python and session.",
+        "POST /workbench/open of a notebook: its cells, the number the next new cell gets, its Python and "
+        "session.",
         body={"path": "{notebook}"},
         nested={"cells": "NotebookCell", "session": "SessionInfo"},
         types={
@@ -196,22 +202,63 @@ ANSWERS: list[Answer] = [
         "POST /workbench/open of a script: its text, its Python and session.",
         body={"path": "{script}"},
         nested={"session": "SessionInfo"},
-        types={"modified": "double", "session": "SessionInfo?", "kernel": "string?", "python": "string?", "hash": "string?"},
+        types={
+            "modified": "double",
+            "session": "SessionInfo?",
+            "kernel": "string?",
+            "python": "string?",
+            "hash": "string?",
+        },
     ),
 ]
 
+ANSWERS.append(
+    Answer(
+        "Workbench",
+        "ArrangedNotebook",
+        "POST",
+        "/workbench/tables/arrange",
+        "POST /workbench/tables/arrange: a notebook's cells as they should be, its Tables group in place, "
+        "and the "
+        "number the next new cell gets.",
+        body={
+            "kind": "notebook",
+            "cells": [
+                {"kind": "code", "source": "x = 1", "number": 1, "role": "", "table": None, "grouped": False}
+            ],
+            "tables": ["orders"],
+            "next_cell": 2,
+            "move": True,
+        },
+        nested={"cells": "ArrangedCell", "tables": "TableLine"},
+        types={
+            "table": "string?",
+            "uses": "string?",
+            "steps": f"{JSON}?",
+            "maker": "int?",
+            "note": "string?",
+            "cell": "int?",
+            "number": "int",
+            "next_cell": "int",
+        },
+    )
+)
+
 # Answers kept by hand, and why no sample pins their shape.
 HAND_WRITTEN: dict[str, str] = {
-    "Workbench/StartedKernel": "needs a running IPython kernel (seconds to start; the answer is three fields)",
-    "Workbench/NotebookCell.Uses": "the arrange answer's extra field rides on the generated cell by hand (ArrangedNotebook)",
+    "Workbench/StartedKernel": "needs a running IPython kernel (seconds to start; the answer is three "
+    "fields)",
+    "Workbench/SessionInfo": "null outside a project (the made-up notebook is a loose file)",
     "Workbench/TableInfo": "an open table's cell text: its fields depend on where the table came from",
     "Workbench/CodeTree": "the Files pane's groups differ by page and project (made files, library groups)",
     "Workbench/BladeSummary": "a blade's fields depend on its kind (connection, vault, web call)",
+    "Grids/StepError": "null unless a step fails (the made-up data has no failing step)",
     "Grids/ConnectionSwap": "one of four answers (swapped, pick, review, failed), each free-form",
     "Grids/MadeTable": "shared by the query and the sandbox variant, each answering different fields",
     "Connections/*": "each connection kind's form is data drawn by the page (its fields are the kind's)",
     "Environment/*": "each tab's rows carry the kind's own fields",
-    "Projects/*, Settings/*, SessionLog/*, Catalog/*, Relationships/*, App/*": "written before the generator; "
+    "Projects/*, Settings/*, SessionLog/*, Catalog/*, Relationships/*, App/*": "written before the "
+    "generator; "
     "moved to it area by area",
 }
 
@@ -232,9 +279,9 @@ def type_of(key: str, value: Any, answer: Answer, records: dict[str, Record], pa
     if key in answer.types:
         typed = answer.types[key]
         if key in answer.nested and value is not None:
-            sample = value[0] if isinstance(value, list) and value else value
-            if isinstance(sample, dict):
-                walk(answer.nested[key], sample, answer, records, f"One {pascal(key)} item of {parent}.")
+            items = value if isinstance(value, list) else [value]
+            for item in (v for v in items if isinstance(v, dict)):
+                walk(answer.nested[key], item, answer, records, f"One {pascal(key)} item of {parent}.")
         return typed, default_of(typed)
     if isinstance(value, bool):
         return "bool", ""
@@ -252,10 +299,13 @@ def type_of(key: str, value: Any, answer: Answer, records: dict[str, Record], pa
     if isinstance(value, list):
         sample = next((v for v in value if v is not None), None)
         if isinstance(sample, dict) and key in answer.nested:
-            walk(answer.nested[key], sample, answer, records, f"One of {parent}'s {pascal(key)}.")
+            # Every item is read: a field only some items carry (a table cell's steps) is still a field.
+            for item in (v for v in value if isinstance(v, dict)):
+                walk(answer.nested[key], item, answer, records, f"One of {parent}'s {pascal(key)}.")
             return f"IReadOnlyList<{answer.nested[key]}>", "[]"
-        item = {str: "string", bool: "bool", int: "long", float: "double"}.get(type(sample), JSON) if sample is not None else JSON
-        return f"IReadOnlyList<{item}>", "[]"
+        plain = {str: "string", bool: "bool", int: "long", float: "double"}
+        listed = plain.get(type(sample), JSON) if sample is not None else JSON
+        return f"IReadOnlyList<{listed}>", "[]"
     return f"{JSON}?", ""  # null in the sample and not said: kept loose, never guessed
 
 
@@ -288,12 +338,13 @@ def csharp(area: str, record: Record) -> str:
         "// Written by blazor/tools/generate_api.py from the server's own answers: change the server or that",
         "// script, never this file (tests/test_blazor_api_types.py checks it is current).",
         "// </auto-generated>",
+        "#nullable enable",
     ]
     if any(JSON in t for _, t, _ in record.fields):
         lines += ["using System.Text.Json;", ""]
     else:
         lines += [""]
-    lines += [f"namespace {NAMESPACE}.{area};", "", f"/// <summary>{record.summary}</summary>"]
+    lines += [f"namespace {NAMESPACE}.{area};", "", *summary_lines(record.summary)]
     lines += [f"public sealed record {record.name}", "{"]
     for at, (key, typed, default) in enumerate(record.fields):
         shown = typed.replace(f"{JSON}", "JsonElement")
@@ -303,6 +354,19 @@ def csharp(area: str, record: Record) -> str:
         lines.append(f"    public {shown} {pascal(key)} {{ get; init; }}{suffix}")
     lines.append("}")
     return "\n".join(lines) + "\n"
+
+
+def summary_lines(words: str, width: int = 112) -> list[str]:
+    """The record's summary as doc comment lines, wrapped at the code's width."""
+    if len(words) + 24 <= width:
+        return [f"/// <summary>{words}</summary>"]
+    lines, line = ["/// <summary>"], "///"
+    for word in words.split():
+        if len(line) + len(word) + 1 > width:
+            lines.append(line)
+            line = "///"
+        line += " " + word
+    return [*lines, line, "/// </summary>"]
 
 
 # ===== the server, its made-up data, and the answers =====
@@ -319,7 +383,7 @@ def start_server(tmp: Path) -> dict[str, Any]:
         "SWISSARMYBENCH_NO_BROWSER": "1",
         "SWISSARMYBENCH_PROJECT_VENV": "off",
     }
-    process = subprocess.Popen(  # noqa: S603 (this checkout's own server)
+    process = subprocess.Popen(
         [sys.executable, "-m", "swissarmybench.server", "--port", "0"],
         env=env,
         stdout=subprocess.DEVNULL,
@@ -336,7 +400,7 @@ def start_server(tmp: Path) -> dict[str, Any]:
 
 
 def call(info: dict[str, Any], method: str, path: str, body: Any = None) -> Any:
-    request = urllib.request.Request(  # noqa: S310 (127.0.0.1)
+    request = urllib.request.Request(
         f"http://127.0.0.1:{info['port']}{path}",
         data=None if body is None else json.dumps(body).encode(),
         method=method,
@@ -349,6 +413,9 @@ def call(info: dict[str, Any], method: str, path: str, body: Any = None) -> Any:
 def made_up(info: dict[str, Any], tmp: Path) -> dict[str, str]:
     """The sample store's grids, a made-up notebook (a code cell and a markdown cell) and a script."""
     tables = {t["name"]: t["grid"] for t in call(info, "POST", "/samples/store", {})["tables"]}
+    # One step on orders, so a grid's steps have a sample (it keeps every row).
+    step = {"kind": "filter", "params": {"column": "amount", "op": "not_blank"}}
+    call(info, "POST", f"/grids/{tables['orders']}/step-ops", {"op": "add", "step": step})
     notebook = str(tmp / "workbench" / "made_up.ipynb")
     script = str(tmp / "workbench" / "made_up.py")
     cells = [
@@ -357,7 +424,12 @@ def made_up(info: dict[str, Any], tmp: Path) -> dict[str, str]:
     ]
     call(info, "POST", "/workbench/save", {"path": notebook, "cells": cells, "next_cell": 3})
     call(info, "POST", "/workbench/save", {"path": script, "text": "print('made up')\n"})
-    return {"grid": tables["orders"], "customers": tables["customers"], "notebook": notebook, "script": script}
+    return {
+        "grid": tables["orders"],
+        "customers": tables["customers"],
+        "notebook": notebook,
+        "script": script,
+    }
 
 
 def filled(text: str, values: dict[str, str]) -> str:
