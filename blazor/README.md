@@ -139,3 +139,10 @@ No other package. The JavaScript widgets are the classic page's own npm packages
   choice to make once the pages are all here.
 - AG Grid's rows go from the server straight into the grid (JavaScript `fetch` in `agGrid.js`) rather than through
   C#: thousands of cells crossing the interop on each scroll would be slow. The grid's steps, sort and cards are C#.
+- The answer records are generated from the server's own answers on made-up data, not from an OpenAPI document:
+  the server has none (its routes answer plain dicts). Giving the routes typed answer schemas (and an OpenAPI
+  document) would let the generator read types instead of samples; until then a field that is sometimes a number
+  and sometimes text is said by hand in the generator (`types`), and answers no sample pins stay hand-written.
+- A grid's header: a click on its name selects the column (as the classic grid) and opens its card; sorting is the
+  small arrow beside the name. The classic grid's header statistics on resting are not here yet.
+- The Compare row is not drawn: the Blazor Grids page has no side-by-side grids yet.
