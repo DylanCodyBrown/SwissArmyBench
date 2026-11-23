@@ -45,6 +45,7 @@ import json
 import os
 import re
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +54,10 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import absolute_coordinate, get_column_letter, quote_sheetname, range_boundaries
 from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
 
-VERSION = "1.1.1"  # 1.1.0: the plain export writes its data rows' XML itself; 1.1.1: a numpy float as a float
+VERSION = (
+    "1.1.2"  # 1.1.0: the plain export writes its data rows' XML itself; 1.1.1: a numpy float as a float;
+)
+# 1.1.2: build_statements in small parts over one record of its inputs (the same plan, files and register)
 
 MAX_ROWS = 1_000_000  # one block's rows (a sheet holds 1,048,576)
 SHEET_ROWS = 1_048_576  # the rows one sheet holds, its header too
@@ -1006,6 +1010,28 @@ def _as_rows(table: Any) -> tuple[list[str], list[tuple[Any, ...]]]:
 REGISTER = "register.csv"
 
 
+@dataclass
+class _Statements:
+    """What one build_statements call works on, read and checked once: the template and its bindings, the
+    day, the groups (each group's first row, by its key) and the lines with the columns that join them."""
+
+    template: Path
+    bindings: list[Mapping[str, Any]]
+    when: _dt.date
+    columns: list[str]
+    group_by: list[str]
+    groups: dict[tuple[Any, ...], dict[str, Any]]
+    keys: list[str]
+    lines: tuple[list[str], list[tuple[Any, ...]]] | None  # (columns, rows), or None: no lines given
+
+    def lines_of(self, row: Mapping[str, Any]) -> tuple[list[str], list[tuple[Any, ...]]] | None:
+        """A group's own lines (its key columns match), or None with no lines given."""
+        if self.lines is None:
+            return None
+        columns, rows = self.lines
+        return columns, _lines_for(columns, rows, self.keys, row)
+
+
 def build_statements(
     template: str | Path,
     data: Any,
@@ -1029,7 +1055,41 @@ def build_statements(
     dry_run (the default): the plan only, nothing written: each file, its group, its rows and totals.
     Otherwise the files are written into `out_folder` (one workbook of sheets with `one_workbook`), none
     replaced unless `overwrite`, and each is added to register.csv there. Returns the plan."""
-    template = Path(template)
+    run = _statements(Path(template), data, lines, group_by, bindings, key, date)
+    plan = _statements_plan(run, _numbers(number, len(run.groups)), name, one_workbook)
+    if dry_run:
+        return plan
+    out = Path(out_folder)
+    out.mkdir(parents=True, exist_ok=True)
+    clashes = [t for t in sorted({p["file"] for p in plan}) if (out / t).exists()]
+    if clashes and not overwrite:
+        raise WorkbookError(
+            f"These are there already: {', '.join(clashes[:5])}. "
+            "Nothing was written (overwrite replaces them)."
+        )
+    if one_workbook:
+        _write_sheets(run, plan, out)
+    else:
+        for entry, row in zip(plan, run.groups.values(), strict=True):
+            book = fill_template(
+                run.template, run.bindings, row, run.lines_of(row), entry["number"], run.when
+            )
+            book.save(str(out / entry["file"]))
+    _register(out, plan)
+    return plan
+
+
+def _statements(
+    template: Path,
+    data: Any,
+    lines: Any,
+    group_by: Sequence[str],
+    bindings: Sequence[Mapping[str, Any]] | None,
+    key: Sequence[str] | None,
+    date: str | _dt.date | None,
+) -> _Statements:
+    """The call's inputs read and checked, in the order a mistake is said: the bindings, the day, the
+    group columns, then the lines' join columns."""
     if bindings is None:
         bind = template.with_name(template.stem + ".bind.json")
         if not bind.exists():
@@ -1039,120 +1099,93 @@ def build_statements(
         date if isinstance(date, _dt.date) else (_dt.date.fromisoformat(date) if date else _dt.date.today())
     )
     columns, rows = _as_rows(data)
-    group_by = list(group_by)
-    missing = [g for g in group_by if g not in columns]
+    by = list(group_by)
+    missing = [g for g in by if g not in columns]
     if missing:
         raise WorkbookError(f"The data has no column {', '.join(missing)}. It has: {', '.join(columns)}.")
     groups: dict[tuple[Any, ...], dict[str, Any]] = {}
     for record in rows:
         as_dict = dict(zip(columns, record, strict=True))
-        k = tuple(as_dict[g] for g in group_by) if group_by else (len(groups),)
-        groups.setdefault(k, as_dict)
-    line_columns: list[str] = []
-    line_rows: list[tuple[Any, ...]] = []
-    keys = list(key) if key else group_by
+        groups.setdefault(tuple(as_dict[g] for g in by) if by else (len(groups),), as_dict)
+    keys = list(key) if key else by
+    found = None
     if lines is not None:
-        line_columns, line_rows = _as_rows(lines)
-        absent = [k for k in keys if k not in line_columns]
+        found = _as_rows(lines)
+        absent = [k for k in keys if k not in found[0]]
         if absent:
             raise WorkbookError(
-                f"The lines have no column {', '.join(absent)} to join on. "
-                f"They have: {', '.join(line_columns)}."
+                f"The lines have no column {', '.join(absent)} to join on. They have: {', '.join(found[0])}."
             )
-    numbers = _numbers(number, len(groups))
-    out = Path(out_folder)
+    return _Statements(template, list(bindings), when, columns, by, groups, keys, found)
+
+
+def _statements_plan(
+    run: _Statements, numbers: list[Any], name: str, one_workbook: bool
+) -> list[dict[str, Any]]:
+    """Each group's entry: its file (or sheet), its group's values, its rows and totals, number, date."""
     plan: list[dict[str, Any]] = []
     taken: set[str] = set()
-    for (_gkey, row), n in zip(groups.items(), numbers, strict=True):
-        if lines is not None:
-            picks = [line_columns.index(k) for k in keys]
-            wanted = tuple(row[k] for k in keys)
-            mine = [r for r in line_rows if tuple(r[i] for i in picks) == wanted]
-        else:
-            mine = []
-        stem = _name(name, row, n, when)
-        stem = stem[:-5] if stem.lower().endswith(".xlsx") else stem
-        base, i = stem, 2
-        while stem.lower() in taken:
-            stem, i = f"{base} ({i})", i + 1
-        taken.add(stem.lower())
+    for row, n in zip(run.groups.values(), numbers, strict=True):
+        mine = run.lines_of(row)
+        stem = _free_stem(_name(name, row, n, run.when), taken)
         source_cols, source_rows = (
-            (line_columns, mine) if lines is not None else (columns, [tuple(row[c] for c in columns)])
+            mine if mine is not None else (run.columns, [tuple(row[c] for c in run.columns)])
         )
-        totals = {
-            c: round(
-                sum(
-                    float(r[j])
-                    for r in source_rows
-                    if isinstance(r[j], int | float | decimal.Decimal) and not isinstance(r[j], bool)
-                ),
-                2,
-            )
-            for j, c in enumerate(source_cols)
-            if c not in keys
-            and any(
-                isinstance(r[j], int | float | decimal.Decimal) and not isinstance(r[j], bool)
-                for r in source_rows
-            )
-        }
         plan.append(
             {
-                "file": (f"{template.stem} statements.xlsx" if one_workbook else f"{stem}.xlsx"),
+                "file": (f"{run.template.stem} statements.xlsx" if one_workbook else f"{stem}.xlsx"),
                 "sheet": stem[:31] if one_workbook else None,
                 "group": {
                     g: _plain(row[g]) if not isinstance(row[g], _dt.date) else row[g].isoformat()
-                    for g in group_by
+                    for g in run.group_by
                 },
-                "rows": len(mine),
-                "totals": totals,
+                "rows": len(mine[1]) if mine is not None else 0,
+                "totals": _totals(source_cols, source_rows, run.keys),
                 "number": n,
-                "date": when.isoformat(),
+                "date": run.when.isoformat(),
             }
         )
-    if dry_run:
-        return plan
-    out.mkdir(parents=True, exist_ok=True)
-    targets = sorted({p["file"] for p in plan})
-    clashes = [t for t in targets if (out / t).exists()]
-    if clashes and not overwrite:
-        raise WorkbookError(
-            f"These are there already: {', '.join(clashes[:5])}. "
-            "Nothing was written (overwrite replaces them)."
-        )
-    if one_workbook:
-        book = load_workbook(str(template))
-        first = book.worksheets[0]
-        for entry, (_gkey, row) in zip(plan, groups.items(), strict=True):
-            copy = book.copy_worksheet(first)
-            copy.title = entry["sheet"]
-            local = [
-                dict(b) | {"place": _on_sheet(book, str(b.get("place")), copy.title, first.title)}
-                for b in bindings
-            ]
-            fill_template(
-                book,
-                local,
-                row,
-                (line_columns, _lines_for(line_columns, line_rows, keys, row)) if lines is not None else None,
-                entry["number"],
-                when,
-            )
-        book.remove(first)
-        _clear_names(book, first.title)
-        book.save(str(out / plan[0]["file"]))
-    else:
-        for entry, (_gkey, row) in zip(plan, groups.items(), strict=True):
-            book = fill_template(
-                template,
-                bindings,
-                row,
-                (line_columns, _lines_for(line_columns, line_rows, keys, row)) if lines is not None else None,
-                entry["number"],
-                when,
-            )
-            book.save(str(out / entry["file"]))
-    _register(out, plan)
     return plan
+
+
+def _free_stem(named: str, taken: set[str]) -> str:
+    """A file's name without .xlsx, made apart from those taken ("A (2)"), and taken."""
+    stem = named[:-5] if named.lower().endswith(".xlsx") else named
+    base, i = stem, 2
+    while stem.lower() in taken:
+        stem, i = f"{base} ({i})", i + 1
+    taken.add(stem.lower())
+    return stem
+
+
+def _is_amount(value: Any) -> bool:
+    return isinstance(value, int | float | decimal.Decimal) and not isinstance(value, bool)
+
+
+def _totals(columns: list[str], rows: list[tuple[Any, ...]], keys: list[str]) -> dict[str, float]:
+    """Each column's sum (to the cent), for the columns that are not a key and hold a number."""
+    return {
+        c: round(sum(float(r[j]) for r in rows if _is_amount(r[j])), 2)
+        for j, c in enumerate(columns)
+        if c not in keys and any(_is_amount(r[j]) for r in rows)
+    }
+
+
+def _write_sheets(run: _Statements, plan: list[dict[str, Any]], out: Path) -> None:
+    """One workbook, a copy of the template's first sheet for each group, its bindings moved onto it."""
+    book = load_workbook(str(run.template))
+    first = book.worksheets[0]
+    for entry, row in zip(plan, run.groups.values(), strict=True):
+        copy = book.copy_worksheet(first)
+        copy.title = entry["sheet"]
+        local = [
+            dict(b) | {"place": _on_sheet(book, str(b.get("place")), copy.title, first.title)}
+            for b in run.bindings
+        ]
+        fill_template(book, local, row, run.lines_of(row), entry["number"], run.when)
+    book.remove(first)
+    _clear_names(book, first.title)
+    book.save(str(out / plan[0]["file"]))
 
 
 def _lines_for(
