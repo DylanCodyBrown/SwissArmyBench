@@ -17,8 +17,6 @@ public partial class GridsPage
     private (string Title, JsonElement Value)? _viewing;
     private string? _profileColumn;
 
-    private Task ViewCell(GridPoint at) => ViewCellAsync(at);
-
     private async Task ViewCellAsync(GridPoint at)
     {
         if (_grid is null)

@@ -45,7 +45,7 @@
     {
         var selected = tab.Grid == Active && !IsNewQuery;
         var inSplit = Split?.Contains(tab.Grid) ?? false;
-        var label = TabOrder.Label(tab, Tabs, Order);
+        var label = Designations.TryGetValue(tab.Dataset, out var designation) ? designation : TabOrder.Label(tab, Tabs, Order);
         <div class="grid-tab tab-item @(selected ? "current active" : string.Empty) @(inSplit ? "in-split" : string.Empty) @(_dropSplit == tab.Grid ? "drop-split" : string.Empty)"
              role="tab" tabindex="@(selected ? "0" : "-1")" aria-selected="@(selected ? "true" : "false")" draggable="true" title="@tab.Dataset"
              data-grid="@tab.Grid" data-connections="@tab.Origin?.Connection"
@@ -74,6 +74,10 @@
             else
             {
                 <span class="tab-label" title="@($"{label}: double-click to rename")">@label</span>
+            }
+            @if (ChangedOnDisk.Contains(tab.Dataset))
+            {
+                <span class="tab-changed" title="Changed on disk" aria-label="Changed on disk"></span>
             }
             @if (tab.Steps > 0)
             {

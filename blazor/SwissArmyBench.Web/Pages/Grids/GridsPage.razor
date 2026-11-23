@@ -7,7 +7,7 @@
 @page "/grids"
 
 <section class="area-page grids-page" @onkeydown="PageKeyAsync">
-    <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Active="@_active" Split="_split" IsNewQuery="IsNewQuery"
+    <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split" IsNewQuery="IsNewQuery"
               OnActivate="ActivateAsync" OnClose="CloseGridAsync" OnMenu="TabMenu" OnSplit="SplitWithAsync" OnOrder="SetOrderAsync"
               OnDragging="d => _dragging = d" OnRename="RenameAsync">
         <Extra>
@@ -45,8 +45,20 @@
                           OnActivate="FocusPaneAsync" OnCloseSide="UnsplitAsync" OnClearFocus="ClearFocusAsync"
                           OnCounted="n => Counted(shown.Grid, n)" OnShown="r => ShownRows(shown.Grid, r)" OnColumnRenamed="RenameColumnAsync" OnChanged="ReloadInfoAsync" OnFailed="RowsFailed"
                           OnSelectionChanged="SelectionChangedAsync" OnCellMenu="CellMenu" OnHeaderMenu="HeaderMenu" OnSaid="Say"
-                          OnRowPicked="row => RowPickedAsync(shown.Grid, row)" OnCellOpened="ViewCell" Upto="shown.Grid == _active ? _previewUpto : null">
+                          OnRowPicked="row => RowPickedAsync(shown.Grid, row)" OnCellOpened="OpenCellAsync" Upto="shown.Grid == _active ? _previewUpto : null">
                     <Banner>
+                        @if (_changedOnDisk.Contains(shown.Dataset))
+                        {
+                            <div class="file-changed" role="status">
+                                <strong>Changed on disk</strong>
+                                <button type="button" class="btn small" @onclick="() => ReloadFromDiskAsync(shown.Dataset, false)">Reload</button>
+                                <button type="button" class="btn ghost small" @onclick="() => ReloadFromDiskAsync(shown.Dataset, true)">Not now</button>
+                            </div>
+                        }
+                        @if (SandboxOf(shown.Dataset) is { } sandbox)
+                        {
+                            <SandboxBar Table="sandbox" OnAdd="() => _dialog = AddRow" OnDelete="() => DeleteSandboxRowsAsync(sandbox)" OnReset="() => ResetSandboxAsync(sandbox)" />
+                        }
                         @if (shown.Grid == _active && _previewUpto is { } upto)
                         {
                             <div class="preview-banner" id="preview-banner" role="status">
@@ -107,6 +119,9 @@
         case StepsPanel:
             <StepsPanel Info="open" PreviewUpto="_previewUpto" OnPreview="PreviewAsync" OnToggle="ToggleStepAsync" OnDelete="DeleteStepAsync" OnEdit="EditFromPanel" OnReorder="ReorderStepsAsync" OnClose="CloseDialog" />
             break;
+        case AddRow when SandboxOf(open.Dataset) is { } sandboxed:
+            <AddRowDialog Table="sandboxed" OnClose="CloseDialog" />
+            break;
         case CompareKeys when SplitPair is { } pair:
             <CompareDialog Left="pair.Left" Right="pair.Right" Existing="_compare" OnCompare="StartCompareAsync" OnClose="CloseDialog" />
             break;
@@ -131,6 +146,10 @@
 @if (_sheets is { } asking)
 {
     <SheetsDialog File="@asking.File" Sheets="asking.Sheets" OnPicked="SheetsPicked" />
+}
+@if (_editing is { } editing)
+{
+    <CellEditor Table="editing.Table" At="editing.At" Value="editing.Value" OnClose="() => _editing = null" />
 }
 @if (_pasted is { } pasted)
 {

@@ -10,6 +10,7 @@ public partial class GridsPage
 {
     private void OnNotice(Notice notice)
     {
+        FollowDiskMark(notice);
         var mine = notice.Text("grid") is { } grid && _infos.ContainsKey(grid);
         if (notice.Type == "grid_shown" && notice.Text("grid") is { } arrived)
         {
@@ -42,6 +43,14 @@ public partial class GridsPage
                     _ = Notes.SayAsync("The agent changed this grid's view.");
                 }
                 await RecountCompareAsync();
+            });
+        }
+        else if (notice.Type is "file_changed" or "sandbox_changed" or "project_changed")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadMarksAsync();
+                StateHasChanged();
             });
         }
         else if (notice.Type == "compare_shown" && notice.Text("compare") is { } shown)

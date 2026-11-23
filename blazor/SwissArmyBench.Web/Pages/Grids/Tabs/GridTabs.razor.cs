@@ -31,6 +31,14 @@ public partial class GridTabs
     [Parameter]
     public string? Active { get; set; }
 
+    /// <summary>A sandbox grid's designation ("orders · sandbox") by its table, its tab's words.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, string> Designations { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>The tables whose file changed on disk: their tab's dot.</summary>
+    [Parameter]
+    public IReadOnlySet<string> ChangedOnDisk { get; set; } = new HashSet<string>();
+
     /// <summary>The two grids side by side, left then right (null: one grid).</summary>
     [Parameter]
     public IReadOnlyList<string>? Split { get; set; }

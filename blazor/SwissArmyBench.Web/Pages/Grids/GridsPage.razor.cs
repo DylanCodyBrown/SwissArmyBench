@@ -122,6 +122,7 @@ public partial class GridsPage : IDisposable
         }
         _loaded = true;
         await SetOrderAsync(TabOrder.Normalize(_tabs, _order));
+        await LoadMarksAsync();
         var open = _tabs.Select(t => t.Grid).ToHashSet();
         foreach (var gone in _infos.Keys.Where(id => !open.Contains(id)).ToList())
         {
@@ -168,7 +169,14 @@ public partial class GridsPage : IDisposable
         {
             try
             {
-                _infos[id] = await Grids.InfoAsync(id);
+                var was = _infos.GetValueOrDefault(id);
+                var now = await Grids.InfoAsync(id);
+                _infos[id] = now;
+                // A table read again (a reload, a sandbox edit, a new version pushed): its rows are asked for anew.
+                if (was is not null && was.Version != now.Version && Panes.TryGetValue(id, out var pane) && pane.Grid is { } grid)
+                {
+                    await grid.RefreshAsync(now.Columns);
+                }
             }
             catch (ApiException error)
             {
