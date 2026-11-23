@@ -608,6 +608,8 @@ src/swissarmybench/
                          (the package check, settings, the vault by managed identity, connections) and a
                          scaffold file a blade imports by its own name (sab_excel, adapter: carried_module,
                          its text and a finder that runs it on first import)
+    script_records.py    an export's records (split from script_export.py, 2026-11-23): Piece, ExportCell, Problem,
+                         Block, Plan (the one ordered list both renderings are made from), Exported
     lineage.py           a cell's or a block's lineage back to the data: makes and reads, @cell links, a
                          table's grid steps and origin, data.ipynb, controllers; nodes, edges, Mermaid
     kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's fixed one,

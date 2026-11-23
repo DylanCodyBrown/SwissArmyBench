@@ -49,6 +49,7 @@ from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain.blades import BladeCodeError, detect_settings, env_name_for_secret, env_settings
 from swissarmybench.domain.codegen import python_string, variable_name
 from swissarmybench.domain.connections import env_name_for
+from swissarmybench.domain.script_records import Block, ExportCell, Exported, Piece, Plan, Problem
 from swissarmybench.domain.script_runtime import Secret
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
@@ -80,67 +81,7 @@ class ScriptExportError(ValueError):
     """A document that cannot be exported as sent (the message says why)."""
 
 
-# ===== what the service gathers =====
-
-
-@dataclass(frozen=True)
-class Piece:
-    """A connection, vault or blade the script writes out: its own code, as saved in the app."""
-
-    name: str
-    kind: str  # the blade's kind: sql, other, vault, secret, snippet, analysis
-    connection: str | None  # database, file, python, vault, or None (a blade)
-    code: str
-    variable: str
-    dialect: str = "other"
-    read: str | None = None  # a connection from your own Python: its Read a table box
-    secrets: tuple[Secret, ...] = ()
-    vault_mapping: Mapping[str, str] = field(default_factory=dict)  # variable -> entry
-    vault_all: bool = False
-    env_names: tuple[str, ...] = ()  # a secret blade's variables
-
-
-@dataclass(frozen=True)
-class ExportCell:
-    kind: str  # code, sql, dax, html, markdown
-    source: str
-    connection: str | None = None  # a SQL cell's connection (`Shop -> orders`), a DAX cell's dataset
-    role: str = ""
-    table: str | None = None
-    number: int | None = None
-    name: str | None = None
-
-
-@dataclass(frozen=True)
-class Problem:
-    """Something that cannot be exported: where, and why."""
-
-    where: str  # "cell 4", or "Orders API"
-    why: str
-    cell: int | None = None  # the cell's index in the document
-
-    def to_json(self) -> dict[str, object]:
-        return {"where": self.where, "why": self.why}
-
-    def __str__(self) -> str:
-        return f"{self.where}: {self.why}"
-
-
-@dataclass(frozen=True)
-class Exported:
-    text: str
-    requirements: tuple[str, ...]
-    settings: tuple[dict[str, object], ...]  # each variable, where it came from, whether it is a secret
-    problems: tuple[Problem, ...]  # not exported (with `stub`: each such cell is a stub)
-    stubs: tuple[str, ...]  # FILL IN: the tables and cells written as stubs
-    skipped: tuple[str, ...]  # what was left out, in words
-    places: tuple[tuple[int, int, str], ...]  # each cell's first and last line in the code, and its label
-    code: str = ""  # a notebook's code cells one after another (what the checks read); a script: its text
-
-    @property
-    def python(self) -> str:
-        """The Python the checks read: the script, or the notebook's code cells."""
-        return self.code or self.text
+# ===== what the service gathers: the records are domain/script_records.py's =====
 
 
 def file_name(document: str | None, suffix: str = SUFFIX) -> str:
@@ -727,31 +668,6 @@ def _code_settings(code: str, label: str) -> list[Secret]:
 # ===== the script =====
 
 
-@dataclass(frozen=True)
-class Block:
-    """One step of the document, in order: a cell's Python (at the top level), or its Markdown."""
-
-    label: str
-    lines: tuple[str, ...]
-    markdown: bool = False
-
-
-@dataclass(frozen=True)
-class Plan:
-    """The one ordered list both renderings are made from: the script, and the notebook."""
-
-    title: str
-    source: str
-    blocks: tuple[Block, ...]
-    pieces: tuple[Piece, ...]
-    settings: tuple[Secret, ...]
-    extra: tuple[str, ...]
-    problems: tuple[Problem, ...]
-    stubs: tuple[str, ...]
-    skipped: tuple[str, ...]
-    clients: tuple[tuple[str, str], ...] = ()  # (module, code): an API_<name>.py the code imports, inline
-
-
 def plan(
     title: str,
     source: str | None,
@@ -768,181 +684,237 @@ def plan(
     variable in the Workbench (shop -> Shop). `stub`: a cell that cannot be exported is a stub that
     raises FILL IN, and the rest is exported. `clients`: each API client Add API made that the code
     imports, as (module, its code to paste: services/apis.py `inline`); it travels inside the export,
-    so `import API_Orders` still works, and the variables it reads are settings."""
-    by_name = {name.casefold(): piece for name, piece in pieces.items()}
-    problems: list[Problem] = []
-    stubs: list[str] = []
-    skipped: list[str] = []
-    used: list[str] = []
-    extra: list[str] = []
-    settings: list[Secret] = []
-    blocks: list[Block] = []
-    default: str | None = None
-    made: set[str] = set()
-    imported: _Imported = (set(), {})
+    so `import API_Orders` still works, and the variables it reads are settings.
+
+    In phases over one record (_Planning): each cell's block in order, then the key vaults the used
+    pieces' passwords come from, then every setting the pieces and the inlined clients read."""
     usual = usual_name(tuple(c.source for c in cells if c.kind == "code"))
-    script = (source or "").lower().endswith(".py")
-
-    def use(name: str, label: str, index: int) -> str | None:
-        piece = by_name.get(name.casefold())
-        if piece is None:
-            problems.append(Problem(label, f"{name} is not a connection or blade the app has", index))
-            return None
-        if piece.kind == "analysis":
-            problems.append(
-                Problem(label, f"{piece.name} is an analysis blade: it runs only in the app", index)
-            )
-            return None
-        if piece.name not in used:
-            used.append(piece.name)
-        return piece.name
-
+    planning = _Planning(pieces, code_names, stub, usual, (source or "").lower().endswith(".py"))
     for index, cell in enumerate(cells):
-        label = (
-            f"cell {cell.number}"
-            if cell.number is not None
-            else "the main code"
-            if script and cell.kind == "code"
-            else f"cell {index + 1}"
-        )
-        if cell.role == "transformations" and cell.table:
-            label += f": {cell.table}, its load and then the grid's steps as one DuckDB query"
-        elif cell.name:
-            label += f" ({cell.name})"
-        if cell.role in ("tables", "table") or not cell.source.strip():
-            continue  # the Tables group's headings: the app's own
-        if cell.kind == "markdown":
-            blocks.append(Block(label, tuple(cell.source.strip().split("\n")), markdown=True))
-            continue
-        if cell.kind == "html":
-            skipped.append(f"{label}: an HTML cell only shows a design")
-            blocks.append(
-                Block(label, (f"# {label}: an HTML cell, a design shown in the notebook: left out",))
-            )
-            continue
-        if cell.kind in ("sql", "dax"):
-            try:
-                asked = query_cell(cell, default)
-            except ScriptExportError as error:
-                problems.append(Problem(label, str(error), index))
-                continue
-            found = use(asked.base, label, index)
-            if found is None:
-                continue
-            name = found if cell.kind == "sql" else f"{found}{asked.name[len(asked.base) :]}"
-            target = asked.target
-            result = target or "_"
-            lines = [f"{result} = {asked.call}({name!r}, {python_string(asked.query)})"]
-            if target is None:
-                lines.insert(
-                    0, "# The cell names no result (no -> name, no cell name): IPython keeps it as _"
-                )
-            made.add(result)
-            blocks.append(Block(label, tuple(lines)))
-            continue
-        working = _Cell(label)
-        held = table_cells.split_uses(cell.source)[1].strip("\n")
-        if held.lstrip().startswith(("%%sql", "%%sab", "%%dax")):
-            problems.append(
-                Problem(label, "a SQL cell written as a code cell: open it in the Workbench once", index)
-            )
-            continue
-        if held.lstrip().startswith("%%html"):
-            skipped.append(f"{label}: an HTML cell only shows a design")
-            continue
-        if uses_streamlit(held, usual):
-            skipped.append(f"{label}: it calls Streamlit, so it shows a page")
-            blocks.append(
-                Block(label, (f"# {label}: it calls Streamlit (a page shown in the app): left out",))
-            )
-            continue
-        # %sql_connect: the SQL cells after it run on that connection.
-        for line in held.split("\n"):
-            found_connect = re.match(r"^\s*%(?:sql|sab)_connect\s+(.+)$", line)
-            if found_connect:
-                try:
-                    default = " ".join(shlex.split(found_connect.group(1))) or default
-                except ValueError:
-                    default = found_connect.group(1).strip() or default
-        stub_of = _table_stub(cell, held) if cell.role == "transformations" else None
-        before: list[str] = []
-        if stub_of is not None:
-            stub_text, held = stub_of
-            stubs.append(cell.table or label)
-            before = stub_text.split("\n")
-        translated = _translate_magics(working, held)
-        rewritten = _rewrite(working, translated, imported) if not working.problems else translated
-        working.problems += _top_level_problems(rewritten)
-        if working.problems:
-            for said in working.problems:
-                problems.append(Problem(label, said, index))
-            if stub:
-                stubs.append(label)
-                why = working.problems[0].replace('"', "'")
-                filled = [
-                    f"# ===== FILL IN: {label} =====",
-                    *(f"# {said}" for said in working.problems),
-                    *(f"# {line}".rstrip() for line in held.split("\n")),
-                    f'raise FillIn("FILL IN: {label} could not be exported ({why}). Write it in Python here.")',
-                ]
-                blocks.append(Block(label, tuple(filled)))
-            continue
-        for name in working.uses:
-            use(name, label, index)
-        extra += working.requirements
-        settings += working.settings
-        settings += _code_settings(rewritten, label)
-        skipped += working.skipped
-        opened = []
-        for variable in _connection_names(rewritten, code_names, made):
-            found = use(code_names[variable], label, index)
-            if found is not None:
-                opened.append(f"{variable} = connection({found!r})  # the Workbench's {variable}")
-        made.update(table_cells.facts(rewritten).made)
-        body = _FUTURE.sub("", rewritten).strip("\n")
-        blocks.append(Block(label, (*before, *opened, *([body] if body.strip() else []))))
-    # The vaults the used pieces' passwords and settings' variables come from, and their own.
-    vault_pieces = [p for p in by_name.values() if p.kind == "vault"]
-    for name in list(used):
-        piece_of = by_name[name.casefold()]
-        for secret in (*piece_of.secrets, *setting_sources(piece_of, vault_pieces)):
-            if secret.where in ("vault", "every") and secret.vault and secret.vault not in used:
-                if by_name.get(secret.vault.casefold()) is None:
-                    why = f"its {secret.variable} comes from the key vault {secret.vault}, which the app does not have"
-                    problems.append(Problem(name, why))
-                    continue
-                used.append(by_name[secret.vault.casefold()].name)
-    ordered = [by_name[n.casefold()] for n in used]
-    for piece in ordered:
-        settings += list(piece.secrets)
-        if piece.kind == "secret":
-            settings += [Secret(n, n, "typed", vault=piece.name) for n in piece.env_names]
-        # A setting's variable: a file's path (never the file) or a key vault's (a certificate).
-        files = [m["variable"] for m in env_settings(piece.code)] if piece.connection else []
-        settings += setting_sources(piece, vault_pieces) if piece.connection else []
-        settings += [
-            Secret(r.name, r.name, "environment", blade=piece.name, required=False)
-            for r in python_connections.env_reads(piece.code, piece.read)
-            if not r.required and r.name not in {s.variable for s in piece.secrets} and r.name not in files
-        ]
+        planning.cell(cell, index)
+    ordered = planning.ordered()
     inline = tuple((module, _FUTURE.sub("", code).strip("\n") + "\n") for module, code in clients)
     for module, code in inline:
-        settings += [
+        planning.settings += [
             Secret(r.name, r.name, "api", blade=f"{module}.py", required=False)
             for r in python_connections.env_reads(code)
         ]
     return Plan(
         title,
         source or title,
-        tuple(blocks),
+        tuple(planning.blocks),
         tuple(ordered),
-        tuple(settings),
-        tuple(extra),
-        tuple(problems),
-        tuple(dict.fromkeys(stubs)),
-        tuple(skipped),
+        tuple(planning.settings),
+        tuple(planning.extra),
+        tuple(planning.problems),
+        tuple(dict.fromkeys(planning.stubs)),
+        tuple(planning.skipped),
         inline,
     )
+
+
+class _Planning:
+    """A plan as it is made: the blocks so far, the pieces used (in the order first used), what each cell
+    said (problems, stubs, what was left out), the settings read, and what the cells so far made."""
+
+    def __init__(
+        self,
+        pieces: Mapping[str, Piece],
+        code_names: Mapping[str, str],
+        stub: bool,
+        usual: bool,
+        script: bool,
+    ) -> None:
+        self.by_name = {name.casefold(): piece for name, piece in pieces.items()}
+        self.code_names = code_names
+        self.stub, self.usual, self.script = stub, usual, script
+        self.problems: list[Problem] = []
+        self.stubs: list[str] = []
+        self.skipped: list[str] = []
+        self.used: list[str] = []
+        self.extra: list[str] = []
+        self.settings: list[Secret] = []
+        self.blocks: list[Block] = []
+        self.default: str | None = None  # the connection %sql_connect named: the SQL cells after it run on it
+        self.made: set[str] = set()
+        self.imported: _Imported = (set(), {})
+
+    def use(self, name: str, label: str, index: int) -> str | None:
+        piece = self.by_name.get(name.casefold())
+        if piece is None:
+            self.problems.append(Problem(label, f"{name} is not a connection or blade the app has", index))
+            return None
+        if piece.kind == "analysis":
+            self.problems.append(
+                Problem(label, f"{piece.name} is an analysis blade: it runs only in the app", index)
+            )
+            return None
+        if piece.name not in self.used:
+            self.used.append(piece.name)
+        return piece.name
+
+    def label(self, cell: ExportCell, index: int) -> str:
+        label = (
+            f"cell {cell.number}"
+            if cell.number is not None
+            else "the main code"
+            if self.script and cell.kind == "code"
+            else f"cell {index + 1}"
+        )
+        if cell.role == "transformations" and cell.table:
+            label += f": {cell.table}, its load and then the grid's steps as one DuckDB query"
+        elif cell.name:
+            label += f" ({cell.name})"
+        return label
+
+    def cell(self, cell: ExportCell, index: int) -> None:
+        """One cell's block (or what it said instead), by its kind."""
+        label = self.label(cell, index)
+        if cell.role in ("tables", "table") or not cell.source.strip():
+            return  # the Tables group's headings: the app's own
+        if cell.kind == "markdown":
+            self.blocks.append(Block(label, tuple(cell.source.strip().split("\n")), markdown=True))
+        elif cell.kind == "html":
+            self.skipped.append(f"{label}: an HTML cell only shows a design")
+            self.blocks.append(
+                Block(label, (f"# {label}: an HTML cell, a design shown in the notebook: left out",))
+            )
+        elif cell.kind in ("sql", "dax"):
+            self.query(cell, label, index)
+        else:
+            self.code(cell, label, index)
+
+    def query(self, cell: ExportCell, label: str, index: int) -> None:
+        """A SQL or DAX cell as its connection's call."""
+        try:
+            asked = query_cell(cell, self.default)
+        except ScriptExportError as error:
+            self.problems.append(Problem(label, str(error), index))
+            return
+        found = self.use(asked.base, label, index)
+        if found is None:
+            return
+        name = found if cell.kind == "sql" else f"{found}{asked.name[len(asked.base) :]}"
+        target = asked.target
+        result = target or "_"
+        lines = [f"{result} = {asked.call}({name!r}, {python_string(asked.query)})"]
+        if target is None:
+            lines.insert(0, "# The cell names no result (no -> name, no cell name): IPython keeps it as _")
+        self.made.add(result)
+        self.blocks.append(Block(label, tuple(lines)))
+
+    def left_out(self, held: str, label: str, index: int) -> bool:
+        """A code cell that is not exported as code (said why), or False."""
+        if held.lstrip().startswith(("%%sql", "%%sab", "%%dax")):
+            self.problems.append(
+                Problem(label, "a SQL cell written as a code cell: open it in the Workbench once", index)
+            )
+            return True
+        if held.lstrip().startswith("%%html"):
+            self.skipped.append(f"{label}: an HTML cell only shows a design")
+            return True
+        if uses_streamlit(held, self.usual):
+            self.skipped.append(f"{label}: it calls Streamlit, so it shows a page")
+            self.blocks.append(
+                Block(label, (f"# {label}: it calls Streamlit (a page shown in the app): left out",))
+            )
+            return True
+        return False
+
+    def connect_lines(self, held: str) -> None:
+        """%sql_connect: the SQL cells after it run on that connection."""
+        for line in held.split("\n"):
+            found_connect = re.match(r"^\s*%(?:sql|sab)_connect\s+(.+)$", line)
+            if found_connect:
+                try:
+                    self.default = " ".join(shlex.split(found_connect.group(1))) or self.default
+                except ValueError:
+                    self.default = found_connect.group(1).strip() or self.default
+
+    def code(self, cell: ExportCell, label: str, index: int) -> None:
+        """A code cell translated: IPython's lines, the connections' calls written out, the settings it
+        reads; a cell that cannot be is said, or (stub) a FILL IN block."""
+        working = _Cell(label)
+        held = table_cells.split_uses(cell.source)[1].strip("\n")
+        if self.left_out(held, label, index):
+            return
+        self.connect_lines(held)
+        stub_of = _table_stub(cell, held) if cell.role == "transformations" else None
+        before: list[str] = []
+        if stub_of is not None:
+            stub_text, held = stub_of
+            self.stubs.append(cell.table or label)
+            before = stub_text.split("\n")
+        translated = _translate_magics(working, held)
+        rewritten = _rewrite(working, translated, self.imported) if not working.problems else translated
+        working.problems += _top_level_problems(rewritten)
+        if working.problems:
+            self.fill_in(working, held, label, index)
+            return
+        for name in working.uses:
+            self.use(name, label, index)
+        self.extra += working.requirements
+        self.settings += working.settings
+        self.settings += _code_settings(rewritten, label)
+        self.skipped += working.skipped
+        opened = []
+        for variable in _connection_names(rewritten, self.code_names, self.made):
+            found = self.use(self.code_names[variable], label, index)
+            if found is not None:
+                opened.append(f"{variable} = connection({found!r})  # the Workbench's {variable}")
+        self.made.update(table_cells.facts(rewritten).made)
+        body = _FUTURE.sub("", rewritten).strip("\n")
+        self.blocks.append(Block(label, (*before, *opened, *([body] if body.strip() else []))))
+
+    def fill_in(self, working: _Cell, held: str, label: str, index: int) -> None:
+        """A cell that cannot be exported: its problems said, and with `stub` a block that raises FILL IN."""
+        for said in working.problems:
+            self.problems.append(Problem(label, said, index))
+        if self.stub:
+            self.stubs.append(label)
+            why = working.problems[0].replace('"', "'")
+            filled = [
+                f"# ===== FILL IN: {label} =====",
+                *(f"# {said}" for said in working.problems),
+                *(f"# {line}".rstrip() for line in held.split("\n")),
+                f'raise FillIn("FILL IN: {label} could not be exported ({why}). Write it in Python here.")',
+            ]
+            self.blocks.append(Block(label, tuple(filled)))
+
+    def ordered(self) -> list[Piece]:
+        """The pieces used, with the key vaults their passwords and settings' variables come from, in the
+        order first used; each one's settings added."""
+        vault_pieces = [p for p in self.by_name.values() if p.kind == "vault"]
+        for name in list(self.used):
+            piece_of = self.by_name[name.casefold()]
+            for secret in (*piece_of.secrets, *setting_sources(piece_of, vault_pieces)):
+                if secret.where in ("vault", "every") and secret.vault and secret.vault not in self.used:
+                    if self.by_name.get(secret.vault.casefold()) is None:
+                        why = f"its {secret.variable} comes from the key vault {secret.vault}, which the app does not have"
+                        self.problems.append(Problem(name, why))
+                        continue
+                    self.used.append(self.by_name[secret.vault.casefold()].name)
+        ordered = [self.by_name[n.casefold()] for n in self.used]
+        for piece in ordered:
+            self.settings += _piece_settings(piece, vault_pieces)
+        return ordered
+
+
+def _piece_settings(piece: Piece, vault_pieces: Sequence[Piece]) -> list[Secret]:
+    """The settings a piece reads: its passwords, a secret blade's names, a connection's settings'
+    variables (a file's path, never the file, or a key vault's certificate) and the variables its code
+    reads that are not required."""
+    settings = list(piece.secrets)
+    if piece.kind == "secret":
+        settings += [Secret(n, n, "typed", vault=piece.name) for n in piece.env_names]
+    files = [m["variable"] for m in env_settings(piece.code)] if piece.connection else []
+    settings += setting_sources(piece, vault_pieces) if piece.connection else []
+    settings += [
+        Secret(r.name, r.name, "environment", blade=piece.name, required=False)
+        for r in python_connections.env_reads(piece.code, piece.read)
+        if not r.required and r.name not in {s.variable for s in piece.secrets} and r.name not in files
+    ]
+    return settings
 
 
 @dataclass(frozen=True)
