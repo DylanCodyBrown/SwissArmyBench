@@ -1,3 +1,6 @@
+using Microsoft.JSInterop;
+
+using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.Pages.Grids.Tabs;
 using SwissArmyBench.Web.State;
 
@@ -40,6 +43,10 @@ public partial class GridsPage
             all.Add(new("steps.redo", "Steps", "Redo", RedoAsync, "Ctrl+Y", info.CanRedo ? null : "Nothing to redo"));
             all.Add(new("steps.clear-the-steps", "Steps", "Clear the steps", ClearStepsAsync, WhyNot: info.Steps.Count > 0 ? null : "nothing to act on"));
             all.Add(new("steps.view-steps", "Steps", "View steps", () => Show(StepsPanel)));
+            var cell = SelectedCell;
+            all.AddRange(CellEntries(cell ?? new GridPoint(0, string.Empty, 0, 0))
+                .Where(e => e != MenuEntry.Separator)
+                .Select(e => new PaletteCommand($"cell.{Slug(e.Label)}", "Cell", e.Label, e.Run, WhyNot: cell is null ? "Click a cell first" : e.Disabled)));
             var many = _tabs.Count > 1;
             all.Add(new("tabs.compare-with", "Tabs", $"Compare {info.Dataset} with…", () => CompareWithAsync(info.Grid, 0, 0), WhyNot: many ? null : "Open another table to compare with"));
             all.Add(new("tabs.rename", "Tabs", $"Rename {info.Dataset}", () => _tabRow?.StartRenameAsync(info.Grid) ?? Task.CompletedTask, "F2"));
@@ -54,9 +61,14 @@ public partial class GridsPage
         all.Add(new("tabs.previous", "Tabs", "Previous tab", () => CycleAsync(-1), WhyNot: _tabs.Count > 1 ? null : "one table or none is open"));
         all.Add(new("tabs.reopen", "Tabs", "Reopen the last closed tab", ReopenAsync));
         all.Add(new("tabs.new-query", "Tabs", "New query", () => Navigate("grids?new=1")));
+        all.Add(new("application.zoom-reset", "Application", "Zoom 100%", () => Js.InvokeVoidAsync("sab.zoomReset").AsTask(), "Ctrl+0"));
         all.Add(new("application.find-data", "Application", "Find data…", () => { Palette.Show("find"); return Task.CompletedTask; }, "Ctrl+K"));
         return all;
     }
+
+    private static string Slug(string words) =>
+        string.Join('-', new string([.. words.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : ' ')])
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
     private PaletteCommand Tool(string group, RibbonTool tool) =>
         new($"{group.ToLowerInvariant()}.{tool.Id}", group, tool.Pressed ? $"{tool.Label} (on)" : tool.Label, () => RunToolAsync(tool.Id), WhyNot: tool.Disabled);

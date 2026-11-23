@@ -196,6 +196,11 @@ window.sab = {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
   },
 
+  /** Zoom 100% from the palette: the Ctrl+0 the footer's zoom listens for, so its number follows. */
+  zoomReset() {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "0", ctrlKey: true, bubbles: true }));
+  },
+
   /** Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0 and Ctrl + wheel told to the C# listener (Zoom: +1, -1, 0 to reset). */
   zoomKeys(listener) {
     const keys = (e) => {

@@ -71,4 +71,9 @@ def test_a_file_changed_on_disk_offers_reload(browser: Browser, server: dict[str
     bar.get_by_role("button", name="Reload").click()
     expect(page.locator(".status-rows")).to_contain_text("of 2")
     expect(page.locator(".file-changed")).to_have_count(0)
+    expect(page.locator(".note-corner")).to_contain_text("made_up_targets updated to version")
+    # A link to a grid that closed since says so (a Session entry's Go to it).
+    call(server, "DELETE", f"/grids/{grid}")
+    page.goto(page.url)
+    expect(page.locator(".note-corner")).to_contain_text("It is not open any more.")
     page.close()

@@ -10,6 +10,10 @@ public sealed record Notice(string Type, JsonElement Body)
     public string? Text(string name) =>
         Body.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
+    /// <summary>A whole-number field of the notice, or null.</summary>
+    public long? Number(string name) =>
+        Body.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var n) ? n : null;
+
     /// <summary>A true/false field of the notice, or null.</summary>
     public bool? Flag(string name) =>
         Body.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;

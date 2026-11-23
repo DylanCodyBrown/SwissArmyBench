@@ -28,6 +28,17 @@ def test_the_palette_shortcuts_and_find_data(browser: Browser, server: dict[str,
     page.keyboard.type("steps redo")
     expect(page.locator(".wb-palette-why").first).to_contain_text("Nothing to redo")
     page.keyboard.press("Escape")
+    # The cell in front: its right-click menu's entries, under Cell; Zoom 100% under Application.
+    page.locator(".ag-cell").nth(1).click()
+    page.keyboard.press("Control+Shift+P")
+    page.keyboard.type("copy as markdown")
+    expect(palette.locator(".wb-palette-item").first).to_contain_text("Copy as Markdown")
+    page.keyboard.press("Escape")
+    page.locator(".status-bar").get_by_role("button", name="Zoom in").click()
+    page.keyboard.press("Control+Shift+P")
+    page.keyboard.type("zoom 100")
+    page.keyboard.press("Enter")
+    expect(page.locator(".status-bar").get_by_role("group", name="Zoom")).to_contain_text("100%")
 
     page.locator(".ag-root").first.click()
     page.keyboard.press("?")

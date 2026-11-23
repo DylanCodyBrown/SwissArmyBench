@@ -23,10 +23,15 @@ public partial class GridsPage
         }
         else if (notice.Type.StartsWith("dataset_", StringComparison.Ordinal) || notice.Type is "grid_closed" or "table_connection")
         {
+            var updated = notice.Type == "dataset_updated" && notice.Text("dataset") is { } dataset && _info?.Dataset == dataset;
             _ = InvokeAsync(async () =>
             {
                 await LoadAsync();
                 StateHasChanged();
+                if (updated)
+                {
+                    _ = Notes.SayAsync($"{notice.Text("dataset")} updated to version {notice.Number("version")}.");
+                }
             });
         }
         else if (notice.Type == "grid_updated" && mine && notice.Text("by") != ApiClient.ClientId)

@@ -17,6 +17,7 @@ public partial class GridsPage : IDisposable
     private IReadOnlyList<GridListItem> _tabs = [];
     private IReadOnlyList<string> _order = [];
     private string? _active;
+    private string? _goneSaid;
     private bool _loaded;
     private Exception? _error;
     private GridTabs? _tabRow;
@@ -144,6 +145,12 @@ public partial class GridsPage : IDisposable
         var wanted = GridParameter
             ?? _tabs.FirstOrDefault(t => t.Dataset == TableParameter)?.Grid
             ?? (open.Contains(_active ?? string.Empty) ? _active : _order.FirstOrDefault());
+        if (GridParameter is { } asked && !open.Contains(asked) && _error is null && _goneSaid != asked)
+        {
+            // A link to a grid that closed since (a Session entry, an old address): said once, as the classic does.
+            _goneSaid = asked;
+            _ = Notes.SayAsync("It is not open any more.");
+        }
         if (wanted is null || IsNewQuery || !open.Contains(wanted))
         {
             _active = IsNewQuery ? _active : null;

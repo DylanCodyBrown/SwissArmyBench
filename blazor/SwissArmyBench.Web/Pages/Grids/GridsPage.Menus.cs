@@ -13,10 +13,23 @@ public partial class GridsPage
 {
     // ===== the right-click menus (the classic cellMenu.ts) =====
 
-    private void CellMenu(GridPoint at)
+    private void CellMenu(GridPoint at) => _menu = new OpenMenu(CellWhere(at), CellEntries(at), at.X, at.Y);
+
+    private static string CellWhere(GridPoint at) =>
+        $"{at.Column}, row {(at.Row + 1).ToString("N0", CultureInfo.InvariantCulture)}";
+
+    /// <summary>The cell in front: the first cell of the selection, or null (the palette's Cell commands say
+    /// "Click a cell first").</summary>
+    private GridPoint? SelectedCell =>
+        _selection.Descriptor is { Rows: [var rows, ..], Columns: [var column, ..] } && rows.Length > 0
+            ? new GridPoint(rows[0], column, 0, 0)
+            : null;
+
+    /// <summary>What a cell's right-click menu offers, the palette's Cell group too.</summary>
+    private List<MenuEntry> CellEntries(GridPoint at)
     {
-        var where = $"{at.Column}, row {(at.Row + 1).ToString("N0", CultureInfo.InvariantCulture)}";
-        _menu = new OpenMenu(where,
+        var where = CellWhere(at);
+        return
         [
             new("Send value to Analyze", "image", () => SendValueAsync(at, where)),
             new("Send the row to Analyze", "rows", () => SendRowAsync(at.Row)),
@@ -28,7 +41,7 @@ public partial class GridsPage
             new("Copy", "copy", () => CopyAsync("plain")),
             new("Copy with headers", "copy", () => CopyAsync("headers")),
             new("Copy as Markdown", "copy", () => CopyAsync("markdown")),
-        ], at.X, at.Y);
+        ];
     }
 
     /// <summary>A header's menu: the column's own tools (on every selected column when it is one of them), then the
