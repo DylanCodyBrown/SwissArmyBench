@@ -1,0 +1,44 @@
+@* The footer's common right side (the classic appFooter.ts): Update available (Update to X, What's new), the zoom
+   (− 100% +, with Ctrl+=, Ctrl+- and Ctrl+0), Beta (Leave a note…, Export beta log…, Turn off beta mode), Launch
+   Claude (the one found, a choice when both are, the install help when none is), and the credit. Logic in
+   FooterMarks.razor.cs. *@
+
+@if (_updates is { Available: true } update)
+{
+    <button type="button" class="btn ghost small update-mark" title="@($"{update.Version} is out")" @onclick="UpdateMenu"><Icon Name="export" /> Update available</button>
+}
+<span class="zoom-control status-zoom" role="group" aria-label="Zoom">
+    <button type="button" class="btn ghost icon small" aria-label="Zoom out" title="Zoom out (Ctrl+-, or Ctrl + wheel down)" @onclick="() => StepAsync(-1)"><Icon Name="minus" /></button>
+    <output aria-live="polite" title="Zoom (Ctrl + mouse wheel, Ctrl+= and Ctrl+-; Ctrl+0 resets)">@($"{Math.Round(_zoom * 100)}%")</output>
+    <button type="button" class="btn ghost icon small" aria-label="Zoom in" title="Zoom in (Ctrl+=, or Ctrl + wheel up)" @onclick="() => StepAsync(1)"><Icon Name="plus" /></button>
+</span>
+@if (_beta)
+{
+    <button type="button" class="beta-mark" title="Beta mode: recording errors and notes" @onclick="BetaMenu">Beta</button>
+}
+<button type="button" class="btn ghost small claude-launch" aria-label="Launch Claude" @onclick="e => LaunchAsync(null, e.ClientX, e.ClientY)"><Icon Name="claude" /><span class="claude-launch-label">Launch Claude</span></button>
+<span class="credit">Created by Dylan Brown</span>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_missing is { } missing)
+{
+    <AppDialog Title="@(missing.Count > 1 ? "Claude is not installed" : $"{Named(missing[0].Kind)} is not installed")" OnClose="() => _missing = null">
+        <ChildContent>
+            @foreach (var help in missing)
+            {
+                <section class="claude-help" data-kind="@help.Kind">
+                    <h3><Icon Name="claude" /> @Named(help.Kind)</h3>
+                    @foreach (var command in help.Commands)
+                    {
+                        <div class="claude-command"><code class="mono">@command</code>
+                            <button type="button" class="btn ghost icon small" aria-label="Copy" @onclick="() => CopyAsync(command)"><Icon Name="copy" /></button></div>
+                    }
+                    <a href="@help.Url" target="_blank" rel="noopener noreferrer">@(help.Kind == "code" ? "Claude Code's setup" : "Download Claude Desktop")</a>
+                </section>
+            }
+        </ChildContent>
+        <Foot><button type="button" class="btn primary" @onclick="() => _missing = null">Close</button></Foot>
+    </AppDialog>
+}

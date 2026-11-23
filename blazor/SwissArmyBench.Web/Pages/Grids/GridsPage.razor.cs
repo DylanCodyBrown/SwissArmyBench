@@ -258,6 +258,11 @@ public partial class GridsPage : IDisposable
             return;
         }
         var key = e.Key.ToLowerInvariant();
+        if (key == "s" && !e.ShiftKey)
+        {
+            await Api.PostAsync("/project/save");
+            return;
+        }
         if (await Js.InvokeAsync<bool>("sab.typing"))
         {
             return;

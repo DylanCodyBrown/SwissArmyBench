@@ -281,3 +281,11 @@ kbd { padding: 0 5px; border: 1px solid var(--border-strong); border-radius: 4px
 .ex-where { color: var(--muted); font-size: 0.88em; }
 .ex-more { color: var(--muted); }
 .ex-keys { margin-right: auto; color: var(--muted); }
+
+/* ===== the footer's common marks (appFooter.ts) ===== */
+.zoom-control { display: inline-flex; align-items: center; gap: 2px; }
+.zoom-control output { min-width: 3.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.beta-mark { padding: 0 8px; border: 1px solid var(--warn); border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-weight: 600; cursor: pointer; }
+.credit { color: var(--muted); }
+.claude-command { display: flex; align-items: center; gap: 6px; }
+.project-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }

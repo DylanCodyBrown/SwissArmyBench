@@ -6,9 +6,10 @@
 @inject ProjectsClient Projects
 @inject Notes Notes
 @inject GridStatus Grid
+@inject SettingsClient Settings
 
 <footer class="status-bar" aria-label="Status">
-    <span class="status-app">Swiss Army Bench</span>
+    <span class="status-app version-mark" title="@Version">@Version</span>
     @if (Project.Current is { } open)
     {
         <span class="status-project" title="@open.Path">
@@ -37,10 +38,26 @@
     {
         <span class="status-selection" role="status" aria-label="Selection">@selected</span>
     }
+    <FooterMarks />
     <span class="status-frontend">Blazor front end (preview) · <a href="/workspace">Classic</a></span>
 </footer>
 
 @code {
+    private string Version { get; set; } = "Swiss Army Bench";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var updates = await Settings.UpdatesAsync();
+            Version = $"{updates.Name} {updates.Current}".Trim();
+        }
+        catch (ApiException)
+        {
+            // The name alone.
+        }
+    }
+
     protected override void OnInitialized()
     {
         Project.Changed += Redraw;

@@ -186,11 +186,52 @@ window.sab = {
     return { stop: () => document.removeEventListener("keydown", heard) };
   },
 
+  /** The app's one zoom: the page's text, icons and the grid's rows scaled (the browser's own zoom is taken over). */
+  setZoom(zoom) {
+    document.documentElement.style.zoom = String(zoom);
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  },
+
+  /** Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0 and Ctrl + wheel told to the C# listener (Zoom: +1, -1, 0 to reset). */
+  zoomKeys(listener) {
+    const keys = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.target?.closest?.("[data-own-zoom]")) return;
+      const by = e.key === "=" || e.key === "+" ? 1 : e.key === "-" || e.key === "_" ? -1 : e.key === "0" ? 0 : null;
+      if (by === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      listener.invokeMethodAsync("Zoom", by);
+    };
+    let pending = 0;
+    const wheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      pending += e.deltaY;
+      if (Math.abs(pending) < 40) return;
+      listener.invokeMethodAsync("Zoom", pending < 0 ? 1 : -1);
+      pending = 0;
+    };
+    document.addEventListener("keydown", keys, { capture: true });
+    document.addEventListener("wheel", wheel, { capture: true, passive: false });
+    return { stop: () => { document.removeEventListener("keydown", keys, { capture: true }); document.removeEventListener("wheel", wheel, { capture: true }); } };
+  },
+
   /** A box takes the focus with its words selected (a name renamed in place). */
   focusSelect(selector) {
     const box = document.querySelector(selector);
     box?.focus();
     box?.select?.();
+  },
+
+  /** Text saved by the browser as a file (Export outline's Download). */
+  saveText(name, text) {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+    link.download = name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
   },
 
   /** A file the server answers with, fetched first (so a refusal is said in place, not saved as a file), then saved

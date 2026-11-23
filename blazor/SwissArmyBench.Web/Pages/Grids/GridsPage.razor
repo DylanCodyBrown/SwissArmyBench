@@ -16,6 +16,7 @@
             <button type="button" class="btn ghost icon tab-new" aria-label="Tables" title="Tables" @onclick="() => _dialog = TablesList"><Icon Name="rows" /></button>
         </Extra>
     </GridTabs>
+    <ProjectGroup />
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
     @if (IsNewQuery && FromParameter is { } from)
     {
