@@ -19,7 +19,7 @@ flowchart TB
     subgraph base["swissarmybench (the base)"]
         domain["domain<br/>121 modules"]
         settings["settings<br/>1 module"]
-        services["services<br/>84 modules"]
+        services["services<br/>86 modules"]
         adapters["adapters<br/>43 modules"]
         cli["cli<br/>41 modules"]
         client["client<br/>24 modules"]
@@ -96,7 +96,7 @@ flowchart TB
     server -->|10| root
     server -->|82| services
     server -->|2| settings
-    services -->|329| domain
+    services -->|336| domain
     services -->|2| settings
     settings -->|1| domain
 ```
@@ -125,9 +125,9 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 121 | 155 | 0 | 0.00 | 320 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 121 | 157 | 0 | 0.00 | 320 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 5 | 1 | 0.17 | 2 | 0 | 0.00 | 0.83 |
-| services | the use cases | 84 | 86 | 107 | 0.55 | 279 | 134 | 0.48 | 0.03 |
+| services | the use cases | 86 | 86 | 107 | 0.55 | 287 | 140 | 0.49 | 0.04 |
 | adapters | the driven edge: DuckDB, files, the keyring | 43 | 22 | 34 | 0.61 | 108 | 2 | 0.02 | 0.37 |
 | cli | the agent's commands | 41 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
@@ -151,14 +151,14 @@ low by design and its D says little; the measure bites for the components that h
 | `swissarmybench.services.ports` | 55 |
 | `swissarmybench.domain.datasets` | 52 |
 | `swissarmybench.cli.api` | 46 |
-| `swissarmybench.domain.blades` | 40 |
+| `swissarmybench.domain.blades` | 42 |
 | `swissarmybench.cli.command_kit` | 37 |
 | `swissarmybench.adapters.atomic_files` | 31 |
 | `swissarmybench.domain.steps` | 31 |
 | `swissarmybench.domain.grids` | 28 |
-| `swissarmybench.domain.connections` | 25 |
+| `swissarmybench.domain.connections` | 26 |
 | `swissarmybench.domain.notebooks` | 23 |
-| `swissarmybench.domain.table_cells` | 22 |
+| `swissarmybench.domain.table_cells` | 23 |
 | `swissarmybench.domain.codegen` | 17 |
 | `swissarmybench.domain.packages` | 17 |
 
