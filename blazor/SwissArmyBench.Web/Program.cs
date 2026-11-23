@@ -64,6 +64,7 @@ public static class Program
         services.AddScoped<BoardClient>();
         services.AddScoped<DebugClient>();
         services.AddScoped<SwissArmyBench.Web.Api.Blades.BladesClient>();
+        services.AddScoped<SwissArmyBench.Web.Api.Blades.CatalogClient>();
         services.AddScoped<AnalyzeClient>();
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();

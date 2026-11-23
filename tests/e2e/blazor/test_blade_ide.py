@@ -80,3 +80,26 @@ def test_insert_a_snippet_fills_its_placeholders(browser: Browser, server: dict[
     form.locator("button:has-text('Insert')").click()
     expect(cell.locator(".view-lines")).to_contain_text("MadeUpDates", timeout=15_000)
     page.close()
+
+
+def test_the_blades_panes_catalog(browser: Browser, server: dict[str, Any]) -> None:
+    from tests.test_catalog_routes import CATALOG
+
+    call(server, "PUT", "/catalogs/MadeUpBakery?dialect=postgres", CATALOG)
+    page = open_page(browser, server, "scripts")
+    page.click(".wb-status button:has-text('Blades')")
+    section = page.locator(".catalog-section")
+    expect(section.locator("select[aria-label=Catalog]")).to_have_value("MadeUpBakery")
+    section.locator("summary", has_text="sales").click()
+    section.locator(".catalog-table", has_text="sales.orders").click()
+    detail = section.locator(".catalog-detail")
+    expect(detail.locator("h2")).to_have_text("orders")
+    expect(detail).to_contain_text("placed_at")
+    expect(detail.locator("button:has-text('Copy the SELECT')")).to_be_visible()
+    section.locator("input[aria-label='Search the catalog']").fill("placed")
+    expect(section.locator(".catalog-column")).to_have_text("orders.placed_at")
+    section.locator("input[aria-label='Search the catalog']").fill("zzz_nothing")
+    expect(section).to_contain_text("Nothing matches.")
+    section.locator("button[aria-label='Remove this catalog']").click()
+    expect(section).to_contain_text("No catalog is loaded.")
+    page.close()

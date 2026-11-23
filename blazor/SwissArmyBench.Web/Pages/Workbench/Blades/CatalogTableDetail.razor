@@ -1,0 +1,117 @@
+@* A catalog's table (the classic catalogRail.ts tableDetails): its name (view, its words), where it is and how many
+   columns, Open as grid, Copy the name, Copy the SELECT (or DAX), its columns, and its first rows read from its
+   connection. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Blades
+@inject SwissArmyBench.Web.Api.Blades.CatalogClient Catalogs
+@inject IJSRuntime Js
+@inject SwissArmyBench.Web.State.Notes Notes
+@inject NavigationManager Nav
+
+<div class="catalog-detail">
+    <h2>@Table.Table@if (Table.Kind == "view") { <span class="hint">  view</span> }</h2>
+    <p class="hint">@($"{Where} · {(_columns?.Columns.Count ?? Table.Columns)} column{((_columns?.Columns.Count ?? Table.Columns) == 1 ? string.Empty : "s")}")</p>
+    <div class="row-actions">
+        <button type="button" class="btn small primary" @onclick="OpenAsync"><Icon Name="rows" /> Open as grid</button>
+        <button type="button" class="btn small" @onclick='() => CopyAsync(Name, "the name")'><Icon Name="copy" /> Copy the name</button>
+        <button type="button" class="btn small" @onclick="() => CopyAsync(_columns?.Select ?? string.Empty, First)"><Icon Name="sql" /> Copy the @First</button>
+    </div>
+    @if (_columns is { } columns)
+    {
+        <table class="grid-preview">
+            <tbody>
+                @foreach (var c in columns.Columns)
+                {
+                    <tr><td>@c.Column</td><td class="hint">@c.Type</td><td class="hint">@c.Description</td></tr>
+                }
+            </tbody>
+        </table>
+    }
+    <h3>First rows</h3>
+    @if (_preview is { } preview)
+    {
+        <div class="ide-result-table">
+            <table class="grid-preview">
+                <thead><tr>@foreach (var c in preview.Columns) { <th>@c</th> }</tr></thead>
+                <tbody>@foreach (var row in preview.Rows) { <tr>@foreach (var v in row) { <td>@v</td> }</tr> }</tbody>
+            </table>
+        </div>
+    }
+    else if (_previewError is { } why)
+    {
+        <p class="hint">@why</p>
+    }
+    else
+    {
+        <p class="hint">Reading the first rows…</p>
+    }
+</div>
+
+@code {
+    private CatalogColumns? _columns;
+    private CatalogPreview? _preview;
+    private string? _previewError;
+    private string? _for;
+
+    [Parameter, EditorRequired]
+    public string Catalog { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public CatalogTable Table { get; set; } = default!;
+
+    [Parameter]
+    public bool Dax { get; set; }
+
+    private string First => Dax ? "DAX" : "SELECT";
+
+    private string Name => Table.Schema.Length > 0 ? $"{Table.Schema}.{Table.Table}" : Table.Table;
+
+    private string Where => Table.Schema.Length > 0 ? $"{Catalog} · {Table.Schema}" : Catalog;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = $"{Catalog}|{Table}";
+        if (key == _for)
+        {
+            return;
+        }
+        (_for, _columns, _preview, _previewError) = (key, null, null, null);
+        try
+        {
+            _columns = await Catalogs.ColumnsAsync(Catalog, Table);
+        }
+        catch (ApiException)
+        {
+            _columns = null; // its name and its first rows still show
+        }
+        try
+        {
+            _preview = await Catalogs.PreviewAsync(Catalog, Table);
+        }
+        catch (ApiException error)
+        {
+            _previewError = error.Refusal.Error;
+        }
+    }
+
+    private async Task CopyAsync(string text, string what)
+    {
+        await Js.InvokeAsync<bool>("sab.copy", [text]);
+        await Notes.SayAsync($"Copied {what}.");
+    }
+
+    private async Task OpenAsync()
+    {
+        await Notes.SayAsync($"Opening {Table.Table}…");
+        try
+        {
+            var opened = await Catalogs.OpenAsync(Catalog, Table);
+            await Notes.SayAsync($"{opened.Dataset} is open as a grid.");
+            Nav.NavigateTo("grids");
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+}
