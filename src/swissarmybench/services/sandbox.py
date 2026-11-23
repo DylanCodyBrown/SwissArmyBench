@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -958,6 +958,21 @@ class Sandbox:
         return out
 
     # ===== the Sandbox's card on the Connections page =====
+
+    def heard(self, message: Mapping[str, Any]) -> None:
+        """A live notice. A project closed: its sandbox's file let go (one process at a time holds a
+        DuckDB file, so sandbox_connections.py can run on it outside the app)."""
+        if message.get("type") == "project_changed" and self.folder() is None:
+            self.close()
+
+    def cards(self) -> list[dict[str, Any]]:
+        """The Connections page's extra cards: the Sandbox's, while a project is open."""
+        card = self.card()
+        return [card] if card is not None else []
+
+    def colours(self) -> list[tuple[str, str]]:
+        """The Sandbox's fixed colour (its own indigo, none of the palette's), while a project is open."""
+        return [(rules.NAME, rules.COLOUR)] if self.folder() else []
 
     def card(self) -> dict[str, Any] | None:
         """The project's Sandbox as a connection's card (None with no project open): its tables, the change

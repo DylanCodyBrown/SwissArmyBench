@@ -1,9 +1,10 @@
 """The project scaffold's files on disk (services/scaffold.py): a project folder's own made files read,
-written atomically (only when their bytes change) and removed. Paths are relative to the project's top and
-never leave it."""
+written atomically (only when their bytes change) and removed, and its top's names listed. Paths are relative
+to the project's top and never leave it."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path, PurePosixPath
 
 from swissarmybench.adapters.atomic_files import write_atomic
@@ -17,6 +18,13 @@ def _inside(folder: str, relative: str) -> Path:
 
 
 class ScaffoldFiles:
+    def names(self, folder: str) -> list[str]:
+        """The project top's files and folders (a folder as `name/`), for the contract's deliverable."""
+        try:
+            return sorted(e.name + ("/" if e.is_dir() else "") for e in os.scandir(folder))
+        except OSError:
+            return []
+
     def read(self, folder: str, relative: str) -> str | None:
         path = _inside(folder, relative)
         try:

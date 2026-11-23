@@ -844,6 +844,8 @@ src/swissarmybench/
                          first window is open; not a browser-window sign-in, nor one the user took away this
                          session), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
+    blade_runs.py        a blade's runs (BladeRuns: a child process, a connection's through its slots and counted;
+                         the blade IDE's streamed Run; the vaults read for a kernel and a scheduled script)
     analysis_blades.py   analysis blades (BladeService.analysis_blades): listed, found, run on a grid's view
     connections.py       connections: the list, the forms, test before saving, password sources; the read, the
                          count and the origin's name ask the kind's record (_tables, _engine, _count_sql,
@@ -906,6 +908,8 @@ src/swissarmybench/
                          card (the Connections page's Sandbox); views, query tables and sequences an API makes
                          (_define); keys (set_key, a
                          connection's from the shared catalog, put back after Reset and Restore); mock_dialects
+    sandbox_sources.py   where the sandbox gets a table in the app (AppSources: a grid's view, a connection's table
+                         read once, a file, a structure's records; the grid it shows as, the client it is mocked as)
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
                          (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
                          the session; api writes), log, address, the endpoint wizard handed over to
@@ -1021,7 +1025,9 @@ src/swissarmybench/
                          uses), query_hints (an app registration's COUNTROWS tables); each a plain default with
                          none on. Seams, the other way: what the base offers an extension, typed (the project's
                          folder, opened and saved listeners, live listeners, variable names, connection tables,
-                         the local API, the actions); an extension's own services go in services.extension[id]
+                         the local API, the actions, the shared ports, one small Protocol per base service an
+                         extension calls); an extension's routes and stop get Seams, never Services
+                         (tests/test_extension_layers.py); its own services go in seams.extension[id]
     data_export.py       data.ipynb -> data.py (New project, Export data.py, the Streamlit extension's Save as)
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
     sab_projects.py      a project is a folder: new (scaffolded in the projects folder or where named, opened,

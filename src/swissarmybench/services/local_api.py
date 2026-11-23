@@ -106,6 +106,8 @@ class LocalApi:
         catalog: Any = None,
         publish: Callable[[dict[str, str]], None] = lambda values: None,
         api_uses: Callable[[], list[dict[str, Any]]] = lambda: [],
+        target_ids: Callable[[], list[str]] = lambda: ["fastapi", "azure_functions", "aws_lambda"],
+        targets: Callable[[], list[dict[str, Any]]] | None = None,
     ) -> None:
         self.ws = ws
         self._project = project
@@ -130,13 +132,13 @@ class LocalApi:
         self._agent_writes: str | None = None
         self._watch: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
-        # The framework targets' ids (the export's registry fills it in: services/api_export.py).
-        self.target_ids: Callable[[], list[str]] = lambda: ["fastapi", "azure_functions", "aws_lambda"]
+        # The framework targets' ids (the export's registry: domain/api_targets.py Registry).
+        self.target_ids: Callable[[], list[str]] = target_ids
         # The framework targets as the page's picker and the agent read them: [{id, label}] (the export's
         # registry, so an extension's target is offered like the base's three).
-        self.targets: Callable[[], list[dict[str, Any]]] = lambda: [
-            {"id": i, "label": i} for i in self.target_ids()
-        ]
+        self.targets: Callable[[], list[dict[str, Any]]] = targets or (
+            lambda: [{"id": i, "label": i} for i in self.target_ids()]
+        )
         # The loaded catalogs (services/catalogs.py): "Will this work for real?" reads them, never loads one.
         self.catalog: Any = catalog
         # Where it runs, put in this server's environment while it runs (SAB_API_URL, SAB_API_KEY,

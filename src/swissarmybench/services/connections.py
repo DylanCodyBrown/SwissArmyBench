@@ -53,6 +53,7 @@ class ConnectionService:
         colours: Colours | None = None,
         approvals: Approvals | None = None,
         open_view: Callable[[str], Awaitable[bytes]] | None = None,
+        variable_check: CodeCheck | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -68,9 +69,9 @@ class ConnectionService:
         # Connection colours (services/connection_colours.py): a new connection's next free one, and a
         # colour sent with one checked against the rail's.
         self._colours = colours
-        # The Variables page (services/variables.py, set once built): a setting's ${NAME} checked before a
-        # Test runs, so a name not set here is the one error (12.7), not the driver's.
-        self.variable_check: CodeCheck | None = None
+        # The Variables page (services/variables.py): a setting's ${NAME} checked before a Test runs, so a
+        # name not set here is the one error (12.7), not the driver's.
+        self.variable_check: CodeCheck | None = variable_check
         # sab.write for the agent (connections_write), set once built: the user's Allow (services/agent.py)
         # and an open table's grid view as an Arrow IPC stream (services/table_cells.py).
         self.approvals: Approvals = approvals if approvals is not None else NoOneToAsk()

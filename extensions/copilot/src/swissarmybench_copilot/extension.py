@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench_copilot import __version__
+
+if TYPE_CHECKING:
+    from swissarmybench.services.hooks import Seams
 
 ID = "copilot"
 NAME = "GitHub Copilot"
@@ -62,36 +65,36 @@ def describe() -> dict[str, Any]:
     return {"id": ID, "name": NAME, "description": DESCRIPTION, "version": VERSION, "adds": ADDS}
 
 
-def private_project(services: Any) -> bool:
+def private_project(seams: Seams) -> bool:
     """Is the open project marked private (.sab/project.json `private: true`)? (the base's seam)"""
-    return bool(services.seams.project_private())
+    return bool(seams.project_private())
 
 
-def routes(services: Any) -> list[Any]:
+def routes(seams: Seams) -> list[Any]:
     from swissarmybench import __version__ as app_version
     from swissarmybench.adapters.state_files import JsonFile
     from swissarmybench_copilot.adapters.language_server import Machine
     from swissarmybench_copilot.server import routes as door
     from swissarmybench_copilot.services.copilot import Copilot
 
-    state_dir = Path(services.settings.state_dir)
+    state_dir = Path(seams.settings.state_dir)
     service = Copilot(
         machine=Machine(state_dir / "copilot"),
         record=JsonFile(state_dir / "copilot.json"),
-        approvals=services.agent.approvals,
-        audit=services.ws.audit,
-        live=services.live,
-        private=lambda: private_project(services),
+        approvals=seams.approvals,
+        audit=seams.ws.audit,
+        live=seams.ws.live,
+        private=lambda: private_project(seams),
         app_version=app_version,
         plugin_version=VERSION,
         process_id=os.getpid(),
     )
-    services.extension[ID] = service  # its own place on the record: its stop, and tests
+    seams.extension[ID] = service  # its own place on the record: its stop, and tests
     return door.routes(service)
 
 
-async def stop(services: Any) -> None:
-    service = services.extension.get(ID)
+async def stop(seams: Seams) -> None:
+    service = seams.extension.get(ID)
     if service is not None:
         await service.stop()
 

@@ -37,7 +37,7 @@ def describe() -> dict[str, Any]:
 # ===== routes: the composition root =====
 
 
-def routes(services: Any) -> list[BaseRoute]:
+def routes(seams: Any) -> list[BaseRoute]:
     async def count(request: Request) -> JSONResponse:
         return JSONResponse({"shelves": SHELVES, "total": sum(SHELVES.values())})
 

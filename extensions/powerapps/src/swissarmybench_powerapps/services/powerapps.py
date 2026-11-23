@@ -105,7 +105,7 @@ class Live(Protocol):
 class ApiDocuments(Protocol):
     """The library's APIs (the APIs page): an API's OpenAPI document and its sign-in (never a secret)."""
 
-    def __call__(self, name: str) -> tuple[dict[str, Any], dict[str, Any]]: ...
+    def __call__(self, name: str, /) -> tuple[dict[str, Any], dict[str, Any]]: ...
 
 
 @dataclass

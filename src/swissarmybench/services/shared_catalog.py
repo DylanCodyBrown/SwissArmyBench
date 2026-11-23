@@ -24,7 +24,10 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from swissarmybench.domain import connection_tables as connection_table_rules
+from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import shared_catalog as rules
+from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.relationships import Model, code_of, from_connection
 from swissarmybench.services.workspace import Workspace
 
@@ -53,6 +56,20 @@ class Here:
     name: str
     kind: str
     template: str
+
+
+def connections_here(blades: Iterable[Blade]) -> list[Here]:
+    """This computer's connections that have tables (never a web call, nor a key vault: it has no tables)."""
+    found = []
+    for blade in blades:
+        if blade.web_call or connection_rules.connection_kind(blade.kind, blade.template) is None:
+            continue
+        kind = connection_table_rules.tables_kind(
+            blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
+        )
+        if kind is not None:
+            found.append(Here(blade.name, kind, str(blade.template or "")))
+    return found
 
 
 # None with no project open, else the project's folder name, its table names, and its documents (path, text).

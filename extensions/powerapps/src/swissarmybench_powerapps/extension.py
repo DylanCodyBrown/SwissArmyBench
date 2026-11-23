@@ -7,9 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench_powerapps import __version__
+
+if TYPE_CHECKING:
+    from swissarmybench.services.hooks import ConnectionsSeam, Seams
 
 ID = "powerapps"
 NAME = "Power Apps"
@@ -127,16 +130,16 @@ SESSION_RULES: dict[str, Any] = {
 }
 
 
-def dataverse_connections(services: Any) -> list[dict[str, Any]]:
+def dataverse_connections(connections: ConnectionsSeam) -> list[dict[str, Any]]:
     """The library's Dataverse connections and each one's environment address (its code's `url`)."""
     from swissarmybench.domain.blades import detect_settings
 
     found = []
-    for listed in services.connections.listing()["connections"]:
+    for listed in connections.listing()["connections"]:
         if listed.get("template") != "dataverse":
             continue
         try:
-            blade, _ = services.connections.blade(str(listed["name"]))
+            blade, _ = connections.blade(str(listed["name"]))
             url = next(
                 (str(s.value) for s in detect_settings(blade.code) if s.key == "url" or s.name == "address"),
                 "",
@@ -147,7 +150,7 @@ def dataverse_connections(services: Any) -> list[dict[str, Any]]:
     return found
 
 
-def routes(services: Any) -> list[Any]:
+def routes(seams: Seams) -> list[Any]:
     """Its routes, its service built from the base's (the audit log, the live updates, the agent's
     approvals, the library's APIs, the open project) and its own adapters."""
     from swissarmybench.adapters import export as export_writer
@@ -158,20 +161,20 @@ def routes(services: Any) -> list[Any]:
 
     def opened(folder: str | None) -> None:
         # The open code app is the open project: its .sab/project.json's type sets the mode.
-        if folder is not None or services.seams.opened_folder() == service.folder:
-            services.seams.set_opened(folder)
+        if folder is not None or seams.opened_folder() == service.folder:
+            seams.set_opened(folder)
 
     processes = runner.Runner()
-    project_files = files.ProjectFiles(Path(services.settings.state_dir) / "powerapps.json")
+    project_files = files.ProjectFiles(Path(seams.settings.state_dir) / "powerapps.json")
     service = PowerApps(
         runner=processes,
         stop=runner.stop,
         files=project_files,
         connector_service=environment_api.fetch_connector,
-        audit=services.ws.audit,
-        live=services.live,
-        approvals=services.agent.approvals,
-        api_documents=services.api_explorer.document_of,
+        audit=seams.ws.audit,
+        live=seams.ws.live,
+        approvals=seams.approvals,
+        api_documents=seams.api_document,
         free_port=runner.free_port,
         prefix=door.LIVE_PREFIX,
         opened=opened,
@@ -187,21 +190,21 @@ def routes(services: Any) -> list[Any]:
         launcher=deno_kernel.Launcher(),
         runner=processes,
         files=notebook_files.NotebookFiles(),
-        tables=OpenTables(services.ws, export_writer),
-        store_table=lambda name, table, who: services.datasets.store_table(name, table, "parquet", True, who),
-        prepare=services.connection_tables.prepare,
+        tables=OpenTables(seams.ws, export_writer),
+        store_table=lambda name, table, who: seams.datasets.store_table(name, table, "parquet", True, who),
+        prepare=seams.connection_tables.prepare,
         code_app=lambda: service.folder,
         write_app_file=project_files.write,
-        audit=services.ws.audit,
-        live=services.live,
-        connections=lambda: dataverse_connections(services),
-        open_connection_table=services.connections.open_table,
+        audit=seams.ws.audit,
+        live=seams.ws.live,
+        connections=lambda: dataverse_connections(seams.connections),
+        open_connection_table=seams.connections.open_table,
         environments=environments,
         environment_id=lambda: str(service.project_state().get("app", {}).get("environment_id") or ""),
         sources=lambda: list(service.project_state().get("sources") or []),
     )
     # Its own place on the record: its stop, and tests.
-    services.extension[ID] = Own(service, notebook)
+    seams.extension[ID] = Own(service, notebook)
     return door.routes(service, notebook)
 
 
@@ -213,9 +216,9 @@ class Own:
     notebook: Any
 
 
-async def stop(services: Any) -> None:
+async def stop(seams: Seams) -> None:
     """When the server stops: the dev server and the data notebooks' kernels with it."""
-    own = services.extension.get(ID)
+    own = seams.extension.get(ID)
     if own is not None:
         await own.powerapps.stop_all()
         await own.notebook.stop_all()

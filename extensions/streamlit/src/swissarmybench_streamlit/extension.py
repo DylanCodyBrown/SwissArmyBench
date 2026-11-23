@@ -16,7 +16,7 @@ the app is the BI base without it (no Canvas, no Widgets; its tools say which ex
   routes(services)              its routes, its services built from the base's (this is its composition root);
                                 it fills the base's hooks (services/hooks.py): an old app file said, a new
                                 project's canvas
-  stop(services)                its Streamlit processes and their temporary folders, when the server stops
+  stop(seams)                   its Streamlit processes and their temporary folders, when the server stops
   scaffold(name, data_names)    a Streamlit project's own files: an empty canvas
 """
 
@@ -25,9 +25,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench_streamlit import __version__
+
+if TYPE_CHECKING:
+    from swissarmybench.services.hooks import Seams
 
 ID = "streamlit"
 NAME = "Streamlit"
@@ -96,8 +99,8 @@ def describe() -> dict[str, Any]:
     }
 
 
-def routes(services: Any) -> list[Any]:
-    """Its routes, its services built from the base's (bootstrap's Services), and the base's hooks filled."""
+def routes(seams: Seams) -> list[Any]:
+    """Its routes, its services built from what the base offers (services/hooks.py Seams), hooks filled."""
     from swissarmybench.server import streamlit_proxy
     from swissarmybench.services.ports import BACKGROUND
     from swissarmybench_streamlit.adapters.build_files import BuildFiles
@@ -122,12 +125,10 @@ def routes(services: Any) -> list[Any]:
     # A widget run alone and a canvas's Play: written to a temporary folder of the app's own and run in the
     # project's Python (Streamlit is never this app's dependency), passed through at /streamlit/run/.
     app_files = AppFiles()
-    runner = Runner(report=lambda *e: services.process_event("streamlit", *e))
+    runner = Runner(report=lambda *e: seams.process_event("streamlit", *e))
     live_runs = LiveRuns(app_files, runner)
-    settings = services.settings
-    library = services.library
-    documents = services.documents
-    seams = services.seams  # what the base offers (services/hooks.py Seams), typed
+    settings = seams.settings
+    library = seams.library
     project_folder = seams.project_folder
 
     def project_python() -> str | None:
@@ -135,11 +136,11 @@ def routes(services: Any) -> list[Any]:
         if not folder:
             return None
         try:
-            return documents.environment(str(Path(folder) / "data.ipynb"))  # type: ignore[no-any-return]
+            return seams.document_python(str(Path(folder) / "data.ipynb"))
         except Exception:
             return None
 
-    tables = OpenTables(services.ws, services.export_writer)
+    tables = OpenTables(seams.ws, seams.export_writer)
     # A table property also takes data.ipynb's tables (data.py's names) and a connection's [Conn].table,
     # read through the connection-tables contract: the one gate, so each connection's query limit holds.
     from swissarmybench_streamlit.domain.widget_properties import module_tables
@@ -165,17 +166,17 @@ def routes(services: Any) -> list[Any]:
 
     async def read_connection_table(reference: str) -> bytes:
         table = await connection_tables.read_named(reference)
-        found: bytes = await services.ws.workers.run(BACKGROUND, parquet_of, table)
+        found: bytes = await seams.ws.workers.run(BACKGROUND, parquet_of, table)
         return found
 
     # Every API's actions through api_adapter (the base's services/actions.py): the one picker's list (the
     # local sandbox API's endpoints and each library API's actions), and what a built app carries.
     actions = seams.actions
     widgets = Widgets(
-        services.ws,
+        seams.ws,
         WidgetFiles(library.folder, made=library.made, project=project_folder),
         live_runs,
-        services.agent.approvals,
+        seams.approvals,
         project=WidgetProject(
             folder=project_folder,
             python=project_python,
@@ -200,18 +201,18 @@ def routes(services: Any) -> list[Any]:
     )
     # The Canvas: the project's <app>.canvas.json files, every change rule-checked, kept and undoable.
     canvases = Canvases(
-        services.ws,
+        seams.ws,
         CanvasFiles(),
         widgets,
         live_runs,
-        services.agent.approvals,
+        seams.approvals,
         app_files,
         project=CanvasProject(
             folder=project_folder,
             read_data_py=lambda folder: read_text(str(Path(folder) / "data.py")),
             list_folder=folder_names,
             real_path=lambda path: os.path.realpath(os.path.expanduser(path)),
-            core_files=services.scaffold.export_core,
+            core_files=seams.core_files,
         ),
         builds=BuildFiles(),
         paired=seams.local_api.paired,  # a dropped widget wires itself to its endpoint
@@ -220,7 +221,7 @@ def routes(services: Any) -> list[Any]:
     launches = Launches(canvases, live_runs, BuildFiles())
     canvases.launches = launches
     # Each widget's preview, rendered headless once (Play's own builder and run) and kept by its hash.
-    previewer = Previewer(widgets, live_runs, notify=services.ws.live.broadcast)
+    previewer = Previewer(widgets, live_runs, notify=seams.ws.live.broadcast)
     seams.live_listeners.append(previewer.heard)  # the project's Python ready: a failed one again
     # Play follows live data: a table a playing page reads, written again into its run when it changes (a
     # sandbox write, a grid's steps, a reload, data.py), and its open pages run again by themselves.
@@ -242,7 +243,7 @@ def routes(services: Any) -> list[Any]:
     live_tables = LiveTables(live_runs, widgets.tables_for, project_data_py, is_data_py)
     seams.live_listeners.append(live_tables.heard)
 
-    hooks = services.hooks
+    hooks = seams.hooks
     hooks.app_document = GoneApp()  # an old .stapp.json: said in one line
     hooks.project_app = project_app
     hooks.app_pages = canvas_pages
@@ -252,9 +253,9 @@ def routes(services: Any) -> list[Any]:
     # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
     from swissarmybench_streamlit.services import sharing_target
 
-    share_target = sharing_target.wire(services, live_runs, runner, canvases.title_of)
+    share_target = sharing_target.wire(seams.hooks, live_runs, runner, canvases.title_of)
     # Its own services, on its own place of the record (never an attribute of the base's).
-    services.extension[ID] = Own(widgets, canvases, launches, live_runs, previewer, live_tables, share_target)
+    seams.extension[ID] = Own(widgets, canvases, launches, live_runs, previewer, live_tables, share_target)
     return [
         *routes_widgets.routes(widgets, previewer, web_root),
         *routes_canvases.routes(canvases, web_root),
@@ -293,9 +294,9 @@ class Own:
     share_target: Any
 
 
-async def stop(services: Any) -> None:
+async def stop(seams: Seams) -> None:
     """When the server stops: no Streamlit process outlives it, nor its temporary folder."""
-    own = services.extension.get(ID)
+    own = seams.extension.get(ID)
     if own is None:
         return
     await own.previewer.stop()

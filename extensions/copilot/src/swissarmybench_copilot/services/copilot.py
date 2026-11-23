@@ -75,7 +75,7 @@ class Record(Protocol):
 
 
 class Audit(Protocol):
-    def write(self, who: str, action: str, dataset: str | None, **detail: Any) -> None: ...
+    def write(self, actor: str, action: str, dataset: str | None = None, **details: Any) -> None: ...
 
 
 class Notifier(Protocol):

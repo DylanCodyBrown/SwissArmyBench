@@ -24,8 +24,11 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmybench.domain import project_contract
+from swissarmybench.domain import local_api as local_api_rules
+from swissarmybench.domain import project_contract, project_paths
 from swissarmybench.domain import scaffold as rules
+from swissarmybench.domain.codegen import variable_name
+from swissarmybench.domain.table_cells import Origin
 from swissarmybench.services.workspace import Conflict, Refused, Workspace
 
 SETTLE = 1.5  # seconds a burst of notices waits before one refresh
@@ -50,6 +53,8 @@ HEARD: frozenset[str] = frozenset(
 class Files(Protocol):
     """A project folder's own files (adapters/scaffold.py)."""
 
+    def names(self, folder: str) -> list[str]: ...  # its top's files and folders (a folder as `name/`)
+
     def read(self, folder: str, relative: str) -> str | None: ...
 
     def write(self, folder: str, relative: str, text: str) -> None: ...
@@ -59,20 +64,23 @@ class Files(Protocol):
 
 @dataclass
 class Sources:
-    """What the made files are made from (bootstrap.py wires each)."""
+    """What the made files are made from (bootstrap.py wires each): the app's answers as ports; the rules that
+    read them (which documents use a variable, data.py's structures, the project type's contract) are here."""
 
     used: Callable[[], list[str]]  # the connections the open project uses, in the order they were made
     connections: Callable[[list[str]], dict[str, Any]]  # services/script_export.py connections_code
     adapter: Callable[[], str]  # the app's adapter.py, its bytes
-    variables: Callable[[], dict[str, str]]  # each variable's source in words (names only)
-    documents_using: Callable[[str], list[str]] = lambda name: []  # the project's documents naming ${NAME}
+    # Each variable's source in words and what uses it ((what, its document's path)): services/variables.py
+    # sources (names only, never a value).
+    variable_uses: Callable[[], Mapping[str, tuple[str, list[tuple[str, str | None]]]]] = dict
     sandbox: Callable[[], Awaitable[dict[str, Any] | None]] | None = None  # its tables, baseline, checkpoints
-    structures: Callable[[], list[rules.StructureGrid]] = lambda: []
-    endpoints: Callable[[str], int] = lambda text: 0  # how many endpoints API.py's text has (none: commented)
-    # The open project type's contract.json (domain/project_contract.py), None for the base's own: what its
-    # deliverable adds beside the core files, listed as the contract says (the base never names one).
-    contract: Callable[[str], dict[str, Any] | None] = lambda folder: None
-    names: Callable[[str], list[str]] = lambda folder: []  # the project's files, relative (for the listing)
+    # Each open grid's table and where it came from (services/datasets.py origins): data.py's structures.
+    tables: Callable[[], Iterable[tuple[str, Origin | None]]] = list
+    real: Callable[[str], str] | None = None  # a path with its links resolved (os.path.realpath)
+    # The open project's type (services/projects.py type_of) and every on extension's contract.json
+    # (domain/project_contract.py): what its deliverable adds beside the core files (the base names none).
+    type_of: Callable[[str], str | None] = lambda folder: None
+    contracts: Callable[[], Iterable[Mapping[str, Any]]] = list
     edited: Callable[[str], set[str]] = lambda folder: set()  # .sab/hand-edited.json
     touched: Callable[[str, str], Awaitable[Any]] | None = None  # code_files: the file_changed notice
     extra: list[str] = field(default_factory=list)  # always the base's: never an extension's file
@@ -101,7 +109,7 @@ class Scaffold:
         sandbox = await self._sources.sandbox() if self._sources.sandbox is not None else None
         tables: Mapping[str, Mapping[str, Any]] = (sandbox or {}).get("tables") or {}
         api = self._files.read(folder, rules.API)
-        has_api = api is not None and self._sources.endpoints(api) > 0
+        has_api = api is not None and self.endpoints(api) > 0
         reads = connections is not None or has_api or bool(tables)
         wanted: dict[str, str | None] = {
             rules.ADAPTER: self._sources.adapter() if reads else None,
@@ -112,13 +120,14 @@ class Scaffold:
             rules.SANDBOX_CONNECTIONS: rules.sandbox_connections_py(tables),
         }
         readers: Mapping[str, list[str]] = made.get("readers") or {}
-        sources = self._sources.variables()
-        names = list(dict.fromkeys([*readers, *(v for v in sources if self._sources.documents_using(v))]))
+        sources = self.variable_words()
+        using = {v: self.documents_using(v, folder) for v in sources}
+        names = list(dict.fromkeys([*readers, *(v for v in sources if using[v])]))
         variables = [
             rules.Variable(
                 v,
                 sources.get(v, ""),
-                tuple(dict.fromkeys([*readers.get(v, []), *self._sources.documents_using(v)])),
+                tuple(dict.fromkeys([*readers.get(v, []), *using.get(v, [])])),
             )
             for v in sorted(names, key=str.casefold)
         ]
@@ -126,20 +135,63 @@ class Scaffold:
         wanted[rules.README] = rules.with_variables(readme, variables, title)
         data_py = self._files.read(folder, rules.DATA)
         if data_py is not None:
-            wanted[rules.DATA] = rules.with_structures(data_py, self._sources.structures())
+            wanted[rules.DATA] = rules.with_structures(data_py, self.structures(folder))
         return wanted, {
             "connections": used,
             "variables": [v.name for v in variables],
-            "deliverable": self._deliverable(folder),
+            "deliverable": self.deliverable(folder),
         }
 
-    def _deliverable(self, folder: str) -> dict[str, Any]:
+    # ===== what the made files are made of =====
+
+    def variable_words(self) -> dict[str, str]:
+        """Each variable's source in words (README.md's Variables block)."""
+        return {name: words for name, (words, _) in self._sources.variable_uses().items()}
+
+    def documents_using(self, name: str, folder: str) -> list[str]:
+        """The project's own documents that read the variable (never a file the scaffold made: its
+        connections.py reads what the connections read, said by their sections)."""
+        held = self._sources.variable_uses().get(name)
+        if held is None:
+            return []
+        out = []
+        for what, path in held[1]:
+            relative = project_paths.relative_in(path, folder, self._sources.real)
+            if relative is not None and relative not in rules.MADE:
+                out.append(what)
+        return out
+
+    def structures(self, folder: str) -> list[rules.StructureGrid]:
+        """data.py's structures: each open grid read from one of the project's structure files."""
+        out: set[rules.StructureGrid] = set()
+        for table, origin in self._sources.tables():
+            if origin is None or origin.kind != "structure":
+                continue
+            relative = project_paths.relative_in(origin.path, folder, self._sources.real)
+            if relative is not None and relative.lower().endswith(rules.STRUCTURE_SUFFIXES):
+                out.add(rules.StructureGrid(variable_name(table), relative, origin.sql or "$"))
+        return sorted(out, key=lambda s: s.variable)
+
+    @staticmethod
+    def endpoints(text: str) -> int:
+        """How many endpoints API.py's text has (none while it does not parse, or all are commented)."""
+        try:
+            return len(local_api_rules.parse(text).endpoints)
+        except Exception:
+            return 0
+
+    def contract(self, folder: str) -> Mapping[str, Any] | None:
+        """The project type's contract.json, from the extension (packaged or a folder) that adds the type."""
+        kind = self._sources.type_of(folder)
+        return next((c for c in self._sources.contracts() if c.get("type") == kind), None)
+
+    def deliverable(self, folder: str) -> dict[str, Any]:
         """The project type's own files, from its contract.json: each with who owns it, what it is made from,
         what grows it, and whether the project has it yet."""
-        contract = self._sources.contract(folder)
+        contract = self.contract(folder)
         if contract is None:
             return {"type": None, "files": []}
-        names = self._sources.names(folder)
+        names = self._files.names(folder)
         files = [
             {
                 "path": entry["path"],

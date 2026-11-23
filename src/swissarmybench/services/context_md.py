@@ -46,6 +46,41 @@ class ContextFiles(Protocol):
 Catalog = Callable[[str], Awaitable[tuple[list[str], list[rules.CatalogTable], int, set[str]] | None]]
 
 
+class LoadedCatalogs(Protocol):
+    """The loaded catalogs (services/catalogs.py CatalogService)."""
+
+    async def schema_names(self, name: str) -> list[dict[str, Any]] | None: ...
+
+    async def tables(
+        self, name: str, schema: str, database: str | None, offset: int, limit: int
+    ) -> dict[str, Any]: ...
+
+    async def shared_tables(self, name: str) -> set[str]: ...
+
+
+async def catalog_of(
+    catalogs: LoadedCatalogs, name: str
+) -> tuple[list[str], list[rules.CatalogTable], int, set[str]] | None:
+    """A loaded catalog's schemas (datasets), its first tables, their count, and the names shared (the
+    Connections section's; None: not loaded)."""
+    schemas = await catalogs.schema_names(name)
+    if schemas is None:
+        return None
+    most = rules.MAX_CATALOG_TABLES
+    tables: list[rules.CatalogTable] = []
+    for s in schemas:
+        if len(tables) >= most:
+            break
+        if not s.get("tables") and not s.get("views"):
+            continue
+        found = await catalogs.tables(name, str(s["schema"]), str(s["database"]) or None, 0, most)
+        tables += [
+            rules.CatalogTable(str(t["database"]), str(t["schema"]), str(t["table"])) for t in found["tables"]
+        ]
+    total = sum(int(s.get("tables") or 0) + int(s.get("views") or 0) for s in schemas)
+    return [str(s["schema"]) for s in schemas], tables[:most], total, await catalogs.shared_tables(name)
+
+
 def _file_name(path: str | None) -> str:
     return re.split(r"[\\/]", path or "")[-1]
 

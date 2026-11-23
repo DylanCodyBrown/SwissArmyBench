@@ -7,9 +7,12 @@ to its service.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench_powerbi import __version__
+
+if TYPE_CHECKING:
+    from swissarmybench.services.hooks import Seams
 
 ID = "powerbi"
 NAME = "Power BI"
@@ -128,36 +131,47 @@ class _Files:
         return self._files.open_file(path, self._show)
 
 
-def routes(services: Any) -> list[Any]:
+def routes(seams: Seams) -> list[Any]:
     from swissarmybench_powerbi.adapters import report_files
     from swissarmybench_powerbi.server import routes as door
     from swissarmybench_powerbi.services.export import PowerBIExport
 
     service = PowerBIExport(
-        services.ws,
-        services.models,
-        origins=services.datasets.origins.get,
-        connection=lambda name: services.connections.blade(name)[0],
-        shareable=services.variables.shareable,
-        project=lambda: services.sab_projects.state().get("project"),
-        used=services.project_tables.used,
+        seams.ws,
+        seams.models,
+        origins=seams.datasets.origins.get,
+        connection=lambda name: seams.connections.blade(name)[0],
+        shareable=seams.variables.shareable,
+        project=lambda: seams.sab_projects.state().get("project"),
+        used=seams.used_tables,
         files=_Files(),
-        writer=services.export_writer,
-        approvals=services.agent.approvals,
+        writer=seams.export_writer,
+        approvals=seams.approvals,
         read_report=report_files.read,
     )
     from swissarmybench.server.blade_templates import BY_ID
     from swissarmybench_powerbi.adapters import pbix_reader
     from swissarmybench_powerbi.adapters.files import StateFiles
     from swissarmybench_powerbi.server import routes_project
-    from swissarmybench_powerbi.services.project import PowerBIProject
+    from swissarmybench_powerbi.services.project import Base, PowerBIProject
 
     project = PowerBIProject(
-        services,
+        Base(
+            ws=seams.ws,
+            connections=seams.connections,
+            variables=seams.variables,
+            models=seams.models,
+            sab_projects=seams.sab_projects,
+            compares=seams.compares,
+            datasets=seams.datasets,
+            blades=seams.blades,
+            app_registrations=seams.app_registrations,
+            powerbi_export=service,
+        ),
         pbix_reader.read,
         StateFiles(),
-        services.agent.approvals,
-        registrations=services.app_registrations.names,
+        seams.approvals,
+        registrations=seams.app_registrations.names,
         starters=BY_ID,
     )
     from pathlib import Path
@@ -165,7 +179,7 @@ def routes(services: Any) -> list[Any]:
     from swissarmybench_powerbi.adapters import live_link as live_files
     from swissarmybench_powerbi.services.live_link import LiveLink
 
-    state_dir = Path(services.settings.state_dir)
+    state_dir = Path(seams.settings.state_dir)
 
     def target() -> str | None:
         try:
@@ -181,21 +195,21 @@ def routes(services: Any) -> list[Any]:
         return list(state.get("relationships", [])), list(state.get("measures", []))
 
     live = LiveLink(
-        services.ws,
+        seams.ws,
         live_files.discover,
         lambda port: live_files.TomModel(port, state_dir),
         target,
         ours,
-        services.agent.approvals,
+        seams.approvals,
         live_files.windows,
     )
     project.live = live
     service.kept = project.kept  # part 1's export reads the round trip
-    services.hooks.dataset_aliases = project.aliases  # [Sales model].T, %%dax Sales model: E's switch
+    seams.hooks.dataset_aliases = project.aliases  # [Sales model].T, %%dax Sales model: E's switch
     _standins(project, live)
-    services.hooks.query_hints = project.query_hints  # an app registration's access report
+    seams.hooks.query_hints = project.query_hints  # an app registration's access report
     # Its own place on the record: its stop, and tests (they hand the project a fake reader, live a fake).
-    services.extension[ID] = Own(service, project, live)
+    seams.extension[ID] = Own(service, project, live)
     return door.routes(service) + routes_project.routes(project) + routes_project.live_routes(live)
 
 
@@ -214,8 +228,8 @@ class Own:
     live: Any
 
 
-async def stop(services: Any) -> None:
-    own = services.extension.get(ID)
+async def stop(seams: Seams) -> None:
+    own = seams.extension.get(ID)
     if own is not None:
         own.live.stop()
 

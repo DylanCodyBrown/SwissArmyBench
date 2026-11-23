@@ -400,6 +400,28 @@ def test_new_extension_writes_a_working_folder_and_mounts_it(
         assert client.get("/shelves/status", headers=AUTH).status_code == 404
 
 
+def test_a_folder_extension_is_handed_the_seams_never_the_whole_record(
+    server_library: Path, tmp_path: Path
+) -> None:
+    (server_library / "handed").mkdir()
+    (server_library / "handed" / "extension.py").write_text(
+        'NAME = "Handed"\n'
+        "from starlette.routing import Route\nfrom starlette.responses import JSONResponse\n"
+        "def routes(seams):\n"
+        "    given = {'type': type(seams).__name__, 'grids': hasattr(seams, 'grids'),\n"
+        "             'audit': hasattr(seams.ws, 'audit'), 'own': isinstance(seams.extension, dict)}\n"
+        "    async def what(request): return JSONResponse(given)\n"
+        "    return [Route('/handed/what', what)]\n"
+    )
+    with make_client(tmp_path) as client:
+        assert client.get("/handed/what", headers=AUTH).json() == {
+            "type": "Seams",
+            "grids": False,
+            "audit": True,
+            "own": True,
+        }
+
+
 async def _declined(*_: Any) -> bool:
     return False
 

@@ -59,6 +59,32 @@ WORKBENCH_SAVE_SECONDS: float = 60.0
 AUTOSAVE: str = "autosave"  # who a quiet save is, in the audit log
 
 
+class Stopping(Protocol):
+    """What the server's stop asks of the open project (SabProjects)."""
+
+    @property
+    def current(self) -> Any: ...
+
+    def dirty(self) -> bool: ...
+
+    async def save(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
+
+async def save_before_stop(projects: Stopping) -> str:
+    """Before the server stops: the open project's unsaved changes saved as Autosave does; with Autosave
+    off, the stop waits (its words; "": go ahead)."""
+    current = projects.current
+    if current is None or not projects.dirty():
+        return ""
+    if not current.autosave:
+        return "the open project has unsaved changes and Autosave is off"
+    try:
+        await projects.save({}, "autosave")
+    except Exception as error:
+        return f"the open project could not be saved: {error}"
+    return ""
+
+
 class Archive(Protocol):
     """A project's folder on disk (adapters/sab_files.py)."""
 

@@ -44,6 +44,7 @@ from swissarmybench.domain.projects import data_requirements
 from swissarmybench.domain.script_runs import ScriptRunError, split_arguments
 from swissarmybench.domain.table_cells import Origin
 from swissarmybench.services.lineage import document_cells
+from swissarmybench.services.ports import Dashboards
 from swissarmybench.services.workspace import NotFound, Workspace
 
 MAX_DOCUMENTS: int = 200
@@ -226,6 +227,17 @@ class _Read:
     sources: tuple[tuple[str, str], ...]
 
 
+def saved_dashboards(dashboards: Dashboards) -> list[dict[str, Any]]:
+    """The open project's saved dashboards (the Deliverables section): each one's name and its last
+    version's cards."""
+    out = []
+    for listed in dashboards.names():
+        body = dashboards.read(str(listed["name"])) or {"versions": []}
+        last = body["versions"][-1] if body["versions"] else {}
+        out.append({"name": listed["name"], "cards": last.get("cards") or []})
+    return out
+
+
 class ProjectOutline:
     def __init__(
         self,
@@ -245,6 +257,7 @@ class ProjectOutline:
         app_pages: Callable[[str, str], list[tuple[str, list[tuple[str, int]]]]],
         used_tables: UsedTables | None = None,
         portability: Portability | None = None,
+        scope_tables: Callable[[], set[str] | None] | None = None,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -267,6 +280,8 @@ class ProjectOutline:
             self.documents_text,
             lambda: [str(c["name"]) for c in self._connections()],
         )
+        if scope_tables is not None:  # with the ERD's tables in the project (services/relationship_scope.py)
+            self.used_tables = BothTables(scope_tables, self.used_tables)
         self._connection_names: list[str] = []  # as of the outline being gathered
         self._variables: set[str] = set()  # the open tables' Python names
         # SEAM B (drivers): each connection's portability.

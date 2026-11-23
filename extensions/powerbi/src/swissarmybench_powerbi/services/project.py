@@ -6,21 +6,33 @@ data (F). Reading a .pbix is pbixray's only (adapters/pbix_reader.py); the live 
 another
 service (services/live_link.py) that this one asks only for E's Local source.
 
-The base's services are reached through `Base` (duck-typed: the composition root hands the app's own).
+The base's services are reached through `Base`: a record of the small ports this one calls (each the
+base's seam of that name, services/hooks.py), built by the extension's composition root.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from swissarmybench.domain.blade_templates import Template
 from swissarmybench.domain.blades import detect_settings
 from swissarmybench.domain.connection_sql import Pushed
 from swissarmybench.domain.relationships import Model
+from swissarmybench.services.hooks import (
+    BladesSeam,
+    ComparesSeam,
+    ConnectionsSeam,
+    DatasetsSeam,
+    ModelsSeam,
+    ProjectsSeam,
+    RegistrationsSeam,
+    VariablesSeam,
+)
 from swissarmybench.services.ports import Approvals
-from swissarmybench.services.workspace import Conflict, NotFound, Refused
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 from swissarmybench_powerbi.domain import pbix_file as pf
 from swissarmybench_powerbi.domain import pbix_import as rules
 from swissarmybench_powerbi.domain import power_query as pq
@@ -58,6 +70,28 @@ class LiveSource(Protocol):
     async def apply(self, body: Any, who: str) -> dict[str, Any]: ...
 
 
+class Exporter(Protocol):
+    """Export to Power BI… (services/export.py PowerBIExport), for the page's Export action."""
+
+    async def export(self, body: Any, who: str) -> dict[str, Any]: ...
+
+
+@dataclass(frozen=True)
+class Base:
+    """What the Power BI project asks of the base: one small port per service it calls."""
+
+    ws: Workspace
+    connections: ConnectionsSeam
+    variables: VariablesSeam
+    models: ModelsSeam
+    sab_projects: ProjectsSeam
+    compares: ComparesSeam
+    datasets: DatasetsSeam
+    blades: BladesSeam
+    app_registrations: RegistrationsSeam
+    powerbi_export: Exporter
+
+
 def _settings_of(code: str) -> dict[str, str]:
     try:
         return {s.name: str(s.value) for s in detect_settings(code) if s.value is not None}
@@ -68,7 +102,7 @@ def _settings_of(code: str) -> dict[str, str]:
 class PowerBIProject:
     def __init__(
         self,
-        base: Any,
+        base: Base,
         reader: Reader,
         files: Files,
         approvals: Approvals,
@@ -201,7 +235,7 @@ class PowerBIProject:
         if body.get("folder"):
             new["folder"] = body["folder"]
         opened = await base.sab_projects.new(new, who)
-        folder = str(base.sab_projects.current.folder)
+        folder = self._open_folder()
         problems: list[dict[str, str]] = []
         # 1. variables from the Power Query parameters (plain values: never a secret)
         for name, value in sorted(plan_.variables.items()):
@@ -330,8 +364,8 @@ class PowerBIProject:
         """The Compare's key: a column both grids have that a relationship names, else their first shared
         column (matched in any case)."""
         names = rules.grid_names(table)
-        found = [self.base.ws.store.get(n) for n in names]
-        if any(f is None for f in found):
+        found = [f for f in (self.base.ws.store.get(n) for n in names) if f is not None]
+        if len(found) != len(names):
             raise NotFound(f"{table}'s two grids are not both open.")
         left = [c.name for c in found[0].columns]
         right = {c.name.casefold(): c.name for c in found[1].columns}
@@ -375,9 +409,14 @@ class PowerBIProject:
             return None, None
         return state, self.files.read_text(rules.joined(current.folder, "data.ipynb"))
 
-    def _write_state(self, state: Mapping[str, Any]) -> None:
+    def _open_folder(self) -> str:
         current = self.base.sab_projects.current
-        self.files.write_text(rules.joined(current.folder, rules.STATE_PATH), rules.write_state(state))
+        if current is None:
+            raise NotFound("No project is open.")
+        return str(current.folder)
+
+    def _write_state(self, state: Mapping[str, Any]) -> None:
+        self.files.write_text(rules.joined(self._open_folder(), rules.STATE_PATH), rules.write_state(state))
 
     def source(self) -> dict[str, Any]:
         """Which source In Power BI reads: the project's choice, and what answers it now."""
