@@ -1,0 +1,121 @@
+@* The Widgets window (the classic widgetPage.ts; the owner, 2026-11-21: "a Streamlit Cell (now called a widget) were
+   the agent and the user can write code against any current data ... The the user clicks run and the widget
+   transforms in place"): the list at the left (This project, Library, the starter packs; search; New widget), the
+   code in Monaco with the Workbench's intelligence over a kernel of its own, Code | Preview (F5 Preview, Esc Code),
+   and its Properties. The code saves as it is typed (a prebuilt one is read-only: Copy as your own). Logic in
+   WidgetsPage.razor.cs. *@
+@page "/widgets"
+@using SwissArmyBench.Web.Pages.Canvas
+@implements IAsyncDisposable
+
+<main class="wg wg-page @(_listFolded ? "no-list" : null)" id="widgets">
+    <nav class="wg-list" aria-label="Widgets">
+        <div class="wg-list-top">
+            <input type="search" class="wg-search" placeholder="Search" aria-label="Search widgets" data-no-variables @bind="_query" @bind:event="oninput" />
+            <button type="button" class="btn wg-new" @onclick="NewAsync"><Icon Name="plus" /><span class="btn-label">New widget</span></button>
+        </div>
+        <ErrorNote Error="_listError" OnClose="() => _listError = null" />
+        <div class="wg-items" role="listbox" aria-label="Widgets">
+            @if (_widgets is null)
+            {
+                <div class="loading-block">Loading the widgets…</div>
+            }
+            @foreach (var (heading, items, first) in Groups)
+            {
+                @if (first is not null && WidgetHeadings.Description(first) is { Length: > 0 } description)
+                {
+                    <div class="wg-pack"><div class="wg-group" title="@description" data-pack="@first.Pack">@heading</div><div class="wg-pack-desc">@description</div></div>
+                }
+                else
+                {
+                    <div class="wg-group">@heading</div>
+                }
+                @if (items.Count == 0)
+                {
+                    <div class="wg-empty">@(_query.Length > 0 ? "None match." : "None yet: New widget, or Copy as your own.")</div>
+                }
+                @foreach (var widget in items)
+                {
+                    <button type="button" class="wg-item @(_current?.Name == widget.Name ? "selected" : null)" role="option" aria-selected="@(_current?.Name == widget.Name ? "true" : "false")"
+                            data-widget="@widget.Name" @onclick="() => SelectAsync(widget.Name)">
+                        <span class="wg-item-name">@widget.Name</span>
+                        @if (widget.Hides.Count > 0)
+                        {
+                            <span class="wg-item-hides" title="@($"This project's {widget.Name} is used instead of the {string.Join(" and ", widget.Hides)}'s")">Instead of the @string.Join(" and ", widget.Hides)'s</span>
+                        }
+                        <span class="wg-item-desc">@widget.Description</span>
+                    </button>
+                }
+            }
+        </div>
+    </nav>
+    <section class="wg-main">
+        <div class="code-ide">
+            <div class="ide-bar" role="toolbar" aria-label="@($"{_current?.Name ?? "Widget"} toolbar")">
+                <button type="button" class="btn icon ide-btn ghost wg-fold" aria-label="Widgets list (Ctrl+B)" title="Widgets list (Ctrl+B)" @onclick="FoldAsync"><Icon Name="panel" /></button>
+                <span class="ide-title"><span class="ide-name">@_current?.Name</span><span class="wg-saved" aria-live="polite">@_saved</span></span>
+                <span class="ide-bar-gap"></span>
+                @if (_current is { } opened)
+                {
+                    @if (opened.Prebuilt)
+                    {
+                        <button type="button" class="btn ide-btn ghost wg-copy" @onclick="() => CopyAsync(null)"><Icon Name="copy" /><span class="btn-label">Copy as your own</span></button>
+                    }
+                    else if (opened.Where == "project" || _projectOpen)
+                    {
+                        <button type="button" class="btn ide-btn ghost wg-copy-place" title="@PlaceWords" @onclick="@(() => CopyAsync(opened.Where == "project" ? "library" : "project"))"><Icon Name="copy" /><span class="btn-label">@PlaceWords</span></button>
+                    }
+                    <span class="wg-mode" role="group" aria-label="Code or Preview">
+                        <button type="button" class="wg-mode-item @(_running ? null : "on")" aria-pressed="@(_running ? "false" : "true")" data-mode="code" title="Code (Esc)" @onclick="EditAsync"><Icon Name="code" />Code</button>
+                        <button type="button" class="wg-mode-item @(_running ? "on" : null)" aria-pressed="@(_running ? "true" : "false")" data-mode="preview" title="Preview (F5)" @onclick="RunAsync"><Icon Name="play" />Preview</button>
+                    </span>
+                    <button type="button" class="btn icon ide-btn ghost ide-props-toggle" aria-label="Properties" aria-pressed="@(_propertiesOpen ? "true" : "false")" title="Properties (Ctrl+Alt+B)" @onclick="ToggleProperties"><Icon Name="properties" /></button>
+                }
+            </div>
+            <div class="ide-body">
+                <div class="ide-center">
+                    @if (_current is { } shown)
+                    {
+                        <div class="ide-editor" aria-label="@($"{shown.Name} code")" hidden="@_running">
+                            <CodeEditor @ref="_editor" @key="shown.Name" Value="@_code" Language="python" ReadOnly="shown.Prebuilt" ReadOnlyMessage="A prebuilt widget is read-only: Copy as your own to change it." Label="@($"{shown.Name} code")"
+                                        Intel="IntelOf" OnChange="CodeChangedAsync" OnKey="EditorKeyAsync" />
+                        </div>
+                        <div class="ide-stage" hidden="@(!_running)">
+                            <Busy IsBusy="_starting" Words="@($"Running {shown.Name}…")">
+                                <div class="wg-frame-host">
+                                    @if (_failed is not null)
+                                    {
+                                        <div class="wg-preview-error">
+                                            <ErrorNote Error="_failed" />
+                                            @if (_failedLine is { } line)
+                                            {
+                                                <button type="button" class="btn ghost wg-goto-line" @onclick="() => GoToLineAsync(line)"><Icon Name="code" /><span class="btn-label">Go to line @line in the code</span></button>
+                                            }
+                                        </div>
+                                    }
+                                    @if (_frame is not null)
+                                    {
+                                        <iframe class="wg-frame" src="@_frame" title="@($"{shown.Name}, running")"></iframe>
+                                    }
+                                </div>
+                            </Busy>
+                        </div>
+                    }
+                    else if (_widgets is not null)
+                    {
+                        <div class="loading-block">Loading the editor…</div>
+                    }
+                </div>
+                @if (_propertiesOpen && _current is { } current)
+                {
+                    <aside class="ide-props" aria-label="Properties">
+                        <h3 class="ide-props-title">Properties</h3>
+                        <div class="wg-props">
+                            <WidgetProperties Widget="current" Code="@_code" Context="_context" OnSaved="SavedAsync" OnRenamed="RenamedAsync" OnDeleted="DeletedAsync" OnFlush="FlushAsync" />
+                        </div>
+                    </aside>
+                }
+            </div>
+        </div>
+    </section>
+</main>

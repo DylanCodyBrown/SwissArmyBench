@@ -85,3 +85,23 @@ export function seen(element, dotnet) {
   watch.observe(element);
   return { stop: () => watch.disconnect() };
 }
+
+/** The Widgets window's keys (the classic widgetPage.ts): Ctrl+B the list, Ctrl+Alt+B Properties, F5 Preview,
+ *  Escape back to the code; told to C# by name. */
+export function widgetKeys(dotnet) {
+  const listener = (e) => {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      dotnet.invokeMethodAsync("Key", "b", e.altKey).catch(() => {});
+    } else if (e.key === "F5") {
+      e.preventDefault();
+      // In the editor, Monaco's own F5 runs it (its action): told once.
+      if (!e.target?.closest?.(".monaco-editor")) dotnet.invokeMethodAsync("Key", "F5", false).catch(() => {});
+    } else if (e.key === "Escape") {
+      dotnet.invokeMethodAsync("Key", "Escape", false).catch(() => {});
+    }
+  };
+  document.addEventListener("keydown", listener);
+  return { stop: () => document.removeEventListener("keydown", listener) };
+}
