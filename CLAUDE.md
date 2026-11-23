@@ -183,7 +183,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
   project's scaffold, its own `.venv` (made by the app as a project is made or opened, Git-ignored: one Python per
-  project, the owner 2026-11-21; uv or pip fetch its libraries from the package index then), `.sab/data/` only on
+  project, the owner 2026-11-21; uv or pip fetch its libraries from the package index then; and as a project opens,
+  everything it needs, found without running anything, is installed into it in one install with a progress bar and
+  added to its requirements.txt: the owner 2026-11-23, services/project_python.py ProjectInstalls), `.sab/data/` only on
   the user's tick, the project scaffold's made files as the user works
   (`adapter.py`, `connections.py`: names only, never a value; README.md's Variables block; data.py's structures;
   `.sab/scaffold.json`, their hashes; services/scaffold.py), `sandbox/` at its top (moved once from an older
@@ -611,6 +613,13 @@ src/swissarmybench/
                          requirements.txt's plain lines), the libraries someone chose in an older environment (the
                          ones no other needs) and what they offer the project, the states (none, making, ready,
                          missing, failed) and every word said (the session's Interrupt and Restart, ready, failed)
+    project_needs.py     what a project needs installed (the owner, 2026-11-23): code_of (a notebook's code cells,
+                         IPython's lines made Python), local_modules (the project's own), needs (requirements.txt, the
+                         type, the app's machinery, every import mapped by packages.py's table, its connections' and
+                         canvases' packages; each once with why), missing (what its Python lacks, a pin not met),
+                         read_progress (uv's and pip's own lines as each package's status; a dependency not counted),
+                         State (the `project_installs` notice: checking, installing, done, failed, none; its words),
+                         failure (the one refusal shape, Try again), to_write (what requirements.txt gains)
     errors.py            the error panel's words: an ordered table of rules (RULES: one entry an error, the
                          first match says it): what an error means and the fixes (replace, import, install,
                          run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
@@ -979,7 +988,13 @@ src/swissarmybench/
                          project without one (never waited for; the app's own Python meanwhile), Make it now and
                          Try again, the `project_python` notice (making, ready, failed), the session's folder and
                          Python for the Workbench, a notebook's older environment read once and offered (moved,
-                         settle_offer); SWISSARMYBENCH_PROJECT_VENV=off: never by itself
+                         settle_offer); SWISSARMYBENCH_PROJECT_VENV=off: never by itself. ProjectInstalls: as a
+                         project opens (after its `.venv` is made), its needs worked out off the loop (its code by
+                         adapters/environment.py project_code, NeedSources: the connections it uses, hooks.project_code
+                         for the canvases' widgets) and what is missing installed in ONE install (server/environments.py
+                         install, each output line heard), the `project_installs` notice whole each time, what was
+                         installed added to requirements.txt, a failure kept with Try again, `restart` when a session
+                         runs (the bar's Restart, asked); check, run (the agent's on Allow): `project_installs`
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     intellisense.py      the editors' intelligence: complete, signature, hover, lint (Jedi in the kernel or
                          a Script over the project; the app's names; Ruff or pyflakes where there; a worker
@@ -1244,7 +1259,7 @@ src/swissarmybench/
                          projects, project_scope, project_outline, navigation, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
-                         explorer, library,
+                         explorer, library, project_python,
                          shared_catalog, team, found_connections, script_ide, debugger, sharing, actions, call_stats,
                          changes). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
@@ -1371,7 +1386,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (363 in the base, 393 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (364 in the base, 394 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/

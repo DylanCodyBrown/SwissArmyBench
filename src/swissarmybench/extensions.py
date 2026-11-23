@@ -152,7 +152,7 @@ BASE_MODE: dict[str, Any] = {
     # data: {id, name, languages, complete, cancel, event, status, toggle} (routes the editor calls).
     "inline_completion": [],
     # Buttons an on extension adds to a base page (its PAGE_ACTIONS), in every mode, as data: {page, id,
-    # label, icon, title}; the page runs its plug-in of that id (web/src/pageActions.ts), never naming it.
+    # label, icon, title}; the page runs its plug-in of that id (the front end), never naming it.
     "page_actions": [],
     # The features open in a project of this type (the rail's areas; empty: all of them, as for every type
     # but one that keeps some closed to stay simple), the first-open pop-up's words ({closed}: the closed

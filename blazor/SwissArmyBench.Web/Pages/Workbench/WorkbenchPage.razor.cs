@@ -147,9 +147,13 @@ public partial class WorkbenchPage
         await RevealPendingAsync();
     }
 
+    /// <summary>What an address asks for, as one key: the one the page last acted on is not acted on again.</summary>
+    private static string AddressKey(string? path, bool fresh, string? blade, int? line, int? cell, string? codeFile) =>
+        $"{path}|{fresh}|{blade}|{line}|{cell}|{codeFile}";
+
     protected override async Task OnParametersSetAsync()
     {
-        var wanted = $"{Path}|{New}|{Blade}|{Line}|{Cell}|{CodeFile}";
+        var wanted = AddressKey(Path, New, Blade, Line, Cell, CodeFile);
         if (wanted == _shownFor)
         {
             return;

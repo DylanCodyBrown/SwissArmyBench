@@ -106,8 +106,8 @@ public sealed class OpenDocument
 
     public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : "script";
 
-    public string Title => Blade ?? (CodeFile is { } file ? System.IO.Path.GetFileName(file) : Path is { } path
-        ? System.IO.Path.GetFileName(path)
+    public string Title => Blade ?? (CodeFile is { } file ? FilePaths.Name(file) : Path is { } path
+        ? FilePaths.Name(path)
         : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>

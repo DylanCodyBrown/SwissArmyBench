@@ -132,6 +132,22 @@ class Canvases:
                 continue
         return wiring.api_uses(canvases)
 
+    def code_placed(self, folder: str) -> list[tuple[str, str]]:
+        """What a project folder's canvases need installed, as (why, code): Streamlit for each canvas, and the
+        code of each widget it places (the base's hooks.project_code: what the project needs as it opens)."""
+        out: list[tuple[str, str]] = []
+        for name, text in self._files.in_folder(folder):
+            try:
+                canvas = json.loads(text)
+            except ValueError:
+                continue
+            out.append((f"the canvas {name}", "import streamlit"))
+            for widget in sorted(_placed(canvas)):
+                code = self._widgets.code_of(widget)
+                if code:
+                    out.append((f"the canvas {name} (widget {widget})", code))
+        return out
+
     async def put(self, body: dict[str, Any], who: str) -> dict[str, Any]:
         """Build's widget (the APIs page; the base's hooks.canvas_put): put on the named canvas's page (else
         the project's first canvas and its first page), its values set, its In wired."""
@@ -750,3 +766,17 @@ def _pages(canvas: dict[str, Any]) -> dict[str, dict[str, Any]]:
             items[label] = {k: v for k, v in node.items() if k != "children"}
         out[str(page.get("name") or page.get("id"))] = {"items": items}
     return out
+
+
+def _placed(node: Any) -> set[str]:
+    """The widgets a canvas file places, read loosely (any layout's format): every node of kind widget."""
+    found: set[str] = set()
+    if isinstance(node, dict):
+        if node.get("kind") == "widget" and isinstance(node.get("widget"), str):
+            found.add(node["widget"])
+        for value in node.values():
+            found |= _placed(value)
+    elif isinstance(node, list):
+        for value in node:
+            found |= _placed(value)
+    return found

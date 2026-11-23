@@ -45,7 +45,7 @@ public partial class NotebookView
     private object InlineFor(CellModel cell) => new
     {
         key = Path ?? "untitled",
-        name = System.IO.Path.GetFileName(Path ?? "untitled.ipynb"),
+        name = FilePaths.Name(Path ?? "untitled.ipynb"),
         kind = "notebook",
         cells = _kept.Cells.Where(c => c.Kind is "code" or "sql" && !c.IsAppCell)
             .Select(c => new { id = c.Number.ToString(System.Globalization.CultureInfo.InvariantCulture), text = c.Source, language = c.Kind == "sql" ? "sql" : "python" }),

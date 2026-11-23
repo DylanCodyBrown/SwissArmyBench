@@ -51,7 +51,7 @@ public partial class ScriptView
     [Parameter]
     public IReadOnlyList<SwissArmyBench.Web.Api.App.InlineProvider> Inline { get; set; } = [];
 
-    private object InlineDocument() => new { key = Path ?? "untitled", name = System.IO.Path.GetFileName(Path ?? "untitled.py"), kind = "script", language = "python", text = Text };
+    private object InlineDocument() => new { key = Path ?? "untitled", name = FilePaths.Name(Path ?? "untitled.py"), kind = "script", language = "python", text = Text };
 
     /// <summary>The IDE moves at the cursor (F12, Shift+F12, F2, Shift+Alt+F), for the page.</summary>
     [Parameter]
@@ -78,7 +78,7 @@ public partial class ScriptView
 
     private static readonly IReadOnlyList<SwissArmyBench.Web.Components.EditorMenuAction> _lineageMenu = [new("lineage", "Lineage")];
 
-    private string DocumentName => Path is null ? "the script" : System.IO.Path.GetFileName(Path);
+    private string DocumentName => Path is null ? "the script" : FilePaths.Name(Path);
 
     private async Task MenuActionAsync(SwissArmyBench.Web.Components.EditorMenuPick pick)
     {

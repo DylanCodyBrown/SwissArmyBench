@@ -710,7 +710,7 @@ MAX_FOUND: int = 1000
 
 def code_of(path: Any, variable: str = "data") -> str:
     """The Python that reaches a node from the file's value, for a script beside it: `$.orders[3].lines` is
-    `data["orders"][3]["lines"]` (web/src/structurePaths.ts accessCode says the same: tests/golden)."""
+    `data["orders"][3]["lines"]` (the front end accessCode says the same: tests/golden)."""
     parts = tuple(path) if isinstance(path, tuple | list) else parse_path(path)
     out = variable
     for part in parts:

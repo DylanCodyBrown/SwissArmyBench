@@ -110,7 +110,7 @@ from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
 from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.desktop import SystemShell, qt_version
-from swissarmybench.server.environments import ProjectLibraries, make_venv
+from swissarmybench.server.environments import ProjectLibraries, install, make_venv
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.text_process import run_text
@@ -171,7 +171,7 @@ from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
 from swissarmybench.services.project_outline import CardPortability, ProjectOutline, saved_dashboards
-from swissarmybench.services.project_python import ProjectPython
+from swissarmybench.services.project_python import NeedSources, ProjectInstalls, ProjectPython
 from swissarmybench.services.project_scope import ProjectScope, ProjectUse, UseSources
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
@@ -1446,14 +1446,8 @@ def _variables_part(b: Built) -> None:
 
 def _found_and_setup(b: Built) -> None:
     """Find connections on this computer, the app registrations, the Environment, Set up this computer."""
-    ws, state_dir, library_folder, blade_store, blades, variables = (
-        b.ws,
-        b.state_dir,
-        b.library_folder,
-        b.blade_store,
-        b.blades,
-        b.variables,
-    )
+    ws, state_dir, library_folder = b.ws, b.state_dir, b.library_folder
+    blade_store, blades, variables = b.blade_store, b.blades, b.variables
     # Find connections on this computer (the owner, 2026-11-20): the known tools' files and the hint scan of
     # the app settings folders, read-only, on the user's click; never this app's own state folder or library.
     b.found_connections = FoundConnections(
@@ -1496,6 +1490,9 @@ def _found_and_setup(b: Built) -> None:
         b.project_python,
     )  # fmt: skip
     b.live.listeners.append(b.environment.heard)
+    # What the project needs, found and installed at once as it opens (2026-11-23): ProjectPython's own.
+    needs = NeedSources(b.project_use.connections, blade_store.get, b.hooks, b.code_files.touched)
+    ProjectInstalls(b.project_python, install, b.approvals, needs, b.environment.changed)
     # Shared projects: each one's connections that do not work here, and one opened that only works here.
     b.shared_projects = SharedProjects(
         b.project_explorer.shared_folder,

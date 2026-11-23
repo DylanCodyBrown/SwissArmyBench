@@ -195,7 +195,7 @@ public partial class Home : IDisposable
         {
             return;
         }
-        var name = Path.GetFileNameWithoutExtension(path.Replace('\\', '/'));
+        var name = FilePaths.Stem(path);
         await GuardAsync(() => Api.PostAsync<System.Text.Json.JsonElement>($"/datasets/{ApiClient.Part(name)}/load", new { path }));
         if (_error is null)
         {

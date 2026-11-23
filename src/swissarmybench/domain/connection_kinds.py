@@ -867,6 +867,12 @@ def labels(names: Iterable[str], records: Mapping[str, Kind] | None = None) -> d
     return {name: kinds[name].label for name in names}
 
 
+def label_of(name: str | None, records: Mapping[str, Kind] | None = None) -> str:
+    """A kind's label by its name ("" for none, or one this table does not know)."""
+    kind = _all(records).get(name) if name else None
+    return kind.label if kind is not None else ""
+
+
 def env_prefixes(records: Mapping[str, Kind] | None = None) -> dict[str, str]:
     """lakes.ENV_PREFIX: the prefix of the variable names a kind's form suggests."""
     return {k.name: k.env_prefix for k in _all(records).values() if k.env_prefix}

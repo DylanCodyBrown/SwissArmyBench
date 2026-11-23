@@ -57,7 +57,7 @@ public partial class WorkbenchPage
         {
             if (!StructureFiles.IsStructure(path))
             {
-                _error = new InvalidOperationException($"{System.IO.Path.GetFileName(path)} is not a JSON, YAML, XML or TOML file.");
+                _error = new InvalidOperationException($"{FilePaths.Name(path)} is not a JSON, YAML, XML or TOML file.");
                 return;
             }
             OpenStructure(path, null);

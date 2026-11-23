@@ -159,7 +159,7 @@ public partial class WorkbookPage
             var done = await CallAsync(HttpMethod.Post, "/save", new { path = where });
             _opened = done.Path ?? where;
             await OnSaved.InvokeAsync(_opened);
-            _ = Notes.SayAsync($"Saved {System.IO.Path.GetFileName(_opened)}");
+            _ = Notes.SayAsync($"Saved {FilePaths.Name(_opened)}");
             return true;
         }
         catch (ApiException error)
@@ -238,7 +238,7 @@ public partial class WorkbookPage
     /// <summary>A design's file as its name: workbook.design.json is "workbook".</summary>
     public static string NameOf(string path)
     {
-        var name = System.IO.Path.GetFileName(path);
+        var name = FilePaths.Name(path);
         return name.EndsWith(Ending, StringComparison.OrdinalIgnoreCase) ? name[..^Ending.Length] : name;
     }
 }

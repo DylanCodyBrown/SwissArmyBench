@@ -723,7 +723,7 @@ class PowerBIProject:
         }
 
     async def panel(self, body: Any, who: str) -> dict[str, Any]:
-        """The Power BI page drawn by the base's generic panel (web/src/extensionPanel.ts): GET ({}) its data;
+        """The Power BI page drawn by the base's generic panel (the front end): GET ({}) its data;
         POST {choice, value} (Read Power BI from, App registration) or {action}."""
         body = body if isinstance(body, dict) else {}
         said: list[dict[str, str]] = []

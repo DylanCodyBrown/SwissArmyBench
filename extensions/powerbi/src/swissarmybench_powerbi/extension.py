@@ -25,7 +25,7 @@ ADDS = [
 ]
 AREAS = (("powerbi", "Power BI (an extension): the model exported as a Power BI Project"),)
 # The base's pages draw these as buttons (the words are the extension's); a click runs the page's plug-in of
-# that id with the page's own tables (web/src/pageActions.ts).
+# that id with the page's own tables (the front end).
 PAGE_ACTIONS: list[dict[str, str]] = [
     {
         "page": "erd",

@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# What a fix does, as the page reads it (web/src/errorNote.ts):
+# What a fix does, as the page reads it (the front end):
 #   install        Install now: the missing packages (`missing` beside it)
 #   set_variable   Set it: the Add variable form with `name`
 #   sign_in        Sign in: the connection's sign-in (`connection`)

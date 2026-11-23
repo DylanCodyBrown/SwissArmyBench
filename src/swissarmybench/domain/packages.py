@@ -143,7 +143,7 @@ def missing_module_hint(module: str) -> str:
 # Wherever the app finds a package missing (a connection's form, a blade, a run that failed on an
 # import, a Streamlit app, Test this page, a notebook's cell, a YAML API document), its answer carries
 # one shape: {"missing": {"feature", "packages", "python", "command"}}. The page puts it in the user's
-# face ("<Feature> needs <package>", Install now, Not now: web/src/missingPackages.ts); the agent reads
+# face ("<Feature> needs <package>", Install now, Not now: the front end); the agent reads
 # the same words and installs into the Python "python" names: blades_install for the app's own ("app"),
 # streamlit_install for a Streamlit app's, `%pip install` in a Workbench kernel for a document's.
 

@@ -138,6 +138,7 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     # Files: handed over the channel and dropped on a window, each read by its real path.
     assert said["file_answer"] == {"ok": True} and said["file_origin"] == "file"
     assert said["drop_accepted"] and said["drop_origin"] == "file"
+    assert said["windows_grew_on_drop"] == 0  # into the window it was dropped on, never another
     assert said["opened_files"] == ["regions.csv", "drop_me.csv"]
     # The browser's keys are the app's: Ctrl+Tab, Ctrl+W a tab (the window stays), Ctrl+Shift+T it again;
     # the Workbench's F5 is its own; Ctrl+W with no document closes the window.

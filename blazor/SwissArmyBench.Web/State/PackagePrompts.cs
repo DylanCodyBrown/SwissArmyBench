@@ -16,14 +16,16 @@ public sealed class PackagePrompts
     private const int OutputLines = 8;
 
     private readonly ApiClient _api;
+    private readonly ProjectSetup _setup;
     private readonly HashSet<string> _notNow = [];
     private readonly Dictionary<string, Task<bool>> _asked = [];
     private readonly SemaphoreSlim _one = new(1, 1);
     private TaskCompletionSource<bool>? _answer;
 
-    public PackagePrompts(ApiClient api)
+    public PackagePrompts(ApiClient api, ProjectSetup setup)
     {
         _api = api;
+        _setup = setup;
     }
 
     public event Action? Changed;
@@ -36,11 +38,12 @@ public sealed class PackagePrompts
 
     /// <summary>
     /// The prompt. True once the packages are installed (and <paramref name="then"/> has run); false on Not now, or at
-    /// once when Not now was said for them this session (unless <paramref name="force"/>: the user asked).
+    /// once when Not now was said for them this session (unless <paramref name="force"/>: the user asked), or while the
+    /// project's setup pass is installing them, or has just installed them (it would ask twice).
     /// </summary>
     public Task<bool> PromptAsync(MissingPackages missing, bool force = false, Func<MissingPackages, Task>? install = null, Func<Task>? then = null)
     {
-        if (!force && Dismissed(missing))
+        if ((!force && Dismissed(missing)) || _setup.Covers(missing))
         {
             return Task.FromResult(false);
         }

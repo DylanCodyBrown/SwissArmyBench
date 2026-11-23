@@ -80,11 +80,11 @@ public partial class ErrorPanel
             .ToList();
 
     private static string LibraryNames(IReadOnlyList<RunErrorFrame> frames) =>
-        string.Join(", ", frames.Select(f => (f.Module.Length > 0 ? f.Module : System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(f.File) ?? "a library")).Split('.')[0]).Distinct());
+        string.Join(", ", frames.Select(f => (f.Module.Length > 0 ? f.Module : FilePaths.Name(FilePaths.Folder(f.File) ?? "a library")).Split('.')[0]).Distinct());
 
     private static string FrameLabel(RunErrorFrame f)
     {
-        var place = f.Where == "cell" ? $"cell [{f.Cell?.ToString() ?? "?"}]" : System.IO.Path.GetFileName(f.File ?? string.Empty) is { Length: > 0 } file ? file : f.Module;
+        var place = f.Where == "cell" ? $"cell [{f.Cell?.ToString() ?? "?"}]" : FilePaths.Name(f.File ?? string.Empty) is { Length: > 0 } file ? file : f.Module;
         var function = f.Function.Length > 0 && f.Function != "<module>" ? $"{f.Function}(), " : string.Empty;
         return $"{function}{place}, line {f.Line}";
     }

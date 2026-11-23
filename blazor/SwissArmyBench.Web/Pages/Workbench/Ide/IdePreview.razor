@@ -6,7 +6,7 @@
     @foreach (var file in Plan.Preview)
     {
         <section class="ide-results-file" data-path="@file.Path">
-            <strong title="@file.Path">@System.IO.Path.GetFileName(file.Path)</strong>
+            <strong title="@file.Path">@FilePaths.Name(file.Path)</strong>
             @foreach (var line in file.Lines)
             {
                 <div class="ide-change"><span class="ide-result-line">@line.Line</span><del class="mono">@line.Before</del><ins class="mono">@line.After</ins></div>
@@ -15,7 +15,7 @@
     }
     @foreach (var skipped in Plan.Skipped)
     {
-        <p class="ide-skipped"><Icon Name="warning" /> <strong>@System.IO.Path.GetFileName(skipped.Path)</strong>: @skipped.Why</p>
+        <p class="ide-skipped"><Icon Name="warning" /> <strong>@FilePaths.Name(skipped.Path)</strong>: @skipped.Why</p>
     }
 </div>
 

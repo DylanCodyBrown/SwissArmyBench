@@ -173,7 +173,7 @@ class Bridge(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy withou
     """Calls from other threads (the channel) handed to the window thread."""
 
     open_page = Signal(str)  # a page of the app, no token
-    file_shown = Signal(str)  # a file opened with the app: the page that shows it
+    file_shown = Signal(str, int)  # a file opened with the app: its page, the window dropped on (or -1)
     said = Signal(str)  # words for the front window's status line (a file that did not open)
     server_up = Signal(bool)  # the server answered (True), or did not start in time
     quit = Signal()
@@ -198,8 +198,11 @@ class Drops(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
             return False
         event.acceptProposedAction()
         if kind == QEvent.Type.Drop:
+            # Into the window it was dropped on, never another (the owner, 2026-11-23).
+            window = watched.window() if hasattr(watched, "window") else None
+            into = window.ident if isinstance(window, AppWindow) else -1
             for path in paths[:20]:
-                self.shell.open_file(path)
+                self.shell.open_file(path, into)
         return True
 
 
@@ -910,12 +913,13 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
 
     # ----- files opened with the app: `swissarmybench open <file>`, Open with, a drop -----
 
-    def open_file(self, path: str) -> None:
+    def open_file(self, path: str, into: int = -1) -> None:
         """A file opened with the app, off the window thread: read by its path through the server
-        (server/desktop.py file_page: a table, a notebook, a blade, a project), then its page shown."""
-        threading.Thread(target=self._open_file, args=(path,), name="sab-open-file", daemon=True).start()
+        (server/desktop.py file_page: a table, a notebook, a blade, a project), then its page shown; a file
+        dropped on a window (`into`, its ident) shows in that window."""
+        threading.Thread(target=self._open_file, args=(path, into), name="sab-open-file", daemon=True).start()
 
-    def _open_file(self, path: str) -> None:
+    def _open_file(self, path: str, into: int = -1) -> None:
         from swissarmybench.server import desktop as launch
 
         deadline = time.monotonic() + SERVER_WAIT_MS / 1000
@@ -932,13 +936,23 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
             self.bridge.said.emit(str(error)[:300])
             return
         self.opened_files.append(path)
-        self.bridge.file_shown.emit(page)
+        self.bridge.file_shown.emit(page, into)
 
-    def _file_shown(self, page: str) -> None:
+    def _file_shown(self, page: str, into: int = -1) -> None:
+        window = self.windows.get(into)
+        if window is not None and not window.starting and rules.grid_of(page) is not None:
+            # A table dropped on this window shows here (on Grids it arrives as a tab by itself).
+            load = rules.dropped_into(page, window.page.url().toString())
+            if load is not None and self.port:
+                info = read_info(self.info_file)
+                if info is not None:
+                    window.load_app(rules.address_of(load, self.port, str(info["token"])))
+            window.bring_forward()
+            return
         # A table's grid: the home window brought forward, not loaded again (its Grids page shows the new tab
         # by itself: the server's grid_shown); with none open, one opens on the grid.
         home = next((w for w in self.windows.values() if w.kind == "home"), None)
-        if page.startswith(rules.GRID_PAGE) and home is not None:
+        if rules.grid_of(page) is not None and home is not None:
             home.bring_forward()
             return
         self.open_page(page)

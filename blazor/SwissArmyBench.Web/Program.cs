@@ -114,6 +114,7 @@ public static class Program
         services.AddScoped<PythonSession>();
         services.AddScoped<ConnectionColours>();
         services.AddScoped<ConnectionSlots>();
+        services.AddScoped<ProjectSetup>();
         services.AddScoped<BetaState>();
         // The page plug-ins: an extension's page (Power BI export, Source Control, Code App) registered under the id its
         // PAGE_ACTIONS names (Components/PagePlugins.cs).

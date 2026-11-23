@@ -47,7 +47,7 @@
             @foreach (var file in Files)
             {
                 var path = file;
-                <button type="button" class="btn small ghost wb-explorer-file" title="@path" @onclick="() => OnOpenFile.InvokeAsync(path)"><Icon Name="file" /> @System.IO.Path.GetFileName(path)</button>
+                <button type="button" class="btn small ghost wb-explorer-file" title="@path" @onclick="() => OnOpenFile.InvokeAsync(path)"><Icon Name="file" /> @FilePaths.Name(path)</button>
             }
         </div>
     }

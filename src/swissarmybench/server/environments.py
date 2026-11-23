@@ -8,7 +8,7 @@ import asyncio
 import os
 import shutil
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -109,31 +109,53 @@ def _uv() -> str | None:
     )
 
 
-async def _run(command: list[str]) -> tuple[int | None, str]:
-    """A command's exit code (None: over ten minutes, stopped) and what it printed."""
+async def _run(
+    command: list[str], heard: Callable[[str], Awaitable[None]] | None = None
+) -> tuple[int | None, str]:
+    """A command's exit code (None: over ten minutes, stopped) and what it printed; each line handed to
+    `heard` as it comes, when given (a project's installs: its progress bar)."""
     process = await asyncio.create_subprocess_exec(
         *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
     )
+    if heard is None:
+        try:
+            out, _ = await asyncio.wait_for(process.communicate(), _CHANGE_SECONDS)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            return None, ""
+        return process.returncode, out.decode("utf-8", "replace")
+    lines: list[str] = []
     try:
-        out, _ = await asyncio.wait_for(process.communicate(), _CHANGE_SECONDS)
+        async with asyncio.timeout(_CHANGE_SECONDS):
+            while process.stdout is not None and (raw := await process.stdout.readline()):
+                line = raw.decode("utf-8", "replace").rstrip()
+                lines.append(line)
+                await heard(line)
+            await process.wait()
     except TimeoutError:
         process.kill()
         await process.wait()
-        return None, ""
-    return process.returncode, out.decode("utf-8", "replace")
+        return None, "\n".join(lines)
+    return process.returncode, "\n".join(lines)
 
 
-async def install(python: str, specs: list[str], upgrade: bool = False) -> tuple[int | None, str]:
+async def install(
+    python: str,
+    specs: list[str],
+    upgrade: bool = False,
+    heard: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[int | None, str]:
     """Install (or, with `upgrade`, update) libraries into `python`'s environment: uv when it is here,
-    else that Python's pip."""
+    else that Python's pip. `heard`: each line of its output as it comes (a project's installs)."""
     more = ["--upgrade"] if upgrade else []
     standin = os.environ.get(STANDIN)
     if standin:  # tests only: uv and pip stood in for (tests/libraries_standin.py)
-        return await _run([sys.executable, standin, "install", python, *more, *specs])
+        return await _run([sys.executable, standin, "install", python, *more, *specs], heard)
     uv = _uv()
     if uv:
-        return await _run([uv, "pip", "install", "--python", python, *more, *specs])
-    return await _run([python, "-m", "pip", "install", *more, *specs])
+        return await _run([uv, "pip", "install", "--python", python, *more, *specs], heard)
+    return await _run([python, "-m", "pip", "install", "--progress-bar", "off", *more, *specs], heard)
 
 
 async def uninstall(python: str, names: list[str]) -> tuple[int | None, str]:

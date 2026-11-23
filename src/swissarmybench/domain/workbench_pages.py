@@ -8,7 +8,7 @@ workbook design stay beside the notebooks, as before. A structure's file (.json,
 page, the one it was opened from; from outside (the desktop app, an address, the agent with no page) on the
 Scripts page. An app's canvas (*.canvas.json), a workbook design, an old .stapp.json and the app's own state
 (.sab/) are never a structure's tab. The pages hold no copy of these rules: they read them as data
-(rules(), GET /app/rules; web/src/pageRules.ts applies the tables it is given).
+(rules(), GET /app/rules; the front end applies the tables it is given).
 Pure rules, no I/O.
 """
 

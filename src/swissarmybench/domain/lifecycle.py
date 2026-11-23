@@ -66,7 +66,7 @@ def stop_at(
 
 def from_a_page(sec_fetch_site: str | None) -> bool:
     """A request one of the app's own pages made: the browser (Qt WebEngine too) marks it Sec-Fetch-Site
-    same-origin, which a page's script cannot change. The pages send the token as well (web/src/api.ts), so
+    same-origin, which a page's script cannot change. The pages send the token as well (the front end), so
     without this every click in a window counted as a client and held the server 10 minutes after it closed.
     The agent, VS Code and a Python push send no such header."""
     return (sec_fetch_site or "").strip().lower() == "same-origin"

@@ -23,7 +23,7 @@ public partial class WorkbenchPage
             }
             else
             {
-                _wrongPage = ($"{System.IO.Path.GetFileName(path)} is a workbook: it opens on the Notebooks page.", $"notebooks?path={Uri.EscapeDataString(path)}");
+                _wrongPage = ($"{FilePaths.Name(path)} is a workbook: it opens on the Notebooks page.", $"notebooks?path={Uri.EscapeDataString(path)}");
             }
             return;
         }
@@ -37,7 +37,7 @@ public partial class WorkbenchPage
         {
             // A file opens on its kind's page (the classic workbench_pages.py's one line).
             var page = notebook ? "notebooks" : "scripts";
-            _wrongPage = ($"{System.IO.Path.GetFileName(path)} is a {(notebook ? "notebook" : "script")}: it opens on the {(notebook ? "Notebooks" : "Scripts")} page.", $"{page}?path={Uri.EscapeDataString(path)}");
+            _wrongPage = ($"{FilePaths.Name(path)} is a {(notebook ? "notebook" : "script")}: it opens on the {(notebook ? "Notebooks" : "Scripts")} page.", $"{page}?path={Uri.EscapeDataString(path)}");
             return;
         }
         if (_documents.FirstOrDefault(d => string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase)) is { } open)
@@ -90,7 +90,10 @@ public partial class WorkbenchPage
     private async Task FollowAddressAsync()
     {
         var path = Front?.Path;
-        _shownFor = $"{path}|{path is null && Front is { IsBlade: false }}|{Front?.Blade}";
+        var fresh = BladeAddress is null && CodeFileAddress is null && path is null && Front is not null;
+        // The address this writes is the page's own: read back, it must not open or make anything again (a
+        // shown untitled script's ?new=1 made another one on every click: the owner, 2026-11-23).
+        _shownFor = AddressKey(BladeAddress is null && CodeFileAddress is null ? path : null, fresh, Front?.Blade, null, null, Front?.CodeFile);
         Nav.NavigateTo(BladeAddress ?? CodeFileAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new=1") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
         await Js.InvokeVoidAsync("sab.setTitle", Title);
     }
@@ -207,7 +210,7 @@ public partial class WorkbenchPage
             return;
         }
         var home = await Workbench.HomeAsync();
-        var start = doc.Path is null ? home.Folder : System.IO.Path.GetDirectoryName(doc.Path);
+        var start = doc.Path is null ? home.Folder : FilePaths.Folder(doc.Path);
         if (await Files.ChooseAsync("save", "Save as", start, Kind) is not { } chosen)
         {
             return;

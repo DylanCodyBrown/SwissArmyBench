@@ -46,7 +46,7 @@ _ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Analy
 _ORIGIN_NOW: dict[str, str] = {"Sandbox": "Analyze", "Visualizations": "Analyze"}
 # A diagram is Mermaid text (an ERD from GET /relationships/erd, or any flowchart), drawn by the page.
 # Plotly is a figure as JSON text; an image is a data: URL. The page
-# draws each (web/src/lazy/), so the server only checks that the text is there and not too big.
+# draws each (the front end), so the server only checks that the text is there and not too big.
 # A vegalite card is a whole Vega-Lite spec with its data inline (an Altair chart's to_dict()): the user's
 # own Python's or the page's, never the agent's (Vega compiles its expressions; the agent has `chart`).
 _KINDS: tuple[str, ...] = (

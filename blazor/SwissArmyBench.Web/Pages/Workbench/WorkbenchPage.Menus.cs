@@ -60,7 +60,7 @@ public partial class WorkbenchPage
         _recent = await RecentAsync();
         List<MenuEntry> entries = _recent
             .Where(r => r.Exists && r.Path.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-            .Select(r => new MenuEntry(System.IO.Path.GetFileName(r.Path), IsNotebooks ? "notebook" : "code", async () =>
+            .Select(r => new MenuEntry(FilePaths.Name(r.Path), IsNotebooks ? "notebook" : "code", async () =>
             {
                 await OpenPathAsync(r.Path);
                 await FollowAddressAsync();

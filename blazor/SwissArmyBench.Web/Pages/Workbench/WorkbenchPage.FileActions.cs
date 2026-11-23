@@ -12,7 +12,7 @@ public partial class WorkbenchPage
     private async Task FileActionAsync((TreeFile? File, string Action) asked)
     {
         var full = asked.File?.Full ?? asked.File?.Path;
-        var folder = full is null ? null : System.IO.Path.GetDirectoryName(full);
+        var folder = full is null ? null : FilePaths.Folder(full);
         await GuardAsync(asked.Action switch
         {
             FilesPane.Rename when full is not null => () => Toggle(() => _renamingFile = full),
@@ -30,7 +30,7 @@ public partial class WorkbenchPage
     private async Task DuplicateFileAsync(string path)
     {
         var made = await ScriptIde.DuplicateAsync(path);
-        await Notes.SayAsync($"Made {System.IO.Path.GetFileName(made.Path)}.");
+        await Notes.SayAsync($"Made {FilePaths.Name(made.Path)}.");
         await LoadTreeAsync();
         if (made.Path is { } copy)
         {
@@ -41,7 +41,7 @@ public partial class WorkbenchPage
 
     private async Task DeleteFileAsync(string path)
     {
-        var name = System.IO.Path.GetFileName(path);
+        var name = FilePaths.Name(path);
         if (!await Dialogs.AskYesNoAsync($"Delete {name}?", $"{name} goes to the trash.", "Move to the trash", danger: true))
         {
             return;

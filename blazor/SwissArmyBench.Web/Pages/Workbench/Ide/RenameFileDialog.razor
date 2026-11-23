@@ -4,7 +4,7 @@
 @inject ScriptIdeClient Ide
 @inject SwissArmyBench.Web.State.Notes Notes
 
-<AppDialog Title="@($"Rename {System.IO.Path.GetFileName(Path)}")" OnClose="OnClose">
+<AppDialog Title="@($"Rename {FilePaths.Name(Path)}")" OnClose="OnClose">
     <ChildContent>
         <label class="field"><span>@(IsPackage ? "Package name" : "Module name")</span>
             <input type="text" aria-label="New name" spellcheck="false" data-no-variables @bind="_to" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
@@ -47,7 +47,7 @@
 
     private bool IsPackage => !Path.EndsWith(".py", StringComparison.Ordinal);
 
-    private string Current => System.IO.Path.GetFileName(Path) is var name && name.EndsWith(".py", StringComparison.Ordinal) ? name[..^3] : System.IO.Path.GetFileName(Path);
+    private string Current => FilePaths.Name(Path) is var name && name.EndsWith(".py", StringComparison.Ordinal) ? name[..^3] : FilePaths.Name(Path);
 
     protected override void OnInitialized() => _to = Current;
 
@@ -97,7 +97,7 @@
         try
         {
             var done = await Ide.MoveAsync(Path, _planned!);
-            await Notes.SayAsync($"Renamed to {System.IO.Path.GetFileName(done.To)}.");
+            await Notes.SayAsync($"Renamed to {FilePaths.Name(done.To)}.");
             await OnRenamed.InvokeAsync(done.To ?? Path);
         }
         catch (ApiException error)

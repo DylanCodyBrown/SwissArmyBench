@@ -29,7 +29,7 @@
                     {
                         <li>
                             <button type="button" class="wb-debug-frame @(f.Id == _frame ? "current" : string.Empty) @(f.Yours ? string.Empty : "library")" aria-current="@(f.Id == _frame ? "true" : null)" @onclick="() => ChooseFrameAsync(f)">
-                                <strong>@f.Name</strong><span class="hint"> @(f.Yours ? string.Empty : $"{System.IO.Path.GetFileName(f.Path ?? string.Empty)} ")line @f.Line</span>
+                                <strong>@f.Name</strong><span class="hint"> @(f.Yours ? string.Empty : $"{FilePaths.Name(f.Path ?? string.Empty)} ")line @f.Line</span>
                             </button>
                         </li>
                     }

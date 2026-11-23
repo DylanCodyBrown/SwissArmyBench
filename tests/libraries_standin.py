@@ -6,6 +6,11 @@ their newest versions on 127.0.0.1. Standard library only; nothing is downloaded
   python libraries_standin.py uninstall <python> name ...
   python libraries_standin.py venv <project folder> name[==version] ...   (the project's own .venv made)
 
+An install prints what uv prints ("Resolved N packages", "Downloading name", "Prepared N packages",
+"Installed N packages", " + name==version"), one line at a time, SWISSARMYBENCH_LIBRARIES_STANDIN_DELAY
+seconds apart per library (a browser test sees the progress bar move). A library named broken-* is never
+found: the others are installed, it is said as uv says it, and the install ends with code 1.
+
 `make_venv(project, libraries)` lays the environment out as the app reads it (a Python's place, pyvenv.cfg,
 each library's metadata folder); `Index(versions)` is the package index.
 """
@@ -13,14 +18,24 @@ each library's metadata folder); `Index(versions)` is the package index.
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 # What the stand-in installs when no version is asked for (the made-up index's newest).
-NEWEST = {"duckdb": "1.4.3", "pandas": "2.3.3", "polars": "1.36.0", "pyarrow": "22.0.0", "openpyxl": "3.1.5"}
+NEWEST = {
+    "streamlit": "1.50.0",
+    "duckdb": "1.4.3",
+    "pandas": "2.3.3",
+    "polars": "1.36.0",
+    "pyarrow": "22.0.0",
+    "openpyxl": "3.1.5",
+}
 
 
 def site_packages(project: Path) -> Path:
@@ -98,22 +113,45 @@ def main(argv: list[str]) -> int:
             return 2
         chosen = {}
         for spec in rest:
-            name = spec.split("==")[0].split("[")[0]
+            name = re.split(r"[<>=!~\[]", spec, maxsplit=1)[0]
             chosen[name] = spec.partition("==")[2] or NEWEST.get(name.lower(), "1.0.0")
         make_venv(folder, chosen)
         print(f"Made {folder / '.venv'}")
         return 0
     project = Path(python).parent.parent.parent
     site = site_packages(project)
-    for spec in [r for r in rest if not r.startswith("-")]:
-        name, _, version = spec.partition("==")
-        if action == "uninstall":
+    specs = [r for r in rest if not r.startswith("-")]
+    if action == "uninstall":
+        for name in specs:
             remove(site, name)
             print(f"Uninstalled {name}")
-        else:
-            put(site, name, version or NEWEST.get(name.lower(), "1.0.0"))
-            print(f"Installed {name}")
-    return 0
+        return 0
+    return _install(site, specs)
+
+
+def _install(site: Path, specs: list[str]) -> int:
+    """The made-up install, printed the way uv prints its own."""
+    delay = float(os.environ.get("SWISSARMYBENCH_LIBRARIES_STANDIN_DELAY") or 0)
+    wanted = [(re.split(r"[<>=!~\[]", s, maxsplit=1)[0], s.partition("==")[2]) for s in specs]
+    broken = [name for name, _ in wanted if name.lower().replace("_", "-").startswith("broken-")]
+    print(f"Resolved {len(wanted)} packages in 12ms", flush=True)
+    made = []
+    for name, version in wanted:
+        if name in broken:
+            continue
+        print(f"Downloading {name} (1.2MiB)", flush=True)
+        time.sleep(delay)
+        print(f" Downloaded {name}", flush=True)
+        made.append((name, version or NEWEST.get(name.lower(), "1.0.0")))
+    print(f"Prepared {len(made)} packages in 30ms", flush=True)
+    for name, version in made:
+        put(site, name, version)
+    print(f"Installed {len(made)} packages in 4ms", flush=True)
+    for name, version in made:
+        print(f" + {name}=={version}", flush=True)
+    for name in broken:
+        print(f"error: No solution found: {name} was not found in the package registry", flush=True)
+    return 1 if broken else 0
 
 
 if __name__ == "__main__":

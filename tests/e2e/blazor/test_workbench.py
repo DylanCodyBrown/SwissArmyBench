@@ -31,7 +31,7 @@ def type_in_new_cell(page: Page, kind: str, code: str) -> None:
 def test_a_notebook_cell_runs_and_the_notebook_saves(browser: Browser, server: dict[str, Any]) -> None:
     path = made_up_notebook(server, "sums.ipynb")
     page = open_page(browser, server, f"notebooks?path={path}")
-    expect(page.locator(".wb-doc-title")).to_contain_text("sums.ipynb")
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("sums.ipynb")
     expect(page.locator(".wb-cell .wb-markdown")).to_contain_text("Made-up sums")
 
     type_in_new_cell(page, "Python", "total = 6 * 7\nprint('made up', total)\ntotal")
@@ -41,10 +41,10 @@ def test_a_notebook_cell_runs_and_the_notebook_saves(browser: Browser, server: d
     expect(first.locator(".wb-outputs")).to_contain_text("42")
     expect(first.locator(".wb-cell-number")).to_have_text("[1]")
     expect(page.locator(".wb-session")).to_contain_text("Ready")
-    expect(page.locator(".wb-doc-title .dirty-dot")).to_be_visible()
+    expect(page.locator(".wb-tab.active .wb-tab-dirty")).to_have_text("●")
 
     page.click(".wb-doc-bar button:has-text('Save')")
-    expect(page.locator(".wb-doc-title .dirty-dot")).to_have_count(0)
+    expect(page.locator(".wb-tab.active .wb-tab-dirty")).to_have_text("")
     saved = json.loads((server["tmp"] / "workbench" / "sums.ipynb").read_text())
     sources = ["".join(c["source"]) for c in saved["cells"]]
     assert "total = 6 * 7\nprint('made up', total)\ntotal" in sources
@@ -70,7 +70,7 @@ def test_a_sql_cell_and_the_tables_group(browser: Browser, server: dict[str, Any
 
 def test_a_script_runs_its_file_and_a_console_line(browser: Browser, server: dict[str, Any]) -> None:
     page = open_page(browser, server, "scripts?new=1")
-    expect(page.locator(".wb-doc-title")).to_contain_text("Untitled script")
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("Untitled script")
     page.click(".wb-script-editor .monaco-editor .view-lines")
     page.keyboard.type("answer = 6 * 7\nprint('made up script', answer)\n")
     page.click("button:has-text('Run file')")
@@ -84,7 +84,7 @@ def test_a_script_runs_its_file_and_a_console_line(browser: Browser, server: dic
     (server["tmp"] / "workbench").mkdir(exist_ok=True)
     page.click("button:has-text('Save as')")
     choose_path(page, server["tmp"] / "workbench" / "made_up_script", save=True)
-    expect(page.locator(".wb-doc-title")).to_contain_text("made_up_script.py")
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_script.py")
     assert "made up script" in (server["tmp"] / "workbench" / "made_up_script.py").read_text()
     page.close()
 
@@ -101,4 +101,28 @@ def test_the_blades_pane_inserts_a_line(browser: Browser, server: dict[str, Any]
     first.locator("button[aria-label^=Insert]").click()
     expect(page.locator(".wb-script-editor .view-lines")).to_contain_text(name.split(" ")[0])
     expect(page.locator(".files-pane")).to_be_visible()
+    page.close()
+
+
+def test_a_scripts_name_shows_once_and_a_click_makes_no_new_script(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The owner, 2026-11-23: a script's full path showed twice (the bar and its tab), and every click on a
+    script made another Untitled script. The bar names the page, the tab names the file, and moving between
+    an untitled script and a saved one opens nothing new."""
+    folder = server["tmp"] / "workbench"
+    folder.mkdir(exist_ok=True)
+    saved = folder / "made_up_once.py"
+    saved.write_text("value = 1\n")
+    page = open_page(browser, server, f"scripts?path={saved}")
+    tabs = page.locator(".wb-tab")
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_once.py")
+    page.click(".wb-top-new")
+    expect(tabs).to_have_count(2)
+    expect(page.locator(".wb-doc-title")).to_have_text("Scripts")
+    for _ in range(3):
+        tabs.filter(has_text="Untitled script").click()
+        tabs.filter(has_text="made_up_once.py").click()
+    page.wait_for_timeout(500)
+    expect(tabs).to_have_count(2)
     page.close()

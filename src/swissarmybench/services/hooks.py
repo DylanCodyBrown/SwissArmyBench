@@ -20,6 +20,8 @@ default: nothing held. The base never names the extension that fills one.
   api_uses          the canvases' widget instances and Events that name a local sandbox API's endpoint
                     (Payload shapes; [] with no extension making canvases)
   query_hints       tables worth one COUNTROWS per dataset name (an app registration's access report)
+  project_code      the code a project folder's canvases place, as (why, code): what the project needs
+                    installed as it opens (services/project_python.py ProjectInstalls; [] with none on)
 
 Seams, below, is the other direction (craft review 2026-11-22): what the base offers an extension's
 composition root, typed, so a base rename is a type error there instead of a feature going quiet:
@@ -127,6 +129,8 @@ class Hooks:
     api_uses: Callable[[], list[dict[str, Any]]] = field(default=lambda: [])
     # Tables worth one COUNTROWS, per dataset name (a Power BI project's tables: its app registration report).
     query_hints: Callable[[], dict[str, str]] = field(default=dict)
+    # The code a project folder's canvases place (their widgets'), as (why, code): what it needs installed.
+    project_code: Callable[[str], list[tuple[str, str]]] = field(default=lambda folder: [])
 
 
 # ===== what the base offers an extension (Seams) =====

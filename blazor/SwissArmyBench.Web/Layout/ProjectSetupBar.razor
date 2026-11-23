@@ -1,0 +1,54 @@
+@* The setup bar under the top of every page (the owner, 2026-11-23: "auto detect all the installs needed and install
+   them all at once with a informative progress bar"): while the open project's needs are looked for and installed,
+   its words ("Setting up Sales Recon: installing 3 of 7 · pandas"), Fluent UI's progress bar, Show details (each
+   library, why it is needed, its status) and Hide; done, "Installed 7 libraries · added to requirements.txt", gone
+   after a few seconds; failed, the one error note with Try again and Details. *@
+
+@if (Setup.Shown && Setup.Now is { } now)
+{
+    <section class="setup-bar @now.State" role="status" aria-live="polite" aria-label="Setting up the project">
+        @if (now.State == ProjectSetup.Failed && now.Problem is { } problem)
+        {
+            <ErrorNote Said="@problem" OnRetry="RetryAsync" OnClose="Setup.Close" />
+        }
+        <div class="setup-bar-head">
+            <Icon Name="@(now.State == ProjectSetup.Done ? "check" : now.State == ProjectSetup.Failed ? "warning" : "environment")" />
+            <span class="setup-bar-words">@now.Words</span>
+            <span class="setup-bar-spacer"></span>
+            @if ((now.Packages ?? []).Count > 0)
+            {
+                <button type="button" class="btn small ghost setup-bar-details" aria-expanded="@(_details ? "true" : "false")" @onclick="ToggleDetails">@(_details ? "Hide details" : "Show details")</button>
+            }
+            @if (now.State == ProjectSetup.Done && now.Restart && now.Kernel is { } kernel)
+            {
+                <button type="button" class="btn small" @onclick="() => RestartAsync(kernel)">Restart the Python session</button>
+            }
+            @if (Setup.Running)
+            {
+                <button type="button" class="btn small ghost" title="It keeps going: the status bar's mark brings it back" @onclick="Setup.Hide">Hide</button>
+            }
+            else if (now.State != ProjectSetup.Failed)
+            {
+                <button type="button" class="btn ghost icon" aria-label="Close" @onclick="Setup.Close"><Icon Name="close" /></button>
+            }
+        </div>
+        @if (now.State != ProjectSetup.Failed)
+        {
+            <FluentProgress Class="setup-bar-progress" Min="0" Max="100" Value="@Setup.Percent" aria-label="Setup progress" />
+        }
+        @if (_details)
+        {
+            <ul class="setup-bar-list" aria-label="Libraries">
+                @foreach (var package in now.Packages ?? [])
+                {
+                    <li class="setup-bar-package @package.Status">
+                        <Icon Name="@StatusIcon(package.Status)" />
+                        <span class="setup-bar-name">@package.Name</span>
+                        <span class="setup-bar-why">@package.Why</span>
+                        <span class="setup-bar-status">@StatusWords(package.Status)</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+}
