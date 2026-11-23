@@ -1,0 +1,42 @@
+@* Categorize: ordered rules (matches, is one of, contains, starts with, a number range), each giving its rows a
+   label; the rows no rule matches get the unmatched label. Logic in CategorizeForm.razor.cs. *@
+@inherits StepFormBase
+
+<div class="list-editor step-form">
+    <div class="form-grid">
+        <label class="field"><span>Column</span>
+            <select aria-label="Column" @bind="_column">
+                @foreach (var column in Columns.Where(c => ColumnTypes.IsText(c.Type) || ColumnTypes.IsNumber(c.Type)))
+                {
+                    <option value="@column.Name">@column.Name</option>
+                }
+            </select>
+        </label>
+        <label class="field"><span>New column</span><input type="text" aria-label="New column name" @bind="_as" /></label>
+        <label class="field"><span>Unmatched rows get</span><input type="text" aria-label="Unmatched label" @bind="_unmatched" /></label>
+    </div>
+    @for (var at = 0; at < _rules.Count; at++)
+    {
+        var rule = _rules[at];
+        var number = at + 1;
+        <div class="form-row">
+            <label class="field"><span>Rule @number</span>
+                <select aria-label="Rule" @bind="rule.Type">
+                    <option value="wildcard">matches (% = any text)</option>
+                    <option value="in">is one of</option>
+                    <option value="contains">contains</option>
+                    <option value="starts_with">starts with</option>
+                    <option value="range">number from … to</option>
+                </select>
+            </label>
+            <label class="field"><span>value</span><input type="text" aria-label="Rule value" @bind="rule.Value" /></label>
+            @if (rule.Type == "range")
+            {
+                <label class="field"><span>up to (excl.)</span><input type="number" aria-label="Up to (not including)" @bind="rule.High" /></label>
+            }
+            <label class="field"><span>label</span><input type="text" aria-label="Label" @bind="rule.Label" /></label>
+            <button type="button" class="btn ghost icon small" aria-label="Remove rule" @onclick="() => _rules.Remove(rule)"><Icon Name="trash" /></button>
+        </div>
+    }
+    <div><button type="button" class="btn small" @onclick='() => _rules.Add(new CategoryRule { Type = "contains" })'><Icon Name="plus" /> Add rule</button></div>
+</div>

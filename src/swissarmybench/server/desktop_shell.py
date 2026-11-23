@@ -72,7 +72,7 @@ from PySide6.QtWidgets import (
 
 from swissarmybench.adapters.desktop import JsonState, Listener, RecordFile, fresh_cache, new_key
 from swissarmybench.domain import desktop as rules
-from swissarmybench.server.lifecycle import post_json, process_alive, read_info, running_server
+from swissarmybench.server.lifecycle import home_path, post_json, process_alive, read_info, running_server
 from swissarmybench.server.updater import detached
 
 APP_NAME = "Swiss Army Bench"
@@ -1049,7 +1049,7 @@ def run(lock: Any, page: str | None, info_file: Path) -> int:
     # The last window closed: the server is told (it stops once nothing else holds it), and the app ends
     # (Shell.closed). Not Qt's own last-window rule: the developer tools are windows too.
     app.setQuitOnLastWindowClosed(False)
-    shell.open_page(page or rules.HOME_PAGE)
+    shell.open_page(page or home_path())  # the chosen front end's home
     try:
         return int(app.exec())
     finally:

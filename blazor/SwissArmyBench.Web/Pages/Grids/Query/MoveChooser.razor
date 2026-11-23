@@ -1,0 +1,128 @@
+@* Use another connection for a deleted one (the classic swapConnection.ts openMoveChooser): every table of it moved
+   at once to the one picked; queries to look over (Review…, Run as they are) and tables to pick come back here;
+   Point the code…. *@
+@inject ApiClient Api
+@inject Notes Notes
+
+<AppDialog Title="@($"Use another connection for {From}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="swap-chooser">
+            @if (_moved is { } moved)
+            {
+                @if (moved.Review.Count > 0)
+                {
+                    <div class="swap-review">
+                        <p><Icon Name="sql" /><strong>@string.Join(", ", moved.Review.Select(r => r.Table))</strong></p>
+                        <div class="row-actions">
+                            <button type="button" class="btn primary" @onclick="() => _reviewing = true"><Icon Name="sql" /> Review…</button>
+                            <button type="button" class="btn" @onclick="() => MoveAsync(_to, true)"><Icon Name="play" /> Run as they are</button>
+                        </div>
+                    </div>
+                }
+                @foreach (var pick in moved.Pick)
+                {
+                    <p class="swap-was"><Icon Name="exclude" /><strong>@pick.Was.Words</strong> · @pick.To (pick it on its table's Connection button)</p>
+                }
+                <div class="row-actions"><button type="button" class="btn ghost" @onclick="PointAsync"><Icon Name="code" /> Point the code…</button></div>
+            }
+            else
+            {
+                <p class="swap-current missing"><Icon Name="sql" /><strong>@From</strong></p>
+                @if (_names.Count > 0)
+                {
+                    <div class="swap-others" role="list">
+                        @foreach (var name in _names)
+                        {
+                            <div role="listitem"><button type="button" class="btn swap-other" @onclick="() => MoveAsync(name, false)"><Icon Name="sql" /> @name</button></div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="empty-note">No other connections</p>
+                }
+            }
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </div>
+    </ChildContent>
+</AppDialog>
+@if (_reviewing && _moved is { } toReview)
+{
+    <ConnectionSqlDialog To="@_to" Tables="toReview.Review.Select(r => r.Table).ToList()" OnClose="() => _reviewing = false" />
+}
+@if (_repointing is { } references)
+{
+    <RepointDialog From="@From" To="@_to" References="references" OnClose="OnClose" />
+}
+
+@code {
+    private IReadOnlyList<string> _names = [];
+    private string _to = string.Empty;
+    private MoveAnswer? _moved;
+    private bool _reviewing;
+    private IReadOnlyList<CodeReference>? _repointing;
+    private Exception? _error;
+
+    [Inject]
+    private GridsClient Grids { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string From { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _names = (await Api.GetAsync<ConnectionsListing>("/connections")).Connections
+                .Where(c => c.Connection is "database" or "python" && !string.Equals(c.Name, From, StringComparison.OrdinalIgnoreCase))
+                .Select(c => c.Name)
+                .ToList();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task MoveAsync(string to, bool asIs)
+    {
+        _to = to;
+        try
+        {
+            var answer = await Api.PostAsync<MoveAnswer>($"/connections/{ApiClient.Part(From)}/move", new { to, run_as_is = asIs });
+            foreach (var done in answer.Moved)
+            {
+                _ = Notes.SayAsync($"{done.Table}: {done.To}");
+            }
+            if (answer.Failed.Count > 0)
+            {
+                _ = Notes.SayAsync($"{answer.Failed.Count} tables could not be moved to {to}.");
+            }
+            if (answer.Review.Count == 0 && answer.Pick.Count == 0)
+            {
+                await PointAsync();
+                return;
+            }
+            _moved = answer;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task PointAsync()
+    {
+        var references = (await Grids.ReferencesAsync(From)).Where(r => r.Pickable).ToList();
+        if (references.Count == 0)
+        {
+            _ = Notes.SayAsync($"No cells name {From}");
+            await OnClose.InvokeAsync();
+            return;
+        }
+        _repointing = references;
+    }
+}

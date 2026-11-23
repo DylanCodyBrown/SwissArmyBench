@@ -1,0 +1,93 @@
+@* New code app (the classic codeAppPage.ts newApp): its name, its environment (pac's list, the active one first, or
+   Another (its id)…), the folder it goes in (Choose…); Make it. *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.PowerApps
+@inject CodeAppClient CodeApps
+@inject SwissArmyBench.Web.Api.Files.FileChooser Files
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<AppDialog Title="New code app" OnClose="OnClose">
+    <ChildContent>
+        <Busy IsBusy="_making" Words="@($"Making {_name}…")">
+            <label class="ca-field"><span>Name</span><input aria-label="The app's name" placeholder="Expense Tracker" @bind="_name" @bind:event="oninput" /></label>
+            <label class="ca-field"><span>Environment</span>
+                <select aria-label="The environment" @bind="_environment">
+                    @foreach (var e in _environments)
+                    {
+                        <option value="@e.Id">@e.Name</option>
+                    }
+                    <option value="">Another (its id)…</option>
+                </select>
+                <input aria-label="The environment's id" placeholder="00000000-0000-0000-0000-000000000000" hidden="@(_environment.Length > 0)" spellcheck="false" @bind="_typed" />
+            </label>
+            <label class="ca-field"><span>Folder</span>
+                <span class="ca-row">
+                    <input aria-label="The folder it goes in" readonly value="@_folder" />
+                    <button type="button" class="btn" @onclick="ChooseAsync">Choose…</button>
+                </span>
+            </label>
+        </Busy>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary ca-make" disabled="@_making" @onclick="MakeAsync">@(_making ? "Making…" : "Make it")</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private IReadOnlyList<CodeAppEnvironment> _environments = [];
+    private string _name = string.Empty;
+    private string _environment = string.Empty;
+    private string _typed = string.Empty;
+    private string _folder = string.Empty;
+    private bool _making;
+
+    /// <summary>The environments the page already has (null: asked here).</summary>
+    [Parameter]
+    public IReadOnlyList<CodeAppEnvironment>? Environments { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnMade { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _environments = Environments ?? (await CodeApps.EnvironmentsAsync()).Environments;
+        }
+        catch (ApiException)
+        {
+            _environments = [];
+        }
+        _environment = (_environments.FirstOrDefault(e => e.Active) ?? _environments.FirstOrDefault())?.Id ?? string.Empty;
+    }
+
+    private async Task ChooseAsync()
+    {
+        if (await Files.ChooseAsync("folder", "The folder the code app goes in") is { } chosen)
+        {
+            _folder = chosen;
+        }
+    }
+
+    private async Task MakeAsync()
+    {
+        _making = true;
+        try
+        {
+            await CodeApps.NewAsync(_name, _environment.Length > 0 ? _environment : _typed, _folder);
+            await OnMade.InvokeAsync(_name);
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+        finally
+        {
+            _making = false;
+        }
+    }
+}

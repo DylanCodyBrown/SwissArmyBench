@@ -1,0 +1,59 @@
+@* The New query page (the classic startView.ts drawLanding): Open tables (DuckDB) while a grid is open, then each
+   connection that runs SQL (its kind in words, a password missing here); a click or Enter opens the draft with
+   Query from set; the arrows move between them; a search past eight. No connection: Add connection (and, with no
+   table open, Try it with sample data). The project's tables that did not come back, each with its fix, below.
+   Logic in NewQueryLanding.razor.cs. *@
+
+<div class="start-page new-query-page" @onkeydown="KeyAsync">
+    <h1 class="new-query-title">New query</h1>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_connections.Count > SearchPast)
+    {
+        <input type="search" class="new-query-search" placeholder="Search connections" aria-label="Search connections" data-no-variables
+               @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyAsync" />
+    }
+    @if (GridsOpen || _connections.Count > 0)
+    {
+        <ul class="new-query-list" aria-label="Query from">
+            @if (GridsOpen && Shows("Open tables (DuckDB) The grids open here, as they show them"))
+            {
+                <li><button type="button" class="new-query-choice" data-from="" @onclick='() => OnChoose.InvokeAsync("")'>
+                        <span class="new-query-icon" aria-hidden="true"><Icon Name="table" /></span>
+                        <span class="new-query-text"><strong>Open tables (DuckDB)</strong><span class="new-query-kind">The grids open here, as they show them</span></span>
+                    </button></li>
+            }
+            @foreach (var c in _connections.Where(c => Shows($"{c.Name} {c.KindWords}")))
+            {
+                <li><button type="button" class="new-query-choice" data-from="@c.Name" data-connections="@c.Name" @onclick="() => OnChoose.InvokeAsync(c.Name)">
+                        <span class="new-query-icon" aria-hidden="true"><Icon Name="plug" /></span>
+                        <span class="new-query-text"><strong>@c.Name</strong><span class="new-query-kind">@c.KindWords</span></span>
+                        @if (c.NeedsPassword is { } needs)
+                        {
+                            <span class="new-query-needs" title="@(needs.Message ?? "Needs a password on this computer")"><Icon Name="warning" /> @(needs.Message ?? "Needs a password on this computer")</span>
+                        }
+                    </button></li>
+            }
+        </ul>
+    }
+    @if (_loaded && _connections.Count == 0)
+    {
+        <div class="empty-state">
+            <p>Add a connection to query its tables in its own SQL.</p>
+            <a class="btn primary" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
+            @if (!GridsOpen)
+            {
+                <button type="button" class="btn" title="Opens three made-up tables: customers, products and orders" @onclick="SampleAsync">Try it with sample data</button>
+            }
+        </div>
+    }
+    @if (_problems.Count > 0)
+    {
+        <section class="start-section landing-fixes" aria-label="Tables to bring back">
+            <h2>Tables</h2>
+            @foreach (var problem in _problems)
+            {
+                <FixRow Problem="problem" OnChanged="LoadAsync" />
+            }
+        </section>
+    }
+</div>

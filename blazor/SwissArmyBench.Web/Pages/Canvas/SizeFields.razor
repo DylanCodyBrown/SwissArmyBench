@@ -1,0 +1,35 @@
+@* A node's place and size in the layout's pixels (the classic canvasProps.ts sizeFields): X, Y, W, H. *@
+@using System.Globalization
+@using SwissArmyBench.Web.Api.Canvas
+
+<div class="cvs-size">
+    @foreach (var (key, shortName, label, value, least) in Boxes)
+    {
+        <label class="cvs-field"><span>@shortName</span>
+            <input type="number" class="cvs-num" value="@value.ToString(CultureInfo.InvariantCulture)" min="@least" aria-label="@label" disabled="@(!Editable)" @onchange="e => SetAsync(key, e.Value as string)" />
+        </label>
+    }
+    <span class="cvs-px">px</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public CanvasNode Node { get; set; } = default!;
+
+    [Parameter]
+    public bool Editable { get; set; }
+
+    [Parameter]
+    public Func<string, Dictionary<string, object?>, Task<CanvasState?>> OnSend { get; set; } = default!;
+
+    private (string Key, string Short, string Label, double Value, int Least)[] Boxes =>
+        [("x", "X", "Left", Node.X, 0), ("y", "Y", "Top", Node.Y, 0), ("w", "W", "Width", Node.W, 1), ("h", "H", "Height", Node.H, 1)];
+
+    private async Task SetAsync(string key, string? text)
+    {
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        {
+            await OnSend("move", new() { ["id"] = Node.Id, [key] = CanvasGrid.Round(value) });
+        }
+    }
+}

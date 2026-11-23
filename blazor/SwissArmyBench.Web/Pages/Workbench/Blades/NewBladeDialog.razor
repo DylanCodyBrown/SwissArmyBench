@@ -1,0 +1,136 @@
+@* New blade (the classic bladeEditor.ts newBladeDialog; the owner 2026-11-21: "scaffold a blank blade"): a name
+   checked live and a kind (Table, Code, Analysis, Connection, Snippet, Secret) with its words; Create (Enter too)
+   writes that kind's blank, working blade, opened with its Properties. *@
+@using SwissArmyBench.Web.Api.Blades
+@inject BladesClient Blades
+
+<AppDialog Title="New blade" OnClose="OnClose">
+    <ChildContent>
+        <label class="field"><span>Name</span>
+            <input type="text" maxlength="64" aria-label="Name" spellcheck="false" placeholder="Orders" @bind="_name" @bind:event="oninput" @bind:after="CheckAsync" @onkeydown="KeyAsync" />
+        </label>
+        <div class="table-name-check @(_free ? "ok" : "error")" role="status" aria-live="polite">@_said</div>
+        <div class="new-blade-kinds" role="radiogroup" aria-label="Kind">
+            @foreach (var (id, label, hint) in Kinds)
+            {
+                <label class="new-blade-kind">
+                    <input type="radio" name="new-blade-kind" value="@id" checked="@(_kind == id)" @onchange="() => _kind = id" />
+                    <span><strong>@label</strong><span class="hint"> @hint</span></span>
+                </label>
+            }
+        </div>
+        @if (_templates.Count > 0)
+        {
+            <div class="new-blade-templates" role="group" aria-label="Templates">
+                @foreach (var group in _templates.GroupBy(t => t.Group))
+                {
+                    <strong class="hint">@group.Key</strong>
+                    @foreach (var choice in group)
+                    {
+                        <button type="button" class="btn small ghost" title="@choice.Hint" @onclick="() => FromTemplateAsync(choice.Id)">@choice.Label</button>
+                    }
+                }
+            </div>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" disabled="@_making" @onclick="CreateAsync">@(_making ? "Creating…" : "Create")</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    /// <summary>New blade's kinds (domain/blade_header.py SCAFFOLD_KINDS) in the classic words.</summary>
+    public static readonly IReadOnlyList<(string Id, string Label, string Hint)> Kinds =
+    [
+        ("table", "Table", "a function that returns a DataFrame"),
+        ("code", "Code", "any Python; what it makes last is handed back"),
+        ("analysis", "Analysis", "a function of a table's rows, for Analyze"),
+        ("connection", "Connection", "a database that lists and reads its tables"),
+        ("snippet", "Snippet", "text for a cell, with <<placeholders>>"),
+        ("secret", "Secret", "variables typed each session, never kept"),
+    ];
+
+    private string _name = string.Empty;
+    private string _kind = "table";
+    private string _said = string.Empty;
+    private bool _free;
+    private bool _making;
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>Made: its name.</summary>
+    [Parameter]
+    public EventCallback<string> OnMade { get; set; }
+
+    private IReadOnlyList<BladeChoice> _templates = [];
+
+    /// <summary>The templates beside the blank kinds (an analysis blade's: Summary, Pareto, Correlations...).</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _templates = (await Blades.ChoicesAsync()).Choices.Where(c => c.Group != "Blades").ToList();
+        }
+        catch (ApiException)
+        {
+            _templates = []; // the blank kinds still make a blade
+        }
+    }
+
+    private async Task FromTemplateAsync(string template)
+    {
+        try
+        {
+            var made = await Blades.NewAsync(null, null, template);
+            await OnMade.InvokeAsync(made.Name);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task CheckAsync()
+    {
+        if (_name.Trim().Length == 0)
+        {
+            (_free, _said) = (false, string.Empty);
+            return;
+        }
+        try
+        {
+            var check = await Blades.NameCheckAsync(_name);
+            (_free, _said) = (check.Available, check.Said);
+        }
+        catch (ApiException)
+        {
+            (_free, _said) = (false, string.Empty);
+        }
+    }
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Enter" ? CreateAsync() : Task.CompletedTask;
+
+    private async Task CreateAsync()
+    {
+        await CheckAsync();
+        if (!_free)
+        {
+            return;
+        }
+        _making = true;
+        try
+        {
+            var made = await Blades.NewAsync(_name.Trim(), _kind, null);
+            await OnMade.InvokeAsync(made.Name);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _making = false;
+    }
+}

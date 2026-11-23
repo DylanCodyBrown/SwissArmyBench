@@ -1,0 +1,101 @@
+@* A cell's (or the console's) outputs as they arrive, the error taken apart by the server (what it means, where),
+   and the kernel's question when it waits for a line (input(), getpass). An error's traceback goes into its panel. *@
+
+<div class="wb-outputs" aria-live="polite">
+    @foreach (var output in Outputs.Where(o => ErrorDetail is null || OutputReader.Type(o) != "error"))
+    {
+        <OutputView Output="output" Document="@Document" OnOpenTable="OnOpenTable" />
+    }
+    @if (ErrorDetail is { } detail)
+    {
+        <ErrorPanel Detail="detail" Traceback="@Traceback" Document="@Document" OnFix="OnFix" OnGoTo="OnGoTo" OnOpenGrid="OpenGridAsync" />
+    }
+    @if (Asking is { } asking)
+    {
+        <form class="wb-input" @onsubmit="AnswerAsync" @onsubmit:preventDefault="true">
+            <label class="field"><span>@(asking.Prompt.Length > 0 ? asking.Prompt : "The code asks for a line")</span>
+                <input type="@(asking.Password ? "password" : "text")" aria-label="@(asking.Prompt.Length > 0 ? asking.Prompt : "Input")" @bind="_line" autocomplete="off" />
+            </label>
+            <button type="submit" class="btn small">Send</button>
+        </form>
+    }
+</div>
+
+@code {
+    private string _line = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<System.Text.Json.JsonElement> Outputs { get; set; } = [];
+
+    [Parameter]
+    public System.Text.Json.JsonElement? ErrorDetail { get; set; }
+
+    [Parameter]
+    public (string Prompt, bool Password)? Asking { get; set; }
+
+    /// <summary>The line typed for the kernel's question.</summary>
+    [Parameter]
+    public EventCallback<string> OnAnswer { get; set; }
+
+    [Inject]
+    private SwissArmyBench.Web.Api.Workbench.WorkbenchClient Workbench { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.State.PythonSession Session { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
+
+    /// <summary>A value of the error's (a table) opened as a grid: the page's own way, else by its name in the kernel.</summary>
+    private async Task OpenGridAsync(string name)
+    {
+        if (OnOpenGrid.HasDelegate)
+        {
+            await OnOpenGrid.InvokeAsync(name);
+            return;
+        }
+        if (Session.Kernel is not { } kernel)
+        {
+            return;
+        }
+        try
+        {
+            await Workbench.OpenGridAsync(kernel, null, name);
+            await Notes.SayAsync($"{name} is open as a grid.");
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private async Task AnswerAsync()
+    {
+        var line = _line;
+        _line = string.Empty;
+        await OnAnswer.InvokeAsync(line);
+    }
+
+    /// <summary>The document's name, for the agent's title.</summary>
+    [Parameter]
+    public string Document { get; set; } = "the Workbench";
+
+    [Parameter]
+    public EventCallback<SwissArmyBench.Web.Api.Workbench.RunErrorFix> OnFix { get; set; }
+
+    [Parameter]
+    public EventCallback<SwissArmyBench.Web.Api.Workbench.RunErrorFrame> OnGoTo { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnOpenGrid { get; set; }
+
+    /// <summary>A routed kernel's table result opened as a grid by its id.</summary>
+    [Parameter]
+    public EventCallback<string> OnOpenTable { get; set; }
+
+    /// <summary>Python's traceback of the run's error output, its colours kept (the panel holds it).</summary>
+    private string Traceback => Outputs
+        .Where(o => OutputReader.Type(o) == "error")
+        .Select(OutputReader.ColouredTraceback)
+        .LastOrDefault() ?? string.Empty;
+}

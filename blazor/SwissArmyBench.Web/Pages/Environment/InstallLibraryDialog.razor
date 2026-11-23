@@ -1,0 +1,37 @@
+@* Install a library (the classic environmentPage.ts installDialog): its name; Enter or Install… installs it into the
+   project's environment and requirements.txt. *@
+
+<AppDialog Title="Install a library" OnClose="() => OnDone.InvokeAsync(null)">
+    <ChildContent>
+        <label class="field"><span>Library</span><input type="text" class="mono" aria-label="Library" placeholder="polars" spellcheck="false" data-no-variables @bind="_name" @bind:event="oninput" @onkeydown="KeyAsync" /></label>
+        <p class="env-keys">Into the project's environment, and into requirements.txt so a teammate gets it.</p>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnDone.InvokeAsync(null)">Cancel</button>
+        <button type="button" class="btn primary" @onclick="NextAsync">Install…</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _name = string.Empty;
+
+    /// <summary>The library to install; null when closed.</summary>
+    [Parameter]
+    public EventCallback<string?> OnDone { get; set; }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await NextAsync();
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (_name.Trim().Length > 0)
+        {
+            await OnDone.InvokeAsync(_name.Trim());
+        }
+    }
+}

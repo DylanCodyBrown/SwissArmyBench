@@ -1,0 +1,19 @@
+@* The Notebooks page (/notebooks, the classic window sab-notebooks): ?path= opens a notebook, ?new=1 starts one. *@
+@page "/notebooks"
+
+<WorkbenchPage Page="notebooks" Path="@PathParameter" New="@(NewParameter is not null)" Line="@LineParameter" Cell="@CellParameter" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "path")]
+    public string? PathParameter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "new")]
+    public string? NewParameter { get; set; }
+
+    /// <summary>A script opened at a line (?line=), a notebook at a cell's number (?cell=): an API's Build link.</summary>
+    [SupplyParameterFromQuery(Name = "line")]
+    public int? LineParameter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cell")]
+    public int? CellParameter { get; set; }
+}

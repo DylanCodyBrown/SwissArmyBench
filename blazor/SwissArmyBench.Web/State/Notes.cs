@@ -1,0 +1,45 @@
+namespace SwissArmyBench.Web.State;
+
+/// <summary>
+/// The page's short messages (the classic toast(): info only, a few seconds) and the error notes of background work
+/// that has no place on screen (errorToast). The layout draws them in the corner.
+/// </summary>
+public sealed class Notes
+{
+    private const int ShownMilliseconds = 4000;
+
+    private readonly List<Note> _shown = [];
+
+    public event Action? Changed;
+
+    public IReadOnlyList<Note> Shown => _shown;
+
+    /// <summary>A short line that goes by itself ("Copied.", "Saved.").</summary>
+    public Task SayAsync(string words) => SayAsync(words, null, null);
+
+    /// <summary>A short line with one action: its label and what it does (Undo, Show).</summary>
+    public async Task SayAsync(string words, string? actionLabel, Func<Task>? action)
+    {
+        var note = new Note(words, null, actionLabel, action);
+        _shown.Add(note);
+        Changed?.Invoke();
+        // A line with an action ("Closed orders" with Undo) stays twice as long, so it can be pressed.
+        await Task.Delay(action is null ? ShownMilliseconds : ShownMilliseconds * 2);
+        Dismiss(note);
+    }
+
+    /// <summary>An error from work with no place on screen: it stays until closed.</summary>
+    public void Error(Exception error)
+    {
+        _shown.Add(new Note(null, error));
+        Changed?.Invoke();
+    }
+
+    public void Dismiss(Note note)
+    {
+        if (_shown.Remove(note))
+        {
+            Changed?.Invoke();
+        }
+    }
+}

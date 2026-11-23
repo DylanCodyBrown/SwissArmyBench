@@ -1,0 +1,101 @@
+@* The IDE's panel under the code (the classic codeIde.ts runPanel, design principle 8.14): Output | Result | Problems,
+   folded to its tabs until something runs or a tab is pressed; Problems counts the lint's, each a click to its line
+   (No problems.); a problem that appears opens the panel on it unless the user folded it since the last run. The host
+   says what each tab holds. *@
+
+<section class="ide-run @(Folded ? "folded" : null)" aria-label="Output, result and problems">
+    <div class="ide-run-tabs" role="tablist" aria-label="Run">
+        @foreach (var (id, words) in Tabs)
+        {
+            <button type="button" role="tab" class="ide-run-tab @(Tab == id && !Folded ? "active" : null)" data-tab="@id" aria-selected="@(Tab == id && !Folded ? "true" : "false")" @onclick="() => ShowAsync(id)">
+                @words@if (id == ProblemsTab && Problems.Count > 0)
+                {
+                    <span class="ide-count"> @Problems.Count</span>
+                }
+            </button>
+        }
+        <span class="status-spacer"></span>
+        @if (Said is { Length: > 0 } said)
+        {
+            <span class="hint">@said</span>
+        }
+        <button type="button" class="btn small ghost icon ide-run-fold" aria-pressed="@(Folded ? "true" : "false")" aria-label="@(Folded ? "Open the panel" : "Fold the panel")" title="@(Folded ? "Open the panel" : "Fold the panel")" @onclick="FoldAsync"><Icon Name="@(Folded ? "up" : "down")" /></button>
+    </div>
+    @if (!Folded)
+    {
+        <div class="ide-run-body">
+            @switch (Tab)
+            {
+                case OutputTab:
+                    <pre class="wb-text ide-output" role="log" aria-label="Output">@Output</pre>
+                    break;
+                case ProblemsTab when Problems.Count == 0:
+                    <p class="hint ide-empty">No problems.</p>
+                    break;
+                case ProblemsTab:
+                    <ul class="ide-problems" aria-label="Problems">
+                        @foreach (var p in Problems)
+                        {
+                            <li><button type="button" class="link ide-problem" aria-label="@($"Problem: {p.Message}, line {p.Line}")" @onclick="() => OnGoTo.InvokeAsync(p.Line)">@p.Message<span class="hint"> line @p.Line, column @p.Col</span></button></li>
+                        }
+                    </ul>
+                    break;
+                default:
+                    <div class="ide-result" aria-label="Result">
+                        @if (Result is { } result)
+                        {
+                            @result
+                        }
+                        else
+                        {
+                            <p class="hint">Nothing ran yet.</p>
+                        }
+                    </div>
+                    break;
+            }
+        </div>
+    }
+</section>
+
+@code {
+    public const string OutputTab = "output";
+    public const string ResultTab = "result";
+    public const string ProblemsTab = "problems";
+
+    private static readonly (string Id, string Words)[] Tabs = [(OutputTab, "Output"), (ResultTab, "Result"), (ProblemsTab, "Problems")];
+
+    /// <summary>The tab shown.</summary>
+    [Parameter]
+    public string Tab { get; set; } = OutputTab;
+
+    /// <summary>Folded to its tabs (until something runs or a tab is pressed).</summary>
+    [Parameter]
+    public bool Folded { get; set; } = true;
+
+    /// <summary>What the run printed.</summary>
+    [Parameter]
+    public string Output { get; set; } = string.Empty;
+
+    /// <summary>What the run made (none: Nothing ran yet.).</summary>
+    [Parameter]
+    public RenderFragment? Result { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EditorProblem> Problems { get; set; } = [];
+
+    /// <summary>A few words beside the tabs (how the last run went).</summary>
+    [Parameter]
+    public string? Said { get; set; }
+
+    /// <summary>A tab pressed (the panel opens on it), or the panel folded (null).</summary>
+    [Parameter]
+    public EventCallback<string?> OnTab { get; set; }
+
+    /// <summary>A problem's line, to show in the code.</summary>
+    [Parameter]
+    public EventCallback<int> OnGoTo { get; set; }
+
+    private Task ShowAsync(string id) => OnTab.InvokeAsync(id);
+
+    private Task FoldAsync() => OnTab.InvokeAsync(Folded ? Tab : null);
+}

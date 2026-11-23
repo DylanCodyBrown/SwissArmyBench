@@ -1,0 +1,81 @@
+@* The Canvas's Builds (the classic canvasBuilds.ts; the owner, 2026-11-19: "think Visual Studio"): newest first, what
+   changed in words, the result; tick two and Compare (Monaco's diff editor, file by file), or Compare with now; Open
+   one read-only; Relaunch; Restore its canvas (Undo takes it back); a saved analyzer session opens read-only. Logic
+   in BuildsDialog.razor.cs. *@
+@using SwissArmyBench.Web.Api.Canvas
+
+<AppDialog Title="Builds" OnClose="OnClose">
+    <ChildContent>
+        <div class="bd">
+            <div class="bd-list" role="list">
+                <ErrorNote Error="_error" OnClose="() => _error = null" />
+                @if (_builds is null)
+                {
+                    <div class="loading-block">Reading the builds…</div>
+                }
+                else if (_builds.Count == 0)
+                {
+                    <p class="hint app-empty">No build yet: Launch makes the first</p>
+                }
+                @foreach (var build in _builds ?? [])
+                {
+                    <div class="bd-row bd-@build.Result" role="listitem" data-build="@build.Number">
+                        <input type="checkbox" aria-label="@($"Build {build.Number}")" checked="@_ticked.Contains(build.Number)" @onchange="e => Tick(build.Number, e.Value is true)" />
+                        <div class="bd-head">
+                            <strong>Build @build.Number</strong>
+                            <span class="hint">@When(build.Time)</span>
+                            <span class="bd-result bd-result-@build.Result">@ResultWords(build)</span>
+                        </div>
+                        <ul class="bd-changed">
+                            @foreach (var change in build.Changed)
+                            {
+                                <li>@change</li>
+                            }
+                        </ul>
+                        @if (build.Error is { } error)
+                        {
+                            <div class="bd-error" role="alert">@error</div>
+                        }
+                        <div class="bd-actions">
+                            <button type="button" class="btn small bd-open" @onclick="() => ShowBuildAsync(build.Number)"><Icon Name="eye" /> Open</button>
+                            <button type="button" class="btn small bd-now" title="This build against the canvas as it is now" @onclick="() => ShowNowAsync(build.Number)"><Icon Name="columns" /> Compare with now</button>
+                            <button type="button" class="btn small bd-relaunch" disabled="@(_doing is not null)" @onclick="() => RelaunchAsync(build.Number)"><Icon Name="play" /> @(_doing == $"launch{build.Number}" ? "Starting…" : "Relaunch")</button>
+                            <button type="button" class="btn small bd-restore" title="Its canvas back (Undo takes it back)" disabled="@(_doing is not null)" @onclick="() => RestoreAsync(build.Number)"><Icon Name="undo" /> @RestoreWords(build.Number)</button>
+                            @foreach (var session in build.Sessions)
+                            {
+                                <button type="button" class="btn small ghost bd-session" title="A saved analyzer session" @onclick="() => OpenSessionAsync(build.Number, session)"><Icon Name="bolt" /> @SessionWords(session)</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="bd-detail">
+                @if (_files is { } files)
+                {
+                    <div class="bd-detail-head"><strong>@_title</strong></div>
+                    <div class="bd-split">
+                        <ul class="bd-files" role="listbox" aria-label="Files">
+                            @foreach (var file in files)
+                            {
+                                <li class="bd-file bd-@file.Status @(file == _picked ? "selected" : null)" role="option" aria-selected="@(file == _picked ? "true" : "false")" tabindex="0" data-file="@file.File"
+                                    @onclick="() => _picked = file" @onkeydown="e => PickKey(e, file)">
+                                    <span class="mono">@file.File</span>
+                                    <span class="hint">@(file.Status == "changed" ? $"+{file.Added} −{file.Removed}" : file.Status)</span>
+                                </li>
+                            }
+                        </ul>
+                        <div class="bd-diff">
+                            @if (_picked is { } picked)
+                            {
+                                <DiffEditor Before="@(picked.Before ?? string.Empty)" After="@(picked.After ?? string.Empty)" File="@picked.File" />
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary bd-compare" title="Compare the two ticked builds, file by file" disabled="@(_ticked.Count != 2)" @onclick="CompareAsync"><Icon Name="columns" /> Compare</button>
+    </Foot>
+</AppDialog>

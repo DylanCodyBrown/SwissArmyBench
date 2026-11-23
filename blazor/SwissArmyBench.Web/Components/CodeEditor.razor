@@ -1,0 +1,7 @@
+@* A code editor (Monaco through interop/codeEditor.js): Python, SQL, DAX, Markdown and the rest; the server's
+   intelligence (completion, signatures, hover, the lint as you type) when Intel is on. Its text comes back a moment
+   after typing stops (OnChange) and the keys a page acts on by name (OnKey). The logic is in CodeEditor.razor.cs. *@
+@implements IAsyncDisposable
+
+@* An editor with its own zoom (an IDE's code) keeps Ctrl+= and Ctrl+- for itself: the page's zoom leaves it be. *@
+<div class="code-editor @(Grow ? "grow" : "fill")" @ref="_host" aria-label="@Label" role="group" data-own-zoom="@(Zoom ? "true" : null)"></div>

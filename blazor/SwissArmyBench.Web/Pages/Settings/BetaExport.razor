@@ -1,0 +1,27 @@
+@* Export beta log… (the classic betaNotes.ts exportBetaLog): where to save the zip (the file chooser), then "Saved to
+   <path>" (the whole path: the chooser starts in the app's own folder, easy to lose). Draws nothing of its own. *@
+@inject SettingsClient Settings
+@inject FileChooser Files
+@inject Notes Notes
+
+@code {
+    [Parameter]
+    public EventCallback OnDone { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (await Files.ChooseAsync("save", "Export beta log", null, "beta") is { } path)
+            {
+                var made = await Settings.ExportLogAsync(path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? path : $"{path}.zip");
+                _ = Notes.SayAsync($"Saved to {made.Path}");
+            }
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+        await OnDone.InvokeAsync();
+    }
+}

@@ -1,0 +1,77 @@
+@* The small "Shared" mark beside an app's Play (the classic shareApp.ts shareMark): hidden while not shared; its
+   title the link; a click opens Share…; Copy the link beside it. It follows the sharing_changed notice. *@
+@using SwissArmyBench.Web.Api.Sharing
+@using SwissArmyBench.Web.State
+@implements IDisposable
+@inject SharingClient Sharing
+@inject LiveUpdates Live
+@inject IJSRuntime Js
+@inject Notes Notes
+
+<span class="cvs-share">
+    @if (_url is not null)
+    {
+        <span class="share-mark" data-app="@App?.Id">
+            <button type="button" class="share-mark-label" title="@($"Shared with your organization: {_url}")" @onclick="() => _open = true"><Icon Name="globe" />Shared</button>
+            <button type="button" class="btn ghost icon share-mark-copy" aria-label="Copy the link" title="Copy the link" @onclick="CopyAsync"><Icon Name="copy" /></button>
+        </span>
+    }
+</span>
+@if (_open && App is not null)
+{
+    <ShareDialog App="App" OnClose="() => _open = false" />
+}
+
+@code {
+    private string? _url;
+    private bool _open;
+    private string? _looked;
+
+    [Parameter]
+    public ShareTarget? App { get; set; }
+
+    protected override void OnInitialized() => Live.NoticeArrived += OnNotice;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (App is not null && App.Id != _looked)
+        {
+            _looked = App.Id;
+            await LookAsync();
+        }
+    }
+
+    private async Task LookAsync()
+    {
+        if (App is null)
+        {
+            return;
+        }
+        try
+        {
+            var status = await Sharing.StatusAsync(App.Kind, App.Id);
+            var share = status.Shares.FirstOrDefault(s => s.Kind == App.Kind && s.App == App.Id);
+            _url = share is { State: "sharing" } ? share.Url : null;
+        }
+        catch (SwissArmyBench.Web.Api.ApiException)
+        {
+            _url = null;
+        }
+    }
+
+    private async Task CopyAsync()
+    {
+        var copied = await Js.InvokeAsync<bool>("sab.copy", _url ?? string.Empty);
+        await Notes.SayAsync(copied ? "Copied the link." : "Copy is blocked here: select the text and copy it.");
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type == "sharing_changed")
+        {
+            _ = InvokeAsync(async () => { await LookAsync(); StateHasChanged(); });
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

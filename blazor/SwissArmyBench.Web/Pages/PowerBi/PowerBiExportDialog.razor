@@ -1,0 +1,161 @@
+@* Export to Power BI… (the classic powerbiExport.ts; a plug-in of the Power BI extension, opened from the ERD's
+   button or the Power BI page): the tables with ticks (one Power Query cannot read says why, Include its rows; its
+   notes and Only works on your machine), the relationships that go (inactive said) and the ones left out, the
+   parameters; Use an existing report's pages (a dropped or chosen .pbix, .pbit or .pbip: its fields mapped, Leave it
+   for the rest); the Name; Export (into the open project's powerbi/, then Open in Power BI Desktop or Show its
+   folder; with no project, a zip to save). Logic in PowerBiExportDialog.razor.cs. *@
+@using Microsoft.AspNetCore.Components.Forms
+@using SwissArmyBench.Web.Api.PowerBi
+
+<AppDialog Title="Export to Power BI" OnClose="OnClose">
+    <ChildContent>
+        <div class="pbi-export">
+            <Busy IsBusy="_busy is not null" Words="@(_busy ?? string.Empty)">
+                <ErrorNote Error="_error" OnClose="() => _error = null" />
+                @if (ReportFirst)
+                {
+                    @ReportPart()
+                }
+                <label class="pbi-name-row"><span>Name</span>
+                    <input type="text" class="pbi-name" aria-label="Name" maxlength="64" data-no-variables @bind="_name" @bind:after="RefreshAsync" />
+                </label>
+                <div class="pbi-listing">
+                    @if (_plan is null)
+                    {
+                        <div class="loading-block">Reading the tables…</div>
+                    }
+                    else
+                    {
+                        <h3>Tables</h3>
+                        <ul class="pbi-tables">
+                            @foreach (var table in Tables)
+                            {
+                                var one = _plan.Tables.FirstOrDefault(t => t.Name == table);
+                                var on = _ticked.Contains(table);
+                                <li class="pbi-table @(one is { Goes: false } && on ? "pbi-not" : null)" data-table="@table">
+                                    <label><input type="checkbox" checked="@on" @onchange="e => TickAsync(_ticked, table, e.Value is true)" /><strong>@table</strong>
+                                        @if (one?.Source is { Length: > 0 } source)
+                                        {
+                                            <span class="hint"> · @source</span>
+                                        }
+                                    </label>
+                                    @if (one is not null && on)
+                                    {
+                                        @if (one.Why is { } why)
+                                        {
+                                            <div class="pbi-why">@why.</div>
+                                        }
+                                        @if (one.NeedsRows)
+                                        {
+                                            <label class="pbi-rows"><input type="checkbox" checked="@_rows.Contains(table)" @onchange="e => TickAsync(_rows, table, e.Value is true)" />Include its rows (@((one.RowCount ?? 0).ToString("N0", System.Globalization.CultureInfo.CurrentCulture)))</label>
+                                        }
+                                        @foreach (var note in one.Notes)
+                                        {
+                                            <div class="pbi-note">@note</div>
+                                        }
+                                        @foreach (var local in one.Local)
+                                        {
+                                            <div class="pbi-local amber">@local</div>
+                                        }
+                                    }
+                                </li>
+                            }
+                        </ul>
+                        var going = _plan.Relationships.Where(r => r.Goes).ToList();
+                        var left = _plan.Relationships.Where(r => !r.Goes).ToList();
+                        <h3>Relationships (@going.Count)</h3>
+                        @if (going.Count > 0)
+                        {
+                            <ul class="pbi-rels">
+                                @foreach (var r in going)
+                                {
+                                    <li>@Words(r)@if (!r.Active) { <span class="hint"> · inactive</span> }</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <p class="hint">None between these tables.</p>
+                        }
+                        @if (left.Count > 0)
+                        {
+                            <ul class="pbi-rels pbi-out">
+                                @foreach (var r in left)
+                                {
+                                    <li>@Words(r)<div class="pbi-why">Left out: @r.LeftOut.</div></li>
+                                }
+                            </ul>
+                        }
+                        @if (_plan.Parameters.Count > 0)
+                        {
+                            <p class="hint">Power Query parameters: @string.Join(", ", _plan.Parameters).</p>
+                        }
+                    }
+                </div>
+                @if (!ReportFirst)
+                {
+                    @ReportPart()
+                }
+                <div class="pbi-done">
+                    @if (_made is { } made)
+                    {
+                        <p class="pbi-written"><strong>@made.Where</strong> · @made.Written.Count files written</p>
+                        <button type="button" class="btn primary" @onclick="OpenItAsync"><Icon Name="@(made.Opens ? "export" : "folder")" /><span class="btn-label">@(made.Opens ? "Open in Power BI Desktop" : "Show its folder")</span></button>
+                    }
+                </div>
+            </Busy>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" disabled="@(_plan is null)" @onclick="ExportAsync"><Icon Name="export" /><span class="btn-label">Export</span></button>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private RenderFragment ReportPart() => __builder =>
+    {
+        <div class="pbi-report @(ReportFirst ? "pbi-report-first" : null)">
+            @if (_plan?.Report is { } used)
+            {
+                <div class="pbi-report-head">
+                    <strong>@used.File</strong><span class="hint"> · @used.Pages</span>
+                    <button type="button" class="btn ghost" @onclick="RemoveReportAsync">Remove</button>
+                </div>
+                <ul class="pbi-fields">
+                    @foreach (var field in used.Fields)
+                    {
+                        var key = $"{field.Table}.{field.Field}";
+                        var current = field.To is { } to ? $"{to.Table}.{to.Field}" : string.Empty;
+                        <li class="pbi-field @(field.To is null ? "pbi-unmapped" : null)" data-field="@key">
+                            <span>@(field.Matched ? "✓ " : string.Empty)@key<span class="hint">@(field.Kind == "measure" ? " · measure" : string.Empty)</span></span>
+                            <select aria-label="@($"{key} maps to")" @onchange="e => MapAsync(key, e.Value as string)">
+                                <option value="">Leave it</option>
+                                @foreach (var choice in Choices(used, field, current))
+                                {
+                                    <option value="@choice" selected="@(choice == current)">@choice</option>
+                                }
+                            </select>
+                        </li>
+                    }
+                </ul>
+                @if (used.Measures.Count > 0)
+                {
+                    <p class="hint">Measures that come along: @string.Join(", ", used.Measures).</p>
+                }
+                @foreach (var line in used.Said)
+                {
+                    <div class="pbi-note">@line</div>
+                }
+            }
+            else
+            {
+                <div class="pbi-drop @(_over ? "over" : null)" tabindex="0" @ondragenter="() => _over = true" @ondragleave="() => _over = false">
+                    <span>Use an existing report's pages: drop a .pbix, .pbit or .pbip here</span>
+                    <button type="button" class="btn" @onclick="ChooseAsync"><Icon Name="folder" /><span class="btn-label">Choose file…</span></button>
+                    <InputFile class="pbi-drop-input" accept=".pbix,.pbit,.pbip" aria-label="Drop a report here" OnChange="DroppedAsync" />
+                </div>
+            }
+        </div>
+    };
+}

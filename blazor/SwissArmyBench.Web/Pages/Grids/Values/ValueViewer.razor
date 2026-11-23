@@ -1,0 +1,62 @@
+@* A cell's whole value (the classic valueViewer.ts): what it is in its badge, drawn the way it reads best (an
+   object as a key / value table, an array of objects as a table, Markdown formatted, long text wrapped); a nested
+   value or long text opens one layer deeper, the trail walks back out; Table | JSON (or Formatted | Raw text);
+   Send to Analyze, Copy, Close. Everything is text, never markup. Logic in ValueViewer.razor.cs. *@
+
+<AppDialog Wide="true" Title="@Title" OnClose="OnClose">
+    <ChildContent>
+        <div class="value-viewer">
+            @if (_layers.Count > 1)
+            {
+                <nav class="vv-crumbs" aria-label="Layers">
+                    @for (var at = 0; at < _layers.Count; at++)
+                    {
+                        var depth = at;
+                        if (at > 0)
+                        {
+                            <span class="vv-sep" aria-hidden="true">›</span>
+                        }
+                        if (at == _layers.Count - 1)
+                        {
+                            <strong aria-current="true">@_layers[at].Label</strong>
+                        }
+                        else
+                        {
+                            <button type="button" class="link" @onclick="() => Show(depth)">@_layers[at].Label</button>
+                        }
+                    }
+                </nav>
+            }
+            <div class="vv-head">
+                <span class="badge">@ValueRules.Describe(Current.Value, Shape)</span>
+                <span class="status-spacer"></span>
+                @if (HasTabs)
+                {
+                    <div class="tabs" role="tablist" aria-label="View">
+                        <button type="button" class="tab" role="tab" aria-selected="@(!_raw ? "true" : "false")" @onclick="() => _raw = false">@(Shape == ValueShape.Markdown ? "Formatted" : "Table")</button>
+                        <button type="button" class="tab" role="tab" aria-selected="@(_raw ? "true" : "false")" @onclick="() => _raw = true">@(Shape == ValueShape.Markdown ? "Raw text" : "JSON")</button>
+                    </div>
+                }
+            </div>
+            <div class="vv-content">
+                @if (_raw && Shape == ValueShape.Markdown)
+                {
+                    <pre class="vv-text mono">@ValueRules.Text(Current.Value)</pre>
+                }
+                else if (_raw)
+                {
+                    <pre class="vv-json mono">@ValueRules.Pretty(Current.Value)</pre>
+                }
+                else
+                {
+                    @Formatted(Current.Value)
+                }
+            </div>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="SendAsync"><Icon Name="image" /> Send to Analyze</button>
+        <button type="button" class="btn" @onclick="CopyAsync"><Icon Name="copy" /> Copy</button>
+        <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

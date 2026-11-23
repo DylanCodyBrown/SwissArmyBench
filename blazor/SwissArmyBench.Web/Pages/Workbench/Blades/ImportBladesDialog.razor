@@ -1,0 +1,101 @@
+@* Import blades… (the classic bladeLibrary.ts importBlades): .blade.py files (or a zip) chosen, reviewed before
+   anything is saved or run: each blade's kind, name, file, words and tags, Your values (its settings, with the
+   suggestions, and the secrets it asks for), When <name> is taken (keep both, replace, skip), The code; then Save
+   the blades in (This app or a blade folder) and Import N blades. Logic in ImportBladesDialog.razor.cs. *@
+@using System.Text.Json
+
+<AppDialog Title="Import blades" OnClose="OnClose">
+    <ChildContent>
+        @if (_items is null)
+        {
+            <label class="field"><span>Blade files</span>
+                <InputFile multiple accept=".py,.zip" aria-label="Blade files" OnChange="ChosenAsync" />
+            </label>
+        }
+        else
+        {
+            <p class="hint">Check the code before importing.</p>
+            @foreach (var item in _items)
+            {
+                var index = item.GetProperty("index").ToString();
+                <section class="import-card">
+                    @if (!item.TryGetProperty("blade", out var blade) || blade.ValueKind != JsonValueKind.Object)
+                    {
+                        <h3>@Text(item, "file")</h3>
+                        <p class="error-text">@(Text(item, "error") is { Length: > 0 } e ? e : "Not a blade.")</p>
+                    }
+                    else
+                    {
+                        var name = Text(blade, "name");
+                        <h3><span class="blade-kind">@Text(blade, "kind")</span> @name <span class="hint">  @Text(item, "file")</span></h3>
+                        @if (Text(blade, "description") is { Length: > 0 } words)
+                        {
+                            <p>@words</p>
+                        }
+                        @if (Settings(item).Count > 0 || Secrets(item).Count > 0)
+                        {
+                            <fieldset class="fill-in">
+                                <legend>Your values</legend>
+                                @foreach (var setting in Settings(item))
+                                {
+                                    var id = Text(setting, "id");
+                                    <div class="setting-row">
+                                        <label><span class="setting-key">@Text(setting, "key")</span><span class="hint"> @Text(setting, "name"), line @Text(setting, "line")</span></label>
+                                        <input type="text" aria-label="@($"{Text(setting, "key")} ({Text(setting, "name")})")" value="@Text(setting, "value")" @oninput="e => SetSetting(index, id, e.Value?.ToString())" />
+                                        @if (setting.TryGetProperty("suggestions", out var s) && s.GetArrayLength() > 0)
+                                        {
+                                            <div class="chips suggestions"><span class="hint">Suggested:</span>
+                                                @foreach (var suggestion in s.EnumerateArray().Take(4))
+                                                {
+                                                    <button type="button" class="chip suggestion" title="@Text(suggestion, "from")" @onclick="() => Suggest(index, id, suggestion)">@Text(suggestion, "value")</button>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                @foreach (var secret in Secrets(item))
+                                {
+                                    <div class="setting-row">
+                                        <label><span class="setting-key">secret("@secret")</span></label>
+                                        <input type="password" autocomplete="new-password" placeholder="Optional" aria-label="@($"secret {secret}")" @oninput="e => SetSecret(index, secret, e.Value?.ToString())" />
+                                    </div>
+                                }
+                            </fieldset>
+                        }
+                        @if (item.TryGetProperty("conflict", out var conflict) && conflict.ValueKind == JsonValueKind.Object)
+                        {
+                            <label class="warning-text">@Text(conflict, "name") already exists:
+                                <select aria-label="@($"When {name} is taken")" @onchange="e => Choose(index, e)">
+                                    <option value="copy">Keep both (save as @name 2)</option>
+                                    <option value="replace">Replace the @(Text(conflict, "source") == "folder" ? "folder" : "saved") blade</option>
+                                    <option value="skip">Skip</option>
+                                </select>
+                            </label>
+                        }
+                        @if (Text(blade, "code") is { Length: > 0 } source)
+                        {
+                            <details><summary>The code</summary><pre class="code-box">@source</pre></details>
+                        }
+                    }
+                </section>
+            }
+            <label class="field"><span>Save in</span>
+                <select aria-label="Save the blades in" @bind="_folder">
+                    <option value="">This app</option>
+                    @foreach (var folder in _folders)
+                    {
+                        <option value="@folder">Blade folder: @folder</option>
+                    }
+                </select>
+            </label>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        @if (_items is not null)
+        {
+            <button type="button" class="btn primary" disabled="@(Importable == 0)" @onclick="ImportAsync"><Icon Name="plus" /> Import @Importable blade@(Importable == 1 ? string.Empty : "s")</button>
+        }
+    </Foot>
+</AppDialog>

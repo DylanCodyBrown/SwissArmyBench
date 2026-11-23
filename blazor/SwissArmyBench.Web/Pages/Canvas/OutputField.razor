@@ -1,0 +1,28 @@
+@* One Out (the classic canvasWiring.ts outputField): its type in words, and who reads it. *@
+@using SwissArmyBench.Web.Api.Canvas
+@using SwissArmyBench.Web.Api.Widgets
+
+<div class="wg-prop cvs-port" data-port="@Port.Name" data-direction="out">
+    <div class="wg-prop-head"><span class="wg-prop-name">@Port.Name</span><span class="wg-prop-mask">Out · @Port.Words</span></div>
+    @if (Port.Help.Length > 0)
+    {
+        <div class="wg-prop-help">@Port.Help</div>
+    }
+    <div class="cvs-readers">@(Readers.Count > 0 ? $"Read by {string.Join(", ", Readers)}" : "Nothing reads it yet.")</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public WidgetPort Port { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public CanvasWiring Wiring { get; set; } = default!;
+
+    private IReadOnlyList<string> Readers => (Wiring.Readers.GetValueOrDefault($"{Id}.{Port.Name}") ?? [])
+        .Select(r => r.Split('.'))
+        .Select(parts => $"{parts[0]} {Wiring.Ports.GetValueOrDefault(parts[0])?.Widget ?? string.Empty} · {(parts.Length > 1 ? parts[1] : string.Empty)}")
+        .ToList();
+}

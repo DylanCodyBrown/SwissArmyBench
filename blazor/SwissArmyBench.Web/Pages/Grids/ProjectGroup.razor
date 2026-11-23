@@ -1,0 +1,146 @@
+@* The open project's group (the classic startView.ts drawGroup, the Application row's): its name (● with unsaved
+   changes), Save (Ctrl+S), Copy to… (Ctrl+Shift+S), Export outline, Close, the Autosave switch. *@
+@implements IDisposable
+@inject ProjectState Project
+@inject ProjectsClient Projects
+@inject ApiClient Api
+@inject FileChooser Files
+@inject Dialogs Dialogs
+@inject Notes Notes
+@inject IJSRuntime Js
+
+@if (Project.Current is { } project)
+{
+    <div class="app-row project-group" role="toolbar" aria-label="Project">
+        <strong class="project-name" title="@(project.Folder ?? project.Path)">@project.Name@(project.Dirty ? " ●" : string.Empty)</strong>
+        <button type="button" class="btn small ribbon-btn" title="@(project.ReadOnly ?? "Save (Ctrl+S)")" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+        <button type="button" class="btn small ribbon-btn" title="Copy project to another folder (Ctrl+Shift+S)" @onclick="CopyAsync"><Icon Name="copy" /> Copy to…</button>
+        <button type="button" class="btn small ribbon-btn" title="ARCHITECTURE.md: the project for someone joining it" @onclick="OutlineAsync"><Icon Name="outline" /> Export outline</button>
+        <button type="button" class="btn small ribbon-btn" title="Close the project" @onclick="CloseAsync"><Icon Name="close" /> Close</button>
+        <label class="check" title="@project.AutosaveError"><input type="checkbox" role="switch" aria-label="Autosave" checked="@project.Autosave" @onchange="e => AutosaveAsync(e.Value is true)" /> Autosave</label>
+        <label class="check" title="Nothing of a private project is sent to an AI completion service"><input type="checkbox" role="switch" aria-label="Private" checked="@project.Private" @onchange="e => PrivateAsync(e.Value is true)" /> Private</label>
+        @if (project.AutosaveError is { } failed)
+        {
+            <span class="warning-text" role="status">@failed <button type="button" class="btn small" @onclick="SaveAsync">Save now</button></span>
+        }
+    </div>
+}
+@if (_keepRows is { } asking)
+{
+    <KeepRowsDialog Title="Save project" Action="Save" Tables="asking" OnDone="RowsChosen" />
+}
+
+@code {
+    private readonly HashSet<string> _askedRows = [];
+    private string? _askedShown;
+    private IReadOnlyList<ProjectTable>? _keepRows;
+    private TaskCompletionSource<Dictionary<string, bool>?>? _rowsChosen;
+
+    protected override void OnInitialized() => Project.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(async () =>
+    {
+        StateHasChanged();
+        // Another program asked to open a folder while work is unsaved (the classic startView.ts answerAsked): once.
+        if (Project.Asked is { } asked && asked != _askedShown)
+        {
+            _askedShown = asked;
+            await GuardAsync(() => ProjectAsks.AnswerAskedAsync(Dialogs, Project, Projects, asked));
+            _askedShown = null;
+        }
+    });
+
+    /// <summary>Save (Ctrl+S too): a table with no source to read again asks Keep its rows once (data is
+    /// sensitive), then .sab/ is written and its notes said.</summary>
+    public Task SaveAsync() => GuardAsync(async () =>
+    {
+        await Project.RefreshAsync();
+        if (Project.Current is not { } project)
+        {
+            return;
+        }
+        if (project.ReadOnly is { } readOnly)
+        {
+            _ = Notes.SayAsync(readOnly);
+            return;
+        }
+        var asking = project.Tables.Where(t => t.NeedsRows && !t.KeepRows && !_askedRows.Contains(t.Name)).ToList();
+        Dictionary<string, bool> keep = [];
+        if (asking.Count > 0)
+        {
+            _keepRows = asking;
+            _rowsChosen = new TaskCompletionSource<Dictionary<string, bool>?>();
+            StateHasChanged();
+            if (await _rowsChosen.Task is not { } chosen)
+            {
+                return;
+            }
+            _askedRows.UnionWith(asking.Select(t => t.Name));
+            keep = chosen;
+        }
+        var saved = await Projects.SaveAsync(keep);
+        foreach (var note in saved.Notes ?? [])
+        {
+            _ = Notes.SayAsync(note);
+        }
+        await Project.RefreshAsync();
+        _ = Notes.SayAsync("Saved");
+    });
+
+    private void RowsChosen(Dictionary<string, bool>? chosen)
+    {
+        _keepRows = null;
+        _rowsChosen?.TrySetResult(chosen);
+    }
+
+    private Task PrivateAsync(bool on) => GuardAsync(async () =>
+    {
+        await Api.PostAsync("/project/private", new { on });
+        await Project.RefreshAsync();
+    });
+
+    /// <summary>Copy to…: the folder chosen, the kept rows asked about (data is sensitive).</summary>
+    private Task CopyAsync() => GuardAsync(async () =>
+    {
+        var source = Project.Current?.Folder ?? Project.Current?.Path;
+        if (source is null || await Files.ChooseAsync("save", $"Copy {Project.Current!.Name} to", null, "project") is not { } target)
+        {
+            return;
+        }
+        var data = await Dialogs.AskYesNoAsync("Copy the rows kept in .sab/data too?", "With them, or without (data is sensitive).", "With them");
+        var done = await Api.PostAsync<JsonElement>("/project/copy", new { path = target, data });
+        _ = Notes.SayAsync($"Copied to {done.GetProperty("copied").GetString()}");
+    });
+
+    /// <summary>Export outline: ARCHITECTURE.md written at the project's top (only when it changed), then Download.</summary>
+    private Task OutlineAsync() => GuardAsync(async () =>
+    {
+        var done = await Api.PostAsync<JsonElement>("/project/outline", new { });
+        var file = done.GetProperty("file").GetString() ?? "ARCHITECTURE.md";
+        var text = done.GetProperty("text").GetString() ?? string.Empty;
+        var written = done.GetProperty("written").GetBoolean();
+        _ = Notes.SayAsync($"{file} {(written ? "written" : "is up to date")}", "Download", () => Js.InvokeVoidAsync("sab.saveText", file, text).AsTask());
+    });
+
+    private Task CloseAsync() => GuardAsync(() => ProjectAsks.CloseAsync(Dialogs, Project, Projects));
+
+    private Task AutosaveAsync(bool on) => GuardAsync(async () =>
+    {
+        await Projects.AutosaveAsync(on);
+        await Project.RefreshAsync();
+    });
+
+    private async Task GuardAsync(Func<Task> work)
+    {
+        try
+        {
+            await work();
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    public void Dispose() => Project.Changed -= Redraw;
+}

@@ -1,0 +1,60 @@
+@* "Beta" in the status bar while beta mode is on (the classic betaNotes.ts betaMark); its menu: Leave a note…, Export
+   beta log…, Turn off beta mode. *@
+@implements IDisposable
+@inject BetaState Beta
+@inject Notes Notes
+
+@if (Beta.On)
+{
+    <button type="button" class="beta-mark btn ghost small" title="Beta mode: recording errors and notes" @onclick="e => _menu = (e.ClientX, e.ClientY - 120)">Beta</button>
+}
+@if (_menu is { } at)
+{
+    <ContextMenu Title="Beta mode" NoBetaNote="true" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@Entries" />
+}
+@if (_exporting)
+{
+    <BetaExport OnDone="() => _exporting = false" />
+}
+
+@code {
+    private (double X, double Y)? _menu;
+    private bool _exporting;
+
+    private IReadOnlyList<MenuEntry> Entries =>
+    [
+        new("Leave a note…", "edit", LeaveNote),
+        new("Export beta log…", "export", () => Task.FromResult(_exporting = true)),
+        new("Turn off beta mode", "close", TurnOffAsync),
+    ];
+
+    // The one note form (Layout/BetaNoteHost), about this mark.
+    private Task LeaveNote()
+    {
+        Beta.AskNote(BetaElement.Named("button", "Beta"));
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Beta.Changed += OnChanged;
+        await Beta.LoadAsync();
+    }
+
+    private async Task TurnOffAsync()
+    {
+        try
+        {
+            await Beta.SetAsync(false);
+            _ = Notes.SayAsync("Beta mode off");
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Beta.Changed -= OnChanged;
+}

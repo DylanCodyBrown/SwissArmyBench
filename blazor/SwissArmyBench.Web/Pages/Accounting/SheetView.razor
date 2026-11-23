@@ -1,0 +1,67 @@
+@* One sheet of a built (or imported) workbook drawn as it looks in Excel (the classic excelPreview.ts drawSheet):
+   column letters and row numbers, each cell's text as formatted (bold, italic, size, colours, a total's borders,
+   numbers to the right), merged cells spanned, Excel's widths, named ranges and a template's bound places marked,
+   each native chart over its anchor cell. A click on a cell names it (the template's binding form). Every value is
+   text, never markup. *@
+@using SwissArmyBench.Web.Api.Accounting
+@inject IJSRuntime Js
+@implements IAsyncDisposable
+
+<div class="xc-preview-sheet" data-sheet="@Sheet.Name" @ref="_wrap">
+    <table class="xc-grid @(OnPick.HasDelegate ? "pickable" : null)" aria-label="@Sheet.Name">
+        <colgroup>
+            <col class="xc-rowhead-col" />
+            @for (var c = 1; c <= Columns; c++)
+            {
+                <col style="@($"width: {ColumnWidth(c)}px")" />
+            }
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="xc-corner"></th>
+                @for (var c = 1; c <= Columns; c++)
+                {
+                    <th scope="col">@WorkbookRules.Letters(c)</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @for (var r = 0; r < Sheet.Rows.Count; r++)
+            {
+                var row = Sheet.Rows[r];
+                <tr>
+                    <th scope="row">@(r + 1)</th>
+                    @for (var c = 0; c < Columns; c++)
+                    {
+                        var key = (r + 1, c + 1);
+                        if (_covered.Contains(key))
+                        {
+                            continue;
+                        }
+                        var cell = c < row.Count ? row[c] : null;
+                        var address = WorkbookRules.Address(r + 1, c + 1);
+                        var named = _named.GetValueOrDefault(address);
+                        var mark = Marks?.GetValueOrDefault(address) ?? (named is null ? null : Marks?.GetValueOrDefault(named));
+                        var span = _spans.GetValueOrDefault(key);
+                        <td class="@CellClass(cell, mark, named)" rowspan="@(span.Rows > 1 ? span.Rows : null)" colspan="@(span.Columns > 1 ? span.Columns : null)"
+                            title="@Titled(cell, named, mark)" data-cell="@address" style="@CellStyle(cell)" @onclick="() => PickAsync(address, named)">
+                            @cell?.T
+                            @if (mark is not null)
+                            {
+                                <span class="xc-mark">@mark</span>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (Sheet.Cut)
+    {
+        <p class="hint">@($"{Sheet.RowCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)} rows by {Sheet.ColumnCount} columns: the first ones shown")</p>
+    }
+    @foreach (var chart in Sheet.Charts)
+    {
+        <div class="xc-chart-holder" data-cell="@chart.Cell.ToUpperInvariant()" data-kind="@chart.Kind">@((MarkupString)ChartSvg.Draw(chart))</div>
+    }
+</div>

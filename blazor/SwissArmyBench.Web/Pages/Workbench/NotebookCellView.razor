@@ -1,0 +1,101 @@
+@* One notebook cell (the classic workbenchNotebook.ts): its number, its kind (Python, SQL with its connection,
+   Markdown, DAX), Run, Move, Delete, its editor (Monaco), and its outputs. A Markdown cell shows its text drawn
+   until it is edited. A cell of the Tables group is the app's: read-only, it follows the grid. Logic in
+   NotebookCellView.razor.cs. *@
+
+<section class="@(Cell.IsAppCell ? "wb-tcell" : "wb-cell") kind-@Cell.Kind @(Selected ? "selected" : string.Empty) @(Cell.Running ? "running" : string.Empty)"
+         data-number="@Cell.Number" aria-label="@Label" tabindex="-1" @onfocusin="() => OnSelect.InvokeAsync(Cell)">
+    <div class="wb-cell-head">
+        <span class="wb-number" title="@($"Cell {Cell.Number}: this number never changes. @cell{Cell.Number} in a comment links here.")">#@Cell.Number</span>
+        @if (!Cell.IsAppCell)
+        {
+            <input type="text" class="wb-cell-name" maxlength="@MaxName" placeholder="Name" aria-label="Cell name" spellcheck="false" value="@Cell.Name" @onchange="NameChangedAsync" @key="_nameKey" @oninput="e => _typedName = e.Value?.ToString()" @onkeydown="NameKeyAsync" @onkeydown:stopPropagation="true" />
+        }
+        <span class="wb-cell-number" title="Its run's number">[@(Cell.ExecutionCount?.ToString() ?? " ")]</span>
+        @if (Cell.IsAppCell)
+        {
+            <span class="chip">@AppWords</span>
+        }
+        else
+        {
+            <select class="wb-cell-kind" aria-label="Cell kind" value="@Cell.Kind" @onchange="KindChangedAsync">
+                <option value="code">Python</option>
+                <option value="sql">SQL</option>
+                <option value="dax">DAX</option>
+                <option value="html">HTML</option>
+                <option value="markdown">Markdown</option>
+                @foreach (var (kind, words) in RoutedKinds)
+                {
+                    <option value="@kind">@words</option>
+                }
+            </select>
+            @if (Cell.Kind is "sql" or "dax")
+            {
+                <select class="wb-cell-connection wb-connection" aria-label="Connection" title="Connection" value="@(Cell.Connection ?? string.Empty)" @onchange="ConnectionChangedAsync">
+                    <option value="">@(Cell.Kind == "sql" ? "DuckDB" : "Choose a dataset")</option>
+                    @if (Cell.Connection is { } current && !Connections.Contains(current))
+                    {
+                        <option value="@current">@current (not found)</option>
+                    }
+                    @foreach (var name in Connections)
+                    {
+                        <option value="@name">@name</option>
+                    }
+                </select>
+            }
+        }
+        <span class="status-spacer"></span>
+        @if (!Cell.IsAppCell)
+        {
+            <button type="button" class="btn small ghost wb-run-to" title="Run every cell from the top to this one" @onclick="() => OnRunTo.InvokeAsync(Cell)"><Icon Name="play" /> Run up to here</button>
+            @if (Cell.Kind == "html" && !Cell.Editing)
+            {
+                <button type="button" class="btn small ghost wb-edit-html" aria-label="Edit HTML" title="Edit the HTML (Enter)" @onclick="EditAsync"><Icon Name="edit" /></button>
+            }
+        }
+        @if (Cell.Kind != "markdown" && (!Cell.IsAppCell || Cell.Role == "transformations"))
+        {
+            <button type="button" class="btn small ghost wb-run" aria-label="Run cell" title="Run cell (Ctrl+Enter)" disabled="@Cell.Running" @onclick="() => OnRun.InvokeAsync(Cell)"><Icon Name="play" /></button>
+        }
+        @if (!Cell.IsAppCell)
+        {
+            <button type="button" class="btn small ghost" aria-label="Move up" title="Move up" @onclick="() => OnMove.InvokeAsync((Cell, -1))"><Icon Name="up" /></button>
+            <button type="button" class="btn small ghost" aria-label="Move down" title="Move down" @onclick="() => OnMove.InvokeAsync((Cell, 1))"><Icon Name="down" /></button>
+            <button type="button" class="btn small ghost" aria-label="More actions" title="More actions" aria-haspopup="menu" @onclick="e => OnMenu.InvokeAsync((Cell, e))"><Icon Name="more" /></button>
+        }
+        @if (!Cell.IsAppCell || Cell.Role == "transformations")
+        {
+            <button type="button" class="btn small ghost" aria-label="Delete cell" title="Delete cell" @onclick="() => OnDelete.InvokeAsync(Cell)"><Icon Name="trash" /></button>
+        }
+    </div>
+    @if (Cell.Kind == "markdown" && !Cell.Editing && Cell.Source.Trim().Length > 0)
+    {
+        <div class="wb-markdown" tabindex="0" role="button" aria-label="@($"Cell {Cell.Number}: Markdown, Enter to edit")" @ondblclick="EditAsync" @onkeydown="MarkdownKeyAsync">
+            @((MarkupString)MarkdownText.ToHtml(Cell.Source))
+        </div>
+    }
+    else if (Cell.Kind == "html" && !Cell.Editing)
+    {
+        <HtmlDesign Cell="Cell" OnRun="() => OnRun.InvokeAsync(Cell)" OnResized="() => OnChanged.InvokeAsync(Cell)" />
+    }
+    else
+    {
+        <CodeEditor @ref="_editor" Value="@Cell.Source" Language="@EditorLanguage" ReadOnly="Cell.IsAppCell" Grow="true" MinLines="2"
+                    Label="@Label" Intel="EditorIntel"
+                    OnChange="TextChangedAsync" OnKey="KeyAsync" Inline="Inline" InlineDocument="InlineDocument"
+                    AgentWhere="@($"cell {Cell.Number} of {Document}")" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
+    }
+    @if (Cell.Kind == "tsx" && Cell.Preview is { } drawn)
+    {
+        <HtmlDesign Cell="Cell" Page="@drawn" OnRun="() => OnRun.InvokeAsync(Cell)" OnResized="() => OnChanged.InvokeAsync(Cell)" />
+    }
+    @if (Cell.OutputHidden)
+    {
+        <button type="button" class="link wb-output-hidden" @onclick="() => Cell.OutputHidden = false">Show output</button>
+    }
+    else if (Cell.Outputs.Count > 0 || Cell.ErrorDetail is not null || Cell.Asking is not null)
+    {
+        <OutputArea Outputs="Cell.Outputs" ErrorDetail="Cell.ErrorDetail" Asking="Cell.Asking" OnAnswer="line => OnAnswer.InvokeAsync((Cell, line))"
+                    Document="@Document" OnOpenTable="id => OnOpenTable.InvokeAsync((Cell, id))" OnFix="fix => OnFix.InvokeAsync((Cell, fix))" OnGoTo="frame => OnGoTo.InvokeAsync((Cell, frame))" />
+    }
+</section>

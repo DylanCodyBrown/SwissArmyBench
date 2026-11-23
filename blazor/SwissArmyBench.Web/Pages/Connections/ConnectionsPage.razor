@@ -1,0 +1,163 @@
+@* The Connections page (the classic connectionsWindow.ts): the cards, a card's detail (?name=), Add connection's
+   types (?add=1) and a type's form (?kind=, or ?edit= a saved one), the Sandbox's own page (?sandbox=1), the Queries
+   window (?queries=<name>, a window of its own). Find connections on this computer (?find=1) and Import… are
+   dialogs over the cards. Each view is in the address, so Back and Forward move between them. *@
+@page "/connections"
+@using SwissArmyBench.Web.Pages.Connections.Sandbox
+
+@if (View == QueriesView)
+{
+    <QueriesWindow Connection="@(Queries is { Length: > 0 } ? Queries : null)" />
+}
+else
+{
+    <section class="area-page">
+        <header class="area-page-head">
+            <h1 class="area-page-title">
+                @Heading
+                @if (View == DetailView && _status is { } status)
+                {
+                    <StatusPill Status="@status.Status" Why="@status.Why" />
+                }
+            </h1>
+            @if (View is ListView or FindView)
+            {
+                <div class="area-page-actions">
+                    <a class="btn primary" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
+                    <button type="button" class="btn" @onclick="() => _importing = true"><Icon Name="import" /> Import…</button>
+                    <a class="btn" href="connections?find=1"><Icon Name="desktop" /> Find connections on this computer…</a>
+                </div>
+            }
+        </header>
+        <div class="area-page-body">
+            @switch (View)
+            {
+                case DetailView:
+                    <ConnectionDetail Name="@(Name ?? string.Empty)" OnStatus="s => _status = s" />
+                    break;
+                case AddView:
+                    <AddConnection />
+                    break;
+                case FormView:
+                    <ConnectionFormView Kind="@Kind" Edit="@Edit" />
+                    break;
+                case SandboxView:
+                    <div class="connection-detail-top">
+                        <BackLink To="Connections" Href="connections" />
+                        <nav class="crumbs" aria-label="Where you are"><a href="connections">Connections</a> › <span>Sandbox</span></nav>
+                    </div>
+                    <p class="sandbox-never-live"><Icon Name="sandbox" /> Local test data, never live: the project's own copy in sandbox/, written only by the sandbox. Never exported as a connection.</p>
+                    <SandboxPanel />
+                    break;
+                default:
+                    <ConnectionCards @key="_listDrawn" />
+                    break;
+            }
+        </div>
+    </section>
+    @if (View == FindView)
+    {
+        <FindConnections OnClose="FindClosed" />
+    }
+    @if (_importing)
+    {
+        <ImportDialog Kind="@ImportDialog.Connections" OnDone="d => ImportClosed(d is not null)" />
+    }
+}
+
+@code {
+    private const string ListView = "list";
+    private const string DetailView = "detail";
+    private const string AddView = "add";
+    private const string FormView = "form";
+    private const string FindView = "find";
+    private const string SandboxView = "sandbox";
+    private const string QueriesView = "queries";
+
+    private (string Status, string? Why)? _status;
+    private bool _importing;
+    private int _listDrawn;
+
+    [SupplyParameterFromQuery]
+    public string? Name { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Add { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Kind { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Edit { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Find { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sandbox")]
+    public string? SandboxShown { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Queries { get; set; }
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager Nav { get; set; } = default!;
+
+    private string View =>
+        Queries is not null ? QueriesView
+        : Kind is not null || Edit is not null ? FormView
+        : Name is not null ? DetailView
+        : SandboxShown is not null ? SandboxView
+        : Add is not null ? AddView
+        : Find is not null ? FindView
+        : ListView;
+
+    /// <summary>The heading, as the classic page sets it: a connection's name on its detail, else Connections.</summary>
+    private string Heading => View switch
+    {
+        DetailView => Name!,
+        SandboxView => "Sandbox",
+        _ => "Connections",
+    };
+
+    /// <summary>The window's title, the place after the page (nav.ts setOverTitle).</summary>
+    private string Title => View switch
+    {
+        DetailView => $"Connections › {Name}",
+        AddView => "Connections › Add connection",
+        FormView => Edit is null ? "Connections › Add connection" : $"Connections › Edit {Edit}",
+        SandboxView => "Connections › Sandbox",
+        QueriesView => $"{(Queries is { Length: > 0 } ? Queries : "All connections")} · Queries",
+        _ => "Connections",
+    };
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (View != DetailView)
+        {
+            _status = null;
+        }
+        return Js.InvokeVoidAsync("sab.setTitle", Title).AsTask();
+    }
+
+    /// <summary>Find closed: back to the cards (drawn again when it imported some).</summary>
+    private void FindClosed(bool imported)
+    {
+        if (imported)
+        {
+            _listDrawn++;
+        }
+        Nav.NavigateTo("connections", replace: true);
+    }
+
+    private void ImportClosed(bool imported)
+    {
+        _importing = false;
+        if (imported)
+        {
+            _listDrawn++;
+        }
+    }
+}

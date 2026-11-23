@@ -1,0 +1,13 @@
+@* The Environment page (the rail's Environment, ?view=environment): the Environment list (EnvironmentView) at the
+   tab ?at= names and the row ?name= names. *@
+@page "/environment"
+
+<EnvironmentView At="@At" RowName="@RowName" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "at")]
+    public string? At { get; set; }
+
+    [SupplyParameterFromQuery(Name = "name")]
+    public string? RowName { get; set; }
+}

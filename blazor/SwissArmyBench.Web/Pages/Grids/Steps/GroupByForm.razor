@@ -1,0 +1,41 @@
+@* Group by: the key columns and the aggregates (count, sum, mean...), each with its column and name. Logic in
+   GroupByForm.razor.cs. *@
+@inherits StepFormBase
+
+<div class="list-editor step-form">
+    <fieldset class="fieldset">
+        <legend>Group by</legend>
+        <div class="form-grid">
+            @foreach (var column in Columns)
+            {
+                var name = column.Name;
+                <label class="check"><input type="checkbox" aria-label="@($"Group by {name}")" checked="@_keys.Contains(name)" @onchange="e => Key(name, e.Value is true)" /> @name</label>
+            }
+        </div>
+    </fieldset>
+    <h3>Aggregates</h3>
+    @foreach (var row in _rows)
+    {
+        <div class="form-row">
+            <label class="field"><span>Aggregate</span>
+                <select aria-label="Aggregate" @bind="row.Fn">
+                    @foreach (var (fn, words) in _functions)
+                    {
+                        <option value="@fn">@words</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>of</span>
+                <select aria-label="Column" @bind="row.Column" disabled="@(row.Fn == "count_rows")">
+                    @foreach (var column in Columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="field"><span>as</span><input type="text" placeholder="Optional" aria-label="Output name" @bind="row.As" /></label>
+            <button type="button" class="btn ghost icon small" aria-label="Remove" @onclick="() => _rows.Remove(row)"><Icon Name="trash" /></button>
+        </div>
+    }
+    <div><button type="button" class="btn small" @onclick="AddRow"><Icon Name="plus" /> Add aggregate</button></div>
+</div>

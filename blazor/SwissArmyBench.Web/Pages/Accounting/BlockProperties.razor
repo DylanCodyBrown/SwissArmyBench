@@ -1,0 +1,92 @@
+@* The selected block's Properties (the classic excelCanvas.ts drawProps): its cell; a title's or text's words; what
+   a table or a pivot reads (an open table, or a DuckDB query); the kind's own fields (TableFields, PivotFields,
+   ChartFields); its width and height in cells. Each box is sent as it changes. *@
+@using SwissArmyBench.Web.Api.Accounting
+
+<h3>@WorkbookRules.Word(Block.Kind) · @Block.Cell</h3>
+<label class="xc-field"><span>Cell</span>
+    <input type="text" class="xc-cell-at" spellcheck="false" data-no-variables value="@Block.Cell" @onchange="@(e => SetAsync("cell", Words(e).Trim().ToUpperInvariant()))" />
+</label>
+@if (Block.Kind is "title" or "text")
+{
+    <label class="xc-field"><span>Text</span>
+        <textarea class="xc-text" rows="@(Block.Kind == "text" ? 4 : 2)" value="@Block.Text" @onchange="@(e => SetAsync("text", Words(e)))"></textarea>
+    </label>
+}
+@if (Block.Kind is "table" or "pivot")
+{
+    var byQuery = Block.Source?.Query is { Length: > 0 };
+    <label class="xc-field"><span>Reads</span>
+        <WorkbookChoice Value="@(byQuery ? "a query" : "a table")" Options="@(["a table", "a query"])" OnPick="ReadsAsync" />
+    </label>
+    @if (byQuery)
+    {
+        <label class="xc-field"><span>DuckDB query</span>
+            <textarea class="xc-query mono" rows="4" spellcheck="false" value="@Block.Source?.Query" @onchange="@(e => SetAsync("source", new { query = Words(e) }))"></textarea>
+        </label>
+    }
+    else
+    {
+        <label class="xc-field"><span>Table</span>
+            <input type="text" class="xc-source" spellcheck="false" list="xc-open-tables" value="@Block.Source?.Table" @onchange="@(e => SetAsync("source", new { table = Words(e).Trim() }))" />
+        </label>
+    }
+}
+@switch (Block.Kind)
+{
+    case "table":
+        <TableFields Block="Block" OnSet="Set" />
+        break;
+    case "pivot":
+        <PivotFields Block="Block" OnSet="Set" />
+        break;
+    case "chart":
+        <ChartFields Block="Block" Design="Design" OnSet="Set" />
+        break;
+    default:
+        break;
+}
+<div class="xc-sizes">
+    <label class="xc-field"><span>Width</span>
+        <input type="text" inputmode="numeric" value="@Block.W" @onchange="@(e => SetAsync("w", Number(e, Block.W)))" />
+    </label>
+    <label class="xc-field"><span>Height</span>
+        <input type="text" inputmode="numeric" value="@Block.H" @onchange="@(e => SetAsync("h", Number(e, Block.H)))" />
+    </label>
+</div>
+<datalist id="xc-open-tables">
+    @foreach (var table in Tables)
+    {
+        <option value="@table"></option>
+    }
+</datalist>
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkbookBlock Block { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public WorkbookDesign Design { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<string> Tables { get; set; } = [];
+
+    [Parameter]
+    public Func<IReadOnlyDictionary<string, object?>, Task<WorkbookState?>> OnPatch { get; set; } = default!;
+
+    private Func<IReadOnlyDictionary<string, object?>, Task> Set => body => OnPatch(body);
+
+    private static string Words(ChangeEventArgs e) => e.Value as string ?? string.Empty;
+
+    private static int Number(ChangeEventArgs e, int otherwise) =>
+        int.TryParse(Words(e), out var n) && n > 0 ? n : otherwise;
+
+    private Task SetAsync(string key, object? value) => OnPatch(new Dictionary<string, object?> { [key] = value });
+
+    private Task ReadsAsync(string reads)
+    {
+        var table = Block.Source?.Table is { Length: > 0 } t ? t : Tables.FirstOrDefault() ?? string.Empty;
+        object source = reads == "a query" ? new { query = $"SELECT * FROM {(table.Length > 0 ? table : "t")}" } : new { table = Tables.FirstOrDefault() ?? string.Empty };
+        return SetAsync("source", source);
+    }
+}

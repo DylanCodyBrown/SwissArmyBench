@@ -1,0 +1,117 @@
+@* The Team box's sign-in step (the classic scmPage.ts teamSignIn, for Settings' Join a team… and Start a team…):
+   Sign in with GitHub (the device flow) or a token pasted once (Use a token, folded when the device flow is offered);
+   drawn with the app's own buttons. OnSignedIn runs once signed in. *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.Git
+@implements IDisposable
+@inject GitClient Git
+@inject IJSRuntime Js
+@inject SwissArmyBench.Web.State.Notes Notes
+
+<div class="team-sign-in">
+    @if (Device)
+    {
+        <div class="row"><button type="button" class="btn primary team-device" @onclick="DeviceAsync"><Icon Name="user" /><span class="btn-label">Sign in with GitHub</span></button></div>
+    }
+    @if (_code is { } shown)
+    {
+        <p class="team-device-code">
+            @if (shown.Words is { } words)
+            {
+                @words
+            }
+            else
+            {
+                <text>Type <strong class="mono">@shown.UserCode</strong> at <a href="@shown.Uri" target="_blank" rel="noopener">@shown.Uri</a></text>
+            }
+        </p>
+    }
+    <details class="team-token-part" open="@(!Device)">
+        <summary>Use a token</summary>
+        <ol class="team-token-steps">
+            @foreach (var step in TokenSteps)
+            {
+                <li>@step</li>
+            }
+        </ol>
+        <div class="row">
+            <input type="password" class="input team-token" placeholder="github_pat_…" aria-label="Personal access token" autocomplete="off" spellcheck="false" @bind="_token" @bind:event="oninput" @onkeydown="TokenKeyAsync" @ref="_box" />
+            <button type="button" class="btn line" @onclick="UseAsync"><span class="btn-label">Use the token</span></button>
+        </div>
+    </details>
+</div>
+
+@code {
+    private readonly CancellationTokenSource _stop = new();
+    private string _token = string.Empty;
+    private (string UserCode, string Uri, string? Words)? _code;
+    private ElementReference _box;
+
+    /// <summary>The device flow is offered (the app is registered with GitHub).</summary>
+    [Parameter]
+    public bool Device { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string> TokenSteps { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnSignedIn { get; set; }
+
+    private Task TokenKeyAsync(KeyboardEventArgs e) => e.Key == "Enter" && _token.Trim().Length > 0 ? UseAsync() : Task.CompletedTask;
+
+    private async Task UseAsync()
+    {
+        if (_token.Trim().Length == 0)
+        {
+            await _box.FocusAsync();
+            return;
+        }
+        try
+        {
+            await Git.SignInWithTokenAsync(_token.Trim());
+            _token = string.Empty;
+            await OnSignedIn.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private async Task DeviceAsync()
+    {
+        try
+        {
+            var words = await new DeviceSignIn(Git).RunAsync(StartedAsync, () => !_stop.IsCancellationRequested, _stop.Token);
+            if (words is null)
+            {
+                await OnSignedIn.InvokeAsync();
+            }
+            else if (_code is { } started)
+            {
+                _code = started with { Words = words };
+            }
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+        catch (TaskCanceledException)
+        {
+            // the step was left
+        }
+    }
+
+    private async Task StartedAsync(DeviceFlow flow)
+    {
+        _code = (flow.UserCode, flow.VerificationUri, null);
+        StateHasChanged();
+        await Js.InvokeVoidAsync("open", flow.VerificationUri, "_blank", "noopener");
+    }
+
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _stop.Dispose();
+    }
+}

@@ -1,0 +1,107 @@
+@* The Files pane (the classic codeExplorer.ts), on the right of the code: the page's groups of files from the server
+   (the Scripts page: Your scripts, Project code, the library's Connections, APIs and Key vaults, Generated; the
+   Notebooks page: the project's notebooks), Find (a file, a module or a symbol), New, New package and Refresh; a
+   module's outline (Show its outline: each class and function a click to its line); a file's right click (Rename…,
+   Duplicate, Delete; a package's own), F2 and Delete on it; a made file marked read-only. Logic in
+   FilesPane.razor.cs. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<aside class="side-pane files-pane" aria-label="@($"Files: {Words.Title.ToLowerInvariant()}")">
+    <div class="side-pane-head">
+        <strong>Files</strong>
+        @if (Tree?.Project is { } project)
+        {
+            <span class="muted" title="@Tree.Folder">@project</span>
+        }
+        <span class="wb-grow"></span>
+        <button type="button" class="btn ghost icon small wb-codex-new" aria-label="@($"New {Words.One}")" title="@($"New {Words.One}")" @onclick="OnNew"><Icon Name="plus" /></button>
+        @if (Page == "scripts")
+        {
+            <button type="button" class="btn ghost icon small wb-codex-package" aria-label="New package" title="New package" @onclick="() => OnAction.InvokeAsync((null, NewPackageHere))"><Icon Name="folder" /></button>
+        }
+        <button type="button" class="btn ghost icon small" aria-label="Refresh" title="Refresh" @onclick="OnRefresh"><Icon Name="reset" /></button>
+    </div>
+    <input type="search" class="wb-codex-search" aria-label="Find" placeholder="@(Page == "scripts" ? "Find a file or symbol" : "Find a notebook")" data-no-variables @bind="_find" @bind:event="oninput" />
+    @if (Tree is null)
+    {
+        <p class="hint">Loading…</p>
+    }
+    else if (Tree.Project is null && Tree.Groups.All(g => g.Files.Count == 0))
+    {
+        <p class="muted side-pane-note wb-codex-none">No project is open. <a href="./" class="link">Home</a></p>
+    }
+    else if (Shown.All(g => g.Files.Count == 0) && _find.Trim().Length > 0)
+    {
+        <p class="hint">@(_find.Trim().Length > 0 ? "Nothing matches." : $"No {Words.One}s yet.")</p>
+    }
+    else
+    {
+        @foreach (var (group, files) in Shown)
+        {
+            <details class="files-group" open>
+                <summary>@group.Name <span class="muted">@files.Count</span></summary>
+                @if (files.Count == 0)
+                {
+                    <p class="hint wb-codex-empty">None</p>
+                }
+                <ul class="files-list" role="tree" aria-label="@group.Name">
+                    @foreach (var file in files)
+                    {
+                        var full = file.Full ?? file.Path;
+                        var outline = file.Outline ?? [];
+                        var shows = _unfolded.Contains(full) || (_find.Trim().Length > 0 && outline.Any(SymbolMatches));
+                        <li>
+                            <div class="wb-codex-file-row">
+                                @if (outline.Count > 0)
+                                {
+                                    <button type="button" class="wb-codex-fold" aria-label="@(shows ? "Hide its outline" : "Show its outline")" aria-expanded="@(shows ? "true" : "false")" @onclick="() => Fold(full)">
+                                        <Icon Name="@(shows ? "down" : "expand")" />
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="wb-codex-fold"></span>
+                                }
+                                <a class="files-item @(Same(full) ? "current" : string.Empty)" role="treeitem" href="@(file.Item is null ? AddressOf(full) : null)"
+                                   @onclick='e => file.Item is null ? Task.CompletedTask : OnAction.InvokeAsync((file, "open-item"))' @onclick:preventDefault="file.Item is not null" data-path="@file.Path"
+                                   title="@(file.MadeFrom is { } from ? $"{file.Path}: made from {from}" : file.Path)" aria-current="@(Same(full) ? "page" : null)"
+                                   @oncontextmenu="e => MenuAsync(e, file)" @oncontextmenu:preventDefault="Own(file)" @onkeydown="e => KeyAsync(e, file)">
+                                    <Icon Name="@(full.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebook" : "code")" />
+                                    <span class="wb-codex-name">@(Page == "scripts" && file.Module is { } module ? module : file.Name)</span>
+                                    @if (file.Edited)
+                                    {
+                                        <span class="wb-codex-mark edited" title="Edited by hand" aria-label="Edited by hand"><Icon Name="edit" /></span>
+                                    }
+                                    else if (file.ReadOnly)
+                                    {
+                                        <span class="chip" title="@(file.MadeFrom is null ? "Read-only" : $"Made from {file.MadeFrom}: read-only")">read-only</span>
+                                    }
+                                </a>
+                                @foreach (var action in file.Actions ?? [])
+                                {
+                                    var picked = action;
+                                    <button type="button" class="btn small ghost wb-codex-action" title="@picked.Label" @onclick="() => OnAction.InvokeAsync((file, picked.Id))">@picked.Label</button>
+                                }
+                            </div>
+                            @if (shows)
+                            {
+                                @foreach (var (symbol, depth) in Flat(outline, 0))
+                                {
+                                    <button type="button" class="wb-codex-symbol sym-@symbol.Kind" role="treeitem" style="@($"padding-left: {20 + depth * 14}px")"
+                                            data-symbol="@symbol.Name" data-line="@symbol.Line" title="@($"{symbol.Kind} {symbol.Name}, line {symbol.Line}")"
+                                            @onclick="() => OnOpenAt.InvokeAsync((full, symbol.Line))">
+                                        <Icon Name="@(symbol.Kind == "class" ? "bolt" : "code")" /> <span>@symbol.Name</span>
+                                    </button>
+                                }
+                            }
+                        </li>
+                    }
+                </ul>
+            </details>
+        }
+    }
+</aside>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}

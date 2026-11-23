@@ -1,0 +1,85 @@
+@* The ERD (the classic erdView.ts, ?view=erd): the keys and joins between the tables, drawn by Mermaid: the
+   project's tables (or all of them), fitted to the window (Fit, Actual size); Import relationships, Manage
+   relationships (the Relationships window). With none yet: Find relationships (the window, its finder running)
+   and the shared models with a table open, each with Apply. Logic in ErdPage.razor.cs. *@
+@page "/erd"
+@implements IDisposable
+
+<section class="area-page erd-page">
+    <div class="area-page-body">
+        <h1 class="sandbox-title">ERD</h1>
+        <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+        @if (Empty)
+        {
+            <div class="erd-empty">
+                <strong>No relationships yet.</strong>
+                <button type="button" class="btn primary" @onclick="() => OpenWindow(true)"><Icon Name="zoom" /> Find relationships</button>
+                @Actions(false)
+                @if (_shared.Count > 0)
+                {
+                    <div class="erd-shared">
+                        <h3>Shared models</h3>
+                        @foreach (var set in _shared)
+                        {
+                            <div class="erd-shared-row">
+                                <span><strong>@set.Name</strong> · @set.OpenTables.Count of @set.Tables.Count tables open</span>
+                                <button type="button" class="btn primary small" @onclick="() => ApplySharedAsync(set.Name)">Apply</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            @Actions(_erd is { Mermaid.Length: > 0 })
+            @if (_scope is { Project: true } scope)
+            {
+                <div class="erd-scope">
+                    <span class="scope-switch" role="group" aria-label="Which tables">
+                        <button type="button" class="btn ghost scope-choice" aria-pressed="@(!_showAll ? "true" : "false")" @onclick="() => ScopeAsync(false)">Tables in this project</button>
+                        <button type="button" class="btn ghost scope-choice" aria-pressed="@(_showAll ? "true" : "false")" @onclick="() => ScopeAsync(true)">All tables</button>
+                    </span>
+                    @if (scope.Words.Length > 0)
+                    {
+                        <span class="hint erd-hidden">@scope.Words</span>
+                    }
+                </div>
+            }
+            @if (_noneHere)
+            {
+                <p class="hint">None of the relationships' tables is used in this project.</p>
+            }
+            else if (_erd is { Mermaid.Length: > 0 } erd)
+            {
+                <div class="diagram erd-diagram" data-fitted="@(_fitted ? "true" : "false")" role="img" aria-label="@($"Relationships of {string.Join(", ", _covered)}")">
+                    <MermaidDiagram Text="@erd.Mermaid" />
+                </div>
+            }
+        }
+    </div>
+</section>
+@if (_window is { } finding)
+{
+    <RelationshipsDialog StartFinding="finding" OnClose="WindowClosedAsync" />
+}
+
+@code {
+    private RenderFragment Actions(bool sized) => __builder =>
+    {
+        <div class="erd-actions">
+            <label class="btn" title="A saved set (reviewed before it is applied) or a model as JSON">
+                <Icon Name="import" /> Import relationships
+                <InputFile class="sr-only" accept=".json,.tang,application/json" OnChange="ImportAsync" />
+            </label>
+            <button type="button" class="btn" @onclick="() => OpenWindow(false)"><Icon Name="crown" /> Manage relationships</button>
+            @* An on extension's buttons (Export to Power BI…), given the tables drawn. *@
+            <PageActions Page="erd" Context="_erd?.Tables" />
+            @if (sized)
+            {
+                <button type="button" class="btn" title="Fit the diagram to the window" @onclick="() => _fitted = true"><Icon Name="max" /> Fit</button>
+                <button type="button" class="btn" @onclick="() => _fitted = false"><Icon Name="zoom" /> Actual size</button>
+            }
+        </div>
+    };
+}

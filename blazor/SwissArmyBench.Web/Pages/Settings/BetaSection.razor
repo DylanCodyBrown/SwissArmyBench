@@ -1,0 +1,72 @@
+@* Settings' Beta (the classic betaNotes.ts betaSection): the Beta mode switch (greyed out when the environment decides
+   it), Export beta log…, Clear the log (asked first: Clear the beta log). *@
+@implements IDisposable
+@inject BetaState Beta
+@inject SettingsClient Settings
+@inject Notes Notes
+
+<fieldset class="fieldset beta-fieldset">
+    <legend><Icon Name="edit" /> Beta</legend>
+    <label class="check"><input type="checkbox" class="beta-switch" checked="@Beta.On" disabled="@Beta.Locked" title="@(Beta.Locked ? "The environment decides it for this server" : null)" @onchange="e => SetAsync(e.Value is true)" /> Beta mode</label>
+    <div class="beta-actions">
+        <button type="button" class="btn" @onclick="() => _exporting = true"><Icon Name="export" /> Export beta log…</button>
+        <button type="button" class="btn danger" @onclick="() => _clearing = true"><Icon Name="trash" /> Clear the log</button>
+    </div>
+</fieldset>
+@if (_exporting)
+{
+    <BetaExport OnDone="() => _exporting = false" />
+}
+@if (_clearing)
+{
+    <AppDialog Title="Clear the beta log" OnClose="() => _clearing = false">
+        <ChildContent><p>Every log file, note and picture goes.</p></ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="() => _clearing = false">Cancel</button>
+            <button type="button" class="btn danger" @onclick="ClearAsync"><Icon Name="trash" /> Clear</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private bool _exporting;
+    private bool _clearing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Beta.Changed += OnChanged;
+        await Beta.LoadAsync();
+    }
+
+    private async Task SetAsync(bool on)
+    {
+        try
+        {
+            await Beta.SetAsync(on);
+            _ = Notes.SayAsync(on ? "Beta mode on" : "Beta mode off");
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        _clearing = false;
+        try
+        {
+            await Settings.ClearBetaLogAsync();
+            _ = Notes.SayAsync("Cleared");
+            await Beta.RefreshAsync();
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Beta.Changed -= OnChanged;
+}

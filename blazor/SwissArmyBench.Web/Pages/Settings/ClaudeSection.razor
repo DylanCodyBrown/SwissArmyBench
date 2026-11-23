@@ -1,0 +1,104 @@
+@* Settings' Claude (the classic claudeLaunch.ts claudeSection): which Claude Code and which Claude Desktop (each found
+   one in a list, else Not found; Other… a file of your own), Desktop's settings file (Choose…), Start Claude Code with
+   bypass permissions, Look again. *@
+@inject SettingsClient Settings
+@inject FileChooser Files
+
+<fieldset class="fieldset claude-fieldset">
+    <legend><Icon Name="claude" /> Claude</legend>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_state is { } state)
+    {
+        <div class="claude-installs">
+            @foreach (var (kind, name, side) in new[] { ("code", "Claude Code", state.Code), ("desktop", "Claude Desktop", state.Desktop) })
+            {
+                <div class="claude-side">
+                    <span class="claude-side-name">@name</span>
+                    <select aria-label="@name" class="claude-choice" data-kind="@kind" disabled="@(side.Found.Count == 0)" title="@side.Chosen" @onchange="e => PutAsync(new Dictionary<string, object?> { [kind] = e.Value?.ToString() })">
+                        @if (side.Found.Count == 0)
+                        {
+                            <option value="">Not found</option>
+                        }
+                        @foreach (var f in side.Found)
+                        {
+                            <option value="@f.Path" selected="@(f.Path == side.Chosen)" title="@f.Source">@(kind == "desktop" && f.Name != "Claude" ? $"{f.Name}: {f.Path}" : f.Path)</option>
+                        }
+                    </select>
+                    <button type="button" class="btn ghost" @onclick="() => OtherAsync(kind, name)"><Icon Name="folder" /> Other…</button>
+                    @if (kind == "desktop" && side.Config is { } config)
+                    {
+                        <span class="claude-side-name">Its settings file</span>
+                        <code class="mono claude-config-path" title="@(config.Known ? string.Empty : "Not found: the likeliest place")">@config.Path</code>
+                        <button type="button" class="btn ghost" @onclick="ChooseConfigAsync"><Icon Name="folder" /> Choose…</button>
+                    }
+                </div>
+            }
+        </div>
+        <div class="updates-row">
+            <label class="check"><input type="checkbox" class="claude-bypass" checked="@state.Bypass" @onchange="e => PutAsync(new Dictionary<string, object?> { [Bypass] = e.Value is true })" /> Start Claude Code with bypass permissions</label>
+            <Busy IsBusy="_looking" Words="Looking…"><button type="button" class="btn ghost" @onclick="LookAgainAsync"><Icon Name="reset" /> Look again</button></Busy>
+        </div>
+    }
+</fieldset>
+
+@code {
+    private const string Bypass = "bypass";
+
+    private ClaudeStatus? _state;
+    private Exception? _error;
+    private bool _looking;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync(false);
+
+    private async Task LoadAsync(bool refresh)
+    {
+        try
+        {
+            _state = await Settings.ClaudeAsync(refresh);
+        }
+        catch (ApiException)
+        {
+            _state = null; // an older server: no Launch Claude
+        }
+    }
+
+    private async Task LookAgainAsync()
+    {
+        _looking = true;
+        await LoadAsync(true);
+        _looking = false;
+    }
+
+    private async Task PutAsync(Dictionary<string, object?> body)
+    {
+        try
+        {
+            _state = await Settings.SetClaudeAsync(body);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task OtherAsync(string kind, string name)
+    {
+        if (await Files.ChooseAsync("file", $"Choose {name}", null, "claude") is { } path)
+        {
+            await PutAsync(new Dictionary<string, object?> { [kind] = path });
+        }
+    }
+
+    private async Task ChooseConfigAsync()
+    {
+        if (_state?.Desktop.Chosen is not { } desktop)
+        {
+            return;
+        }
+        if (await Files.ChooseAsync("save", "Choose claude_desktop_config.json", _state.Desktop.Config?.Path, "claude") is { } path)
+        {
+            await PutAsync(new Dictionary<string, object?> { ["config"] = new Dictionary<string, string> { [desktop] = path } });
+        }
+    }
+}

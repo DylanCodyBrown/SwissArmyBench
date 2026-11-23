@@ -1,0 +1,96 @@
+@* Add variable over any page (the classic variableLinks.ts): its name (upper case, letters, digits and _), its value,
+   and how it is kept: a plain value, this computer only, or a secret in the keyring (a name that reads as a secret
+   starts there). The same PUT /variables as the Environment's form. The focus goes to the value when a name came. *@
+@using System.Text.RegularExpressions
+@inject EnvironmentClient Environment
+@inject Notes Notes
+
+<AppDialog Title="Add variable" OnClose="() => OnClose.InvokeAsync()">
+    <ChildContent>
+        <form class="variables-form" aria-label="Add variable" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+            <label class="field"><span>Name</span><input class="mono" aria-label="Name" placeholder="SALES_REGION" spellcheck="false" value="@_name" @oninput="NameTyped" autocomplete="off" data-no-variables /></label>
+            <label class="field variables-form-value"><span>Value</span><input aria-label="Value" type="@(_kept == Keyring ? "password" : "text")" autocomplete="off" spellcheck="false" @bind="_value" @ref="_valueBox" /></label>
+            <label class="field"><span>Kept</span>
+                <select aria-label="Kept" value="@_kept" @onchange="KeptChanged">
+                    <option value="@Plain">Plain value</option>
+                    <option value="@Local">This computer only</option>
+                    <option value="@Keyring">Keyring (secret)</option>
+                </select>
+            </label>
+        </form>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+        <button type="button" class="btn primary" disabled="@(_name.Length == 0)" @onclick="SaveAsync">Add</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private const string Plain = "value";
+    private const string Local = "local";
+    private const string Keyring = "keyring";
+
+    private static readonly Regex _secretName = new("PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE", RegexOptions.IgnoreCase);
+    private static readonly Regex _notInName = new("[^A-Z0-9_]");
+
+    private string _name = string.Empty;
+    private string _value = string.Empty;
+    private string _kept = Plain;
+    private bool _picked;
+    private Exception? _error;
+    private ElementReference _valueBox;
+
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>Saved: the variable's name, for the box that asked.</summary>
+    [Parameter]
+    public EventCallback<string> OnAdded { get; set; }
+
+    protected override void OnInitialized() => Take(Name);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _name.Length > 0)
+        {
+            await _valueBox.FocusAsync();
+        }
+    }
+
+    private void NameTyped(ChangeEventArgs e) => Take(e.Value?.ToString() ?? string.Empty);
+
+    private void Take(string typed)
+    {
+        _name = _notInName.Replace(typed.ToUpperInvariant(), "_");
+        if (!_picked)
+        {
+            _kept = _secretName.IsMatch(_name) ? Keyring : Plain;
+        }
+    }
+
+    private void KeptChanged(ChangeEventArgs e)
+    {
+        _kept = e.Value?.ToString() ?? Plain;
+        _picked = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        var added = _name.Trim();
+        try
+        {
+            await Environment.SetVariableAsync(added, _value, _kept == Keyring, _kept == Local);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            return;
+        }
+        _ = Notes.SayAsync($"Added {added}");
+        await OnAdded.InvokeAsync(added);
+    }
+}

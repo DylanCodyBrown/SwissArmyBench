@@ -1,0 +1,91 @@
+@* Export the local sandbox API (the classic localApis.ts openExport): for its target (changed in Properties), the
+   sandbox's rows on a tick when an endpoint uses the sandbox; Export: the folder, its files, the variables to set
+   where it runs, a file edited by hand kept (Replace, Compare: yours and the export's). *@
+@using SwissArmyBench.Web.Api.LocalApi
+@inject LocalApiClient LocalApi
+
+<AppDialog Title="Export the local sandbox API" OnClose="OnClose">
+    <ChildContent>
+        <p class="local-api-target">For <strong>@TargetWords</strong><span class="muted"> (its target: change it in Properties)</span></p>
+        @if ((State.Endpoints ?? []).Any(e => e.Data.Any(d => d.StartsWith("The sandbox", StringComparison.Ordinal))))
+        {
+            <label class="field-inline"><input type="checkbox" aria-label="Include the sandbox's rows" @bind="_rows" /> <span>Include the sandbox's rows (data/sandbox.duckdb), for the endpoints that use connection("Sandbox")</span></label>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_done is { } done)
+        {
+            <div class="local-api-exported">
+                <p>@done.Target.Label: @done.Files.Count files in <code>@done.Folder</code>@(done.Written.Count > 0 ? $" ({done.Written.Count} written)" : " (nothing changed)")</p>
+                @if (done.Target.Run.Length > 0)
+                {
+                    <p class="muted">Run it there with <code>@done.Target.Run</code>; README.md has the deploy steps.</p>
+                }
+                <h3>Variables to set where it runs</h3>
+                @if (done.Variables.Count > 0)
+                {
+                    <ul>
+                        @foreach (var v in done.Variables)
+                        {
+                            <li><code>@v</code></li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="muted">None.</p>
+                }
+                @foreach (var k in done.Kept)
+                {
+                    <div class="local-api-kept">
+                        <span><code>@k.File</code> was edited by hand: kept.</span>
+                        <button type="button" class="btn small" @onclick="() => RunAsync([k.File])">Replace</button>
+                        <button type="button" class="btn small" @onclick="() => _compare = k">Compare</button>
+                    </div>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Close</button>
+        <Busy IsBusy="_exporting" Words="Exporting…"><button type="button" class="btn primary" @onclick="() => RunAsync(null)">Export</button></Busy>
+    </Foot>
+</AppDialog>
+@if (_compare is { } compare)
+{
+    <AppDialog Title="@($"{compare.File}: yours and the export's")" OnClose="() => _compare = null">
+        <div class="local-api-compare"><pre class="mono">@compare.Yours</pre><pre class="mono">@compare.Theirs</pre></div>
+    </AppDialog>
+}
+
+@code {
+    private bool _rows;
+    private bool _exporting;
+    private ExportedApi? _done;
+    private KeptFile? _compare;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public LocalApiState State { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Target => State.Settings?.Target ?? State.Targets?.FirstOrDefault()?.Id ?? string.Empty;
+
+    private string TargetWords => State.Targets?.FirstOrDefault(t => t.Id == Target)?.Label ?? Target;
+
+    private async Task RunAsync(IReadOnlyList<string>? replace)
+    {
+        _exporting = true;
+        try
+        {
+            _done = await LocalApi.ExportAsync(Target, _rows, replace);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _exporting = false;
+    }
+}

@@ -1,0 +1,23 @@
+@* The project types explained for beginners (the backend's words): who it is for, what you get, an example, Create. *@
+<div class="card-grid project-types">
+    @foreach (var type in Types)
+    {
+        <div class="card project-type" data-type="@type.Type">
+            <div class="card-title"><Icon Name="project" /> <span>@type.Title</span></div>
+            <p class="muted">@type.ForWhom</p>
+            <p>@type.Explain</p>
+            <p class="muted">@type.Example</p>
+            <div class="card-actions">
+                <button type="button" class="btn small" @onclick="() => OnCreate.InvokeAsync(type)"><Icon Name="plus" /> Create</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ProjectType> Types { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<ProjectType> OnCreate { get; set; }
+}

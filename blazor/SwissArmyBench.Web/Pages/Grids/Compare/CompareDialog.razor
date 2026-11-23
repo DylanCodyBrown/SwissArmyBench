@@ -1,0 +1,68 @@
+@* Pick the keys to compare two grids (the classic compareDialog.ts), with the Key Finder already run: the likely
+   key pairs best first, each ticked to use it (several make one key of several columns), a known relationship first
+   with a crown, a pair added by hand. Compare lines the grids up; Close keeps the split with no keys. Logic in
+   CompareDialog.razor.cs. *@
+
+<AppDialog Wide="true" Title="@($"Compare {Left.Dataset} with {Right.Dataset}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="compare-dialog">
+            <div class="hint" role="status">@_status</div>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            <ErrorNote Words="@_problem" OnClose="() => _problem = null" />
+            <table class="kf-table rows">
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>@Left.Dataset column</th>
+                        <th>@Right.Dataset column</th>
+                        <th class="num">% of @Left.Dataset found</th>
+                        <th class="num">% of @Right.Dataset found</th>
+                        <th class="num">Shared values</th>
+                        <th>Relationship</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td>
+                                <input type="checkbox" aria-label="@($"Use {row.Left} = {row.Right} as a key")" checked="@_ticked.Contains(row.Id)" @onchange="e => Tick(row, e.Value is true)" />
+                                @if (row.Known)
+                                {
+                                    <span class="known-pair" title="A known relationship"><Icon Name="crown" /></span>
+                                }
+                            </td>
+                            <td><strong>@row.Left</strong></td>
+                            <td><strong>@row.Right</strong></td>
+                            <td class="num">@row.LeftFound</td>
+                            <td class="num">@row.RightFound</td>
+                            <td class="num">@row.Shared</td>
+                            <td>@row.Relationship</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="kf-form form-row">
+                <span class="hint">By hand:</span>
+                <select aria-label="@($"{Left.Dataset} column")" @bind="_leftPick">
+                    @foreach (var column in Left.Columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+                <span>=</span>
+                <select aria-label="@($"{Right.Dataset} column")" @bind="_rightPick">
+                    @foreach (var column in Right.Columns)
+                    {
+                        <option value="@column.Name">@column.Name</option>
+                    }
+                </select>
+                <button type="button" class="btn" @onclick="AddPair"><Icon Name="plus" /> Add</button>
+            </div>
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" title="Keep the split without keys" @onclick="OnClose">Close</button>
+        <button type="button" class="btn primary" title="Line up on the ticked keys" disabled="@(_ticked.Count == 0)" @onclick="GoAsync">Compare</button>
+    </Foot>
+</AppDialog>

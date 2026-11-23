@@ -1,0 +1,67 @@
+@* The Pasted as note (the classic renameTable.ts pastedToast): the new table's name in a box, ready for a better
+   one; Enter renames it, Escape closes the note; it goes by itself unless the box is in use. *@
+@implements IDisposable
+
+<div class="note-corner pasted-corner" aria-live="polite">
+    <div class="toast toast-naming" role="status">
+        <span>Pasted as</span>
+        <input class="toast-name" value="@Name" aria-label="@($"Name for {Name}")" spellcheck="false" @oninput="e => _typed = e.Value?.ToString()"
+               @onkeydown="KeyAsync" @onfocus="Hold" @onblur="() => Later(BlurMilliseconds)" />
+        <span class="muted">Enter renames</span>
+    </div>
+</div>
+
+@code {
+    // Shown this long, and this long again after the box loses the focus.
+    private const int ShownMilliseconds = 8000;
+    private const int BlurMilliseconds = 4000;
+
+    private string? _typed;
+    private CancellationTokenSource? _timer;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnRename { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized() => Later(ShownMilliseconds);
+
+    private void Hold() => _timer?.Cancel();
+
+    private void Later(int milliseconds)
+    {
+        _timer?.Cancel();
+        _timer = new CancellationTokenSource();
+        var token = _timer.Token;
+        _ = Task.Delay(milliseconds, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled)
+            {
+                _ = InvokeAsync(() => OnClose.InvokeAsync());
+            }
+        }, TaskScheduler.Default);
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+        }
+        else if (e.Key == "Enter" && _typed is { } to && to.Trim().Length > 0 && to.Trim() != Name)
+        {
+            await OnRename.InvokeAsync(to.Trim());
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        _timer?.Cancel();
+        _timer?.Dispose();
+    }
+}

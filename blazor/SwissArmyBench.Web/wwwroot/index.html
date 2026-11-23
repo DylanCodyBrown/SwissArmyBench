@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Swiss Army Bench</title>
+    <!-- Every page of this app lives under /blazor/ on the app's own server (the classic pages stay at /workspace). -->
+    <base href="/blazor/" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/fluent-theme.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/connections.css" />
+    <link rel="stylesheet" href="css/environment.css" />
+    <link rel="stylesheet" href="css/settings.css" />
+    <link rel="stylesheet" href="css/apis.css" />
+    <!-- The extensions' pages: the classic grid.css's own sections (the Canvas, Widgets, Source Control...). -->
+    <link rel="stylesheet" href="css/canvas.css" />
+    <link rel="stylesheet" href="css/scm.css" />
+    <link rel="stylesheet" href="css/extensions.css" />
+    <link rel="stylesheet" href="css/workbench.css" />
+    <link rel="stylesheet" href="css/analyze.css" />
+    <link rel="stylesheet" href="css/grids.css" />
+    <link rel="stylesheet" href="css/shared.css" />
+    <link rel="stylesheet" href="SwissArmyBench.Web.styles.css" />
+    <script type="importmap"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="boot">Opening Swiss Army Bench…</div>
+    </div>
+
+    <div id="blazor-error-ui">
+        Something went wrong in the page. <a href="." class="reload">Reload</a>
+        <a class="dismiss">×</a>
+    </div>
+    <!-- shell.js: the small helpers the C# side calls (the session, the theme, storage, the clipboard). -->
+    <script src="js/shell.js"></script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+</body>
+</html>

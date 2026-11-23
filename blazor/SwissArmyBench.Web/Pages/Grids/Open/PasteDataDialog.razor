@@ -1,0 +1,79 @@
+@* Paste data (the classic openFile.ts pasteData): a box to paste a copied table into; a pasted table (more than one
+   line) opens at once, named pasted_<time> as the page's own Ctrl+V names it; typed text waits for Open. *@
+@implements IDisposable
+@inject ApiClient Api
+@inject IJSRuntime Js
+
+<AppDialog Title="Paste data" OnClose="OnClose">
+    <ChildContent>
+        <textarea class="paste-box" rows="8" placeholder="Copy a table in Excel or a web page, then press Ctrl+V here" aria-label="Pasted table"
+                  @bind="_text" @bind:event="oninput" @ref="_box"></textarea>
+        <ErrorNote Words="@_problem" OnClose="() => _problem = null" />
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="() => SendAsync(_text)"><Icon Name="table" /> Open</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _text = string.Empty;
+    private string? _problem;
+    private Exception? _error;
+    private ElementReference _box;
+    private DotNetObjectReference<PasteDataDialog>? _self;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>A table was made from the paste: its name.</summary>
+    [Parameter]
+    public EventCallback<string> OnPasted { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("sab.onTablePaste", _box, _self);
+        }
+    }
+
+    /// <summary>A paste of more than one line: it opens straight away.</summary>
+    [JSInvokable]
+    public async Task Pasted(string text)
+    {
+        _text = text;
+        await SendAsync(text);
+        StateHasChanged();
+    }
+
+    private async Task SendAsync(string text)
+    {
+        if (text.Trim().Length == 0)
+        {
+            _problem = "Paste a table first: rows on lines, columns split by tabs or commas.";
+            return;
+        }
+        var stamp = DateTime.Now.ToString("HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        try
+        {
+            var taken = (await Api.GetAsync<DatasetsAnswer>("/datasets")).Datasets.Select(d => d.Name).ToHashSet();
+            var name = Enumerable.Range(2, 1000).Select(n => $"pasted_{stamp}_{n}").Prepend($"pasted_{stamp}").First(n => !taken.Contains(n));
+            await Js.InvokeVoidAsync("sab.postText", $"/datasets/{name}/paste", text);
+            await OnPasted.InvokeAsync(name);
+            await OnClose.InvokeAsync();
+        }
+        catch (JSException error)
+        {
+            _problem = error.Message;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    public void Dispose() => _self?.Dispose();
+}

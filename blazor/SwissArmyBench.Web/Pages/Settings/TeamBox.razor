@@ -1,0 +1,229 @@
+@* Settings' Team box (the classic library.ts teamSection), first after Theme: no team, "Share connections, variables
+   and projects with your team." with Join a team… and Start a team… (one dialog of steps); joined, "Team: owner/repo",
+   its sync words only when something is to do, Pull, Push and More (Open on GitHub, Set up this computer, Show its
+   folder, Leave the team); the local projects folder's row; Advanced: the team library folder (Change…, Default), the
+   shared projects folder, Set up this computer. A Join or Start kept over Install's restart goes on by itself. *@
+@implements IDisposable
+@inject SettingsClient Settings
+@inject ProjectsClient Projects
+@inject FileChooser Files
+@inject Notes Notes
+@inject LiveUpdates Live
+@inject IJSRuntime Js
+
+<fieldset class="fieldset team-fieldset">
+    <legend><Icon Name="user" /> Team</legend>
+    <div class="team-main">
+        @if (_team is null)
+        {
+            <div class="loading-block">Loading…</div>
+        }
+        else if (_team is { State: "joined", Team: { } team })
+        {
+            <div class="team-joined">
+                <Icon Name="user" />
+                <span class="team-name-words">Team: <strong>@team.Repository</strong></span>
+                @if (team.Sync is { } sync)
+                {
+                    <span class="team-sync team-sync-@sync.State">@sync.Words</span>
+                }
+                <span class="team-actions">
+                    <Busy IsBusy="_acting == Pull" Words="Pulling…"><button type="button" class="btn small line team-pull" @onclick="() => ActAsync(Pull)">Pull</button></Busy>
+                    <Busy IsBusy="_acting == Push" Words="Pushing…"><button type="button" class="btn small line team-push" @onclick="() => ActAsync(Push)">Push</button></Busy>
+                    <button type="button" class="btn ghost icon team-more" aria-label="More" title="More" @onclick="e => _menu = (e.ClientX, e.ClientY)"><Icon Name="more" /></button>
+                </span>
+            </div>
+        }
+        else
+        {
+            <p class="team-none">Share connections, variables and projects with your team.</p>
+            <div class="row">
+                <button type="button" class="btn primary team-join" @onclick='() => _flow = "join"'><Icon Name="user" /> Join a team…</button>
+                <button type="button" class="btn line team-start" @onclick='() => _flow = "start"'><Icon Name="plus" /> Start a team…</button>
+            </div>
+        }
+    </div>
+    @if (_team is { } status)
+    {
+        <p class="team-local-projects">
+            New projects go in <code class="mono projects-local">@status.LocalProjects</code> · <button type="button" class="link team-local-change" @onclick="ChangeLocalAsync">Change…</button>
+            @if (!status.LocalProjectsDefault)
+            {
+                <text> · </text><button type="button" class="link" @onclick="DefaultLocalAsync">Default</button>
+            }
+        </p>
+        <details class="team-advanced">
+            <summary>Advanced</summary>
+            <div class="team-advanced-row library-row">
+                <span class="team-advanced-label">Team library folder</span>
+                <code class="mono library-folder-path">@status.LibraryFolder</code>
+                <button type="button" class="btn small line" @onclick="ChangeLibraryAsync"><Icon Name="folder" /> Change…</button>
+                @if (!status.LibraryDefault)
+                {
+                    <button type="button" class="btn ghost small" @onclick="() => RunAsync(() => Settings.SetLibraryFolderAsync(null))">Default</button>
+                }
+            </div>
+            <div class="team-advanced-row projects-shared-row">
+                <span class="team-advanced-label">Shared projects folder</span>
+                <code class="mono">@(status.SharedFolder ?? "None")</code>
+                <button type="button" class="btn small line" @onclick="ChangeSharedAsync"><Icon Name="folder" /> Change…</button>
+            </div>
+            <div class="row"><button type="button" class="btn small line team-setup" @onclick="() => _setup = true"><Icon Name="check" /> Set up this computer</button></div>
+        </details>
+    }
+</fieldset>
+@if (_menu is { } at && _team?.Team is { } joined)
+{
+    <ContextMenu Title="@joined.Repository" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@MoreEntries(joined)" />
+}
+@if (_flow is { } flow)
+{
+    <TeamFlowDialog Action="@flow" OnClose="FlowClosedAsync" />
+}
+@if (_leaving is { } leaving)
+{
+    <AppDialog Title="@($"Leave {leaving}")" OnClose="() => _leaving = null">
+        <ChildContent><p>Keep a copy of the team's connections, vaults, variables and blades in this computer's own library?</p></ChildContent>
+        <Foot>
+            <button type="button" class="btn primary team-leave-keep" @onclick="() => LeaveAsync(true)">Keep a copy</button>
+            <button type="button" class="btn line team-leave-plain" @onclick="() => LeaveAsync(false)">Leave without a copy</button>
+            <button type="button" class="btn ghost" @onclick="() => _leaving = null">Cancel</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_setup)
+{
+    <AppDialog Title="Set up this computer" OnClose="() => _setup = false">
+        <div class="library-setup"><SetupChecklistView /></div>
+    </AppDialog>
+}
+
+@code {
+    private const string Pull = "/team/pull";
+    private const string Push = "/team/push";
+
+    private TeamStatus? _team;
+    private string? _acting;
+    private (double X, double Y)? _menu;
+    private string? _flow;
+    private string? _leaving;
+    private bool _setup;
+    private bool _resumed;
+
+    [Parameter]
+    public EventCallback<Exception> OnError { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _team = await Settings.TeamAsync();
+            if (_team.Pending is { } pending && !_resumed)
+            {
+                _resumed = true;
+                _flow = pending.Action; // a Join or Start kept over Install's restart goes on
+            }
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+    }
+
+    private IReadOnlyList<MenuEntry> MoreEntries(TeamJoined team) =>
+    [
+        new("Open on GitHub", "globe", () => team.Url is { } url ? Js.InvokeVoidAsync("open", url, "_blank", "noopener").AsTask() : Task.CompletedTask, team.Url is null ? "GitHub sync is not installed" : null),
+        new("Set up this computer", "check", () => Task.FromResult(_setup = true)),
+        new("Show its folder", "folder", () => RunAsync(Settings.TeamShowAsync)),
+        MenuEntry.Separator,
+        new("Leave the team", "close", () => Task.FromResult(_leaving = team.Repository)),
+    ];
+
+    private async Task ActAsync(string route)
+    {
+        _acting = route;
+        await RunAsync(async () =>
+        {
+            if ((await Settings.TeamActAsync(route)).Words is { } words)
+            {
+                _ = Notes.SayAsync(words);
+            }
+        });
+        _acting = null;
+    }
+
+    private Task LeaveAsync(bool keep) => RunAsync(async () =>
+    {
+        var done = await Settings.TeamLeaveAsync(keep);
+        _leaving = null;
+        if (done.Words is { } words)
+        {
+            _ = Notes.SayAsync(words);
+        }
+    });
+
+    private Task DefaultLocalAsync() => RunAsync(Projects.DefaultFolderAsync);
+
+    private async Task ChangeLocalAsync()
+    {
+        if (await Files.ChooseAsync("folder", "The local projects folder", _team?.LocalProjects, "projects") is { } folder)
+        {
+            await RunAsync(() => Projects.SetFolderAsync("local", folder));
+        }
+    }
+
+    private async Task ChangeSharedAsync()
+    {
+        if (await Files.ChooseAsync("folder", "The shared projects folder", _team?.SharedFolder ?? _team?.LocalProjects, "projects") is { } folder)
+        {
+            await RunAsync(() => Projects.SetFolderAsync("shared", folder));
+        }
+    }
+
+    private async Task ChangeLibraryAsync()
+    {
+        if (await Files.ChooseAsync("folder", "The team library folder", _team?.LibraryFolder, "library") is { } folder)
+        {
+            await RunAsync(() => Settings.SetLibraryFolderAsync(folder));
+        }
+    }
+
+    private async Task FlowClosedAsync()
+    {
+        _flow = null;
+        await LoadAsync();
+    }
+
+    private async Task RunAsync(Func<Task> work)
+    {
+        try
+        {
+            await work();
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+        await LoadAsync();
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type is "team_changed" or "sync_changed" or "library_changed" or "projects_changed")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

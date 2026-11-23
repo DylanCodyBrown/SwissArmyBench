@@ -1,0 +1,32 @@
+@* The rail (the classic rail.ts): the areas down the left in the order of the work, each a link (a click moves this
+   tab, so Back and Forward work; Ctrl+click or a middle click opens a new tab). The current area is marked; its
+   names show beside the icons until turned off at its foot (every window follows: rail.json). *@
+
+<nav class="nav-rail" aria-label="Areas">
+    <div class="nav-rail-items" role="toolbar" aria-label="Areas" aria-orientation="vertical">
+        @foreach (var area in Shown)
+        {
+            var here = area.Area == Current;
+            <a href="@area.Route"
+               class="nav-rail-item @(area.Kind is null ? string.Empty : $"nav-rail-kind km-{area.Kind}") @(area.Area == Areas.Extensions ? "nav-rail-bottom" : string.Empty) @(here ? "current" : string.Empty)"
+               data-area="@area.Area"
+               aria-label="@LabelOf(area)"
+               aria-current="@(here ? "page" : null)">
+                <Icon Name="@area.Icon" />
+                @if (area.Area == Areas.Session && RailState.Unseen > 0)
+                {
+                    <span class="nav-rail-count" aria-hidden="true">@(RailState.Unseen > MostShown ? $"{MostShown}+" : RailState.Unseen.ToString())</span>
+                }
+                <span class="nav-rail-name" aria-hidden="true">@area.Name</span>
+                <span class="nav-rail-tip" aria-hidden="true">@area.Name@if (area.Keys is not null)
+                    {
+                        <kbd>@area.Keys</kbd>
+                    }</span>
+            </a>
+        }
+    </div>
+    <button type="button" class="nav-rail-toggle" aria-label="@ToggleWords" title="@ToggleWords" aria-expanded="@(RailState.Names ? "true" : "false")" @onclick="ToggleNamesAsync">
+        <Icon Name="@(RailState.Names ? "collapse" : "expand")" />
+        <span class="nav-rail-name" aria-hidden="true">@ToggleWords</span>
+    </button>
+</nav>

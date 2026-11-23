@@ -81,7 +81,7 @@ from starlette.applications import Starlette
 from starlette.datastructures import Headers
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
 from starlette.staticfiles import NotModifiedResponse, StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -221,6 +221,42 @@ class CheckedStaticFiles(StaticFiles):
         if self.is_not_modified(answer.headers, Headers(scope=scope)):
             return NotModifiedResponse(answer.headers)
         return answer
+
+
+# Said at /blazor/ when the Blazor front end is not built here (blazor/README.md says how).
+BLAZOR_MISSING: str = (
+    "<!doctype html><html><head><meta charset='utf-8'><title>Swiss Army Bench</title></head><body "
+    "style='font:15px system-ui,sans-serif;margin:48px'><p>The Blazor front end is not built here. "
+    "<a href='/workspace'>Open the classic front end</a>.</p></body></html>"
+)
+
+
+class BlazorFiles(CheckedStaticFiles):
+    """The Blazor front end's files at /blazor/. An address of one of its pages (/blazor/connections, no file
+    by that name) answers its index.html: the app's own router draws the page (a reload, Back, a bookmark)."""
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except Exception as error:
+            last = path.rsplit("/", 1)[-1]
+            if getattr(error, "status_code", None) != 404 or "." in last:
+                raise
+            return await super().get_response("index.html", scope)
+
+
+def blazor_routes(root: Any) -> list[BaseRoute]:
+    """/blazor/ (the Blazor front end), or one line saying it is not built here."""
+    if not (root / "index.html").is_file():
+
+        async def missing(request: Request) -> Response:
+            return HTMLResponse(BLAZOR_MISSING)
+
+        return [Route("/blazor", missing), Route("/blazor/{rest:path}", missing)]
+    return [
+        Route("/blazor", lambda request: RedirectResponse("/blazor/", status_code=307)),
+        Mount("/blazor", BlazorFiles(directory=root, html=True, check_dir=False)),
+    ]
 
 
 def create_app(
@@ -471,6 +507,7 @@ def create_app(
                 Route("/notebooks", code_page),
                 Route("/scripts", code_page),
                 Mount("/static", CheckedStaticFiles(directory=settings.web_root, check_dir=False)),
+                *blazor_routes(settings.blazor_root),
             ]
         ),
         middleware=[

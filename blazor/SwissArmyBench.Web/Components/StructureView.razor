@@ -1,0 +1,49 @@
+@* A structure (the classic structureDoc.ts): Tree | Text, the selected node's path with Copy path and Open as grid,
+   the text editable in Monaco in its own format (Apply sends it; a text that does not parse is kept and its error
+   said), Save to its file. Logic in StructureView.razor.cs. *@
+
+<div class="structure-view" data-structure="@Document.Id">
+    <div class="structure-bar" role="toolbar" aria-label="Structure">
+        <div class="form-grid" role="radiogroup" aria-label="View">
+            <button type="button" class="btn small" aria-pressed="@(_text ? "false" : "true")" @onclick="() => _text = false">Tree</button>
+            <button type="button" class="btn small" aria-pressed="@(_text ? "true" : "false")" @onclick="() => _text = true">Text</button>
+        </div>
+        <span class="chip">@Document.Format.ToUpperInvariant()</span>
+        <span class="muted">@Document.Type · @Document.Nodes.ToString("N0") nodes</span>
+        <span class="status-spacer"></span>
+        @if (_text)
+        {
+            <button type="button" class="btn small" disabled="@(_typed is null)" @onclick="ApplyAsync">Apply</button>
+        }
+        @if (Document.Path is not null)
+        {
+            <button type="button" class="btn small primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+        }
+    </div>
+    <div class="structure-path" aria-live="polite">
+        <code>@(_selected ?? StructurePath.Root)</code>
+        <button type="button" class="btn small ghost" @onclick="CopyPathAsync"><Icon Name="copy" /> Copy path</button>
+        <button type="button" class="btn small ghost" @onclick="GridAsync"><Icon Name="grids" /> Open as grid</button>
+    </div>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (Document.TextError is { } problem)
+    {
+        <ErrorNote Words="@problem" Warning="true" />
+    }
+    @if (_text)
+    {
+        <div class="structure-text">
+            <CodeEditor Value="@Document.Text" Language="@Document.Format" Label="@($"{Document.Name} text")" OnChange="t => _typed = t" />
+        </div>
+    }
+    else if (Document.Value is { } value)
+    {
+        <div class="structure-tree" role="tree" aria-label="@Document.Name">
+            <StructureNode Name="@Document.Name" Path="@StructurePath.Root" Value="value" Selected="@_selected" OnSelect="p => _selected = p" />
+        </div>
+    }
+    else if (Document.Error is { } error)
+    {
+        <ErrorNote Words="@error" />
+    }
+</div>

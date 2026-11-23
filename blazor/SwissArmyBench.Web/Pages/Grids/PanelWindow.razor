@@ -1,0 +1,34 @@
+@* The grid page's pop-out windows (the owner designed them as separate windows; the classic main.ts ?panel=):
+   panel=steps the grid's Transformations (its steps, each edited here), panel=keys the Key Finder, panel=connsql the
+   SQL window (each table's query looked over, then run on another connection). The grid page that opened it hears
+   every change by the live notices. Logic in PanelWindow.razor.cs. *@
+@page "/panel"
+@layout WindowLayout
+@implements IDisposable
+
+@switch (Panel)
+{
+    case Steps when _info is { } info:
+        <header class="window-top"><strong>@info.Dataset</strong>
+            <button type="button" class="btn ghost window-close" @onclick="CloseWindowAsync"><Icon Name="close" /> Close</button></header>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <StepsPanel Info="info" PreviewUpto="_previewUpto" OnPreview="u => _previewUpto = u" OnToggle="ToggleAsync" OnDelete="DeleteAsync" OnEdit="Edit" OnReorder="ReorderAsync" OnClose="CloseWindowAsync" />
+        @if (_editor is { } editor)
+        {
+            <StepEditor Kind="@editor.Kind" Grid="@info.Grid" Dataset="@info.Dataset" Columns="Entering(editor.Index)" Start="editor.Start" Index="editor.Index" Save="SaveStepAsync" OnClose="() => _editor = null" />
+        }
+        break;
+    case Keys when _info is { } info:
+        <KeyFinderDialog Grid="@info.Grid" Dataset="@info.Dataset" OnSend="SendKeysAsync" OnClose="CloseWindowAsync" />
+        break;
+    case ConnectionSql when To is { Length: > 0 } to:
+        <SwissArmyBench.Web.Pages.Grids.Swap.ConnectionSqlDialog To="@to" Tables="Tables ?? []" Sql="@Sql" OnSwapped="SwappedAsync" OnClose="CloseWindowAsync" />
+        break;
+    default:
+        <ErrorNote Error="_error" />
+        @if (_error is null)
+        {
+            <div class="loading-block"><span class="busy-spinner" aria-hidden="true"></span> Opening…</div>
+        }
+        break;
+}

@@ -1,0 +1,58 @@
+@* Return as table (the classic structuresPage.ts returnAsTable): what the answer became, its name in DuckDB SQL and
+   DuckDB's own query over the answer (the user's to change): Save the query, Copy name for SQL, Close. *@
+@using SwissArmyBench.Web.Api.Structures
+@inject StructuresClient Structures
+@inject Notes Notes
+@inject IJSRuntime Js
+
+<AppDialog Title="@($"Return as table · {Saved.SqlName}")" OnClose="OnClose">
+    <ChildContent>
+        <p><code>SELECT * FROM @Saved.SqlName</code><span class="muted"> · rows at @Saved.WebCall.Records</span></p>
+        <label class="structures-field field"><span>The DuckDB query</span><textarea class="mono api-conversion-sql" aria-label="The DuckDB query" rows="8" spellcheck="false" @bind="_sql"></textarea></label>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save the query</button>
+        <button type="button" class="btn" @onclick="CopyAsync"><Icon Name="copy" /> Copy name for SQL</button>
+        <button type="button" class="btn ghost" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _sql = string.Empty;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public ReturnedAsTable Saved { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Api { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Operation { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized() => _sql = Saved.WebCall.Conversion;
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Structures.AsTableAsync(Api, Operation, new { as_table = true, conversion = _sql });
+            _ = Notes.SayAsync("Saved the query.");
+            await OnClose.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task CopyAsync()
+    {
+        await Js.InvokeAsync<bool>("sab.copy", Saved.SqlName ?? string.Empty);
+        _ = Notes.SayAsync($"Copied {Saved.SqlName}");
+    }
+}

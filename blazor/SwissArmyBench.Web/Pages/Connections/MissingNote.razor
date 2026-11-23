@@ -1,0 +1,40 @@
+@* What a connection's code needs that the app's Python lacks (the classic missingPackages.ts, in place): "<Feature>
+   needs <packages>", Install now (into the app's Python), the command in view for your own Python too. *@
+@inject ConnectionsClient Connections
+
+<div class="hint install-note" role="status">
+    <span>@Missing.Feature needs @string.Join(", ", Missing.Packages).</span>
+    <Busy IsBusy="_installing" Words="Installing…">
+        <button type="button" class="btn small primary" @onclick="InstallAsync"><Icon Name="import" /> Install now</button>
+    </Busy>
+    <code>@Missing.Command</code>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+</div>
+
+@code {
+    private bool _installing;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public MissingPackages Missing { get; set; } = default!;
+
+    /// <summary>Installed: the form reads its code again (the note goes when nothing is missing).</summary>
+    [Parameter]
+    public EventCallback OnInstalled { get; set; }
+
+    private async Task InstallAsync()
+    {
+        _installing = true;
+        try
+        {
+            await Connections.InstallAsync(Missing.Packages);
+            _error = null;
+            await OnInstalled.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _installing = false;
+    }
+}

@@ -1,0 +1,56 @@
+@* A dialog of the app's own: a shade over the page, the heading with Close, the body, the buttons at its foot.
+   The focus goes into it as it opens (shell.js dialogOpened); Escape closes it (as Close). *@
+@inject IJSRuntime Js
+<div class="dialog-shade" @onkeydown="OnKeyAsync">
+    <div class="dialog @(Wide ? "wide" : string.Empty) @Class" role="dialog" aria-modal="true" aria-label="@Title" tabindex="-1" @ref="_dialog">
+        <div class="dialog-head">
+            <h2>@Title</h2>
+            <button type="button" class="btn ghost icon" aria-label="Close" @onclick="OnClose"><Icon Name="close" /></button>
+        </div>
+        @ChildContent
+        @if (Foot is not null)
+        {
+            <div class="dialog-foot">@Foot</div>
+        }
+    </div>
+</div>
+
+@code {
+    private ElementReference _dialog;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>A wide dialog (a table of columns, a value, a profile): the classic openDialog(title, true).</summary>
+    [Parameter]
+    public bool Wide { get; set; }
+
+    [Parameter]
+    public RenderFragment? Foot { get; set; }
+
+    /// <summary>A class of the dialog's own (file-chooser, missing-packages), for its looks.</summary>
+    [Parameter]
+    public string Class { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Js.InvokeVoidAsync("sab.dialogOpened", _dialog);
+        }
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

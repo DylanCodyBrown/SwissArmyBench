@@ -1,0 +1,28 @@
+@* The Scripts page (/scripts, the classic window sab-scripts: the Python IDE): ?path= opens a script, ?new=1 starts
+   one. *@
+@page "/scripts"
+
+<WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" Blade="@BladeParameter" Line="@LineParameter" Cell="@CellParameter" CodeFile="@CodeFileParameter" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "path")]
+    public string? PathParameter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "new")]
+    public string? NewParameter { get; set; }
+
+    /// <summary>A blade opened as a tab (its IDE).</summary>
+    [SupplyParameterFromQuery(Name = "blade")]
+    public string? BladeParameter { get; set; }
+
+    /// <summary>A script opened at a line (?line=), a notebook at a cell's number (?cell=): an API's Build link.</summary>
+    [SupplyParameterFromQuery(Name = "line")]
+    public int? LineParameter { get; set; }
+
+    /// <summary>A code app's file opened as a tab (its TypeScript editor): the Code App page's files.</summary>
+    [SupplyParameterFromQuery(Name = "codefile")]
+    public string? CodeFileParameter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cell")]
+    public int? CellParameter { get; set; }
+}

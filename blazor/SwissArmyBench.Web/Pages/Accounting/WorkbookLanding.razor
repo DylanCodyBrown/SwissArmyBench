@@ -1,0 +1,66 @@
+@* The Notebooks page's workbooks while the open project's mode offers the Excel canvas: the project's workbook
+   designs (its *.design.json at its top), each opening as a tab, and New Excel workbook. No project: open one first. *@
+@using SwissArmyBench.Web.Api
+@using SwissArmyBench.Web.Api.Projects
+@inject ProjectsClient Projects
+@inject ApiClient Api
+
+<section class="xc-landing-section" aria-label="Workbooks">
+    <div class="cvs-landing xc-landing">
+        <h2>Workbooks</h2>
+        <p class="hint">A workbook's design: its sheets, titles, tables, pivots and charts, built from the open tables.</p>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        @if (_loaded)
+        {
+            @if (_folder is null)
+            {
+                <p>Open a project first: its workbook designs are its files.</p>
+            }
+            @foreach (var file in _files)
+            {
+                <button type="button" class="cvs-landing-item" @onclick="() => OnOpen.InvokeAsync(file)"><Icon Name="excel" />@WorkbookPage.NameOf(file)</button>
+            }
+            <button type="button" class="btn primary" @onclick="() => OnNew.InvokeAsync()"><Icon Name="plus" /><span class="btn-label">New Excel workbook</span></button>
+        }
+        else if (_error is null)
+        {
+            <div class="loading-block">Loading…</div>
+        }
+    </div>
+</section>
+
+@code {
+    private string? _folder;
+    private IReadOnlyList<string> _files = [];
+    private bool _loaded;
+    private Exception? _error;
+
+    /// <summary>A design picked: the page opens it as a tab.</summary>
+    [Parameter]
+    public EventCallback<string> OnOpen { get; set; }
+
+    /// <summary>New Excel workbook: the page opens an untitled one.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _folder = (await Projects.CurrentAsync()).Project?.Path;
+            if (_folder is not null)
+            {
+                var found = await Api.GetAsync<System.Text.Json.JsonElement>($"/folders?path={Uri.EscapeDataString(_folder)}&suffixes=.json");
+                _files = found.GetProperty("files").EnumerateArray()
+                    .Select(f => f.GetProperty("path").GetString() ?? string.Empty)
+                    .Where(p => p.EndsWith(".design.json", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _loaded = true;
+    }
+}

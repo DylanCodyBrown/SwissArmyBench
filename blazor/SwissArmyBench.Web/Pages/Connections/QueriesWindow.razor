@@ -1,0 +1,124 @@
+@* The Queries window (the classic queriesWindow.ts), a window of its own per connection or every connection's
+   (connections?queries=<name>): the connection picker, "Running 3 of 8 · 1 waiting · agent 2 of 4", its limits; each
+   running or waiting query (who, what and its tables, Waiting with its place or Running, started, elapsed ticking,
+   rows; Cancel, Open its source; the arrows move, Enter opens, Delete cancels, asked first); the opened query's SQL
+   formatted for reading in read-only Monaco (Copy, Copy as written, Open in a new query); this session's Finished
+   (Clear). Live through the connection_slots notice; a restart is said. Logic in QueriesWindow.razor.cs. *@
+
+<main class="queries-main area-page">
+    <header class="queries-top area-page-head">
+        <h1 class="area-page-title"><Icon Name="rows" /> Queries</h1>
+        <select class="queries-connection" aria-label="Connection" value="@(_connection ?? string.Empty)" @onchange="PickAsync">
+            <option value="">All connections</option>
+            @foreach (var name in _names)
+            {
+                <option value="@name">@name</option>
+            }
+        </select>
+        <span class="queries-counts" role="status">@CountWords</span>
+        @if (_connection is { } connection)
+        {
+            <div class="queries-limits"><LimitsForm Name="@connection" Compact="true" @key="connection" /></div>
+        }
+    </header>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_restarted)
+    {
+        <div class="queries-note">The app restarted: these queries ended.</div>
+    }
+    @if (Shown.Count == 0)
+    {
+        <p class="queries-empty">No query is running or waiting.</p>
+    }
+    else
+    {
+        <div class="queries-list" role="grid" tabindex="0" aria-label="Queries in progress" @onkeydown="KeyAsync">
+            <table class="queries-table rows">
+                <thead><tr class="queries-head" role="row">@foreach (var heading in _headings)
+                {
+                    <th role="columnheader">@heading</th>
+                }</tr></thead>
+                <tbody>
+                    @foreach (var q in Shown)
+                    {
+                        <tr class="queries-row st-@q.State @(q.Id == _selected ? "selected" : null) @(q.Id == _opened ? "opened" : null)" role="row" data-id="@q.Id" aria-selected="@(q.Id == _selected ? "true" : "false")" @onclick="() => ClickAsync(q)">
+                            <td class="queries-connection-name">@q.Connection</td>
+                            <td class="queries-who who-@q.Caller">@q.Who</td>
+                            <td class="queries-what">@q.What @if (q.Targets.Count > 0)
+                                {
+                                    <span class="queries-targets">@string.Join(", ", q.Targets)</span>
+                                }</td>
+                            <td class="queries-state" title="@(q.Words ?? string.Empty)">@StateWords(q)</td>
+                            <td>@(q.StartedAt is { } started ? At(started) : "—")</td>
+                            <td class="queries-elapsed">@Clock(ElapsedOf(q))</td>
+                            <td class="queries-rows-read">@(q.Rows?.ToString("N0") ?? string.Empty)</td>
+                            <td class="queries-actions">
+                                <button type="button" class="btn ghost queries-cancel" @onclick="() => CancelAsync(q)" @onclick:stopPropagation="true"><Icon Name="stop" /> Cancel</button>
+                                <button type="button" class="btn ghost icon" aria-label="Open its source" title="Open its source" @onclick="() => OpenSourceAsync(q)" @onclick:stopPropagation="true"><Icon Name="forward" /></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (_opened is not null)
+    {
+        <section class="queries-sql" aria-label="SQL">
+            <div class="queries-sql-head">
+                <h2><Icon Name="sql" /> @_openedConnection</h2>
+                @if (_sql is { } sql)
+                {
+                    <button type="button" class="btn" @onclick="() => CopyAsync(sql.Formatted)"><Icon Name="copy" /> Copy</button>
+                    <button type="button" class="btn ghost" @onclick="() => CopyAsync(sql.Sql)"><Icon Name="copy" /> Copy as written</button>
+                    <button type="button" class="btn ghost" @onclick="() => NewQueryAsync(sql.Connection)"><Icon Name="plus" /> Open in a new query</button>
+                }
+            </div>
+            @if (_noSql)
+            {
+                <p class="queries-empty">No SQL text: a catalog listing, a test or a connect.</p>
+            }
+            else if (_sql is { } shown)
+            {
+                <div class="queries-sql-box" data-language="@shown.Language">
+                    <CodeEditor Value="@shown.Formatted" Language="@(shown.Language == "dax" ? "dax" : "sql")" ReadOnly="true" Grow="true" MinLines="3" Label="The query's SQL" @key="shown.Id" />
+                </div>
+            }
+        </section>
+    }
+    @if (FinishedShown.Count > 0)
+    {
+        <section class="queries-finished" aria-label="Finished">
+            <div class="queries-finished-head">
+                <h2><Icon Name="history" /> Finished</h2>
+                <button type="button" class="btn ghost" @onclick="ClearAsync"><Icon Name="trash" /> Clear</button>
+            </div>
+            <table class="queries-finished-table rows">
+                <thead><tr>@foreach (var heading in _finishedHeadings)
+                {
+                    <th>@heading</th>
+                }</tr></thead>
+                <tbody>
+                    @foreach (var f in FinishedShown)
+                    {
+                        <tr class="queries-done out-@f.Outcome.Replace(' ', '-')" data-id="@f.Id">
+                            <td>@f.Connection</td>
+                            <td>@f.Who</td>
+                            <td>@f.What @if (f.Targets.Count > 0)
+                                {
+                                    <span class="queries-targets">@string.Join(", ", f.Targets)</span>
+                                }</td>
+                            <td class="queries-outcome" title="@f.Reason">@OutcomeWords(f.Outcome) @if (f.Reason.Length > 0)
+                                {
+                                    <span class="queries-reason">@f.Reason</span>
+                                }</td>
+                            <td>@Clock(f.Seconds)</td>
+                            <td>@(f.Rows?.ToString("N0") ?? string.Empty)</td>
+                            <td>@At(f.EndedAt)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+</main>

@@ -1,0 +1,28 @@
+@* A script (the classic workbenchScript.ts): one editor that fills the page, Run file (F5) and Run selection
+   (Ctrl+Enter: the selected lines, else the cursor's line) in the document's Python session, and the console under
+   it: the runs' outputs as they arrive, and a line of Python typed and run with Enter. Logic in
+   ScriptView.razor.cs. *@
+
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+<div class="wb-script">
+    <div class="wb-script-editor">
+        <CodeEditor @ref="_editor" Value="@Text" Language="python" Label="Script" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" OnIde="OnIde" OnGutter="GutterAsync"
+                    Inline="Inline" InlineDocument="InlineDocument" AgentWhere="@DocumentName" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
+    </div>
+    <ScriptHtmlCells Cells="HtmlCells" OnGoTo="RevealCellAsync" OnRun="RunHtmlAsync" />
+    <DebugPanel @ref="_debug" Editor="_editor" Path="@Path" />
+    <section class="wb-console" aria-label="Console" hidden="@ConsoleHidden">
+        <div class="wb-console-head">
+            <strong>Console</strong>
+            <button type="button" class="btn small ghost" @onclick="Clear">Clear</button>
+        </div>
+        <div class="wb-console-body">
+            <OutputArea Outputs="_console.Outputs" ErrorDetail="_console.ErrorDetail" Asking="_console.Asking" OnAnswer="AnswerAsync"
+                        Document="@(Path is null ? "the script" : System.IO.Path.GetFileName(Path))" OnFix="FixAsync" OnGoTo="GoToAsync" />
+        </div>
+        <form class="wb-console-line" @onsubmit="RunLineAsync" @onsubmit:preventDefault="true">
+            <span aria-hidden="true">&gt;&gt;&gt;</span>
+            <input type="text" aria-label="Python line" placeholder="Type Python and press Enter" @bind="_line" autocomplete="off" spellcheck="false" />
+        </form>
+    </section>
+</div>

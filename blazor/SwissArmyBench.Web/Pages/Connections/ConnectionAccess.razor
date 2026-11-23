@@ -1,0 +1,91 @@
+@* A connection's Access section (the classic connectionAccess.ts): what each app registration that signs it in
+   reaches, when and where that was checked, Check again. Hidden when no registration signs it in. *@
+@inject ConnectionsClient Connections
+
+@if (_access is { Count: > 0 } access)
+{
+    <section class="connection-section connection-access" aria-label="Access">
+        <h2><Icon Name="key" /> Access</h2>
+        @foreach (var by in access)
+        {
+            <div class="connection-access-by">
+                <p class="connection-access-line"><strong>@by.Registration</strong> @by.Line</p>
+                <p class="connection-access-when">Last checked @When(by.Checked)@(by.Computer.Length > 0 ? $" on {by.Computer}" : string.Empty)</p>
+                <ul class="connection-access-items">
+                    @foreach (var item in by.Items)
+                    {
+                        var state = item.Ok switch { true => "ok", false => "refused", null => "unchecked" };
+                        <li class="connection-access-item access-@state">
+                            <span class="connection-access-mark" aria-label="@(item.Ok switch { true => "Reaches", false => "Refused", null => "Not checked" })">@(item.Ok is null ? "–" : item.Mark)</span>
+                            <span class="connection-access-what">
+                                <span>@item.Target</span>
+                                @if (item.Reason.Length > 0)
+                                {
+                                    <span class="connection-access-why">@item.Reason</span>
+                                }
+                                @if (item.Fix.Length > 0)
+                                {
+                                    <span class="connection-access-fix">@item.Fix</span>
+                                }
+                            </span>
+                        </li>
+                    }
+                </ul>
+                <Busy IsBusy="_checking == by.Registration" Words="Checking…">
+                    <button type="button" class="btn small" @onclick="() => CheckAsync(by.Registration)"><Icon Name="play" /> Check again</button>
+                </Busy>
+                @if (_failed == by.Registration)
+                {
+                    <ErrorNote Error="_error" OnClose="() => _failed = null" />
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private IReadOnlyList<AccessBy>? _access;
+    private string? _checking;
+    private string? _failed;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _access = await Connections.AccessAsync(Name);
+        }
+        catch (ApiException)
+        {
+            _access = null; // no registrations here: no section
+        }
+    }
+
+    /// <summary>"2026-11-19T10:04:00Z" in the reader's own time, to the minute.</summary>
+    private static string When(string at) =>
+        DateTimeOffset.TryParse(at, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var when)
+            ? when.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)
+            : at;
+
+    private async Task CheckAsync(string registration)
+    {
+        _checking = registration;
+        _failed = null;
+        try
+        {
+            await Connections.CheckRegistrationAsync(registration);
+            await LoadAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            _failed = registration;
+        }
+        _checking = null;
+    }
+}

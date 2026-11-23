@@ -1,0 +1,125 @@
+@* The workbook's sheets as tabs (the classic canvasKit.ts pageTabs): a click shows one, a double-click or F2 renames it
+   in place (Enter keeps the name, Escape puts it back, leaving the box keeps it; 31 characters, Excel's most), Enter
+   or Space shows it; × removes it (asked first when it holds blocks); New sheet adds one. *@
+@using SwissArmyBench.Web.Api.Accounting
+@inject SwissArmyBench.Web.State.Dialogs Dialogs
+
+<div class="cv-tabs" role="tablist" aria-label="Sheets">
+    @foreach (var sheet in Sheets)
+    {
+        var current = sheet.Id == Current;
+        <div class="tab-item cv-tab xc-sheet @(current ? "active" : null)" role="tab" aria-selected="@(current ? "true" : "false")" tabindex="@(current ? "0" : "-1")"
+             title="@sheet.Name" data-page="@sheet.Id" @onclick="() => SelectAsync(sheet)" @ondblclick="() => Rename(sheet)" @onkeydown="e => TabKeyAsync(e, sheet)">
+            @if (_renaming == sheet.Id)
+            {
+                <input type="text" class="cv-rename" aria-label="Name" maxlength="31" data-no-variables @bind="_name" @bind:event="oninput" @onkeydown="e => RenameKeyAsync(e, sheet)" @onkeydown:stopPropagation="true"
+                       @onblur="() => KeepAsync(sheet)" @onclick:stopPropagation="true" @ref="_box" />
+            }
+            else
+            {
+                <span class="tab-label">@sheet.Name</span>
+            }
+            <button type="button" class="btn ghost icon tab-close" aria-label="Remove @sheet.Name" title="Remove @sheet.Name" @onclick="() => RemoveAsync(sheet)" @onclick:stopPropagation="true"><Icon Name="close" /></button>
+        </div>
+    }
+    <button type="button" class="btn ghost cv-new-page" @onclick="OnAdd"><Icon Name="plus" /><span class="btn-label">New sheet</span></button>
+</div>
+
+@code {
+    private string? _renaming;
+    private string _name = string.Empty;
+    private ElementReference _box;
+    private bool _focusBox;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<WorkbookSheet> Sheets { get; set; } = [];
+
+    [Parameter]
+    public string? Current { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnSelect { get; set; }
+
+    [Parameter]
+    public EventCallback<(string Id, string Name)> OnRename { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnRemove { get; set; }
+
+    [Parameter]
+    public EventCallback OnAdd { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusBox)
+        {
+            _focusBox = false;
+            await _box.FocusAsync();
+        }
+    }
+
+    private Task SelectAsync(WorkbookSheet sheet) => sheet.Id == Current || _renaming == sheet.Id ? Task.CompletedTask : OnSelect.InvokeAsync(sheet.Id);
+
+    private void Rename(WorkbookSheet sheet)
+    {
+        _renaming = sheet.Id;
+        _name = sheet.Name;
+        _focusBox = true;
+    }
+
+    private async Task TabKeyAsync(KeyboardEventArgs e, WorkbookSheet sheet)
+    {
+        if (_renaming == sheet.Id)
+        {
+            return;
+        }
+        if (e.Key == "F2")
+        {
+            Rename(sheet);
+        }
+        else if (e.Key is "Enter" or " ")
+        {
+            await SelectAsync(sheet);
+        }
+    }
+
+    private async Task RenameKeyAsync(KeyboardEventArgs e, WorkbookSheet sheet)
+    {
+        if (e.Key == "Enter")
+        {
+            await KeepAsync(sheet);
+        }
+        else if (e.Key == "Escape")
+        {
+            _renaming = null;
+            await OnSelect.InvokeAsync(sheet.Id);
+        }
+    }
+
+    private async Task KeepAsync(WorkbookSheet sheet)
+    {
+        if (_renaming != sheet.Id)
+        {
+            return;
+        }
+        _renaming = null;
+        var name = _name.Trim();
+        if (name.Length > 0 && name != sheet.Name)
+        {
+            await OnRename.InvokeAsync((sheet.Id, name));
+        }
+        else
+        {
+            await OnSelect.InvokeAsync(sheet.Id);
+        }
+    }
+
+    private async Task RemoveAsync(WorkbookSheet sheet)
+    {
+        if (sheet.Blocks.Count > 0 && !await Dialogs.AskYesNoAsync($"Remove the sheet {sheet.Name} and its blocks?", string.Empty, "Remove", danger: true))
+        {
+            return;
+        }
+        await OnRemove.InvokeAsync(sheet.Id);
+    }
+}

@@ -1,0 +1,190 @@
+@* Set up this computer's checklist (the classic library.ts setupChecklist): the heading and its words, the key vaults
+   (what each gives, its fix), the values to type once (Save; Enter), the connections (a password moved to a vault:
+   the vault, the secret's name, Move to a vault), the shared projects; Check again. Read again on a library,
+   variables or blades notice. *@
+@implements IDisposable
+@inject SettingsClient Settings
+@inject Notes Notes
+@inject LiveUpdates Live
+
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+<Busy IsBusy="_s is null || _checking" Words="Checking what this computer needs…">
+    @if (_s is { } s)
+    {
+        <h3 class="setup-heading">@s.Heading <span class="chip @(s.Ready ? "setup-ready" : "setup-todo")">@s.Words</span></h3>
+        @if (s.Vaults.Count > 0)
+        {
+            <h4>Key vaults</h4>
+            <ul class="setup-list">
+                @foreach (var v in s.Vaults)
+                {
+                    <li class="setup-item setup-@v.State"><Icon Name="@StateIcon(v.State)" /><span class="setup-words">@v.Name: @v.Words</span>
+                        <span class="hint">@(v.Fix is { } fix ? $"{v.Gives} · {fix.How ?? string.Empty}" : v.Gives)</span>
+                        @if (v.Error.Length > 0)
+                        {
+                            <span class="hint setup-error" title="@v.Error">@v.Error</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (s.Values.Count > 0)
+        {
+            <h4>Needs a value on this computer</h4>
+            <ul class="setup-list">
+                @foreach (var v in s.Values)
+                {
+                    var fix = v.Kind == "password" ? v.Fix with { Name = v.Name } : v.Fix;
+                    <li class="setup-item setup-todo"><Icon Name="problem" /><span class="setup-words">@v.Words</span>
+                        <span class="setup-fix">
+                            <input type="@(fix.Kind == "local" ? "text" : "password")" class="setup-value" aria-label="@fix.Label" placeholder="@fix.Label" autocomplete="off" @bind="_typed[v.Name]" @bind:event="oninput" @onkeydown="e => TypedKeyAsync(e, fix, v)" />
+                            <button type="button" class="btn small line" @onclick="() => SaveValueAsync(fix, v)">Save</button>
+                        </span>
+                    </li>
+                }
+            </ul>
+        }
+        @if (s.Connections.Count > 0)
+        {
+            <h4>Connections</h4>
+            <ul class="setup-list">
+                @foreach (var c in s.Connections)
+                {
+                    <li class="setup-item setup-@c.State"><Icon Name="@StateIcon(c.State)" /><span class="setup-words">@c.Name: @c.Words</span>
+                        @foreach (var m in c.MoveToVault)
+                        {
+                            var key = $"{c.Name}/{m.Secret}";
+                            <span class="setup-fix">
+                                <select aria-label="The key vault" @bind="_vaultOf[key]">
+                                    @foreach (var vault in m.Vaults)
+                                    {
+                                        <option value="@vault">@vault</option>
+                                    }
+                                </select>
+                                <input type="text" placeholder="The secret's name in the vault" aria-label="The secret's name in the vault" @bind="_secretOf[key]" />
+                                <button type="button" class="btn small line" @onclick="() => MoveAsync(c.Name, m.Secret, key)"><Icon Name="key" /> Move to a vault</button>
+                            </span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (s.Projects.Count > 0)
+        {
+            <h4>Shared projects</h4>
+            <ul class="setup-list">
+                @foreach (var p in s.Projects)
+                {
+                    <li class="setup-item setup-todo"><Icon Name="problem" /><span class="setup-words">@p.Words</span></li>
+                }
+            </ul>
+        }
+        <div class="row"><button type="button" class="btn small line" @onclick="() => DrawAsync(true)"><Icon Name="reset" /> Check again</button></div>
+    }
+</Busy>
+
+@code {
+    private readonly Dictionary<string, string> _typed = [];
+    private readonly Dictionary<string, string> _vaultOf = [];
+    private readonly Dictionary<string, string> _secretOf = [];
+    private SetupChecklist? _s;
+    private bool _checking;
+    private Exception? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        await DrawAsync(true);
+    }
+
+    private async Task DrawAsync(bool check)
+    {
+        _checking = check;
+        try
+        {
+            _s = await Settings.SetupAsync(check);
+            foreach (var v in _s.Values.Where(v => !_typed.ContainsKey(v.Name)))
+            {
+                _typed[v.Name] = string.Empty;
+            }
+            foreach (var c in _s.Connections)
+            {
+                foreach (var m in c.MoveToVault)
+                {
+                    var key = $"{c.Name}/{m.Secret}";
+                    _vaultOf.TryAdd(key, m.Vaults.FirstOrDefault() ?? string.Empty);
+                    _secretOf.TryAdd(key, System.Text.RegularExpressions.Regex.Replace($"{c.Name}-{m.Secret}".ToLowerInvariant(), "[^a-z0-9-]+", "-"));
+                }
+            }
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _checking = false;
+    }
+
+    private static string StateIcon(string state) => state switch
+    {
+        "ready" or "works" => "check",
+        "local" => "warning",
+        _ => "problem",
+    };
+
+    private async Task TypedKeyAsync(KeyboardEventArgs e, SetupFix fix, SetupValue value)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveValueAsync(fix, value);
+        }
+    }
+
+    private async Task SaveValueAsync(SetupFix fix, SetupValue value)
+    {
+        var typed = _typed.GetValueOrDefault(value.Name) ?? string.Empty;
+        if (typed.Length == 0)
+        {
+            return;
+        }
+        try
+        {
+            await Settings.SetupValueAsync(fix, typed, value.Connection);
+            _typed[value.Name] = string.Empty;
+            await DrawAsync(false);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task MoveAsync(string connection, string secret, string key)
+    {
+        try
+        {
+            var vault = _vaultOf.GetValueOrDefault(key) ?? string.Empty;
+            await Settings.MoveToVaultAsync(connection, secret, vault, _secretOf.GetValueOrDefault(key) ?? string.Empty);
+            _ = Notes.SayAsync($"{connection}'s {secret} now comes from {vault}.");
+            await DrawAsync(false);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type is "library_changed" or "variables_changed" or "blades_changed")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await DrawAsync(false);
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

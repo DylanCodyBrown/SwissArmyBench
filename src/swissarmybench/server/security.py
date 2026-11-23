@@ -56,9 +56,10 @@ WEBSOCKET_SUBPROTOCOL: str = "swissarmybench"
 
 # The page shell and its files: prefixes for /g/<id> and /static/..., and the exact paths of the
 # workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/static/")
+# The Blazor front end's files (/blazor/...) are the same kind: the page and its code, no data.
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/static/", "/blazor/")
 _PUBLIC_PATHS: frozenset[str] = frozenset(
-    {"/", "/workspace", "/catalog", "/workbench", "/notebooks", "/scripts"}
+    {"/", "/workspace", "/catalog", "/workbench", "/notebooks", "/scripts", "/blazor"}
 )
 
 # The plain page for a browser that asks with no token and no valid cookie (a bookmark after a restart).

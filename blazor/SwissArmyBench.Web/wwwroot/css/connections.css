@@ -1,0 +1,1412 @@
+/* The Connections page's own styles (the classic grid.css's rules for the same classes, the same tokens):
+   the cards and their groups, a detail's sections, the tables' tree, the forms' parts, the colour palette, the
+   Queries window, Find connections, the sandbox. Loaded after app.css. */
+/* A badge after words on a line (a relationship's "inactive", "in use") keeps a space from them. */
+.set-text .badge {
+  margin-left: 6px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+.badge.agent {
+  color: var(--agent);
+  background: var(--agent-soft);
+}
+.badge.ok {
+  color: var(--ok);
+}
+.badge.warn {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.badge.error {
+  color: var(--error);
+  background: var(--error-soft);
+}
+.step .badge.agent {
+  margin-left: 6px;
+}
+.ai-panel .panel-header .badge {
+  margin-left: 4px;
+}
+/* A text floor: nothing smaller than about 11.5px at 100% zoom. */
+.sab-header-stats,
+.card-foot,
+.step-count,
+.step .meta,
+.hint,
+.badge {
+  font-size: max(0.9em, 11.5px);
+}
+/* Visualizations' title: centered and large, in the accent color, like a table's name. */
+.sandbox-title {
+  margin: 4px 0 14px;
+  color: var(--accent);
+  font-size: calc(30px * var(--ui-zoom, 1));
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+.badge.tie-ties { background: var(--surface-2); }
+.badge.tie-off { color: var(--danger, #a3141f); border: 1px solid currentColor; background: transparent; }
+/* ===== CONNECTIONS (connectionsWindow.ts) and the file chooser (fileChooser.ts) ===== */
+.connection-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+/* Add connection's search (type to filter the tiles; Enter opens the first). */
+.connection-type-find {
+  margin-bottom: 6px;
+}
+.connection-type-search {
+  width: min(420px, 100%);
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.connection-type-search:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+.connection-types[hidden],
+.connection-type[hidden] {
+  display: none;
+}
+/* The type picker (2026-11-16): each type's own icon beside its name, tinted by its group (the theme's
+   category tokens, so every theme keeps it readable); a clear hover and focus. */
+.connection-type {
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  white-space: normal;
+  text-align: left;
+}
+.connection-type .icon-svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.6;
+  color: var(--fam);
+}
+.connection-type:hover {
+  border-color: var(--fam);
+  background: color-mix(in srgb, var(--fam) 8%, var(--raised));
+}
+.connection-type:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+.connection-fields .field.wide {
+  grid-column: 1 / -1;
+  order: 1; /* a path with Browse… sits under the short fields, not between them */
+}
+.connection-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px 14px;
+  margin: 10px 0;
+}
+.connection-fields:empty {
+  display: none; /* a part of the form with no setting (a file has no "who") takes no room */
+}
+.connection-fields .field-flag {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  align-self: end;
+  padding-bottom: 8px;
+}
+.connection-fields .field-row {
+  display: flex;
+  gap: 6px;
+}
+.connection-fields .field-row input {
+  flex: 1;
+  min-width: 0;
+}
+/* Security: the certificate file sits beside Trust server certificate, in the order of the rule. */
+.connection-security .field.wide {
+  grid-column: span 2;
+  order: 0;
+}
+/* A password: where it comes from, then its own box, each under its label. */
+.connection-password {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 2fr;
+  gap: 8px 14px;
+}
+.connection-password .field-row {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.connection-password .field-row input,
+.connection-password .field-row select {
+  flex: 1;
+  min-width: 0;
+}
+/* A driver that is not installed: the command, Install beside it. */
+.install-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* A file connection's Test: the file's columns and first rows. */
+.connection-preview {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.connection-preview table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+.connection-preview th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  text-align: left;
+}
+.connection-preview th,
+.connection-preview td {
+  padding: 3px 10px;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.connection-preview td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.connection-passwords {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.vault-secrets .field-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.vault-secrets .field-row input {
+  flex: 1;
+  min-width: 0;
+}
+.vault-map {
+  width: 100%;
+  border-collapse: collapse;
+}
+.vault-map th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 4px 6px;
+}
+.vault-map th:first-child {
+  width: 28px;
+}
+.vault-map td {
+  padding: 3px 6px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+.vault-map td input[type="text"] {
+  width: 100%;
+  min-width: 0;
+}
+/* Every secret: no ticks (each one is loaded); the boxes only rename. */
+.vault-map.every td:first-child input,
+.vault-map.every th:first-child {
+  visibility: hidden;
+}
+.vault-every {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vault-map td code {
+  overflow-wrap: anywhere;
+}
+.connection-code {
+  width: 100%;
+  white-space: pre;
+}
+.connection-tested {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.connection-tested:empty {
+  display: none;
+}
+.connection-result .status-ok {
+  color: var(--ok);
+}
+.add-api-part > .connection-fields {
+  margin: 0;
+}
+.add-api-auth .connection-fields {
+  margin: 0;
+}
+.add-api-endpoint .field-flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sheet-list {
+  display: grid;
+  gap: 6px;
+}
+.sheet-list .field-flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.crumbs ol {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.92em;
+  white-space: nowrap;
+}
+.crumbs li {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs li + li::before {
+  padding: 0 6px;
+  content: "›";
+  color: var(--muted);
+}
+.crumbs a {
+  color: var(--accent);
+}
+.crumbs [aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+}
+/* An import's choices (projectImport.ts): where from, then what, each a tick. */
+.import-dialog .import-from {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.import-dialog .import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.import-dialog .import-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.import-dialog h3 {
+  margin: 10px 0 6px;
+  color: var(--muted);
+  font-size: 0.92em;
+  font-weight: 600;
+}
+/* Find connections on this computer (findConnections.ts): a bar (Select all, search, the count), then a row
+   each: its tick, kind icon, name, kind, server and database, user; where it came from and its marks. */
+.find-connections .dialog-body {
+  min-width: min(860px, 86vw);
+}
+.find-connections .find-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.find-connections .find-bar input[type="search"] {
+  flex: 1;
+  min-width: 160px;
+}
+.find-connections .find-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.find-connections .find-count {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.find-connections .find-list {
+  max-height: min(460px, 58vh);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  list-style: none;
+}
+.find-connections .find-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.find-connections .find-row:last-child {
+  border-bottom: 0;
+}
+.find-connections .find-off .find-text {
+  color: var(--muted);
+}
+.find-connections .find-main {
+  display: flex;
+  flex: 1 1 380px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.find-connections .find-icon .icon-svg {
+  width: 18px;
+  height: 18px;
+}
+.find-connections .find-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+.find-connections .find-kind,
+.find-connections .find-place,
+.find-connections .find-user {
+  color: var(--muted);
+  font-size: 0.92em;
+}
+.find-connections .find-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.find-connections .find-user .icon-svg {
+  width: 12px;
+  height: 12px;
+}
+.find-connections .find-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 0.92em;
+}
+.find-connections .find-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.find-connections .find-why {
+  color: var(--muted);
+  font-style: italic;
+}
+.find-connections .find-notes p {
+  margin: 8px 0 0;
+  font-size: 0.92em;
+}
+/* ----- the Connections page: a card each ----- */
+.connection-group-title {
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.connection-groups > .connection-group-title:first-child {
+  margin-top: 0;
+}
+.connection-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.connection-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "icon text"
+    "status calls";
+  align-items: center;
+  gap: 10px 12px;
+  height: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--fam, var(--border-strong));
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--fg);
+  text-decoration: none;
+}
+.connection-card:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--fam, var(--border-strong));
+  background: var(--row-hover);
+}
+.connection-card:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+.connection-card-icon {
+  display: grid;
+  grid-area: icon;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fam, var(--muted));
+}
+.connection-card-icon .icon-svg {
+  width: 22px;
+  height: 22px;
+}
+.connection-card-text {
+  display: flex;
+  grid-area: text;
+  flex-direction: column;
+  min-width: 0;
+}
+.connection-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connection-card-type,
+.connection-card-calls {
+  color: var(--muted);
+  font-size: 12px;
+}
+.connection-card-calls {
+  grid-area: calls;
+  justify-self: end;
+}
+.connection-status {
+  display: inline-flex;
+  grid-area: status;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.connection-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.connection-status.st-works .connection-status-dot {
+  background: var(--ok);
+}
+.connection-status.st-needs {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.connection-status.st-needs .connection-status-dot {
+  background: var(--warn);
+}
+.connection-status.st-failing {
+  border-color: var(--error);
+  background: var(--error-soft);
+}
+.connection-status.st-failing .connection-status-dot {
+  background: var(--error);
+}
+/* A paused serverless database waking (SQL Server's 40613): waiting, not broken. */
+.connection-status.st-resuming {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.connection-status.st-resuming .connection-status-dot {
+  background: var(--warn);
+}
+/* What the server said it is (SQL Server's Test): the driver and sign-in under the card. */
+.connection-card-about {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Only works on your machine (domain/portability.py): amber, on the card, the form and the detail. */
+.connection-card-local {
+  display: flex;
+  grid-column: 1 / -1;
+  min-width: 0;
+  font-size: 12px;
+}
+/* A username-and-password sign-in's one line: it cannot do multi-factor sign-in, and which way can. */
+.sign-in-note {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.connection-about {
+  display: grid;
+  gap: 2px;
+}
+/* SQL Server's options (encryption, the driver, timeouts): folded under the form's security part. */
+.connection-options {
+  margin: 8px 0;
+}
+.connection-options > summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.area-page-title .connection-status {
+  font-size: 13px;
+}
+/* A card's status and what it writes, side by side (domain/write_capability.py). */
+.connection-card-marks {
+  display: inline-flex;
+  grid-area: status;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* ----- a connection's detail ----- */
+.connection-detail-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+.connection-detail-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.connection-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 16px;
+}
+.connection-detail-side {
+  display: grid;
+  gap: 16px;
+}
+.connection-section {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+.connection-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.connection-section > h2 .icon-svg {
+  color: var(--muted);
+}
+.connection-section > h2 .count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.connection-refs {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.connection-ref {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon where how"
+    "icon line line";
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--kc, var(--border-strong));
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.connection-ref:hover {
+  background: var(--row-hover);
+}
+.connection-ref:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+.connection-ref-icon {
+  grid-area: icon;
+  color: var(--kc, var(--muted));
+}
+.connection-ref-where {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: where;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.connection-ref-cell {
+  color: var(--muted);
+  font-size: 12px;
+}
+.connection-ref-how {
+  grid-area: how;
+  color: var(--muted);
+  font-size: 12px;
+}
+.connection-ref-line {
+  grid-area: line;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connection-access-by {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.connection-access-by + .connection-access-by {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.connection-access-line,
+.connection-access-when {
+  margin: 0;
+}
+.connection-access-when {
+  color: var(--muted);
+  font-size: 12px;
+}
+.connection-access-items {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.connection-access-item {
+  display: grid;
+  grid-template-columns: 1.5em minmax(0, 1fr);
+  gap: 6px;
+}
+.connection-access-what {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.connection-access-why,
+.connection-access-fix {
+  color: var(--muted);
+  font-size: 12px;
+}
+.access-ok .connection-access-mark {
+  color: var(--ok);
+}
+.access-refused .connection-access-mark {
+  color: var(--error);
+}
+.access-unchecked .connection-access-mark {
+  color: var(--muted);
+}
+.connection-config,
+.connection-calls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+}
+.connection-config dt,
+.connection-calls dt {
+  color: var(--muted);
+}
+.connection-config dd,
+.connection-calls dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* The Notebooks page's groups (Data notebook, App notebooks): a gap above each after the first. */
+.wb-landing-cards + .wb-landing-section,
+.wb-landing-main .empty-note + .wb-landing-section {
+  margin-top: 20px;
+}
+/* Rows to open and Load all rows side by side (connectionsWindow.ts). */
+.row-limit-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.row-limit-field > label.field {
+  flex: 1 1 200px;
+}
+.row-limit-field > label.check {
+  padding-bottom: 8px;
+}
+/* ===== CONNECTION COLOURS (connectionColours.ts): a connection's own box wears its colour as its highlight
+   (a border and a light tint, the owner 2026-11-21); what only names a connection wears a stripe ===== */
+/* --conn-a is the first connection's colour as this theme shows it (made readable by the server), --conn-b
+   the second's (a cell that uses two wears two marks). The rail's colours are never offered. The tint is
+   light enough that the theme's text stays readable on it. */
+
+.conn-swatch {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--conn-a, var(--surface));
+  cursor: pointer;
+}
+.conn-swatch:focus-visible,
+.conn-palette-swatch:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+.conn-palette {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+.conn-palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  gap: 6px;
+}
+.conn-palette .conn-palette-swatch,
+.conn-palette .conn-palette-swatch:hover,
+.conn-palette .conn-palette-swatch:focus-visible {
+  display: block;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+}
+.conn-palette .conn-palette-swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+.conn-palette-other {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.conn-palette-other input {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  background: none;
+}
+/* The Connections page: the card is the connection's box, its border and tint its colour. */
+.connection-card-item {
+  position: relative;
+}
+.connection-card.conn-worn {
+  border: 2px solid var(--conn-a);
+  background: color-mix(in srgb, var(--conn-a) 9%, var(--raised));
+}
+.connection-card.conn-worn:hover {
+  border-color: var(--conn-a);
+  background: color-mix(in srgb, var(--conn-a) 16%, var(--raised));
+}
+/* The Data Catalog's connection row and a tab group's head: the connection's box, tinted in its colour. */
+.db-line.conn-worn {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--conn-a) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+.tab-group-head.conn-worn {
+  background: color-mix(in srgb, var(--conn-a) 12%, transparent);
+  box-shadow: inset 0 0 0 1px var(--conn-a);
+  color: var(--fg);
+}
+.tab-group-head.conn-worn:hover {
+  background: color-mix(in srgb, var(--conn-a) 20%, transparent);
+}
+.connection-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+.connection-ref.conn-worn {
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+/* The home page's tabs: a table read from a connection wears its colour along its foot; the row gathers
+   them in a group per connection (its dot and name as the head; a click folds it). */
+.tab-item.conn-worn {
+  box-shadow: inset 0 -3px 0 var(--conn-a);
+}
+.tab-item.active.conn-worn {
+  box-shadow: inset 0 2px 0 var(--accent), inset 0 -3px 0 var(--conn-a);
+}
+/* The Workbench: a cell that names a connection wears a stripe at its left (two connections: two). */
+.conn-cell.conn-worn {
+  box-shadow: inset 4px 0 0 var(--conn-a);
+}
+.conn-cell.conn-worn.conn-two {
+  box-shadow: inset 4px 0 0 var(--conn-a), inset 8px 0 0 var(--conn-b);
+}
+/* A row (the Data panel's tables, the Session page's entries): a stripe too. */
+.conn-row.conn-worn {
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+/* A canvas block whose cell names a connection: a stripe along its top (its left edge is its kind's). */
+.conn-block.conn-worn {
+  box-shadow: inset 0 4px 0 var(--conn-a);
+}
+.conn-block.conn-worn.conn-two {
+  background-image: linear-gradient(to right, var(--conn-a) 50%, var(--conn-b) 50%);
+  background-repeat: no-repeat;
+  background-size: 100% 4px;
+  box-shadow: none;
+}
+/* ===== a connection's tables as a tree (connectionTree.ts) ===== */
+.connection-detail-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  align-content: start;
+}
+.conn-tree-search {
+  width: 100%;
+  margin: 0 0 8px;
+}
+.conn-tree-groups,
+.conn-tree-tables {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conn-tree-group > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.conn-tree-group > details > summary:hover,
+.conn-tree-row:hover {
+  background: var(--row-hover);
+}
+.conn-tree-group-name,
+.conn-tree-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-tree-group-name .count,
+.conn-tree-title {
+  color: var(--muted);
+  font-size: 12px;
+}
+.conn-tree-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conn-tree-group-name .icon-svg,
+.conn-tree-name .icon-svg {
+  flex: none;
+  color: var(--muted);
+}
+.conn-tree-tables {
+  margin-left: 18px;
+  border-left: 1px solid var(--border);
+}
+.conn-tree-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.conn-tree-actions {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  margin-left: auto;
+}
+.conn-tree-preview:not(:empty) {
+  margin: 4px 0 8px 6px;
+}
+/* The grid page's Find data dialog (the popped-out window is the Data page now: dataPage.ts). */
+dialog.find-data .dialog-body {
+  display: flex;
+  height: min(70vh, 640px);
+}
+/* errorMark: the note's inline form for a one-line row (a card's status, a step's problem, a tree's row). */
+.error-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--error);
+  vertical-align: middle;
+}
+.error-mark.warning,
+.error-mark.warning .error-note-icon {
+  color: var(--warn);
+}
+.error-mark-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ===== a connection's slots (connectionSlots.ts) and the Queries window (queriesWindow.ts) ===== */
+
+.connection-card {
+  grid-template-areas:
+    "icon text"
+    "status calls"
+    "slots slots";
+}
+.connection-slots {
+  display: inline-flex;
+  grid-area: slots;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.connection-slots[hidden] {
+  display: none;
+}
+.connection-slots .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+.connection-slots.busy {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+.connection-slots.full {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.connection-slots:hover,
+.connection-slots:focus-visible {
+  border-color: var(--border-strong);
+  outline: none;
+}
+.connection-queries {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.connection-limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+.connection-limit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.connection-limit {
+  width: 76px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.connection-limits.compact .connection-limit {
+  width: 64px;
+}
+body.queries-window {
+  overflow: auto;
+  background: var(--bg);
+  color: var(--fg);
+}
+.queries-main {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 24px;
+}
+.queries-main > * {
+  flex-shrink: 0;
+}
+.queries-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+.queries-top h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+}
+.queries-connection {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--fg);
+  font: inherit;
+}
+.queries-counts {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+.queries-limits {
+  margin-left: auto;
+}
+.queries-note {
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.queries-note[hidden] {
+  display: none;
+}
+.queries-header-table,
+.queries-table,
+.queries-finished-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+.queries-header-table th,
+.queries-finished-table th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+.queries-header-table th:nth-child(1),
+.queries-table td:nth-child(1) {
+  width: 14%;
+}
+.queries-header-table th:nth-child(2),
+.queries-table td:nth-child(2) {
+  width: 16%;
+}
+.queries-header-table th:nth-child(3),
+.queries-table td:nth-child(3) {
+  width: 20%;
+}
+.queries-header-table th:nth-child(4),
+.queries-table td:nth-child(4) {
+  width: 14%;
+}
+.queries-header-table th:nth-child(8),
+.queries-table td:nth-child(8) {
+  width: 132px;
+}
+.queries-list {
+  position: relative;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.queries-list:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+}
+.queries-list[hidden] {
+  display: none;
+}
+.queries-list.virtual .queries-rows {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+.queries-row td,
+.queries-finished-table td {
+  overflow: hidden;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queries-row {
+  cursor: pointer;
+}
+.queries-row:hover {
+  background: var(--row-hover);
+}
+.queries-row.selected {
+  background: var(--selected);
+}
+.queries-row.opened td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.queries-row.st-waiting .queries-state {
+  color: var(--warn);
+  font-weight: 600;
+}
+.queries-row.st-running .queries-state {
+  color: var(--ok);
+  font-weight: 600;
+}
+.queries-who.who-agent {
+  color: var(--agent);
+}
+.queries-targets,
+.queries-reason {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.queries-actions {
+  text-align: right;
+}
+.queries-empty {
+  margin: 0;
+  color: var(--muted);
+}
+.queries-empty[hidden],
+.queries-sql[hidden],
+.queries-finished[hidden] {
+  display: none;
+}
+.queries-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+.queries-sql-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.queries-sql-head h2,
+.queries-finished-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 0 0;
+  font-size: 15px;
+}
+.queries-sql-box .code-box {
+  margin: 0;
+  max-height: 45vh;
+  overflow: auto;
+}
+.queries-finished {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.queries-finished-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.queries-done.out-ok .queries-outcome {
+  color: var(--ok);
+}
+.queries-done.out-cancelled .queries-outcome,
+.queries-done.out-timed-out .queries-outcome,
+.queries-done.out-ended .queries-outcome {
+  color: var(--warn);
+}
+.queries-done.out-failed .queries-outcome {
+  color: var(--error);
+}
+.queries-header-table th:nth-child(5),
+.queries-table td:nth-child(5) {
+  width: 112px;
+}
+/* ===== the project's sandbox (dataSandbox.ts) and the local sandbox APIs (localApis.ts) ===== */
+.sandbox-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.sandbox-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.sandbox-head h2 {
+  margin: 0 auto 0 0;
+  font-size: 15px;
+}
+.sandbox-tables {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sandbox-tables th,
+.sandbox-tables td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.sandbox-tables td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* A date and its time on one line (they broke as "Nov 22, 2026, 10:57 / AM"), and their headings too. */
+.sandbox-tables td.when,
+.sandbox-tables th {
+  white-space: nowrap;
+}
+.sandbox-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.sandbox-checkpoints ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.sandbox-checkpoints h3 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.local-api-said.bad,
+.sandbox-tables td.bad {
+  color: var(--error);
+}
+.sandbox-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-left: 3px solid var(--sandbox); background: color-mix(in srgb, var(--sandbox) 8%, transparent); flex-wrap: wrap; }
+.sandbox-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--sandbox); font-weight: 600; }
+.sandbox-badge .icon-svg, .sandbox-mark .icon-svg, .tab-sandbox .icon-svg { width: 14px; height: 14px; }
+.sandbox-mark { color: var(--sandbox); margin-right: 4px; vertical-align: -2px; }
+.sandbox-variant td:first-child { border-left: 3px solid var(--sandbox); }
+.sandbox-sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
+.sandbox-sort.on { color: var(--sandbox); }
+.sandbox-sort .icon-svg { width: 12px; height: 12px; }
+.sandbox-cell-edit { position: fixed; z-index: 1000; }
+.sandbox-cell-input { width: 100%; box-sizing: border-box; font: inherit; padding: 2px 4px; border: 2px solid var(--sandbox); }
+.sandbox-cell-json { font-family: var(--mono, ui-monospace, monospace); resize: vertical; min-height: 4.5em; }
+.sandbox-never-live { color: var(--sandbox); }
+.connection-card.fam-sandbox { border-left: 4px solid var(--sandbox); }
+.connection-card.fam-sandbox .connection-card-icon { color: var(--sandbox); }
+/* The Sandbox card's status words: the status row's place at the left, across the card (no calls beside). */
+.connection-card-log { grid-row: 2; grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sandbox-mocked select { margin-top: 2px; }
+.sandbox-cell-edit .error-note { margin-top: 2px; max-width: 420px; box-shadow: 0 2px 8px rgb(0 0 0 / 18%); }
+
+.hint { color: var(--muted); font-size: 12px; }
+.field-row { display: flex; flex: 1 1 260px; align-items: center; gap: 6px; }
+.connection-groups { display: grid; gap: 8px; }
+.connection-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.connection-detail-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.connection-detail-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.conn-palette { position: absolute; }
+.connection-colour { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.conn-swatch { width: 22px; height: 22px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); cursor: pointer; }
+.conn-palette-swatches { display: grid; grid-template-columns: repeat(6, 22px); gap: 6px; padding: 4px; }
+.conn-palette-swatch { width: 22px; height: 22px; border: 1px solid var(--border-strong); border-radius: 50%; cursor: pointer; }
+.conn-palette-swatch[aria-checked="true"] { outline: 2px solid var(--fg); outline-offset: 1px; }
+@media (max-width: 900px) { .connection-detail { grid-template-columns: minmax(0, 1fr); } }
+.area-page-title .connection-status { margin-left: 8px; font-size: 13px; }
+.connection-fields .field-flag { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.connection-form .field { margin-bottom: 6px; }
+.connection-form-foot { justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--border); }

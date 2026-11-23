@@ -1,0 +1,7 @@
+@* One of the app's line icons (IconSet: the classic front end's drawings). Decorative: the button beside it has the words. *@
+<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true" data-icon="@Name">@((MarkupString)(IconSet.Paths.TryGetValue(Name, out var paths) ? paths : string.Empty))</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+}

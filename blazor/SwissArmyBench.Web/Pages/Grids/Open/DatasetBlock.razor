@@ -1,0 +1,43 @@
+@* One block of the Tables list: its tables with their rows and size, Open for a closed one, Remove. *@
+@if (Datasets.Count > 0)
+{
+    <section class="open-session" id="@Id">
+        <header><strong>@Title</strong></header>
+        <table class="kf-table small">
+            <tbody>
+                @foreach (var d in Datasets)
+                {
+                    <tr>
+                        <td><strong>@d.Name</strong></td>
+                        <td class="num" title="rows">@d.Rows.ToString("N0") row@(d.Rows == 1 ? string.Empty : "s")</td>
+                        <td class="num">@d.Size</td>
+                        <td>
+                            @if (d.Grids.Count == 0)
+                            {
+                                <button type="button" class="btn primary small" @onclick="() => OnOpen.InvokeAsync(d)">Open</button>
+                            }
+                        </td>
+                        <td><button type="button" class="btn ghost icon small" aria-label="@($"Remove {d.Name}")" title="@($"Remove {d.Name}")" @onclick="() => OnRemove.InvokeAsync(d)"><Icon Name="trash" /></button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DatasetEntry> Datasets { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<DatasetEntry> OnOpen { get; set; }
+
+    [Parameter]
+    public EventCallback<DatasetEntry> OnRemove { get; set; }
+}

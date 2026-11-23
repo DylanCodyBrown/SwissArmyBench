@@ -1,0 +1,98 @@
+@* A connection's colour as a swatch (the classic connectionColours.ts colourPicker and showPalette): a click shows
+   the palette (each colour as this theme shows it), Other… (any colour; the rail's are refused with the server's
+   words) and Next free once one was chosen. The arrow keys move through it; Escape closes it. *@
+@implements IDisposable
+@inject ConnectionColours Colours
+@inject IJSRuntime Js
+
+<span class="connection-colour">
+    <button type="button" class="conn-swatch" aria-label="@($"{Name}'s colour")" title="@($"{Name}'s colour")" aria-haspopup="menu" aria-expanded="@(_open ? "true" : "false")" style="@(Colours.Of(Name) is { } c ? $"background: {c}" : null)" @onclick="Toggle" @ref="_swatch"></button>
+    Colour
+    @if (_open)
+    {
+        <div class="menu conn-palette" role="menu" aria-label="@($"{Name}'s colour")" @onkeydown="KeyAsync" @ref="_menu">
+            <div class="menu-label">@Name's colour</div>
+            <div class="conn-palette-swatches">
+                @foreach (var colour in Colours.Listing.Palette)
+                {
+                    <button type="button" role="menuitemradio" class="conn-palette-swatch" aria-checked="@(Own?.Colour == colour.Colour ? "true" : "false")" aria-label="@colour.Name" title="@colour.Name" data-colour="@colour.Colour" style="--swatch: @Colours.Shown(colour); background: @Colours.Shown(colour)" @onclick="() => ChooseAsync(colour.Colour)"></button>
+                }
+            </div>
+            <label class="conn-palette-other"><input type="color" aria-label="Other colour" value="@(Own?.Colour ?? "#0e7c7b")" @onchange="e => ChooseAsync(e.Value?.ToString())" /> Other…</label>
+            @if (Own?.Chosen is not null)
+            {
+                <button type="button" role="menuitem" class="menu-item conn-palette-free" @onclick="() => ChooseAsync(null)">Next free</button>
+            }
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </div>
+    }
+</span>
+
+@code {
+    private bool _open;
+    private bool _justOpened;
+    private Exception? _error;
+    private ElementReference _swatch;
+    private ElementReference _menu;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    private ConnectionColour? Own => Colours.Find(Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Colours.Changed += OnColours;
+        await Colours.LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_justOpened)
+        {
+            _justOpened = false;
+            await Js.InvokeVoidAsync("sab.focusFirst", _menu, "[aria-checked=true], .conn-palette-swatch");
+        }
+    }
+
+    private void Toggle()
+    {
+        _open = !_open;
+        _justOpened = _open;
+        _error = null;
+    }
+
+    private async Task ChooseAsync(string? colour)
+    {
+        try
+        {
+            await Colours.SetAsync(Name, colour);
+            _open = false;
+            await _swatch.FocusAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    /// <summary>Escape closes it; the arrows move through its swatches, Other and Next free.</summary>
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _open = false;
+            await _swatch.FocusAsync();
+            return;
+        }
+        var step = e.Key is "ArrowRight" or "ArrowDown" ? 1 : e.Key is "ArrowLeft" or "ArrowUp" ? -1 : 0;
+        if (step != 0)
+        {
+            await Js.InvokeVoidAsync("sab.moveFocus", _menu, ".conn-palette-swatch, input, .conn-palette-free", step);
+        }
+    }
+
+    private void OnColours() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Colours.Changed -= OnColours;
+}

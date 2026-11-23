@@ -25,6 +25,10 @@ GIB: int = 1024 * MIB
 # web/static in the repo when running from source (uv sync's editable install).
 _PACKAGED_WEB: Path = Path(__file__).resolve().parent / "web_static"
 _REPO_WEB: Path = Path(__file__).resolve().parents[2] / "web" / "static"
+# The Blazor front end's published files (blazor/README.md): in the wheel, or a checkout's `python
+# blazor/publish.py` output. Absent: /blazor/ says so in one line.
+_PACKAGED_BLAZOR: Path = Path(__file__).resolve().parent / "web_blazor"
+_REPO_BLAZOR: Path = Path(__file__).resolve().parents[2] / "blazor" / "publish" / "wwwroot"
 
 
 def physical_memory_bytes() -> int:
@@ -63,6 +67,12 @@ def _web_root() -> Path:
     if override:
         return Path(override)
     return _PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB
+
+
+def state_folder() -> Path:
+    """The state folder (~/.swissarmybench; SWISSARMYBENCH_STATE for tests): the launcher reads its small
+    files (frontend.json) before any server runs."""
+    return _state_dir()
 
 
 def _workbench_dir() -> Path:
@@ -252,6 +262,8 @@ class Settings:
     worker_threads: int = 4
     # The browser files: index.html and build/ from `npm run build` (the pages load build/grid.css).
     web_root: Path = field(default_factory=_web_root)
+    # The Blazor front end's files (served at /blazor/, side by side with the classic pages).
+    blazor_root: Path = field(default=_PACKAGED_BLAZOR if _PACKAGED_BLAZOR.is_dir() else _REPO_BLAZOR)
     # Where the audit log and the other state files live (plan section 18, question 5: user folder for now).
     state_dir: Path = field(default_factory=_state_dir)
     # Exports requested by an agent (MCP) land only here, never as a browser download.

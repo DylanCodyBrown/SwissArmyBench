@@ -1,0 +1,84 @@
+@* One column's profile (the classic profileView.ts openColumnProfile): its numbers as tiles by its family, its
+   histogram or rows by month, its most common values (a click filters to one), the values that differ only by case;
+   the picker switches columns without closing it; Send to Analyze. Logic in ColumnProfileDialog.razor.cs. *@
+
+<AppDialog Wide="true" Title="@($"Profile of {_column}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="profile-window">
+            <div class="code-toolbar">
+                <select aria-label="Column to profile" value="@_column" @onchange="e => ShowAsync(e.Value?.ToString() ?? _column)">
+                    @foreach (var name in Columns)
+                    {
+                        <option value="@name">@name</option>
+                    }
+                </select>
+            </div>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            @if (_profile is null && _error is null)
+            {
+                <p class="hint">Profiling @_column…</p>
+            }
+            else if (_profile is { } p)
+            {
+                <h3 class="section-title">@p.Column <span class="hint">@p.Type.ToLowerInvariant()</span></h3>
+                <div class="stat-grid">
+                    @foreach (var (label, value) in Tiles(p))
+                    {
+                        <div class="stat"><div class="label">@label</div><div class="value">@value</div></div>
+                    }
+                </div>
+                @if (p.Histogram is { Count: > 0 } bins)
+                {
+                    var tallest = Math.Max(1, bins.Max(b => b.Count));
+                    <h3>Distribution</h3>
+                    <div class="histogram" role="img" aria-label="@($"Histogram of {p.Column} from {ProfileWords.Of(bins[0].Low)} to {ProfileWords.Of(bins[^1].High)}")">
+                        @foreach (var bin in bins)
+                        {
+                            <span title="@($"{ProfileWords.Of(bin.Low)} to {ProfileWords.Of(bin.High)}: {bin.Count:N0} rows")" style="@Height(bin.Count, tallest)"></span>
+                        }
+                    </div>
+                    <div class="histogram-axis" aria-hidden="true"><span>@ProfileWords.Of(bins[0].Low)</span><span>tallest bar: @tallest.ToString("N0") rows</span><span>@ProfileWords.Of(bins[^1].High)</span></div>
+                }
+                @if (p.ByMonth is { Count: > 0 } months)
+                {
+                    var most = Math.Max(1, months.Max(m => m.Count));
+                    <h3>Rows by month</h3>
+                    <div class="histogram" role="img" aria-label="@($"Rows by month for {p.Column}")">
+                        @foreach (var month in months)
+                        {
+                            <span title="@($"{month.Month}: {month.Count:N0}")" style="@Height(month.Count, most)"></span>
+                        }
+                    </div>
+                }
+                <h3>Most common values</h3>
+                <div class="bars" role="list" aria-label="Most common values">
+                    @{
+                        var top = Math.Max(1, p.TopValues.Select(t => t.Count).DefaultIfEmpty(1).Max());
+                    }
+                    @foreach (var value in p.TopValues)
+                    {
+                        var words = ProfileWords.Of(value.Value);
+                        <button type="button" class="bar-row" role="listitem" title="@($"Filter to {(value.Value.ValueKind == JsonValueKind.Null ? "blank" : words)}")" @onclick="() => FilterOnAsync(value.Value)">
+                            <span class="label" style="@Share(value.Count, top)"><span>@words</span></span>
+                            <span class="count">@value.Count.ToString("N0")</span>
+                        </button>
+                    }
+                </div>
+                @if (p.CaseGroups is { Count: > 0 } groups)
+                {
+                    <h3>Differ only by case</h3>
+                    <ul class="activity">
+                        @foreach (var group in groups)
+                        {
+                            <li>@string.Join(" · ", group.Variants)<span class="hint"> (@group.Rows.ToString("N0") rows)</span></li>
+                        }
+                    </ul>
+                }
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnSend.InvokeAsync(_column)"><Icon Name="image" /> Send to Analyze</button>
+        <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>

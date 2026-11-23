@@ -1,0 +1,72 @@
+@* The Performance Analyzer (the classic perfPage.ts; the owner, 2026-11-19: "monitor apps as they run ... calls,
+   triggers, network activity and what is actually traveling through the web socket"): attached to a canvas's
+   launch while it is open (Pause and Record, Clear, Save into the build), or a saved session read-only. Timeline
+   (each rerun a bar, its widgets' times under the one picked), Calls, Cache, Web socket, Hints. Logic in
+   PerfPage.razor.cs. *@
+@page "/perf"
+@implements IAsyncDisposable
+
+<section class="area-page pf" id="perf">
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_session is not { } s)
+    {
+        <div class="loading-block">Attaching to the app…</div>
+    }
+    else
+    {
+        <header class="pf-top">
+            <h1>@(Saved ? $"Saved session · build {s.Build}" : $"Performance Analyzer · build {s.Build}")</h1>
+            <span class="pf-state @(s.Recording ? "on" : null)" role="status">@(Saved ? File : s.Recording ? "Recording" : "Paused")</span>
+            <span class="spacer"></span>
+            @if (!Saved)
+            {
+                <button type="button" class="btn pf-record" @onclick="() => AttachAsync(!s.Recording)"><Icon Name="@(s.Recording ? "stop" : "play")" /><span class="btn-label">@(s.Recording ? "Pause" : "Record")</span></button>
+                <button type="button" class="btn ghost pf-clear" @onclick="() => AttachAsync(true, fresh: true)"><Icon Name="trash" /><span class="btn-label">Clear</span></button>
+                <button type="button" class="btn pf-save" @onclick="SaveAsync"><Icon Name="save" /><span class="btn-label">@(_savedAs is { } file ? $"Saved: {file}" : "Save into the build")</span></button>
+            }
+        </header>
+        <nav class="pf-tabs" role="tablist">
+            @foreach (var (tab, words) in Tabs(s))
+            {
+                <button type="button" class="btn pf-tab @(_tab == tab ? "selected" : null)" aria-pressed="@(_tab == tab ? "true" : "false")" @onclick="() => _tab = tab"><span class="btn-label">@words</span></button>
+            }
+        </nav>
+        <div class="pf-body pf-@_tab">
+            @switch (_tab)
+            {
+                case "timeline":
+                    <PerfTimeline Session="s" Picked="_picked" OnPick="i => _picked = i" />
+                    break;
+                case "calls":
+                    <PerfTable Label="calls" Head="@(["Rerun", "Kind", "Block", "Where", "Rows", "Time"])" Rows="CallRows(s)" />
+                    break;
+                case "cache":
+                    <PerfTable Label="cached functions" Head="@(["Function", "Kind", "Calls", "Hits", "Misses", "Misses cost"])" Rows="CacheRows(s)" />
+                    break;
+                case "socket":
+                    <div class="pf-socket-view">
+                        <p class="pf-total">@(s.Socket?.Messages ?? 0) messages · @PerfWords.Size(s.Socket?.Size ?? 0) to the page</p>
+                        <PerfTable Label="elements" Head="@(["Element", "Messages", "Size"])" Rows="ElementRows(s)" />
+                        <h3 class="app-heading">The biggest</h3>
+                        <PerfTable Label="messages" Head="@(["Direction", "Kind", "Element", "Path", "Size"])" Rows="BiggestRows(s)" />
+                    </div>
+                    break;
+                default:
+                    @if (s.Hints.Count > 0)
+                    {
+                        <ul class="pf-hints">
+                            @foreach (var hint in s.Hints)
+                            {
+                                <li class="pf-hint" data-rule="@hint.Rule">@hint.Words</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="hint app-empty">No hints</p>
+                    }
+                    break;
+            }
+        </div>
+    }
+</section>

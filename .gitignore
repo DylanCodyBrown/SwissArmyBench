@@ -4,6 +4,7 @@
 .ruff_cache/
 web/node_modules
 web/static/build/
+src/swissarmybench/web_blazor/
 dist/
 # Written by every e2e run (the visual review reads them); forced-colors.png is kept as the reference.
 docs/screenshots/theme-*.png

@@ -252,6 +252,17 @@ def app_rail(a: dict[str, Any]) -> Any:
     return api.call("GET", "/rail")
 
 
+@command(
+    "app_frontend",
+    "The front end the app opens: classic (default) or blazor (the preview); frontend sets it",
+    opt("frontend", "classic or blazor."),
+)
+def app_frontend(a: dict[str, Any]) -> Any:
+    if a.get("frontend") is not None:
+        return api.call("PUT", "/app/frontend", {"frontend": a["frontend"]})
+    return api.call("GET", "/app/frontend")
+
+
 @command("app_shutdown", "Stop the server (the grids close; this MCP stops answering until it starts again)")
 def app_shutdown(a: dict[str, Any]) -> Any:
     return api.call("POST", "/shutdown")

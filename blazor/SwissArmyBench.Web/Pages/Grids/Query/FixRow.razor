@@ -1,0 +1,96 @@
+@* A project's table that did not come back, with its fix (the classic startView.ts fixRow): its fix's button, Use
+   another connection… for a deleted connection, Try again, Remove. *@
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject FileChooser Files
+
+<div class="project-fix" role="status" data-table="@Problem.Table">
+    <Icon Name="exclude" />
+    <strong>@Problem.Table</strong>
+    <span class="project-fix-message">@Problem.Message</span>
+    <button type="button" class="btn primary small" @onclick="FixAsync">@Problem.Fix.Label</button>
+    @if (Problem.Fix is { Kind: "add_connection", Connection: { } gone })
+    {
+        <button type="button" class="btn small" @onclick="() => _moving = gone"><Icon Name="plug" /> Use another connection…</button>
+    }
+    @if (Problem.Fix.Kind is "add_connection" or "open_notebook" or "password")
+    {
+        <button type="button" class="btn ghost small" @onclick="RetryAsync">Try again</button>
+    }
+    @if (Problem.Fix.Kind != "remove")
+    {
+        <button type="button" class="btn ghost icon small" aria-label="@($"Remove {Problem.Table}")" title="@($"Remove {Problem.Table}")" @onclick="RemoveAsync"><Icon Name="close" /></button>
+    }
+</div>
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+@if (_moving is { } from)
+{
+    <MoveChooser From="@from" OnClose="MovedAsync" />
+}
+
+@code {
+    private Exception? _error;
+    private string? _moving;
+
+    [Parameter, EditorRequired]
+    public ProjectProblem Problem { get; set; } = default!;
+
+    /// <summary>The project's problems may have changed (the page reads them again).</summary>
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    /// <summary>The fix (the classic projectFile.ts fixTable): a file found, a connection added or its password set, a
+    /// notebook opened, or the table read again.</summary>
+    private async Task FixAsync()
+    {
+        var fix = Problem.Fix;
+        switch (fix.Kind)
+        {
+            case "add_connection":
+                Nav.NavigateTo("connections?add=1");
+                return;
+            case "password":
+                Nav.NavigateTo($"connections?edit={Uri.EscapeDataString(fix.Connection ?? string.Empty)}");
+                return;
+            case "open_notebook":
+                Nav.NavigateTo($"notebooks?path={Uri.EscapeDataString(fix.Notebook ?? string.Empty)}");
+                return;
+            case "find_file":
+                if (await Files.ChooseAsync("file", $"Find {fix.File ?? Problem.Table}", null, "table") is { } path)
+                {
+                    await PostAsync(new { table = Problem.Table, path });
+                }
+                return;
+            case "remove":
+                await RemoveAsync();
+                return;
+            default:
+                await RetryAsync();
+                return;
+        }
+    }
+
+    private Task RetryAsync() => PostAsync(new { table = Problem.Table });
+
+    private Task RemoveAsync() => PostAsync(new { table = Problem.Table, remove = true });
+
+    private async Task PostAsync(object body)
+    {
+        try
+        {
+            await Api.PostAsync("/project/fix", body);
+            _error = null;
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task MovedAsync()
+    {
+        _moving = null;
+        await OnChanged.InvokeAsync();
+    }
+}

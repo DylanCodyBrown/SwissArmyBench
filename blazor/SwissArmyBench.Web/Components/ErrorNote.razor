@@ -1,0 +1,43 @@
+@* The one error component (the classic errorNote.ts, design principle 9.5): an icon and a word, what happened in one
+   plain sentence, where, the fixes as buttons, the source's own words folded behind Details with Copy, and Send to
+   the agent. A warning draws the same note in the warning colour. *@
+@if (Refusal is not null)
+{
+    <div class="error-note @(Warning ? "warning" : "error")" role="alert">
+        <div class="error-note-head">
+            <Icon Name="@(Warning ? "warning" : "problem")" />
+            <strong>@(Warning ? "Warning" : "Error")</strong>
+            <span class="error-note-what">@Refusal.Error</span>
+            @if (OnClose.HasDelegate)
+            {
+                <button type="button" class="btn ghost icon error-note-close" aria-label="Close" @onclick="OnClose"><Icon Name="close" /></button>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Refusal.Where))
+        {
+            <div class="error-note-where">In @Refusal.Where</div>
+        }
+        <div class="error-note-fixes">
+            @foreach (var fix in Refusal.Fixes ?? [])
+            {
+                <button type="button" class="btn small" @onclick="() => RunFixAsync(fix)">@fix.Label</button>
+            }
+            @if (OnRetry.HasDelegate && !(Refusal.Fixes ?? []).Any(f => f.Action == "try_again"))
+            {
+                <button type="button" class="btn small" @onclick="OnRetry">Try again</button>
+            }
+            @if (!Warning)
+            {
+                <button type="button" class="btn small ghost" @onclick="SendToAgentAsync">@(_sent ? "Sent to the agent" : "Send to the agent")</button>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Refusal.Details))
+        {
+            <details class="error-note-details">
+                <summary>Details</summary>
+                <pre>@Refusal.Details</pre>
+                <button type="button" class="btn small ghost" @onclick="CopyDetailsAsync">Copy</button>
+            </details>
+        }
+    </div>
+}

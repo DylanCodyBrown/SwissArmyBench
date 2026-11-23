@@ -1,0 +1,16 @@
+@* The detail's Queries section (the classic connectionSlots.ts slotsSection): the live line, the three limits (at
+   once, the agent's, the wait) with Save, and Queries in progress… (the Queries window). *@
+@inject IJSRuntime Js
+@inject Notes Notes
+
+<section class="connection-section connection-queries" aria-label="Queries">
+    <h2><Icon Name="rows" /> Queries</h2>
+    <SlotLine Name="@Name" Always="true" />
+    <LimitsForm Name="@Name" />
+    <button type="button" class="btn" @onclick="() => QueriesWindow.OpenAsync(Js, Notes, Name)"><Icon Name="popout" /> Queries in progress…</button>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+}

@@ -1,0 +1,15 @@
+@* Keep first rows: how many. *@
+@inherits StepFormBase
+
+<label class="field step-form"><span>Keep the first … rows</span>
+    <input type="number" min="0" aria-label="Rows to keep" @bind="_rows" />
+</label>
+
+@code {
+    private const int FirstRows = 100;
+    private string _rows = FirstRows.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    protected override void OnInitialized() => _rows = Raw("n", _rows);
+
+    public override Dictionary<string, object?> Read() => new() { ["n"] = (long)Math.Max(0, Math.Floor(Number(_rows, "Rows to keep"))) };
+}

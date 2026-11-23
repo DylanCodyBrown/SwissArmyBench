@@ -115,6 +115,9 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    # The Blazor front end's page (2026-11-23): the page itself, like /workspace; app_frontend picks it.
+    "/blazor": "the Blazor front end's page (its files, no data); app_frontend makes it the app's",
+    "/blazor/{}": "the one line saying the Blazor front end is not built here (no data)",
     # The statistics (2026-11-22): the pages' figures by name; the agent's stats(action=connection|endpoint).
     "/stats/figures": "the Connections and APIs pages' figures by name (the agent: stats connection)",
     # A connection's slots (2026-11-21): a kernel's leased slot is its own process's

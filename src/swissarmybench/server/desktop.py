@@ -35,6 +35,7 @@ from swissarmybench.server.lifecycle import (
     AlreadyStartingError,
     InstanceLock,
     get_json,
+    home_path,
     post_json,
     process_alive,
 )
@@ -268,7 +269,7 @@ def main(page: str | None = None, info_file: Path | None = None) -> int:
         lock = InstanceLock(record_file(info).path)
     except AlreadyStartingError:
         # Another start of the app: it opens the page (a second `swissarmybench` shows the home window).
-        if tell({"open": wanted or rules.HOME_PAGE}, info, wait=RECORD_WAIT_SECONDS) is not None:
+        if tell({"open": wanted or home_path()}, info, wait=RECORD_WAIT_SECONDS) is not None:
             return 0
         print("Swiss Army Bench is starting already.", file=sys.stderr)
         return 1

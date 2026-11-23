@@ -1,0 +1,51 @@
+@* A query's tray (the classic queryTab.ts createTray): Hide the query (or Show), the draft's name and Query from
+   (Grids, each connection that runs SQL, Add a connection…; a Power BI workspace asks for its dataset) or a built
+   table's "on <connection>", the green Run (Ctrl+Enter), the status; the SQL editor. Logic in QueryTray.razor.cs. *@
+
+<section class="query-tray" data-open="@(_open ? "true" : "false")" aria-label="The query that builds this table">
+    <div class="query-tray-bar">
+        <button type="button" class="btn ghost icon small" aria-label="@(_open ? "Hide the query" : "Show the query")" title="@(_open ? "Hide the query" : "Show the query")"
+                aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open"><Icon Name="@(_open ? "up" : "down")" /></button>
+        <strong>@(Draft ? "New table" : "Query")</strong>
+        @if (Draft)
+        {
+            <input type="text" class="query-name mono" aria-label="Name of the new table" spellcheck="false" maxlength="64" @bind="_name" @bind:event="oninput" />
+            <span class="query-from">
+                <span class="query-from-label">from</span>
+                <select class="query-source" aria-label="Query from" title="@SourceTitle" value="@_from" @onchange="PickAsync">
+                    <option value="">Grids (the open tables)</option>
+                    @if (_connections.Count > 0)
+                    {
+                        <optgroup label="Connections">
+                            @foreach (var c in _connections)
+                            {
+                                <option value="@c.Name">@c.Name</option>
+                            }
+                        </optgroup>
+                    }
+                    <option value="@AddConnection">Add a connection…</option>
+                </select>
+                @if (Picked?.Dax == true)
+                {
+                    <input type="text" class="query-dataset" aria-label="Power BI dataset" placeholder="Dataset" spellcheck="false" @bind="_dataset" />
+                }
+            </span>
+        }
+        else if (FixedConnection is { Length: > 0 } on)
+        {
+            <span class="query-from fixed" title="@($"This query runs on {on}, in its own SQL")">on @on</span>
+        }
+        <button type="button" class="btn small run" title="Run (Ctrl+Enter)" disabled="@_running" @onclick="RunAsync"><Icon Name="play" /> @(_running ? "Running…" : "Run")</button>
+        @if (_running)
+        {
+            <button type="button" class="btn small ghost" @onclick="Cancel">Cancel</button>
+        }
+        <span class="sql-status @(_failed ? "error" : string.Empty)" role="status">@_status</span>
+    </div>
+    @if (_open)
+    {
+        <div class="sql-editor">
+            <CodeEditor @ref="_editor" Value="@_sql" Language="sql" Label="SQL query" MinLines="6" OnChange="t => _sql = t" OnKey="KeyAsync" />
+        </div>
+    }
+</section>

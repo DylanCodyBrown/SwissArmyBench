@@ -1,0 +1,53 @@
+@* The tour (the classic tour.ts): a card per place in the rail's order; the tour goes there and lights up the real
+   control (a spotlight, the card beside it; a control that does not come puts the card in the middle with "Not
+   here right now."). Two small made-up tables are opened to show things on and closed when it ends, back where it
+   started. Right or Enter is Next, Left is Back, Escape closes. Logic in TourHost.razor.cs. *@
+@implements IAsyncDisposable
+
+@if (Tour.Open)
+{
+    <div class="tour" role="dialog" aria-modal="true" aria-label="Tour" @ref="_root">
+        <div class="tour-spot" aria-hidden="true" @ref="_spot"></div>
+        <div class="tour-card" aria-live="polite" @ref="_card">
+            @if (Current is { } stop)
+            {
+                <div class="tour-icon"><Icon Name="@stop.Icon" /></div>
+                <h2 class="tour-word">@stop.Word</h2>
+                <p class="tour-line">@stop.Line</p>
+                @if (stop.Code is { } line)
+                {
+                    <code class="tour-code">@line</code>
+                }
+                @if (stop.Practice is { } how)
+                {
+                    <div class="tour-practice" data-practice="@how">
+                        <label class="field"><span>Server</span>
+                            <input type="text" class="mono" aria-label="Server" spellcheck="false" autocomplete="off" disabled="@(!_practiceReady)" @oninput="PracticeTypedAsync" @ref="_practiceBox" /></label>
+                        <p class="tour-practice-said @(_hint ? "tour-hint" : string.Empty)" role="status">@_said</p>
+                        @if (_reads is not null)
+                        {
+                            <div class="variable-preview" aria-live="polite"><span class="variable-preview-value mono" title="What it reads on this computer">@(_reads.Length == 0 ? "(empty)" : _reads)</span></div>
+                        }
+                    </div>
+                }
+                <p class="tour-missing" hidden="@(!_notHere)">Not here right now.</p>
+                <div class="tour-dots" aria-label="@($"{_index + 1} of {Stops.Count}")">
+                    @foreach (var (_, i) in Stops.Select((s, i) => (s, i)))
+                    {
+                        <span class="tour-dot @(i < _index ? "done" : i == _index ? "here" : string.Empty)"></span>
+                    }
+                </div>
+                <div class="tour-actions">
+                    <button type="button" class="btn ghost" @onclick="CloseAsync">Skip</button>
+                    @if (_index > 0)
+                    {
+                        <button type="button" class="btn ghost" @onclick="() => ShowAsync(_index - 1)"><Icon Name="back" /> Back</button>
+                    }
+                    <button type="button" class="btn primary" disabled="@NextBlocked" @onclick="() => ShowAsync(_index + 1)" @ref="_next">
+                        <Icon Name="@(Last ? "check" : "expand")" /> @(Last ? "Start" : "Next")
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}

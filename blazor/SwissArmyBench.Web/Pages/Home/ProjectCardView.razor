@@ -1,0 +1,95 @@
+@* One project's card: its name and type, Local or Shared, its counts and times, its Git branch, Open, and the menu
+   ("…": Show in folder, Share or Make a local copy, Rename, Move left or right, Remove from list, Delete…). *@
+<div class="card explorer-card @(Card.Open ? "open" : string.Empty)" data-path="@Card.Path" tabindex="0" aria-label="@Card.Name" @onclick="ClickAsync" @onkeydown="KeyAsync">
+    <div class="card-title">
+        <Icon Name="project" />
+        <span>@Card.Name</span>
+        <span class="chip @(Card.Where == "shared" ? "shared" : string.Empty)">@(Card.Where == "shared" ? "Shared" : "Local")</span>
+        <button type="button" class="btn ghost icon small explorer-more" aria-label="@($"{Card.Name}: more")" title="@($"{Card.Name}: more")" @onclick="() => _menu = !_menu" @onclick:stopPropagation="true"><Icon Name="more" /></button>
+    </div>
+    <div class="card-meta">
+        <span>@Card.TypeName</span>
+        <span>@Counts</span>
+        @if (Card.Git is { Repository: true } git)
+        {
+            <span title="Git repository"><Icon Name="branch" /> @(git.Branch ?? "Git")</span>
+        }
+    </div>
+    <div class="card-meta">
+        <span>Opened @When(Card.Opened)</span>
+        <span>Changed @When(Card.Changed)</span>
+    </div>
+    @if (Card.Missing)
+    {
+        <p class="explorer-missing">Moved or deleted</p>
+    }
+    @if (Card.Needs is { } needs)
+    {
+        <p class="explorer-needs">Needs the @needs.Name extension <button type="button" class="btn ghost small explorer-install" @onclick="() => InstallAsync(needs.Extension)" @onclick:stopPropagation="true">Install</button></p>
+    }
+    @if (Card.Where == "shared" && !Card.Missing && Sync?.WordsFor(Card.Name) is { } syncWords)
+    {
+        <p class="explorer-sync">@syncWords</p>
+    }
+    @if (Card.CopiedFrom is { } from)
+    {
+        <p class="hint explorer-copied">Copied from @from</p>
+    }
+    <p class="explorer-folder" title="@Card.Path"><Icon Name="folder" /><span>@Card.Path</span></p>
+    <div class="card-actions">
+        @if (Card.Open)
+        {
+            <span class="chip">Open</span>
+        }
+        else if (!Card.Missing)
+        {
+            <button type="button" class="btn small primary" @onclick="OpenAsync">Open</button>
+        }
+        else
+        {
+            <button type="button" class="btn small" @onclick="LocateAsync">Locate…</button>
+        }
+    </div>
+    @if (_menu)
+    {
+        <div class="menu explorer-menu" role="menu" @onkeydown="MenuKey" @onclick:stopPropagation="true">
+            @if (Card.Missing)
+            {
+                <button type="button" class="menu-item" role="menuitem" @onclick="LocateAsync">Locate…</button>
+            }
+            @if (!Card.Missing)
+            {
+                <button type="button" class="menu-item" role="menuitem" @onclick="OpenAsync">Open</button>
+                <button type="button" class="menu-item" role="menuitem" @onclick="ShowAsync">Show in folder</button>
+                <button type="button" class="menu-item" role="menuitem" @onclick="CopyToAsync">Copy project to…</button>
+                @if (Card.Where == "shared")
+                {
+                    @if (Sync is { Connected: true })
+                    {
+                        <button type="button" class="menu-item explorer-sync-item" role="menuitem" @onclick="() => SyncAsync(false)">Pull</button>
+                        <button type="button" class="menu-item explorer-sync-item" role="menuitem" @onclick="() => SyncAsync(true)">Push</button>
+                    }
+                    <button type="button" class="menu-item" role="menuitem" @onclick="CopyLocalAsync">Make a local copy</button>
+                }
+                else
+                {
+                    <button type="button" class="menu-item" role="menuitem" @onclick="ShareAsync">Share</button>
+                }
+                <button type="button" class="menu-item" role="menuitem" @onclick="RenameAsync">Rename</button>
+                @if (Custom && !First)
+                {
+                    <button type="button" class="menu-item" role="menuitem" @onclick="() => MoveAsync(-1)">Move left</button>
+                }
+                @if (Custom && !Last)
+                {
+                    <button type="button" class="menu-item" role="menuitem" @onclick="() => MoveAsync(1)">Move right</button>
+                }
+            }
+            <button type="button" class="menu-item" role="menuitem" @onclick="RemoveAsync">Remove from list</button>
+            @if (!Card.Missing)
+            {
+                <button type="button" class="menu-item danger" role="menuitem" @onclick="DeleteAsync">Delete…</button>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,37 @@
+@* A connection's live line, "Running 3 of 8 · 1 waiting" (the classic connectionSlots.ts slotLine): shown while
+   anything runs or waits (Always: on the detail, with nothing running too); a click opens the Queries window. *@
+@implements IDisposable
+@inject ConnectionSlots Slots
+@inject IJSRuntime Js
+@inject Notes Notes
+
+@if (Always || Slots.IsBusy(Name))
+{
+    <button type="button" class="connection-slots @(Slots.IsBusy(Name) ? "busy" : null) @(Full ? "full" : null)" data-slots="@Name" title="Queries in progress…" aria-label="Queries in progress…: @Words" @onclick="OpenAsync" @onclick:preventDefault="true" @onclick:stopPropagation="true">
+        <Icon Name="rows" /> <span class="connection-slots-words">@Words</span>
+    </button>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Always { get; set; }
+
+    private string Words => Slots.Of(Name)?.Words is { Length: > 0 } words ? words : "Running 0 of 8";
+
+    private bool Full => Slots.Of(Name) is { } s && s.Running >= s.Limits.Total;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Slots.Changed += OnChanged;
+        await Slots.LoadAsync();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task OpenAsync() => QueriesWindow.OpenAsync(Js, Notes, Name);
+
+    public void Dispose() => Slots.Changed -= OnChanged;
+}

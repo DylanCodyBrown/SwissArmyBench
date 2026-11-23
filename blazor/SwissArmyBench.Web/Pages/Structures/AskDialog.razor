@@ -1,0 +1,44 @@
+@* A step's dialog (the classic structuresPage.ts ask): a box or a list per field, Cancel, and the step's own word. *@
+
+<AppDialog Title="@Title" OnClose="() => OnDone.InvokeAsync(null)">
+    <ChildContent>
+        @foreach (var field in Fields)
+        {
+            <label class="structures-field field"><span>@field.Label</span>
+                @if (field.Options is { } options)
+                {
+                    <select aria-label="@field.Label" @onchange="e => _values[field.Name] = e.Value?.ToString() ?? string.Empty">
+                        @foreach (var option in options)
+                        {
+                            <option value="@option" selected="@(option == _values[field.Name])">@option</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <input aria-label="@field.Label" spellcheck="false" value="@_values[field.Name]" @oninput="e => _values[field.Name] = e.Value?.ToString() ?? string.Empty" />
+                }
+            </label>
+        }
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnDone.InvokeAsync(null)">Cancel</button>
+        <button type="button" class="btn primary" @onclick="() => OnDone.InvokeAsync(_values)">@Title</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private Dictionary<string, string> _values = [];
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<AskField> Fields { get; set; } = [];
+
+    /// <summary>The values given (null: Cancel).</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyDictionary<string, string>?> OnDone { get; set; }
+
+    protected override void OnInitialized() => _values = Fields.ToDictionary(f => f.Name, f => f.Value);
+}

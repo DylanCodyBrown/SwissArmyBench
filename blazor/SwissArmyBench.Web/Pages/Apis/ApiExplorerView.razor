@@ -1,0 +1,146 @@
+@* One API explored (the classic apisPage.ts explorer): its operations on the left (method and path), the one picked
+   on the right: its inputs and body as a form, its answers' shapes, Try it, the answer as a structure, and
+   Author a call's Return as table, Rows at, The DuckDB query (Save the query, Make it again), Save as web call and
+   Copy name for SQL; Write rows with this call; what was learned of it (ApiLearnedSection: Run, Build); Discover
+   with its remembered Allow. Logic in ApiExplorerView.razor.cs. *@
+
+<div class="api-explorer">
+    <nav class="side-pane api-operations" aria-label="Operations">
+        <div class="side-pane-head"><strong>@Explorer.Title</strong> <span class="muted">@Explorer.BaseUrl</span></div>
+        <div class="api-discover-row">
+            <Busy IsBusy="_discovering" Words="@($"Learning {Explorer.Name}: one read-only call per read endpoint…")"><button type="button" class="btn api-discover" title="Call each read endpoint once and learn what it answers (you are asked first)" @onclick="DiscoverAsync"><Icon Name="zoom" /> Discover</button></Busy>
+            @if (_allowedSince is { } since)
+            {
+                <span class="api-discover-allowed muted">Discover allowed since @since <button type="button" class="btn ghost api-discover-forget" @onclick="ForgetAsync">Take it back</button></span>
+            }
+        </div>
+        <ul class="files-list" role="list">
+            @foreach (var operation in Explorer.Operations)
+            {
+                <li>
+                    <a class="files-item @(operation.Id == Picked?.Id ? "current" : string.Empty)" href="@AddressOf(operation)" data-operation="@operation.Id" aria-current="@(operation.Id == Picked?.Id ? "page" : null)">
+                        <span class="api-method method-@operation.Method.ToLowerInvariant()">@operation.Method</span> @operation.Path
+                        @if (_learned.GetValueOrDefault(operation.Id) is { } known)
+                        {
+                            @if (known.Learned)
+                            {
+                                <span class="api-op-kind">@known.Kind</span>
+                            }
+                            @if (known.Drift.Length > 0)
+                            {
+                                <span title="@known.Drift"><Icon Name="warning" /></span>
+                            }
+                        }
+                    </a>
+                </li>
+            }
+        </ul>
+        @if (Explorer.Schemas.Count > 0)
+        {
+            <details class="files-group">
+                <summary>Schemas <span class="muted">@Explorer.Schemas.Count</span></summary>
+                <ul class="plain-list">
+                    @foreach (var schema in Explorer.Schemas)
+                    {
+                        <li><strong>@schema.Name</strong> <span class="muted">used by @string.Join(", ", schema.UsedBy)</span></li>
+                    }
+                </ul>
+            </details>
+        }
+    </nav>
+    <div class="api-operation">
+        @if (Picked is { } op)
+        {
+            <h2><span class="api-method method-@op.Method.ToLowerInvariant()">@op.Method</span> @op.Path</h2>
+            <p>@(op.Summary.Length > 0 ? op.Summary : op.Name)</p>
+            @if (op.Description.Length > 0)
+            {
+                <p class="muted">@op.Description</p>
+            }
+            @if (Writes(op))
+            {
+                <div class="api-op-actions"><button type="button" class="btn api-write" aria-pressed="@(_writing ? "true" : "false")" @onclick="() => _writing = !_writing"><Icon Name="rows" /> Write rows with this call</button></div>
+            }
+            @if (_writing && Writes(op))
+            {
+                <ApiWriteRows Api="@Explorer.Name" Operation="op" OnBack="() => _writing = false" />
+            }
+            else
+            {
+            <section class="section" aria-label="Try it">
+                <div class="section-head"><h3>Try it</h3></div>
+                @foreach (var parameter in op.Parameters)
+                {
+                    var name = parameter.Name;
+                    <label class="field"><span>@name <span class="muted">(@parameter.In@(parameter.Required ? ", required" : string.Empty))</span></span>
+                        <input type="text" aria-label="@name" value="@_inputs.GetValueOrDefault(name)" @onchange="e => _inputs[name] = e.Value?.ToString() ?? string.Empty" />
+                    </label>
+                }
+                @if (op.Body is { } body)
+                {
+                    <label class="field"><span>Body (JSON)</span></label>
+                    <div class="api-body"><CodeEditor Value="@BodyExample(body)" Language="json" Label="Body" Grow="true" MinLines="4" OnChange="t => _body = t" /></div>
+                }
+                <div class="form-row api-author-actions">
+                    <button type="button" class="btn primary api-send" disabled="@_sending" @onclick="SendAsync"><Icon Name="play" /> Send</button>
+                    <label class="autosave-switch"><input type="checkbox" role="switch" class="switch-input" aria-label="Return as table" checked="@_asTable" @onchange="e => _asTable = e.Value is true" /> <span>Return as table</span></label>
+                    <label class="api-records"><span>Rows at</span><input class="mono" aria-label="Records path" placeholder="$.items" value="@_records" @oninput="e => _records = e.Value?.ToString() ?? string.Empty" /></label>
+                    <Busy IsBusy="_saving" Words="Saving…"><button type="button" class="btn" @onclick="SaveAsync"><Icon Name="save" /> Save as web call</button></Busy>
+                    @if ((_sqlName ?? op.SqlName) is { } sqlName)
+                    {
+                        <button type="button" class="btn ghost" title="@sqlName" @onclick="() => CopySqlNameAsync(sqlName)"><Icon Name="copy" /> Copy name for SQL</button>
+                    }
+                </div>
+                @if (_asTable)
+                {
+                    <details class="api-conversion"><summary>The DuckDB query</summary>
+                        <textarea class="mono api-conversion-sql" aria-label="The DuckDB query" rows="5" spellcheck="false" placeholder="Made from the rows path when saved" value="@_query" @oninput="QueryTyped"></textarea>
+                        @if ((_sqlName ?? op.SqlName) is not null)
+                        {
+                            <div class="api-conversion-actions">
+                                <button type="button" class="btn" @onclick="() => SaveQueryAsync(false)"><Icon Name="save" /> Save the query</button>
+                                <button type="button" class="btn ghost" title="From the rows path and the header" @onclick="() => SaveQueryAsync(true)">Make it again</button>
+                            </div>
+                        }
+                    </details>
+                }
+                <div class="form-row">
+                    @if (_answer is { } answer)
+                    {
+                        <span role="status" class="@(answer.Status < 400 ? "status-ok" : "muted")">@answer.Status · @answer.Ms.ToString("N0") ms</span>
+                        @if (answer.SuggestTable is { } suggest && !_asTable)
+                        {
+                            <span class="muted api-suggest">It answers rows at @suggest.Records: Return as table can make it a table.</span>
+                        }
+                        @if (answer.Structure is { } id)
+                        {
+                            <a href="@($"structures?id={Uri.EscapeDataString(id)}")">Open in Structures</a>
+                        }
+                    }
+                </div>
+                <ErrorNote Error="_error" OnClose="() => _error = null" />
+                @if (_structure is { } document)
+                {
+                    <StructureView @key="document.Id" Document="document" OnChanged="d => _structure = d" />
+                }
+            </section>
+            <ApiLearnedSection @key="op.Id" Api="@Explorer.Name" Action="@op.Id" Writes="Writes(op)" Inputs="TypedInputs" />
+            }
+            <section class="section api-outputs" aria-label="Outputs">
+                <div class="section-head"><h3>Outputs</h3></div>
+                @foreach (var response in op.Responses)
+                {
+                    <p><strong>@response.Status</strong> @response.Description <span class="muted">@response.Media</span></p>
+                    @if (response.Schema is { } schema)
+                    {
+                        <pre class="wb-text api-schema">@Pretty(schema)</pre>
+                    }
+                }
+            </section>
+        }
+        else
+        {
+            <p class="muted">Pick an operation on the left.</p>
+        }
+    </div>
+</div>

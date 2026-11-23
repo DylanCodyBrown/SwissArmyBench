@@ -1,0 +1,115 @@
+@* Blade folders… (the classic bladeLibrary.ts editBladeFolders): the folders searched for blade files, each with how
+   many blades it holds (or not found), one from SWISSARMYBENCH_BLADE_FOLDERS said so; Remove, Folder to add with Add;
+   the files that could not be read; Save. *@
+@using System.Text.Json
+@using SwissArmyBench.Web.Api.Blades
+@inject BladesClient Blades
+
+<AppDialog Title="Blade folders" OnClose="OnClose">
+    <ChildContent>
+        <ul class="folder-list">
+            @foreach (var folder in Folders.Where(f => f.FromEnv || _mine.Contains(f.Path)))
+            {
+                <li>
+                    <code>@folder.Path</code>
+                    <span class="hint">@(folder.Exists ? $"  {folder.Blades} blade{(folder.Blades == 1 ? string.Empty : "s")}" : "  not found")</span>
+                    @if (folder.FromEnv)
+                    {
+                        <span class="hint">  (from SWISSARMYBENCH_BLADE_FOLDERS)</span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn small ghost icon" aria-label="Remove" title="Remove" @onclick="() => _mine.Remove(folder.Path)"><Icon Name="trash" /></button>
+                    }
+                </li>
+            }
+            @foreach (var path in _mine.Where(p => Folders.All(f => f.Path != p)))
+            {
+                <li><code>@path</code><span class="hint">  added</span></li>
+            }
+        </ul>
+        <div class="row-actions">
+            <input type="text" placeholder="C:\Users\me\blades" aria-label="Folder to add" spellcheck="false" @bind="_add" />
+            <button type="button" class="btn small" @onclick="Add"><Icon Name="plus" /> Add</button>
+        </div>
+        @if (Problems.Count > 0)
+        {
+            <h3>Unreadable blade files</h3>
+            <ul>
+                @foreach (var (path, error) in Problems)
+                {
+                    <li><code>@path</code> <span class="error-text">@error</span></li>
+                }
+            </ul>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" @onclick="SaveAsync">Save</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private JsonElement? _state;
+    private List<string> _mine = [];
+    private string _add = string.Empty;
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnSaved { get; set; }
+
+    private sealed record Folder(string Path, bool Exists, int Blades, bool FromEnv);
+
+    private List<Folder> Folders => _state is { } s && s.TryGetProperty("folders", out var f)
+        ? f.EnumerateArray().Select(x => new Folder(
+            x.GetProperty("path").GetString() ?? string.Empty,
+            x.TryGetProperty("exists", out var e) && e.GetBoolean(),
+            x.TryGetProperty("blades", out var b) && b.TryGetInt32(out var n) ? n : 0,
+            x.TryGetProperty("from_env", out var v) && v.ValueKind == JsonValueKind.True)).ToList()
+        : [];
+
+    private List<(string Path, string Error)> Problems => _state is { } s && s.TryGetProperty("problems", out var p)
+        ? p.EnumerateArray().Select(x => (x.GetProperty("path").GetString() ?? string.Empty, x.GetProperty("error").ToString())).ToList()
+        : [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _state = await Blades.FoldersAsync();
+            _mine = Folders.Where(f => !f.FromEnv).Select(f => f.Path).ToList();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private void Add()
+    {
+        var path = _add.Trim();
+        if (path.Length > 0 && !_mine.Contains(path))
+        {
+            _mine.Add(path);
+        }
+        _add = string.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Blades.SetFoldersAsync(_mine);
+            await OnSaved.InvokeAsync();
+            await OnClose.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

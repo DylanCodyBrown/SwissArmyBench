@@ -1,0 +1,62 @@
+@* The buttons the extensions that are on add to a base page (the classic pageActions.ts actionButtons): each of the
+   mode's page_actions for Page whose plug-in is registered (State/PagePlugins.cs), drawn from its data (label, icon,
+   title); a click opens that plug-in with the page's Context. The page never names an extension. *@
+@implements IDisposable
+@inject AppClient App
+@inject PagePlugins Plugins
+@inject ProjectState Project
+
+@foreach (var a in _actions)
+{
+    <button type="button" class="btn page-action" data-plugin="@a.Id" title="@(a.Title ?? a.Label)" @onclick="() => _open = a"><Icon Name="@(a.Icon ?? "extensions")" /> @a.Label</button>
+}
+@if (_open is { } open && Plugins.Find(open.Id) is { } plugin)
+{
+    <DynamicComponent Type="plugin" Parameters="@ParametersOf()" />
+}
+
+@code {
+    private IReadOnlyList<PageAction> _actions = [];
+    private PageAction? _open;
+
+    /// <summary>The base page the buttons are on (the mode's page_actions' page: "erd").</summary>
+    [Parameter, EditorRequired]
+    public string Page { get; set; } = string.Empty;
+
+    /// <summary>What the page hands a plug-in (the ERD: the tables it shows).</summary>
+    [Parameter]
+    public object? Context { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Project.Changed += OnProject;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var declared = (await App.ModeAsync()).Mode.PageActions ?? [];
+            _actions = [.. declared.Where(a => a.Page == Page && Plugins.Has(a.Id))];
+        }
+        catch (ApiException)
+        {
+            _actions = [];
+        }
+    }
+
+    private Dictionary<string, object?> ParametersOf() => new()
+    {
+        ["Context"] = Context,
+        ["OnClose"] = EventCallback.Factory.Create(this, () => _open = null),
+    };
+
+    private void OnProject() => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Project.Changed -= OnProject;
+}

@@ -37,11 +37,26 @@ class _Memory:
 
 
 class Navigation:
-    def __init__(self, ws: Workspace, kept: Kept | None = None) -> None:
+    def __init__(self, ws: Workspace, kept: Kept | None = None, frontend: Kept | None = None) -> None:
         self.ws = ws
         # The rail's names on or off: this computer's choice (rail.json), shared by every window.
         self._kept: Kept = kept or _Memory()
         self._labels = rules.rail_labels(self._kept.read())
+        # Which front end the app opens (frontend.json): classic or blazor.
+        self._frontend_file: Kept = frontend or _Memory()
+        self._frontend = rules.frontend(self._frontend_file.read())
+
+    def frontend(self) -> dict[str, Any]:
+        return {"frontend": self._frontend, "home": rules.HOME_PAGES[self._frontend]}
+
+    async def set_frontend(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """The front end the app opens: {"frontend": "classic"} or {"frontend": "blazor"}."""
+        self._frontend = rules.frontend_change(body)
+        self._frontend_file.write({"frontend": self._frontend})
+        self.ws.audit.write(who, "frontend", self._frontend)
+        said = self.frontend()
+        await self.ws.live.broadcast({"type": "frontend_changed"} | said)
+        return said
 
     def rail(self) -> dict[str, Any]:
         return {"labels": self._labels}

@@ -1,0 +1,18 @@
+@* A page this front end does not have yet: one plain line and the same place in the classic front end (never a fake
+   page). The classic pages share this browser's session cookie, so the link opens there at once. *@
+<section class="area-page not-yet">
+    <h1>@Title</h1>
+    <p>
+        @Title is not in the Blazor front end yet.
+        <a href="@Classic">Open in the classic front end</a>
+    </p>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>The classic front end's address for the same place.</summary>
+    [Parameter, EditorRequired]
+    public string Classic { get; set; } = string.Empty;
+}

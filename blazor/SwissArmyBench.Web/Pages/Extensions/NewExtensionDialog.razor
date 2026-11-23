@@ -1,0 +1,45 @@
+@* New extension… (the classic extensionsPage.ts newExtension): a folder in the library's extensions folder with one
+   route and one agent command (and a project type when one is named), loaded at once. Its rules are the server's: a
+   refusal is said here. *@
+@using SwissArmyBench.Web.Api.Extensions
+@inject ExtensionsClient Extensions
+
+<AppDialog Title="New extension" OnClose="() => OnDone.InvokeAsync(false)">
+    <ChildContent>
+        <p class="muted">A folder in your library's extensions folder, with one route and one agent command to grow from. It loads at once.</p>
+        <label class="field"><span>Id (lower case: its routes and commands)</span><input type="text" name="id" placeholder="inventory" autocomplete="off" data-no-variables @bind="_id" /></label>
+        <label class="field"><span>Name</span><input type="text" name="name" placeholder="Inventory" autocomplete="off" data-no-variables @bind="_name" /></label>
+        <label class="field"><span>Project type it adds (optional)</span><input type="text" name="project_type" placeholder="none" autocomplete="off" data-no-variables @bind="_type" /></label>
+        <div class="extension-new-state"><ErrorNote Error="_error" OnClose="() => _error = null" /></div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="() => OnDone.InvokeAsync(false)">Cancel</button>
+        <Busy IsBusy="_making" Words="Making…"><button type="button" class="btn primary" @onclick="MakeAsync"><Icon Name="plus" /> Make it</button></Busy>
+    </Foot>
+</AppDialog>
+
+@code {
+    private string _id = string.Empty;
+    private string _name = string.Empty;
+    private string _type = string.Empty;
+    private bool _making;
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback<bool> OnDone { get; set; }
+
+    private async Task MakeAsync()
+    {
+        _making = true;
+        try
+        {
+            await Extensions.NewAsync(_id.Trim(), _name.Trim().Length > 0 ? _name.Trim() : null, _type.Trim().Length > 0 ? _type.Trim() : null);
+            await OnDone.InvokeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _making = false;
+    }
+}

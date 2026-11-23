@@ -1,0 +1,91 @@
+@* The whole view's profile (the classic profileView.ts openTableProfile): its rows, duplicate rows and columns, and
+   every column's type, blanks, distinct values and range; Send to Analyze, Export profile (CSV). *@
+
+<AppDialog Wide="true" Title="Profile of the whole view" OnClose="OnClose">
+    <ChildContent>
+        <div class="profile-window">
+            <ErrorNote Error="_error" />
+            @if (_profile is null && _error is null)
+            {
+                <div class="loading-block">Profiling the whole view…</div>
+            }
+            else if (_profile is { } profile)
+            {
+                <div class="stat-grid">
+                    <div class="stat"><div class="label">Rows</div><div class="value">@ProfileWords.Of(profile.Rows)</div></div>
+                    <div class="stat"><div class="label">Duplicate rows</div><div class="value">@ProfileWords.Of(profile.DuplicateRows)</div></div>
+                    <div class="stat"><div class="label">Columns</div><div class="value">@ProfileWords.Of((long)profile.Columns.Count)</div></div>
+                </div>
+                <div class="profile-scroll">
+                    <table class="rows small profile-table">
+                        <thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Blank</th><th scope="col">Blank %</th><th scope="col">Distinct</th><th scope="col">Min</th><th scope="col">Max</th></tr></thead>
+                        <tbody>
+                            @foreach (var column in profile.Columns)
+                            {
+                                <tr>
+                                    <td>@column.Column</td>
+                                    <td>@column.Type.ToLowerInvariant()</td>
+                                    <td class="num">@ProfileWords.Of(column.Blanks)</td>
+                                    <td class="num">@column.BlankPercent.ToString(System.Globalization.CultureInfo.CurrentCulture)%</td>
+                                    <td class="num">@ProfileWords.Of(column.Distinct)</td>
+                                    <td>@ProfileWords.Of(column.Min)</td>
+                                    <td>@ProfileWords.Of(column.Max)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" disabled="@(_profile is null)" @onclick="() => OnSend.InvokeAsync(_profile!)"><Icon Name="image" /> Send to Analyze</button>
+        <button type="button" class="btn" @onclick="ExportAsync"><Icon Name="export" /> Export profile (CSV)</button>
+        <button type="button" class="btn primary" @onclick="OnClose">Close</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private TableProfile? _profile;
+    private Exception? _error;
+
+    [Inject]
+    private GridsClient Grids { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Grid { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Dataset { get; set; } = string.Empty;
+
+    /// <summary>A step's preview: the view after that many steps.</summary>
+    [Parameter]
+    public int? Upto { get; set; }
+
+    [Parameter]
+    public EventCallback<TableProfile> OnSend { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _profile = await Grids.TableProfileAsync(Grid, Upto);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+
+    private async Task ExportAsync()
+    {
+        var options = new Dictionary<string, string> { ["format"] = "csv", ["scope"] = "profile", ["file"] = $"{Dataset}_profile" };
+        await Js.InvokeVoidAsync("sab.download", GridsClient.ExportAddress(Grid, options));
+    }
+}

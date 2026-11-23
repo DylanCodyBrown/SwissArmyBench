@@ -1,0 +1,89 @@
+@* Join a team… or Start a team… (the classic library.ts openTeamFlow): one dialog of steps, from the first still to do:
+   GitHub sync (Install, kept over the app's restart), Sign in (Sign in with GitHub's code, or a token), the repository
+   (search, Enter joins the first) or the new one's name (its owner, Start the team), then Set up this computer and
+   Done. Logic in TeamFlowDialog.razor.cs. *@
+
+<AppDialog Title="@(Action == "join" ? "Join a team" : "Start a team")" OnClose="OnClose">
+    <div class="team-flow" data-action="@Action" data-step="@_at">
+        <ol class="team-steps" aria-label="Steps">
+            @foreach (var (key, name, i) in Steps.Select((s, i) => (s.Key, s.Name, i)))
+            {
+                var at = Steps.ToList().FindIndex(s => s.Key == _at);
+                <li class="team-step-name @(i < at ? "done" : i == at ? "current" : null)" data-step="@key" aria-current="@(i == at ? "step" : null)">
+                    @if (i < at)
+                    {
+                        <Icon Name="check" />
+                    }
+                    else
+                    {
+                        <span class="team-step-number">@(i + 1)</span>
+                    }
+                    @name
+                </li>
+            }
+        </ol>
+        <div class="team-step">
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+            <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
+                @switch (_at)
+                {
+                    case "install":
+                        <h3 class="team-step-title">@_status?.Needs?.Words</h3>
+                        @if (_installing)
+                        {
+                            <div class="loading-block">Installing @_status?.Needs?.Name: the app starts again and Settings opens here.</div>
+                        }
+                        else
+                        {
+                            <div class="row"><button type="button" class="btn primary team-install" @onclick="InstallAsync"><Icon Name="extensions" /> Install</button></div>
+                        }
+                        break;
+                    case "sign_in":
+                        @* The Git extension's own sign-in step (the classic scmPage.ts teamSignIn), borrowed here. *@
+                        <SwissArmyBench.Web.Pages.Scm.TeamSignIn Device="_status?.Device == true" TokenSteps="@(_status?.TokenSteps ?? [])" OnSignedIn="NextAsync" />
+                        break;
+                    case "pick":
+                        <input type="search" class="input team-search" placeholder="Search" aria-label="Search the repositories" autocomplete="off" @bind="_search" @bind:event="oninput" @onkeydown="SearchKeyAsync" />
+                        <ul class="team-repos" role="listbox" aria-label="Repositories">
+                            @if (Shown.Count == 0)
+                            {
+                                <li class="hint team-repos-none">No repository</li>
+                            }
+                            @foreach (var r in Shown)
+                            {
+                                <li role="option"><button type="button" class="team-repo" data-repository="@r.Repository" @onclick="() => JoinAsync(r.Repository)"><Icon Name="branch" /> <span class="team-repo-name">@r.Repository</span>
+                                    @if (r.Private)
+                                    {
+                                        <span class="chip">Private</span>
+                                    }
+                                    <span class="hint team-repo-day">@Day(r.Pushed)</span></button></li>
+                            }
+                        </ul>
+                        break;
+                    case "name":
+                        <div class="team-new-name">
+                            <select class="team-owner" aria-label="Owner" @bind="_owner">
+                                @foreach (var owner in _owners)
+                                {
+                                    <option value="@owner">@owner</option>
+                                }
+                            </select>
+                            <span class="team-slash">/</span>
+                            <input type="text" class="input team-name" aria-label="Repository name" autocomplete="off" spellcheck="false" @bind="_name" @bind:event="oninput" @onkeydown="NameKeyAsync" />
+                        </div>
+                        <p class="hint">Private. Your library goes in; passwords never do.</p>
+                        <div class="row"><button type="button" class="btn primary team-create" @onclick="StartAsync"><Icon Name="plus" /> Start the team</button></div>
+                        break;
+                    case "setup":
+                        <h3 class="team-step-title team-joined-title"><Icon Name="check" /> Team: @_joined</h3>
+                        <div class="library-setup"><SetupChecklistView /></div>
+                        <div class="row team-done"><button type="button" class="btn primary" @onclick="OnClose">Done</button></div>
+                        break;
+                    default:
+                        <div class="loading-block">Looking at this computer…</div>
+                        break;
+                }
+            </Busy>
+        </div>
+    </div>
+</AppDialog>

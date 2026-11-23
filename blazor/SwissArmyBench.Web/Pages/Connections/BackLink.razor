@@ -1,0 +1,12 @@
+@* The way back, named for where it goes (the classic nav.ts backButton): "Connections", read as "Back to Connections";
+   Alt+Left is the browser's Back. *@
+
+<a class="btn back-btn" href="@Href" title="@($"Back to {To} (Alt+Left)")" aria-label="@($"Back to {To}")"><Icon Name="back" /> @To</a>
+
+@code {
+    [Parameter, EditorRequired]
+    public string To { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Href { get; set; } = string.Empty;
+}

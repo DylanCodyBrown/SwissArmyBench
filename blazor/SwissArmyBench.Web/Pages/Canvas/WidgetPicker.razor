@@ -1,0 +1,76 @@
+@* The widget picker (the classic canvasMenus.ts widgetMenu): every widget of the framework, grouped (yours first,
+   then the starter packs and groups), with search; a click takes one. *@
+@using SwissArmyBench.Web.Api.Widgets
+@if (Standalone)
+{
+    <div class="menu-shade" @onclick="OnClose" @oncontextmenu="OnClose" @oncontextmenu:preventDefault="true"></div>
+}
+<div class="cvs-menu cvs-widget-menu" role="dialog" aria-label="Insert widget" style="@Place" @onkeydown="KeyAsync">
+    <input type="search" class="cvs-menu-search" placeholder="Search widgets" aria-label="Search widgets" data-no-variables
+           @bind="_query" @bind:event="oninput" @ref="_search" />
+    <div class="cvs-menu-list" role="menu">
+        @foreach (var group in Shown)
+        {
+            <div class="cvs-menu-group" title="@NullIfEmpty(WidgetHeadings.Description(group.First()))" data-pack="@PackOf(group.First())">@group.Key</div>
+            @foreach (var widget in group)
+            {
+                <button type="button" role="menuitem" class="cvs-menu-item" data-widget="@widget.Name" title="@widget.Description" @onclick="() => OnPick.InvokeAsync(widget.Name)">
+                    <span class="cvs-check"></span><span>@widget.Name</span>
+                </button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private const double PickerWidth = 300;
+    private const double PickerHeight = 420;
+
+    private string _query = string.Empty;
+    private ElementReference _search;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<WidgetEntry> Widgets { get; set; } = [];
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    /// <summary>Opened on its own (a missing widget's Replace): it brings its own shade.</summary>
+    [Parameter]
+    public bool Standalone { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnPick { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string Place => FormattableString.Invariant($"left: min({X}px, calc(100vw - {PickerWidth}px)); top: min({Y}px, calc(100vh - {PickerHeight}px));");
+
+    private IEnumerable<IGrouping<string, WidgetEntry>> Shown => WidgetHeadings
+        .Ordered(Widgets.Where(w => WidgetHeadings.Matches(w, _query, withTags: false)))
+        .GroupBy(WidgetHeadings.Of);
+
+    private static string? NullIfEmpty(string text) => text.Length == 0 ? null : text;
+
+    private static string? PackOf(WidgetEntry widget) => widget.Prebuilt && widget.Pack.Length > 0 ? widget.Pack : null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _search.FocusAsync();
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

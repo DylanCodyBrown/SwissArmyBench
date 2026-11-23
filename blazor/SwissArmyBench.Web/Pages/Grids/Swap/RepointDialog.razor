@@ -1,0 +1,85 @@
+@* The code that named the old connection, each place ticked: Point these at the new one (the classic
+   swapConnection.ts offerRepoint). *@
+@inject GridsClient Grids
+@inject Notes Notes
+
+<AppDialog Title="@($"Point these at {To}")" Wide="true" OnClose="OnClose">
+    <ChildContent>
+        <div class="swap-repoint">
+            @foreach (var reference in References)
+            {
+                <label class="swap-ref">
+                    <input type="checkbox" aria-label="@($"{reference.Title} cell {reference.Cell}")" checked="@(!_off.Contains(reference))" @onchange="e => Tick(reference, e.Value is true)" />
+                    <Icon Name="@(reference.Kind == "script" ? "code" : "notebook")" />
+                    <strong>@reference.Title</strong>
+                    @if (reference.Cell is { } cell)
+                    {
+                        <span class="swap-ref-cell">@($"@cell{cell}")</span>
+                    }
+                    @if (reference.Name is { } name)
+                    {
+                        <span class="swap-ref-name">@name</span>
+                    }
+                    <code>@reference.Line</code>
+                </label>
+            }
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn primary" @onclick="PointAsync"><Icon Name="code" /> Point these at @To</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private readonly HashSet<CodeReference> _off = [];
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string From { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string To { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CodeReference> References { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private void Tick(CodeReference reference, bool on)
+    {
+        if (on)
+        {
+            _off.Remove(reference);
+        }
+        else
+        {
+            _off.Add(reference);
+        }
+    }
+
+    private async Task PointAsync()
+    {
+        var picks = References.Where(r => !_off.Contains(r)).ToList();
+        if (picks.Count == 0)
+        {
+            await OnClose.InvokeAsync();
+            return;
+        }
+        try
+        {
+            var done = await Grids.RepointAsync(From, To, picks);
+            if (done.Failed.Count > 0)
+            {
+                _ = Notes.SayAsync($"{done.Failed.Count} documents could not be pointed at {To}.");
+            }
+            _ = Notes.SayAsync($"{done.Cells} {(done.Cells == 1 ? "cell" : "cells")}: {To}");
+            await OnClose.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

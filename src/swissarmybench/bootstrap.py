@@ -1941,7 +1941,7 @@ def _doors(b: Built) -> None:
     )
     b.switched_on = b.on_extensions
     b.export_writer = export_writer
-    b.navigation = Navigation(ws, JsonFile(b.state_file("rail.json")))
+    b.navigation = Navigation(ws, *(JsonFile(b.state_file(f"{name}.json")) for name in ("rail", "frontend")))
     b.desktop = Desktop(SystemShell(info_file_path()), ws.audit, qt_version())
     b.extension = {}  # each extension's own services, by its id (server/app.py mounts them)
     b.seams = _seams(b)

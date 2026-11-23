@@ -1,0 +1,117 @@
+@using SwissArmyBench.Web.Api.Sandbox
+@* The project's sandbox (the classic dataSandbox.ts sandboxPanel): the change log's line, Add table…, Reset, Set as
+   baseline, Save checkpoint…; its tables (every heading sorts them, remembered in this browser), each with its rows,
+   where it came from and the client its rows are mocked as, when it was added and last changed, its changes; Open in
+   Grids, New endpoint, Reset and Remove each; the checkpoints with Restore and Delete. Live: sandbox_changed.
+   Logic in SandboxPanel.razor.cs. *@
+
+<section class="sandbox-panel" aria-label="Sandbox">
+    <div class="sandbox-head">
+        <h2>Sandbox</h2>
+        @if (_state is { Project: not null } head)
+        {
+            <span class="sandbox-log muted" role="status">@head.LogWords</span>
+            <button type="button" class="btn" @onclick="() => _adding = true"><Icon Name="plus" /> Add table…</button>
+            <button type="button" class="btn" title="Every table back to the baseline" @onclick="@(() => ActAsync("Resetting…", () => Sandbox.ResetAsync(), "The sandbox is back to its baseline."))"><Icon Name="reset" /> Reset</button>
+            <button type="button" class="btn" title="Reset comes back to the sandbox as it is now" @onclick="@(() => ActAsync("Setting…", Sandbox.BaselineAsync, "This is the baseline now."))">Set as baseline</button>
+            <button type="button" class="btn" @onclick="SaveCheckpointAsync"><Icon Name="save" /> Save checkpoint…</button>
+        }
+    </div>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    <Busy IsBusy="_state is null || _busyWords is not null" Words="@(_busyWords ?? "Reading the sandbox…")">
+        @if (_state is { Project: null })
+        {
+            <p class="empty-note">Open a project: its sandbox lives in its folder.</p>
+        }
+        else if (_state is { Tables.Count: 0 })
+        {
+            <p class="empty-note">No tables yet: Add table…, or Add to sandbox on a grid's Table row.</p>
+        }
+        else if (_state is { } state)
+        {
+            <table class="sandbox-tables rows">
+                <thead>
+                    <tr>
+                        @foreach (var (key, words) in _sortHeads)
+                        {
+                            <th aria-sort="@(key == _sort ? (_order == "desc" ? "descending" : "ascending") : "none")">
+                                <button type="button" class="sandbox-sort @(key == _sort ? "on" : null)" title="@($"Sort by {words.ToLowerInvariant()}")" @onclick="() => SortAsync(key)">@words @if (key == _sort)
+                                    {
+                                        <Icon Name="@(_order == "desc" ? "sortdown" : "sortup")" />
+                                    }</button>
+                            </th>
+                        }
+                        <th>Changes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in state.Tables)
+                    {
+                        var variant = t.Variant is not null;
+                        <tr data-table="@t.Name" class="@(variant ? "sandbox-variant" : null)">
+                            <td>
+                                <span class="sandbox-mark" title="@(variant ? "A sandbox variant" : "A sandbox table")"><Icon Name="@(variant ? "branch" : "sandbox")" /></span>
+                                <strong>@t.Title</strong>
+                                <div class="muted mono">@t.Sql</div>
+                                @if (t.OriginWords.Length > 0)
+                                {
+                                    <div class="muted sandbox-origin">@t.OriginWords</div>
+                                }
+                            </td>
+                            <td class="num">@t.Rows.ToString("N0")</td>
+                            <td>
+                                @t.SourceWords
+                                @if (t.Mockable)
+                                {
+                                    <div class="sandbox-mocked">
+                                        <select class="sandbox-mock" aria-label="@($"{t.Name}: mocked as")" @onchange="e => MockAsync(t, e.Value?.ToString())">
+                                            <option value="">Plain DuckDB client</option>
+                                            @foreach (var choice in state.MockChoices ?? [])
+                                            {
+                                                <option value="@choice" selected="@(t.Mocked && t.Client.Connection == choice)">Mocked as @choice</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="muted">@ClientWords(t.Client)</div>
+                                }
+                            </td>
+                            <td class="muted when">@When(t.AddedAt)</td>
+                            <td class="muted when">@When(t.ChangedAt)</td>
+                            <td class="muted">@ChangeWords(t.Changes)</td>
+                            <td class="sandbox-actions">
+                                <button type="button" class="btn" @onclick="@(() => ActAsync("Opening…", () => Sandbox.OpenAsync(t.Name), string.Empty))"><Icon Name="rows" /> Open in Grids</button>
+                                <a class="btn" href="@($"apis?endpoint={Uri.EscapeDataString(t.Name)}")" title="@($"New endpoint over {t.Name}: the wizard")"><Icon Name="plus" /> New endpoint</a>
+                                <button type="button" class="btn icon" aria-label="@($"Reset {t.Name}")" title="@($"Reset {t.Name} alone")" @onclick="@(() => ActAsync("Resetting…", () => Sandbox.ResetAsync(t.Name), $"{t.Name} is back to its baseline."))"><Icon Name="reset" /></button>
+                                <button type="button" class="btn icon" aria-label="@($"Remove {t.Name}")" title="@($"Remove {t.Name}")" @onclick="@(() => ActAsync("Removing…", () => Sandbox.RemoveAsync(t.Name), $"{t.Name} is out of the sandbox."))"><Icon Name="trash" /></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        @if (_state is { Checkpoints.Count: > 0 } withPoints)
+        {
+            <div class="sandbox-checkpoints">
+                <h3>Checkpoints</h3>
+                <ul>
+                    @foreach (var c in withPoints.Checkpoints)
+                    {
+                        <li>
+                            <span>@c.Name</span> <span class="muted">@When(c.At)</span>
+                            <button type="button" class="btn small" @onclick="@(() => ActAsync("Restoring…", () => Sandbox.RestoreAsync(c.Name), $"Restored {c.Name}."))">Restore</button>
+                            <button type="button" class="btn small icon" aria-label="@($"Delete {c.Name}")" title="@($"Delete {c.Name}")" @onclick="@(() => ActAsync("Deleting…", () => Sandbox.DeleteCheckpointAsync(c.Name), string.Empty))"><Icon Name="trash" /></button>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </Busy>
+</section>
+@if (_adding)
+{
+    <AddSandboxTable OnClose="AddedAsync" />
+}

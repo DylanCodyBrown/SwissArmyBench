@@ -1,0 +1,94 @@
+@* One card of the board (the classic aiPanel.ts): its title and table, its content by its kind (a note as Markdown, a
+   Plotly figure, a picture, a Mermaid diagram), and an analysis's actions under it: Show the math, Open as grid,
+   Copy code, Run again, and the result's hand-offs (Show these rows...); Pin, More card actions (Edit note, Move
+   earlier or later, Start a new page here), Remove; its corner grip (drag or the arrow keys) and its head dragged to
+   another place. Logic in BoardCardView.razor.cs and BoardCardView.Moves.cs. *@
+@implements IAsyncDisposable
+
+<article class="board-card @(Fresh ? "fresh" : string.Empty) @(Card.Pinned ? "pinned" : string.Empty) @(Card.NewPage ? "new-page" : string.Empty) @(Sized ? "sized" : string.Empty)"
+         style="@Span" aria-label="@Name" data-kind="@Card.Kind" data-card="@Card.Id">
+    <header class="board-card-head" @ref="_head">
+        <h3>@Name</h3>
+        <span class="chip" title="@(Card.Dataset is { } d ? $"Drawn on {d}" : $"From {Card.Origin}")">@(Card.Dataset ?? Card.Origin)</span>
+        @if (Card.CreatedBy == "agent")
+        {
+            <span class="badge agent" title="Added by the agent"><Icon Name="agent" /> Agent</span>
+        }
+        <button type="button" class="btn ghost icon small" aria-label="@(Card.Pinned ? "Unpin" : "Pin to the top")" title="@(Card.Pinned ? "Unpin" : "Pin to the top")"
+                aria-pressed="@(Card.Pinned ? "true" : "false")" @onclick="TogglePinAsync"><Icon Name="pin" /></button>
+        @if (IsChart)
+        {
+            <button type="button" class="btn ghost icon small" aria-label="Open large" title="Open large" @onclick="() => _large = true"><Icon Name="zoom" /></button>
+        }
+        <button type="button" class="btn ghost icon small" aria-label="More card actions" title="More card actions" aria-haspopup="menu" @onclick="ShowMenu"><Icon Name="more" /></button>
+        <button type="button" class="btn ghost icon small" aria-label="Remove" title="Remove" @onclick="() => OnRemove.InvokeAsync(Card)"><Icon Name="trash" /></button>
+    </header>
+    <div class="board-card-body">
+        @switch (Card.Kind)
+        {
+            case "note":
+                <div class="note-body" title="Double-click to edit" @ondblclick="() => OnEditNote.InvokeAsync(Card)">@((MarkupString)MarkdownText.ToHtml(Card.Body ?? string.Empty))</div>
+                break;
+            case "plotly":
+                <PlotlyChart Figure="@(Card.Body ?? string.Empty)" Label="@Card.Title" />
+                break;
+            case "image" when (Card.Body ?? string.Empty).StartsWith("data:image/", StringComparison.Ordinal):
+                <img class="card-image" src="@Card.Body" alt="@Card.Title" />
+                break;
+            case "chart" when IsChart:
+                <VegaChart @ref="_chart" Spec="@ChartSpec" Label="@Name" OnSelect="CrossFilterAsync" />
+                break;
+            case "chart":
+                <p class="muted">@NoChart</p>
+                break;
+            case "diagram":
+                <MermaidDiagram Text="@(Card.Body ?? string.Empty)" />
+                break;
+            default:
+                <p class="muted">A @Card.Kind card is drawn in the classic front end. <a href="/workspace?view=analyze">Open in the classic front end</a></p>
+                break;
+        }
+    </div>
+    @if (Run is { } run)
+    {
+        <footer class="board-card-actions">
+            <button type="button" class="btn small ghost" @onclick="() => MathAsync(run)">Show the math</button>
+            <button type="button" class="btn small ghost" @onclick="() => GridAsync(run)">Open as grid</button>
+            <button type="button" class="btn small ghost" @onclick="() => CodeAsync(run)">Copy code</button>
+            <button type="button" class="btn small ghost" @onclick="() => OnAgain.InvokeAsync(run)">Run again…</button>
+            @foreach (var (label, step) in HandOffs)
+            {
+                <button type="button" class="btn small ghost" @onclick="() => HandOffAsync(step)">@label</button>
+            }
+        </footer>
+    }
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    <button type="button" class="card-grip" title="Resize" aria-label="@($"Resize {Name}")" aria-valuetext="@($"{Width} of {BoardColumns} columns wide, {Height} rows tall")"
+            @ref="_grip" @onkeydown="GripKeyAsync" @ondblclick="FitAsync"></button>
+</article>
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="More card actions" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_math is { } math)
+{
+    <AppDialog Title="@math.Title" OnClose="() => _math = null">
+        <ChildContent>
+            <div class="note-body math-body">@((MarkupString)MarkdownText.ToHtml(math.Markdown))</div>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn primary" @onclick="() => _math = null">Close</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_large && IsChart)
+{
+    <AppDialog Title="@Name" Wide="true" OnClose="() => _large = false">
+        <ChildContent>
+            <VegaChart Spec="@ChartSpec" Label="@Name" Large="true" Zoomable="@Zoomable" Height="560" OnSelect="LargeSelectAsync" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn primary" @onclick="() => _large = false">Close</button>
+        </Foot>
+    </AppDialog>
+}

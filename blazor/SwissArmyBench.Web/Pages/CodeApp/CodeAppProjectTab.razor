@@ -1,0 +1,138 @@
+@* The Code App's Project tab (the classic codeAppPage.ts drawProject): no code app open, Open <the last one> again;
+   open, its facts (name, folder, pushed or not), Data sources (Add a Dataverse table, Add a connector; each source's
+   Open as grid and Remove), the Data notebook (Open data notebook, Use in app and what went into data.ts), and its
+   Files (New page, Show all files; each opens in the Workbench). Logic in CodeAppProjectTab.razor.cs. *@
+@using SwissArmyBench.Web.Api.PowerApps
+
+@if (!Project.Open)
+{
+    <div class="ca-empty">
+        <p class="empty-note">No code app is open.</p>
+        @if (Project.Recent is { } recent)
+        {
+            <button type="button" class="btn ca-recent" @onclick="() => Host.OpenAsync(recent)"><Icon Name="folder" /><span class="btn-label">Open @LastPart(recent) again</span></button>
+        }
+    </div>
+}
+else if (Project.Problem is { } problem)
+{
+    <ErrorNote Words="@problem" />
+}
+else if (Project.App is { } app)
+{
+    <section class="ca-app">
+        <div class="ca-facts">
+            <span><strong>@app.Name</strong></span>
+            <span class="mono muted">@Project.Folder</span>
+            <span class="muted">@(app.AppId is { } id ? $"Pushed as {id}" : "Not pushed yet")</span>
+        </div>
+    </section>
+    <section class="ca-sources">
+        <div class="ca-section-head">
+            <h2>Data sources</h2>
+            <button type="button" class="btn ca-add-table" @onclick="() => _adding = true"><Icon Name="plus" /><span class="btn-label">Add a Dataverse table</span></button>
+            <button type="button" class="btn" @onclick="Host.ShowConnectors"><Icon Name="plug" /><span class="btn-label">Add a connector</span></button>
+        </div>
+        @if (Project.Sources.Count > 0)
+        {
+            <table class="ca-table">
+                <thead><tr><th>Name</th><th>Kind</th><th>Table</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var source in Project.Sources)
+                    {
+                        <tr data-source="@source.Name">
+                            <td><Icon Name="@(source.Kind == "dataverse" ? "table" : "plug")" /> @source.Name</td>
+                            <td>@KindWords(source)</td>
+                            <td class="mono">@source.Table</td>
+                            <td class="ca-row-actions">
+                                @if (source.Kind == "dataverse")
+                                {
+                                    <button type="button" class="btn ghost ca-open-grid" title="@($"{source.Name} as a grid, through the library's Dataverse connection")" disabled="@(_opening == source.Name)" @onclick="() => GridAsync(source)"><Icon Name="table" /><span class="btn-label">@(_opening == source.Name ? "Opening…" : "Open as grid")</span></button>
+                                }
+                                <button type="button" class="btn ghost ca-remove" title="@($"Remove {source.Name}")" @onclick="() => RemoveAsync(source)"><Icon Name="trash" /><span class="btn-label">Remove</span></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="muted">None yet.</p>
+        }
+    </section>
+    <section class="ca-notebook">
+        <div class="ca-section-head">
+            <h2>Data notebook</h2>
+            <button type="button" class="btn ca-data-notebook" title="data.ipynb: SQL and TypeScript cells on one DuckDB" @onclick="NotebookAsync"><Icon Name="notebook" /><span class="btn-label">Open data notebook</span></button>
+            <button type="button" class="btn ca-use-in-app" title="Write data.ts (the notebook's TypeScript, typed) into src/" @onclick="UseInAppAsync"><Icon Name="export" /><span class="btn-label">Use in app</span></button>
+        </div>
+        <div class="ca-data-ts">
+            @if (_dataTs is { } dataTs)
+            {
+                <button type="button" class="link ca-file" data-path="@dataTs.Target" @onclick="() => Host.OpenInWorkbenchAsync(dataTs.Target)"><Icon Name="code" />@dataTs.Target</button>
+                <span class="muted"> @DataTsWords(dataTs)</span>
+            }
+        </div>
+    </section>
+    <section class="ca-tree">
+        <div class="ca-section-head">
+            <h2>Files</h2>
+            <button type="button" class="btn ca-new-page" title="A page's folder: its page, components, hooks, state and types, listed in src/pages.ts" @onclick="NewPageAsync"><Icon Name="plus" /><span class="btn-label">New page</span></button>
+            <label class="ca-every-file muted" title="Configs, generated models and services, .power/: in the folder, not listed">
+                <input type="checkbox" checked="@_everyFile" @onchange="EveryFileAsync" />Show all files
+            </label>
+        </div>
+        <div class="ca-tree-host">
+            @if (_tree is { } tree)
+            {
+                <ul class="ca-files">
+                    @foreach (var child in tree.Children ?? [])
+                    {
+                        <li>@Node(child)</li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <div class="loading-block">Loading the files…</div>
+            }
+        </div>
+    </section>
+}
+@if (_adding)
+{
+    <AppDialog Title="Add a Dataverse table" OnClose="() => _adding = false">
+        <ChildContent>
+            <label class="ca-field"><span>Table (its logical name)</span>
+                <input aria-label="The table's logical name" placeholder="account" spellcheck="false" @bind="_table" @bind:event="oninput" />
+            </label>
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => _adding = false">Cancel</button>
+            <button type="button" class="btn primary" @onclick="AddTableAsync">Add</button>
+        </Foot>
+    </AppDialog>
+}
+
+@code {
+    private RenderFragment Node(CodeAppTreeNode node) => __builder =>
+    {
+        if (node.Children is { } children)
+        {
+            <details class="ca-folder" open="@(!_everyFile || node.Path == "src")">
+                <summary><Icon Name="folder" />@node.Name</summary>
+                <ul>
+                    @foreach (var child in children)
+                    {
+                        <li>@Node(child)</li>
+                    }
+                </ul>
+            </details>
+        }
+        else
+        {
+            <button type="button" class="link ca-file" data-path="@node.Path" @onclick="() => Host.OpenInWorkbenchAsync(node.Path)"><Icon Name="page" />@node.Name</button>
+        }
+    };
+}

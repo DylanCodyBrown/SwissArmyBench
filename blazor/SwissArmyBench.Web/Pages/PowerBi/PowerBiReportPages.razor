@@ -1,0 +1,13 @@
+@* The Power BI page's Use an existing report's pages (the classic registerPageAction("powerbi_report_pages")): the
+   Export to Power BI dialog opened on its report part first, registered in the page plug-ins under its own id. *@
+
+<PowerBiExportDialog Context="Context" ReportFirst="true" OnClose="OnClose" />
+
+@code {
+    /// <summary>The page's context: the tables to export, as a list of names.</summary>
+    [Parameter]
+    public object? Context { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}

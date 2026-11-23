@@ -1,0 +1,57 @@
+@* The desktop app's own keys (interop/appKeys.js, the classic desktopApp.ts): only inside the desktop app, each the
+   page's own command (the grid page's tabs): Ctrl+W closes the tab (the window when none is left), Ctrl+T and
+   Ctrl+N a new query, Ctrl+Tab and Ctrl+Shift+Tab the next and previous tab, Ctrl+Shift+T the last closed tab. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject Commands Commands
+
+@code {
+    private static readonly Dictionary<string, string> _commands = new()
+    {
+        ["Ctrl+W"] = "tabs.closeTab",
+        ["Ctrl+T"] = "tabs.new-query",
+        ["Ctrl+N"] = "tabs.new-query",
+        ["Ctrl+Tab"] = "tabs.next",
+        ["Ctrl+Shift+Tab"] = "tabs.previous",
+        ["Ctrl+Shift+T"] = "tabs.reopen",
+    };
+
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _keys;
+    private DotNetObjectReference<DesktopKeys>? _self;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/appKeys.js");
+            _keys = await _module.InvokeAsync<IJSObjectReference?>("install", _self);
+        }
+    }
+
+    [JSInvokable("Key")]
+    public async Task KeyAsync(string key)
+    {
+        var ran = _commands.TryGetValue(key, out var id) && await Commands.RunIdAsync(id);
+        // Ctrl+W with no tab left (or a page with no tabs): the window closes, its page asked first.
+        if (!ran && key == "Ctrl+W" && _module is not null)
+        {
+            await _module.InvokeVoidAsync("closeWindow");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_keys is not null)
+        {
+            await _keys.InvokeVoidAsync("stop");
+            await _keys.DisposeAsync();
+        }
+        if (_module is not null)
+        {
+            await _module.DisposeAsync();
+        }
+        _self?.Dispose();
+    }
+}

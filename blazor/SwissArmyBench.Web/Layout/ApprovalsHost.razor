@@ -1,0 +1,83 @@
+@* The agent's requests for the user's click (the classic agentAccess.ts): each request opens "The agent is asking" at
+   once, wherever the user is: what it wants to do, Allow or Deny; closing declines; it expires in 3 minutes. Live
+   through approval_requested and approval_resolved; any already waiting when the page loads. *@
+@implements IDisposable
+@inject SettingsClient Settings
+@inject LiveUpdates Live
+@inject Notes Notes
+
+@if (_pending.Count > 0)
+{
+    <AppDialog Title="The agent is asking" OnClose="DeclineAllAsync">
+        <ChildContent>
+            @foreach (var approval in _pending)
+            {
+                <section class="approval" role="alertdialog" aria-label="Agent approval request">
+                    <strong><Icon Name="agent" /> The agent wants to @approval.Action @approval.Dataset:</strong>
+                    <pre class="mono">@approval.Detail</pre>
+                    <div class="row">
+                        <button type="button" class="btn primary" @onclick="() => AnswerAsync(approval.Id, true)">Allow</button>
+                        <button type="button" class="btn danger" @onclick="() => AnswerAsync(approval.Id, false)">Deny</button>
+                    </div>
+                </section>
+            }
+        </ChildContent>
+        <Foot><span class="hint">Closing declines. Expires in 3 minutes.</span></Foot>
+    </AppDialog>
+}
+
+@code {
+    private List<Approval> _pending = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        try
+        {
+            _pending = [.. await Settings.ApprovalsAsync()];
+        }
+        catch (ApiException)
+        {
+            // none
+        }
+    }
+
+    private async Task AnswerAsync(string id, bool approve)
+    {
+        try
+        {
+            await Settings.AnswerApprovalAsync(id, approve);
+            _pending.RemoveAll(a => a.Id == id);
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    /// <summary>Closing answers No to every request still waiting.</summary>
+    private async Task DeclineAllAsync()
+    {
+        foreach (var approval in _pending.ToList())
+        {
+            await AnswerAsync(approval.Id, false);
+        }
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        var id = notice.Text("id");
+        if (notice.Type == "approval_requested" && id is not null && _pending.All(a => a.Id != id))
+        {
+            _pending.Add(new Approval(id, notice.Text("dataset") ?? string.Empty, notice.Text("action") ?? string.Empty, notice.Text("detail") ?? string.Empty));
+            _ = InvokeAsync(StateHasChanged);
+        }
+        else if (notice.Type == "approval_resolved")
+        {
+            _pending.RemoveAll(a => a.Id == id);
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

@@ -1,0 +1,17 @@
+@* The Catalog page (the classic dataPage.ts): the one place to find tables, the Data Explorer's search over
+   everything that holds data, each result's actions. *@
+@page "/catalog"
+@inject IJSRuntime Js
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="data" /> Catalog</h1>
+    </header>
+    <div class="area-page-body">
+        <DataExplorer Browse="true" />
+    </div>
+</section>
+
+@code {
+    protected override Task OnInitializedAsync() => Js.InvokeVoidAsync("sab.setTitle", "Catalog").AsTask();
+}

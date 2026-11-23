@@ -1,0 +1,38 @@
+@* The tables with no source to read again (a paste, a push), each with its Keep its rows tick (the classic
+   projectFile.ts chooseRows): data is sensitive, so their rows go into .sab/data/ only on the user's tick. *@
+@using SwissArmyBench.Web.Api.Projects
+
+<AppDialog Title="@Title" OnClose="() => OnDone.InvokeAsync(null)">
+    <ChildContent>
+        <ul class="keep-rows">
+            @foreach (var t in Tables)
+            {
+                <li><strong>@t.Name</strong>
+                    <label><input type="checkbox" data-table="@t.Name" checked="@_ticks[t.Name]" @onchange="e => _ticks[t.Name] = e.Value is true" /><span>Keep its rows</span></label></li>
+            }
+        </ul>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnDone.InvokeAsync(null)">Cancel</button>
+        <button type="button" class="btn primary" @onclick="() => OnDone.InvokeAsync(new Dictionary<string, bool>(_ticks))"><Icon Name="save" /> @Action</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private Dictionary<string, bool> _ticks = [];
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Action { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ProjectTable> Tables { get; set; } = [];
+
+    /// <summary>The ticks by table, or null when closed.</summary>
+    [Parameter]
+    public EventCallback<Dictionary<string, bool>?> OnDone { get; set; }
+
+    protected override void OnParametersSet() => _ticks = Tables.ToDictionary(t => t.Name, t => t.KeepRows);
+}

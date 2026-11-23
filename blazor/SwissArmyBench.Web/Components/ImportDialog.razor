@@ -1,0 +1,174 @@
+@* Bringing things into the open project (the classic projectImport.ts), the same from every page that offers it:
+   from Another project… (a project folder) or, for notebooks, scripts and apps, A file…; what it offers of the kind
+   asked for, each a tick (a loose file is the one imported); Import (a document the project has a name for takes the
+   next free name; a connection or blade the library has is skipped, and said). Connections and blades go into this
+   computer's library. *@
+@inject ProjectsClient Projects
+@inject FileChooser Files
+@inject Notes Notes
+
+<AppDialog Title="@($"Import {WordsOf(Kind)}")" Class="import-dialog" OnClose="() => OnDone.InvokeAsync(null)">
+    <ChildContent>
+        <div class="import-from">
+            <button type="button" class="btn" @onclick="FromProjectAsync"><Icon Name="project" /> Another project…</button>
+            @if (Kind == Documents)
+            {
+                <button type="button" class="btn" @onclick="FromFileAsync"><Icon Name="notebook" /> A file…</button>
+            }
+        </div>
+        <div class="import-choices">
+            @if (_offered is { } offered)
+            {
+                <h3>@(offered.From == "computer" ? "This computer" : offered.From)</h3>
+                @if (Items.Count == 0)
+                {
+                    <p class="muted">No @WordsOf(Kind) there.</p>
+                }
+                else
+                {
+                    <ul class="import-list">
+                        @foreach (var (name, note) in Items)
+                        {
+                            <li><label><input type="checkbox" data-name="@name" checked="@_ticked.Contains(name)" @onchange="e => Tick(name, e)" /><span>@name</span>
+                                @if (!string.IsNullOrEmpty(note))
+                                {
+                                    <span class="muted">@note</span>
+                                }
+                            </label></li>
+                        }
+                    </ul>
+                }
+            }
+        </div>
+        <ErrorNote Error="_error" Words="@_said" OnClose="() => { _error = null; _said = null; }" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="() => OnDone.InvokeAsync(null)">Cancel</button>
+        <button type="button" class="btn primary" disabled="@(_offered is null || Items.Count == 0 || _importing)" @onclick="ImportAsync">
+            <Icon Name="import" /> @(_importing ? "Importing…" : "Import")
+        </button>
+    </Foot>
+</AppDialog>
+
+@code {
+    /// <summary>Notebooks, scripts and apps: into the open project.</summary>
+    public const string Documents = "documents";
+
+    /// <summary>Connections: into this computer's library.</summary>
+    public const string Connections = "connections";
+
+    /// <summary>Blades: into this computer's library.</summary>
+    public const string Blades = "blades";
+
+    private static readonly string[] _documentSuffixes = [".ipynb", ".py", ".stapp.json"];
+
+    private ImportOffered? _offered;
+    private readonly HashSet<string> _ticked = [];
+    private bool _importing;
+    private Exception? _error;
+    private string? _said;
+
+    /// <summary>documents, connections or blades.</summary>
+    [Parameter]
+    public string Kind { get; set; } = Documents;
+
+    /// <summary>What was imported, or null when the dialog was closed.</summary>
+    [Parameter]
+    public EventCallback<Imported?> OnDone { get; set; }
+
+    private List<(string Name, string? Note)> Items => _offered is not { } offered
+        ? []
+        : Kind switch
+        {
+            Documents => offered.Documents.Select(d => (d.Path, (string?)(d.Made ? "made" : d.Kind))).ToList(),
+            Connections => offered.Connections.Select(c => (c.Name, c.Description)).ToList(),
+            _ => offered.Blades.Select(b => (b.Name, b.Description)).ToList(),
+        };
+
+    public static string WordsOf(string kind) => kind switch
+    {
+        Documents => "notebooks, scripts and apps",
+        Connections => "connections",
+        _ => "blades",
+    };
+
+    private async Task FromProjectAsync() => await ShowAsync(await Files.ChooseAsync("folder", "Import from a project", kind: "project"));
+
+    private async Task FromFileAsync() =>
+        await ShowAsync(await Files.ChooseAsync("file", "Import a notebook, script or app", kind: "file:.ipynb,.py,.stapp.json", suffixes: _documentSuffixes));
+
+    private async Task ShowAsync(string? from)
+    {
+        if (from is null)
+        {
+            return;
+        }
+        try
+        {
+            _offered = await Projects.ImportSourcesAsync(from);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            return;
+        }
+        _error = null;
+        _ticked.Clear();
+        // A loose file is the one imported: no choice to make.
+        if (_offered.Kind == "file")
+        {
+            _ticked.UnionWith(Items.Select(i => i.Name));
+        }
+    }
+
+    private void Tick(string name, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _ticked.Add(name);
+        }
+        else
+        {
+            _ticked.Remove(name);
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_offered is not { } offered)
+        {
+            return;
+        }
+        var chosen = Items.Select(i => i.Name).Where(_ticked.Contains).ToList();
+        if (chosen.Count == 0)
+        {
+            _said = "Tick what to import.";
+            return;
+        }
+        _importing = true;
+        try
+        {
+            var body = offered.Kind == "file"
+                ? new Dictionary<string, object> { ["from"] = offered.From }
+                : new Dictionary<string, object> { ["from"] = offered.From, [Kind] = chosen };
+            var done = await Projects.ImportAsync(body);
+            foreach (var name in done.Skipped)
+            {
+                _ = Notes.SayAsync($"{name}: the project has one by that name.");
+            }
+            foreach (var name in done.NeedsPassword.Keys)
+            {
+                _ = Notes.SayAsync($"{name} needs a password on this computer.");
+            }
+            await OnDone.InvokeAsync(done);
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+}

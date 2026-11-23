@@ -1,0 +1,66 @@
+@* A connection made of your own Python (the classic pythonConnectionForm.ts): three code boxes in Monaco (Connect:
+   makes conn; List the tables; Read a table), the environment variables they read and whether each is set on this
+   computer (where its value comes from is set once on the Environment's Settings and secrets tab), the rows to open,
+   Test and Save. Logic in PythonConnectionForm.razor.cs. *@
+
+<div class="connection-form python-form settings-page">
+    <h3>@(Editing is null ? "New Python connection" : $"Edit {Editing}")</h3>
+    <fieldset class="fieldset">
+        <label class="form-row"><span>Name</span><input class="connection-name" aria-label="Name" maxlength="64" @bind="_name" /></label>
+        <label class="form-row"><span>Description</span><input class="connection-description" aria-label="Description" placeholder="Optional" @bind="_description" /></label>
+    </fieldset>
+    <section class="python-box" data-box="connect">
+        <h3>Connect <span class="muted">Makes conn</span></h3>
+        <div class="python-editor"><CodeEditor Value="@_connect" Language="python" Grow="true" MinLines="6" Label="Connect" Intel="IntelFor" OnChange="t => BoxChanged(0, t)" /></div>
+    </section>
+    @if (_reads.Count > 0)
+    {
+        <fieldset class="fieldset python-variables">
+            <legend>Environment variables</legend>
+            @foreach (var read in _reads)
+            {
+                <div class="form-row python-variable" data-variable="@read.Name">
+                    <code>@read.Name</code>
+                    @if (read.Set)
+                    {
+                        <span class="status-ok">Set on this computer@(read.Secret ? " (a secret: never shown)" : string.Empty)</span>
+                    }
+                    else if (read.Required)
+                    {
+                        <span class="muted">Not set on this computer.</span>
+                        <a href="environment?at=settings">Set it</a>
+                    }
+                    else
+                    {
+                        <span class="muted">Not set: the code has a default of its own.</span>
+                    }
+                </div>
+            }
+        </fieldset>
+    }
+    <section class="python-box" data-box="tables">
+        <h3>List the tables <span class="muted">Returns a list of dicts or a DataFrame: table, column; optionally schema, type, description</span></h3>
+        <div class="python-editor"><CodeEditor Value="@_tables" Language="python" Grow="true" MinLines="3" Label="List the tables" Intel="IntelFor" OnChange="t => BoxChanged(1, t)" /></div>
+    </section>
+    <section class="python-box" data-box="read">
+        <h3>Read a table <span class="muted">Given conn, schema, table, limit (None: all). Returns the rows, or (rows, total)</span></h3>
+        <div class="python-editor"><CodeEditor Value="@_read" Language="python" Grow="true" MinLines="3" Label="Read a table" Intel="IntelFor" OnChange="t => BoxChanged(2, t)" /></div>
+    </section>
+    <label class="form-row"><span>Rows to open</span><input type="number" min="1" step="1" placeholder="10000" aria-label="Rows to open" @bind="_rowLimit" /></label>
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_tested is not null)
+    {
+        <p class="status-ok" role="status">@_tested</p>
+    }
+    @if (_testRows is not null)
+    {
+        <TablePreviewView Preview="_testRows" />
+    }
+    <Busy IsBusy="_busy" Words="@_busyWords">
+        <div class="form-row">
+            <BackLink To="@(Editing ?? "Add connection")" Href="@(Editing is null ? "connections?add=1" : $"connections?name={Uri.EscapeDataString(Editing)}")" />
+            <button type="button" class="btn" @onclick="TestAsync"><Icon Name="play" /> Test connection</button>
+            <button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button>
+        </div>
+    </Busy>
+</div>

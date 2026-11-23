@@ -2,6 +2,10 @@
 
     python build.py            # the page (release build), then the wheel in dist/
 
+The Blazor front end (blazor/, served at /blazor/ beside the classic page) is built too when the .NET SDK is
+on PATH (blazor/publish.py), and copied into the wheel as swissarmybench/web_blazor/; without dotnet the wheel
+is built without it, and build.py says so.
+
 The wheel is one package with two installs:
 
     uv pip install swissarmybench-<version>-py3-none-any.whl              # the client, any environment
@@ -37,6 +41,22 @@ def run(command: list[str], cwd: Path) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
+def build_blazor() -> None:
+    """The Blazor front end into src/swissarmybench/web_blazor (the wheel's), or said plainly why not."""
+    target = HERE / "src" / "swissarmybench" / "web_blazor"
+    shutil.rmtree(target, ignore_errors=True)
+    sys.path.insert(0, str(HERE / "blazor"))
+    import publish  # type: ignore[import-not-found]  # blazor/publish.py
+
+    if publish.dotnet() is None:
+        print("The .NET SDK is not on PATH: the wheel is built without the Blazor front end.", flush=True)
+        return
+    print("> blazor/publish.py", flush=True)
+    shutil.copytree(publish.publish(), target)
+    if not (target / "index.html").is_file():
+        sys.exit("The Blazor build wrote no index.html.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -51,6 +71,8 @@ def main() -> None:
     run([NPM, "run", "build:release"], web)
     if not (web / "static" / "build" / "main.js").is_file():
         sys.exit("The page build wrote no web/static/build/main.js.")
+
+    build_blazor()
 
     version = project_version()
     run(["uv", "build", "--wheel", "--out-dir", "dist"], HERE)

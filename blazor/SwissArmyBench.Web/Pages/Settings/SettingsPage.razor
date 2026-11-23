@@ -1,0 +1,81 @@
+@* Settings (the classic settingsWindow.ts): everything applies as you change it, so the page has no Save. Theme,
+   Team, Front end, the project type's gates, Session, Updates, Claude, Beta, Connect an agent. *@
+@page "/settings"
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title">Settings</h1>
+    </header>
+    <div class="area-page-body">
+        <div class="settings-page settings-grid">
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+
+            <fieldset class="fieldset">
+                <legend><Icon Name="sun" /> Theme</legend>
+                <div class="form-grid" role="radiogroup" aria-label="Theme">
+                    @foreach (var (value, label) in ThemeState.Choices)
+                    {
+                        <label class="check">
+                            <input type="radio" name="theme" value="@value" checked="@(Theme.Choice == value)" @onchange="() => Theme.SetAsync(value)" />
+                            @label
+                        </label>
+                    }
+                </div>
+            </fieldset>
+
+            <TeamBox OnError="Failed" />
+
+            <fieldset class="fieldset frontend-fieldset">
+                <legend><Icon Name="desktop" /> Front end</legend>
+                <div class="form-grid" role="radiogroup" aria-label="Front end">
+                    <label class="check">
+                        <input type="radio" name="frontend" value="classic" checked="@(_frontend == Classic)" @onchange="() => SetFrontendAsync(Classic)" />
+                        Classic
+                    </label>
+                    <label class="check">
+                        <input type="radio" name="frontend" value="blazor" checked="@(_frontend == Blazor)" @onchange="() => SetFrontendAsync(Blazor)" />
+                        Blazor (preview)
+                    </label>
+                </div>
+                <p class="muted">
+                    The one the app opens. The Blazor front end is a preview: a page it does not have yet links back here.
+                    @if (_frontend == Classic)
+                    {
+                        <a class="frontend-open" href="/workspace?open=settings">Open the classic front end</a>
+                    }
+                </p>
+            </fieldset>
+
+            @if (_gates is { Gated: true } gates)
+            {
+                <fieldset class="fieldset gates-fieldset">
+                    <legend><Icon Name="project" /> This project</legend>
+                    <label class="autosave-switch check">
+                        <input type="checkbox" role="switch" class="switch-input" id="open-every-feature" checked="@gates.Every" @onchange="EveryFeatureAsync" />
+                        <span>Open every feature in this project</span>
+                    </label>
+                </fieldset>
+            }
+
+            <fieldset class="fieldset follow-fieldset">
+                <legend><Icon Name="session" /> Session</legend>
+                <label class="check">
+                    <input type="checkbox" role="switch" checked="@_follow" @onchange="FollowAsync" />
+                    Follow the agent
+                </label>
+            </fieldset>
+
+            <UpdateFlow />
+
+            <ClaudeSection />
+
+            <BetaSection />
+
+            <fieldset class="fieldset">
+                <legend><Icon Name="agent" /> Connect an agent</legend>
+                <pre class="mono mcp-prompt">@McpPrompt</pre>
+                <button type="button" class="btn" @onclick="CopyPromptAsync"><Icon Name="copy" /> Copy the setup prompt</button>
+            </fieldset>
+        </div>
+    </div>
+</section>

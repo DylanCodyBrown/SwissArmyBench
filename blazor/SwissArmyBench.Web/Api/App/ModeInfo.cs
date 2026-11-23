@@ -1,0 +1,15 @@
+namespace SwissArmyBench.Web.Api.App;
+
+/// <summary>A project type's mode as the backend declares it (only the parts these pages read).</summary>
+public sealed record ModeInfo(
+    string Type,
+    string Name,
+    IReadOnlyList<string> Canvases,
+    string Title = "",
+    string Explain = "",
+    IReadOnlyList<PageAction>? PageActions = null,
+    IReadOnlyList<InlineProvider>? InlineCompletion = null,
+    IReadOnlyList<string>? Families = null,
+    IReadOnlyList<string>? CellKinds = null,
+    IReadOnlyList<string>? Languages = null,
+    IReadOnlyDictionary<string, CellRoute>? CellRoutes = null);

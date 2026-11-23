@@ -1,0 +1,12 @@
+@page "/workbook"
+@* The Excel canvas's older address: a workbook is a tab on the Notebooks page now (the classic's own place), so
+   workbook?path= opens it there and workbook alone the Notebooks page. *@
+@inject NavigationManager Nav
+
+@code {
+    [SupplyParameterFromQuery(Name = "path")]
+    public string? Path { get; set; }
+
+    protected override void OnInitialized() =>
+        Nav.NavigateTo(Path is { Length: > 0 } path ? $"notebooks?path={Uri.EscapeDataString(path)}" : "notebooks", replace: true);
+}

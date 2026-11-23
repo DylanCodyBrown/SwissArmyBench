@@ -1,0 +1,27 @@
+@* A variable in any text box of the app (the classic variableAnywhere.ts, design principle 12.7): typing ${ lists the
+   variables under the box (names and their source in words, never a value), filtered as the name is typed; the
+   arrows move, Enter or Tab put in NAME and the closing brace, Escape closes; New variable… last. Right-click a box:
+   Text (Cut, Copy, Paste, Insert variable…). The boxes are watched by interop/textBoxes.js; logic in the .cs. *@
+
+@if (_place is { } place)
+{
+    <ul class="variable-list variable-float" role="listbox" aria-label="Variables" id="variable-anywhere"
+        style="@FormattableString.Invariant($"left: max(8px, min({place.Left}px, calc(100vw - 320px))); top: {place.Bottom + 2}px;")">
+        @foreach (var (variable, i) in Shown.Select((v, i) => (v, i)))
+        {
+            <li id="variable-anywhere-@i" role="option" class="variable-option @(i == _active ? "active" : string.Empty)" aria-selected="@(i == _active ? "true" : "false")"
+                data-name="@variable.Name" @onmousedown="() => PutAsync(variable.Name)" @onmousedown:preventDefault="true">
+                <span class="mono">@variable.Name</span>
+                <span class="muted">@variable.Source</span>
+            </li>
+        }
+        <li id="variable-anywhere-new" role="option" class="variable-option variable-new @(_active == Shown.Count ? "active" : string.Empty)" aria-selected="@(_active == Shown.Count ? "true" : "false")"
+            @onmousedown="NewVariableAsync" @onmousedown:preventDefault="true">
+            @(_filter.Length > 0 ? $"New variable {_filter.ToUpperInvariant()}…" : "New variable…")
+        </li>
+    </ul>
+}
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="Text" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" Entries="@MenuEntries(menu.Selected)" />
+}

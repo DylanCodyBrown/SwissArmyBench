@@ -1,0 +1,29 @@
+/* analyze.css: the Analyze board's bar, a card's grip and pin, Page view's papers and printing (the classic
+   grid.css's .card-grip, .pages and .page measures). */
+.analyze-board-host { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
+.board-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 14px 0; }
+.board-bar .toolbar-gap, .dashboard-head .toolbar-gap { flex: 1 1 auto; }
+.theme-controls { display: inline-flex; align-items: center; gap: 4px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.board-card { position: relative; }
+.board-card.pinned { border-top: 3px solid var(--accent); }
+.board-card.moving { opacity: 0.5; }
+.board-card-head { cursor: grab; }
+.board-card-head .badge.agent { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+.card-grip { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; padding: 0; border: 0; border-right: 2px solid var(--border-strong); border-bottom: 2px solid var(--border-strong); border-radius: 0 0 4px 0; background: transparent; cursor: nwse-resize; touch-action: none; }
+.card-grip:hover, .card-grip:focus-visible { border-color: var(--accent); outline: none; }
+.analyze-pages { display: grid; justify-content: center; gap: 24px; padding: 14px; background: var(--surface-2); }
+.board-page { box-sizing: border-box; padding: 48px; border: 1px solid var(--border); background: var(--bg); box-shadow: var(--shadow); }
+.board-page > .analyze-board { overflow: visible; padding: 0; }
+.dashboards { display: grid; gap: 8px; margin-top: 10px; }
+.dashboard-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dashboard-history { margin: 6px 0 0 18px; }
+.analysis-controls { display: flex; align-items: end; gap: 8px; }
+.analysis-field { display: grid; gap: 2px; }
+@media print {
+  body.printing-board .nav-rail, body.printing-board .analyze-toolbar, body.printing-board .analyze-side, body.printing-board .board-bar,
+  body.printing-board .area-page-head, body.printing-board .status-bar, body.printing-board .board-card-actions, body.printing-board .card-grip,
+  body.printing-board .board-card-head button { display: none !important; }
+  body.printing-board .analyze-pages { padding: 0; background: none; gap: 0; }
+  body.printing-board .board-page { padding: 0; border: 0; box-shadow: none; break-after: page; }
+}

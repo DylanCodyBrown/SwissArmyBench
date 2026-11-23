@@ -1,0 +1,79 @@
+@* The Scripts page's debugger (the classic workbenchDebug.ts): its bar (the state, Continue, Step over, Step into,
+   Step out, Stop debugging, Close the debugger), the call stack (each frame a click: its line and its variables),
+   the variables by scope (a value with parts opens to them), Watch (expressions evaluated at each stop, each with
+   Remove the watch), the script's Output and the debug console. Closed until a debug starts. The breakpoints are the
+   gutter's (a click toggles one; a right click: Breakpoints at line N). Logic in DebugPanel.razor.cs. *@
+@implements IDisposable
+@using SwissArmyBench.Web.Api.Workbench
+
+@if (_open)
+{
+    <section class="wb-debug" aria-label="Debugger">
+        <div class="wb-debug-bar" role="toolbar" aria-label="Debug toolbar">
+            <Icon Name="bug" />
+            <span class="wb-debug-status" role="status" aria-live="polite">@StatusWords</span>
+            <span class="status-spacer"></span>
+            <button type="button" class="btn small ghost icon" aria-label="Continue" title="Continue (F5)" disabled="@(!Paused)" @onclick='() => StepAsync("continue")'><Icon Name="play" /></button>
+            <button type="button" class="btn small ghost icon" aria-label="Step over" title="Step over (F10)" disabled="@(!Paused)" @onclick='() => StepAsync("over")'><Icon Name="down" /></button>
+            <button type="button" class="btn small ghost icon" aria-label="Step into" title="Step into (F11)" disabled="@(!Paused)" @onclick='() => StepAsync("into")'><Icon Name="expand" /></button>
+            <button type="button" class="btn small ghost icon" aria-label="Step out" title="Step out (Shift+F11)" disabled="@(!Paused)" @onclick='() => StepAsync("out")'><Icon Name="up" /></button>
+            <button type="button" class="btn small ghost icon" aria-label="Stop debugging" title="Stop (Shift+F5)" disabled="@(!Active)" @onclick="StopAsync"><Icon Name="stop" /></button>
+            <button type="button" class="btn small ghost icon" aria-label="Close the debugger" title="Close" @onclick="() => _open = false"><Icon Name="close" /></button>
+        </div>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <div class="wb-debug-body">
+            <section class="wb-debug-part">
+                <h4>Call stack</h4>
+                <ol class="wb-debug-stack" aria-label="Call stack">
+                    @foreach (var f in _state?.Frames ?? [])
+                    {
+                        <li>
+                            <button type="button" class="wb-debug-frame @(f.Id == _frame ? "current" : string.Empty) @(f.Yours ? string.Empty : "library")" aria-current="@(f.Id == _frame ? "true" : null)" @onclick="() => ChooseFrameAsync(f)">
+                                <strong>@f.Name</strong><span class="hint"> @(f.Yours ? string.Empty : $"{System.IO.Path.GetFileName(f.Path ?? string.Empty)} ")line @f.Line</span>
+                            </button>
+                        </li>
+                    }
+                </ol>
+            </section>
+            <section class="wb-debug-part">
+                <h4>Variables</h4>
+                <div class="wb-debug-vars" aria-label="Variables">
+                    @foreach (var scope in _scopes)
+                    {
+                        <details class="wb-debug-scope" open="@(scope.Scope == "Locals" || _scopes.Count == 1)">
+                            <summary>@scope.Scope</summary>
+                            <DebugVariables Kernel="@_kernel" Variables="scope.Variables" />
+                        </details>
+                    }
+                </div>
+            </section>
+            <section class="wb-debug-part">
+                <h4>Watch</h4>
+                <input type="text" class="mono" placeholder="Add an expression to watch" aria-label="Watch expression" spellcheck="false" data-no-variables @bind="_watch" @bind:event="oninput" @onkeydown="WatchKeyAsync" />
+                <ul class="wb-debug-watch" aria-label="Watch">
+                    @foreach (var (expression, got) in _watched)
+                    {
+                        <li class="wb-debug-var">
+                            <span class="wb-debug-name mono">@expression</span>
+                            <span class="wb-debug-value mono @(got?.Error is null ? string.Empty : "error-text")">@(got?.Error ?? got?.Value ?? string.Empty)</span>
+                            <button type="button" class="btn small ghost icon" aria-label="Remove the watch" title="Remove the watch" @onclick="() => RemoveWatchAsync(expression)"><Icon Name="close" /></button>
+                        </li>
+                    }
+                </ul>
+            </section>
+            <section class="wb-debug-part">
+                <h4>Output</h4>
+                <pre class="wb-debug-out wb-debug-program" role="log" aria-label="Output">@_state?.Output</pre>
+            </section>
+            <section class="wb-debug-part">
+                <h4>Debug console</h4>
+                <pre class="wb-debug-out" role="log" aria-label="Debug console output">@_console</pre>
+                <input type="text" class="mono" placeholder="Evaluate in the frame" aria-label="Debug console" spellcheck="false" data-no-variables @bind="_line" @bind:event="oninput" @onkeydown="ConsoleKeyAsync" />
+            </section>
+        </div>
+    </section>
+}
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}

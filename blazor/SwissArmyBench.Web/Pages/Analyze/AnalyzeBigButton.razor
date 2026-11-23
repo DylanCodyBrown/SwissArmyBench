@@ -1,0 +1,41 @@
+@* A big one-click button of Check this table and What can I do with a column? (the classic bigButton): the
+   analysis's question, its technical name, why it suits, and its verb; busy ("Running…") until its run ends. *@
+
+<button type="button" class="analyze-big-btn" title="@Reason" disabled="@_busy" aria-busy="@(_busy ? "true" : "false")" @onclick="RunAsync">
+    <span class="analyze-big-label">@Label</span>
+    <span class="analyze-big-name">@Name</span>
+    <span class="analyze-big-reason">@Reason</span>
+    <span class="analyze-big-verb"><Icon Name="play" /> @(_busy ? "Running…" : Verb)</span>
+</button>
+
+@code {
+    private bool _busy;
+
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Reason { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Verb { get; set; } = "Run";
+
+    [Parameter]
+    public EventCallback OnRun { get; set; }
+
+    private async Task RunAsync()
+    {
+        _busy = true;
+        try
+        {
+            await OnRun.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

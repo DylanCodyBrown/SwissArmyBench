@@ -1,0 +1,21 @@
+@* A SQL step (the classic stepForms.ts sqlForm): one SELECT over the table entering it, read as `grid` or by the
+   table's name. The server checks it (read-only, one query) when it is saved. *@
+@inherits StepFormBase
+
+<div class="form-grid step-form sql-form">
+    <p class="hint">Tables: <code>grid</code>, <code>@Dataset</code></p>
+    <textarea class="code-input mono" rows="10" spellcheck="false" aria-label="SQL" @bind="_sql" @bind:event="oninput"></textarea>
+</div>
+
+@code {
+    private string _sql = "SELECT *\nFROM grid";
+
+    /// <summary>The table's own name, the second way the query may name it.</summary>
+    [Parameter]
+    public string Dataset { get; set; } = "grid";
+
+    protected override void OnInitialized() => _sql = Text("sql", _sql);
+
+    public override Dictionary<string, object?> Read() =>
+        _sql.Trim().Length == 0 ? throw new StepFormException("Write a SELECT.") : new() { ["sql"] = _sql };
+}

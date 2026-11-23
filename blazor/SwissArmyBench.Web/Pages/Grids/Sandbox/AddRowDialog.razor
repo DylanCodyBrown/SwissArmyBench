@@ -1,0 +1,49 @@
+@* Add a row to a sandbox table (the classic sandboxGrid.ts addRow): a box per column with its type (a LIST, STRUCT or
+   MAP column's as JSON) and whether it is a key; only the boxes filled are sent. *@
+@inject ApiClient Api
+
+<AppDialog Title="@($"Add a row to {Table.Name}")" OnClose="OnClose">
+    <ChildContent>
+        @foreach (var column in Table.Columns)
+        {
+            <label class="field">
+                <span>@column.Name <span class="muted">@column.Type@(column.Key ? " · key" : string.Empty)</span></span>
+                <input aria-label="@column.Name" placeholder="@(SandboxCells.IsNested(column.Type) ? $"{column.Type} as JSON" : column.Type)" spellcheck="false"
+                       data-no-variables @oninput="e => _values[column.Name] = e.Value?.ToString() ?? string.Empty" />
+            </label>
+        }
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary" disabled="@_adding" @onclick="AddAsync">@(_adding ? "Adding…" : "Add")</button>
+    </Foot>
+</AppDialog>
+
+@code {
+    private readonly Dictionary<string, string> _values = [];
+    private bool _adding;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public SandboxTable Table { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private async Task AddAsync()
+    {
+        _adding = true;
+        try
+        {
+            var values = _values.Where(v => v.Value.Length > 0).ToDictionary(v => v.Key, v => v.Value);
+            await Api.PostAsync("/sandbox/edit", new { table = Table.Name, op = "insert", values });
+            await OnClose.InvokeAsync();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+        _adding = false;
+    }
+}

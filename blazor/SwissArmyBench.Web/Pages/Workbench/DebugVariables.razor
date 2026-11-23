@@ -1,0 +1,51 @@
+@* A list of a stop's variables: a value with parts (a list, a dict, an object) opens to them, read when opened. *@
+@using SwissArmyBench.Web.Api.Workbench
+@inject DebugClient Debug
+
+<ul class="wb-debug-varlist">
+    @foreach (var v in Variables)
+    {
+        <li class="wb-debug-var" data-name="@v.Name">
+            @if (v.Reference > 0)
+            {
+                <details @ontoggle="() => OpenAsync(v)">
+                    <summary><span class="wb-debug-name">@v.Name</span><span class="wb-debug-value mono" title="@v.Type">@v.Value</span></summary>
+                    @if (_parts.TryGetValue(v.Reference, out var parts))
+                    {
+                        <DebugVariables Kernel="@Kernel" Variables="parts" />
+                    }
+                </details>
+            }
+            else
+            {
+                <span class="wb-debug-name">@v.Name</span><span class="wb-debug-value mono" title="@v.Type">@v.Value</span>
+            }
+        </li>
+    }
+</ul>
+
+@code {
+    private readonly Dictionary<int, IReadOnlyList<DebugVariable>> _parts = [];
+
+    [Parameter]
+    public string? Kernel { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DebugVariable> Variables { get; set; } = [];
+
+    private async Task OpenAsync(DebugVariable v)
+    {
+        if (Kernel is null || _parts.ContainsKey(v.Reference))
+        {
+            return;
+        }
+        try
+        {
+            _parts[v.Reference] = (await Debug.PartsAsync(Kernel, v.Reference)).Variables ?? [];
+        }
+        catch (ApiException)
+        {
+            _parts[v.Reference] = []; // the stop moved on: its parts are no longer there
+        }
+    }
+}

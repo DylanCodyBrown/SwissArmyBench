@@ -1,0 +1,6 @@
+@* One grid of the server's (AG Grid through interop/agGrid.js): its rows paged from the server as you scroll, its
+   selection drawn like Excel's and told here, a right-click told here for the page's menus. The logic is in
+   AgGrid.razor.cs. *@
+@implements IAsyncDisposable
+
+<div class="ag-host" @ref="_host" tabindex="0"></div>

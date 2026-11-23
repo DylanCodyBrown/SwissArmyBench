@@ -1,0 +1,157 @@
+@* The APIs page's Local sandbox APIs (the classic localApis.ts localApisSection): with no project, one line; with no
+   API.py, New local sandbox API…; else one slim bar (its name, where it runs, the agent's session writes with Stop,
+   Run or Stop, Open API.py, Properties: target, base path, description; More: New endpoint…, Will this work for
+   real?, Export…), its problems with Go to line, each endpoint (its pattern, its data, Try it, Go to line), the
+   requests and the process's Output. Live: local_api_changed. Logic in LocalApiSection.razor.cs. *@
+@using SwissArmyBench.Web.Api.LocalApi
+
+<section class="local-apis" aria-label="Local sandbox APIs">
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    @if (_state is null)
+    {
+        <h2>Local sandbox APIs</h2>
+        <div class="loading-block">Reading API.py…</div>
+    }
+    else if (_state.Project is null)
+    {
+        <div class="sandbox-head"><h2>Local sandbox APIs</h2></div>
+        <p class="empty-note">Open a project: its local sandbox API is its API.py.</p>
+    }
+    else if (!_state.Exists)
+    {
+        <div class="sandbox-head"><h2>Local sandbox APIs</h2><button type="button" class="btn primary" @onclick="() => _newing = true"><Icon Name="plus" /> New local sandbox API…</button></div>
+        <p class="empty-note">The project has no API.py yet.</p>
+    }
+    else if (_state is { Settings: { } s } state)
+    {
+        <div class="local-api-head">
+            <h2>Local sandbox APIs</h2>
+            <div class="ide-bar local-api-bar" role="toolbar" aria-label="Local sandbox API">
+                <span class="ide-title"><span class="ide-name local-api-name">@s.Name</span></span>
+                <span class="local-api-dot @(state.Running is null ? null : "on")" aria-hidden="true"></span>
+                <span class="local-api-status @(state.Running is null ? null : "on")" role="status">@(state.Running is { } run ? $"Running on {run.Url} since {run.Since}" : "Not running")</span>
+                @if (state.AgentWrites)
+                {
+                    <span class="local-api-agent" title="One Allow lets the agent write through the local sandbox API for the rest of this session: the sandbox only, never live; Reset undoes it">The agent may write
+                        <button type="button" class="btn small ghost" title="Stop: each of the agent's writes asks again" @onclick="StopAgentAsync"><Icon Name="stop" /> Stop</button></span>
+                }
+                <span class="ide-bar-gap"></span>
+                @if (state.Running is null)
+                {
+                    <button type="button" class="btn small primary ide-btn" @onclick='() => ActAsync("/local-api/run")'><Icon Name="play" /> Run</button>
+                }
+                else
+                {
+                    <button type="button" class="btn small ghost ide-btn" @onclick='() => ActAsync("/local-api/stop")'><Icon Name="stop" /> Stop</button>
+                }
+                <a class="btn small ghost ide-btn" href="@ScriptHref(1)"><Icon Name="code" /> Open API.py</a>
+                <button type="button" class="btn small ghost icon ide-btn" aria-label="Properties" title="Properties" aria-pressed="@(_props ? "true" : "false")" @onclick="PropsAsync"><Icon Name="properties" /></button>
+                <button type="button" class="btn small ghost icon ide-btn" aria-label="More" title="More" @onclick="e => _menu = (e.ClientX, e.ClientY)"><Icon Name="more" /></button>
+            </div>
+            @if (_props)
+            {
+                <div class="local-api-props" role="group" aria-label="Properties">
+                    <label class="field-inline"><span class="muted">Target</span>
+                        <select aria-label="Target" @onchange='e => SaveAsync("target", e.Value?.ToString())'>
+                            @foreach (var t in state.Targets ?? [])
+                            {
+                                <option value="@t.Id" selected="@(t.Id == s.Target)">@t.Label</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field-inline"><span class="muted">Base path</span><input aria-label="Its base path" class="mono local-api-base" spellcheck="false" placeholder="/api" value="@s.BasePath" @onchange='e => SaveAsync("base_path", e.Value?.ToString())' /></label>
+                    <label class="field-inline local-api-about"><span class="muted">Description</span><input aria-label="Its description" placeholder="What it is for" value="@s.Description" @onchange='e => SaveAsync("description", e.Value?.ToString())' /></label>
+                </div>
+            }
+        </div>
+        @foreach (var p in Problems(state))
+        {
+            <div class="error-note error" role="alert">
+                <div class="error-note-head"><Icon Name="problem" /><strong>Error</strong><span class="error-note-what">@p.Message</span></div>
+                <div class="error-note-where">In API.py line @p.Line</div>
+                <div class="error-note-fixes"><a class="btn small" href="@ScriptHref(p.Line)">Go to line</a></div>
+            </div>
+        }
+        @if (state.Endpoints is { Count: > 0 } endpoints)
+        {
+            <div class="local-api-endpoints" role="list">
+                @foreach (var e in endpoints)
+                {
+                    <LocalEndpointRow @key="@($"{e.Method} {e.Path}")" Endpoint="e" BasePath="@s.BasePath" File="@(state.File ?? "API.py")" />
+                }
+            </div>
+        }
+        else
+        {
+            <p class="empty-note">API.py has no endpoints yet: write one with @@endpoint, or New endpoint… (the bar's …).</p>
+        }
+        <PayloadShapesView Version="state" />
+        @if (state.Running is not null)
+        {
+            <div class="local-api-log">
+                <h3>Requests</h3>
+                @if (_log is { Log.Count: > 0 } log)
+                {
+                    <table class="sandbox-tables rows">
+                        <thead><tr><th>At</th><th>Method</th><th>Path</th><th>Status</th><th>ms</th><th>Rows</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in log.Log.TakeLast(50).Reverse())
+                            {
+                                <tr><td>@r.At</td><td><span class="api-method m-@r.Method.ToLowerInvariant()">@r.Method</span></td><td class="mono">@r.Path</td><td class="@(r.Status >= 400 ? "bad" : null)">@r.Status</td><td>@r.Ms</td><td>@r.Rows</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="muted">No requests yet.</p>
+                }
+                @if (_log?.Output is { Count: > 0 } said)
+                {
+                    <details class="local-api-output"><summary>Output · @said.Count @(said.Count == 1 ? "line" : "lines")</summary><pre class="mono">@string.Join("\n", said)</pre></details>
+                }
+            </div>
+        }
+    }
+</section>
+@if (_menu is { } at)
+{
+    <ContextMenu Title="More" X="at.X" Y="at.Y" OnClose="() => _menu = null" Entries="@MoreEntries" />
+}
+@if (_wizard)
+{
+    <EndpointWizard OnClose="WizardClosedAsync" />
+}
+@if (_newing)
+{
+    <NewLocalApiDialog OnDone="NewDoneAsync" />
+}
+@if (_checks is { } checks)
+{
+    <AppDialog Title="Will this work for real?" OnClose="() => _checks = null">
+        <ChildContent>
+            @if (checks.Count == 0)
+            {
+                <p class="empty-note">No endpoint sends SQL to check.</p>
+            }
+            else
+            {
+                <table class="sandbox-tables rows">
+                    <thead><tr><th>Endpoint</th><th>Connection</th><th></th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var c in checks)
+                        {
+                            <tr><td><code>@c.Endpoint</code></td><td>@c.Connection</td><td class="@(c.State == "differs" ? "bad" : null)">@CheckMark(c.State)</td>
+                                <td>@c.Words <a class="btn small icon" aria-label="Go to line" title="@($"API.py line {c.Line}")" href="@ScriptHref(c.Line)"><Icon Name="code" /></a></td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </ChildContent>
+        <Foot><button type="button" class="btn" @onclick="() => _checks = null">Close</button></Foot>
+    </AppDialog>
+}
+@if (_exporting && _state is { } exportOf)
+{
+    <ExportLocalApiDialog State="exportOf" OnClose="() => _exporting = false" />
+}

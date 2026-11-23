@@ -1,0 +1,35 @@
+@* The ribbon's Compare row (the classic ribbon.ts compareGroup), only while two grids are side by side: Pick keys…
+   (Keys… once there are some), the modes (Outer join, Anti join with its sides, Cross compare, Diff with Only
+   differing columns and How values compare…), Stop compare, and what lines up in words. Logic in CompareRow.razor.cs. *@
+
+<div class="ribbon-group" role="toolbar" aria-label="@($"Compare tools: {Caption}")">
+    <div class="ribbon-caption" title="@Caption"><strong>Compare</strong><span class="ribbon-target">@Caption</span></div>
+    <div class="ribbon-tools">
+        @foreach (var tool in Tools)
+        {
+            <RibbonButton Tool="tool" OnRun="RunAsync" />
+        }
+        @if (Info is { Mode: "diff", Differ: { } differ } cmp)
+        {
+            <span class="ribbon-note diff-note" role="status">
+                <span>@differ.Differ.ToString("N0") of @differ.Matched.ToString("N0") matched rows differ</span>
+                @foreach (var (name, count) in differ.Columns)
+                {
+                    var focused = cmp.Diff.Column == name;
+                    <button type="button" class="btn small ghost diff-column @(focused ? "pressed" : string.Empty)" aria-pressed="@(focused ? "true" : "false")"
+                            title="@(focused ? "Show all differences" : null)" @onclick="() => FocusColumnAsync(cmp, name)">@name @count.ToString("N0")</button>
+                }
+                <span>@differ.LeftOnly.ToString("N0") only in @LeftName · @differ.RightOnly.ToString("N0") only in @RightName</span>
+                <button type="button" class="btn small ghost" @onclick='() => RunAsync("cmp-outer")'>Every row</button>
+            </span>
+        }
+        else if (Info is { } running)
+        {
+            <span class="ribbon-note" role="status">@running.Counts.Matched.ToString("N0") matched · @running.Counts.LeftOnly.ToString("N0") only in @LeftName · @running.Counts.RightOnly.ToString("N0") only in @RightName</span>
+        }
+        else
+        {
+            <span class="ribbon-note">@LeftName and @RightName side by side</span>
+        }
+    </div>
+</div>

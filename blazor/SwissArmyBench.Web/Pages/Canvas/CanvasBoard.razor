@@ -1,0 +1,59 @@
+@* The board (the classic canvasPage.ts [BOARD]): the page at its preview width, the dots at the snap step, the grid's
+   columns when the step is the grid's, zoom scaling the view only. Drag on empty grid to draw a container; drag an
+   item to move it (into another container too), its corner to size it; snap to the step and to the other items'
+   edges and centres with guides (Alt: off for that drag); right-click for the menus; a widget card dropped in. The
+   page frame's right edge previews another width. Logic in CanvasBoard.razor.cs. *@
+@using SwissArmyBench.Web.Api.Canvas
+@implements IAsyncDisposable
+
+<div class="cvs-viewport" @ref="_viewport">
+    <div class="cvs-scaler" style="@ScalerStyle">
+        <div class="cvs-board @(View.Editable ? null : "read-only")" aria-label="Canvas" tabindex="0" style="@BoardStyle" @ref="_board"
+             @onpointerdown="BoardDownAsync" @onpointermove="MoveAsync" @onpointerup="UpAsync"
+             @oncontextmenu="BoardMenuAsync" @oncontextmenu:preventDefault="true"
+             @ondragover:preventDefault="true" @ondrop="DropAsync">
+            <div class="cvs-columns" aria-hidden="true">
+                @foreach (var (left, width) in Columns)
+                {
+                    <div class="cvs-column" style="@(Px("left", left) + Px("width", width))"></div>
+                }
+            </div>
+            @foreach (var node in View.Children)
+            {
+                <CanvasNodeView @key="node.Id" Node="node" View="View" Widgets="Widgets" Moving="_moved" Dragging="Dragging"
+                                OnDown="NodeDownAsync" OnMenu="NodeMenuAsync" OnDrop="NodeDropAsync" OnEditWidget="OnEditWidget"
+                                OnReplace="OnReplace" OnRemove="RemoveAsync" />
+            }
+            <div class="cvs-guides" aria-hidden="true">
+                @foreach (var guide in _guides)
+                {
+                    <div class="cvs-guide @guide.Axis" style="@GuideStyle(guide)"></div>
+                }
+            </div>
+            @if (_band is { } band)
+            {
+                <div class="cvs-band" style="@BandStyle(band)"></div>
+            }
+            <div class="cvs-width-handle" role="separator" aria-orientation="vertical" aria-label="Page width" title="Drag to preview another width"
+                 @onpointerdown="WidthDownAsync" @onpointerdown:stopPropagation="true" @onpointermove="WidthMove" @onpointerup="WidthUpAsync" @ref="_handle">
+                <span class="cvs-width-label">@View.PreviewWidth[View.Layout] px</span>
+            </div>
+            @if (ShowWires && View.State?.Wiring is { } wiring)
+            {
+                <WiresOverlay Wiring="wiring" View="View" Height="Height" />
+            }
+            @if (View.State?.Broken is { } broken)
+            {
+                <div class="cvs-broken"><Icon Name="warning" />@broken.Error@(broken.Line is { } line ? $" (line {line})" : string.Empty). A copy is kept at @broken.Copy.</div>
+            }
+            else if (View.State?.ReadOnly is { } readOnly)
+            {
+                <div class="cvs-broken"><Icon Name="warning" />@readOnly</div>
+            }
+            else if (View.Children.Count == 0)
+            {
+                <div class="cvs-empty">Drag on the grid to draw a container, or drag a widget here from Widgets.</div>
+            }
+        </div>
+    </div>
+</div>

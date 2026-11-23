@@ -1,0 +1,115 @@
+@* A project type's gates (the classic gates.ts): the first-open pop-up once per project (Open Settings, Got it), and
+   the one line a closed feature's address shows over its page, with Open every feature. Read at start and as the
+   project changes. *@
+@implements IDisposable
+@inject AppClient App
+@inject SettingsClient Settings
+@inject ApiClient Api
+@inject LiveUpdates Live
+@inject NavigationManager Nav
+
+@if (_gates?.FirstOpen is { } words && !_seen)
+{
+    <AppDialog Title="Features" OnClose="() => DoneAsync(false)">
+        <ChildContent><p>@words</p></ChildContent>
+        <Foot>
+            <button type="button" class="btn" @onclick="() => DoneAsync(true)">Open Settings</button>
+            <button type="button" class="btn primary" @onclick="() => DoneAsync(false)">Got it</button>
+        </Foot>
+    </AppDialog>
+}
+@if (Closed is { } gate)
+{
+    <div class="gate-cover" data-area="@gate.Area">
+        <div class="gate-line" role="status" data-area="@gate.Area">
+            <Icon Name="info" />
+            <span>@_gates!.Line.Replace("{feature}", gate.Name, StringComparison.Ordinal)</span>
+            <button type="button" class="btn primary" @onclick="OpenEveryAsync">Open every feature</button>
+        </div>
+    </div>
+}
+
+@code {
+    private GatesAnswer? _gates;
+    private bool _seen;
+
+    /// <summary>The closed area this address is on, if any.</summary>
+    private GateArea? Closed
+    {
+        get
+        {
+            var area = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#', '/')[0];
+            return _gates is { Gated: true, Every: false } gates ? gates.Closed.FirstOrDefault(c => c.Area == area) : null;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        Nav.LocationChanged += OnMoved;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _gates = await App.GatesAsync();
+        }
+        catch (ApiException)
+        {
+            _gates = null; // an older server: no gates
+        }
+    }
+
+    private async Task DoneAsync(bool openSettings)
+    {
+        _seen = true;
+        try
+        {
+            await Api.PostAsync("/app/gates", new { seen = true });
+        }
+        catch (ApiException)
+        {
+            // said again next time
+        }
+        if (openSettings)
+        {
+            Nav.NavigateTo("settings");
+        }
+    }
+
+    private async Task OpenEveryAsync()
+    {
+        try
+        {
+            await Settings.SetEveryFeatureAsync(true);
+        }
+        catch (ApiException)
+        {
+            // the line stays
+        }
+        await LoadAsync();
+    }
+
+    private void OnMoved(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type is "project_changed" or "project_opened" or "project_closed" or "gates_changed")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                _seen = false;
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        Live.NoticeArrived -= OnNotice;
+        Nav.LocationChanged -= OnMoved;
+    }
+}

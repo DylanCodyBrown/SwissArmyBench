@@ -1,0 +1,144 @@
+@* Updates (the classic updates.ts): in the status bar (Corner), "Update available" while an update exists, "Updating to
+   X…" while it runs, "Update failed" (its reason) after one failed; on Settings, the Updates section's one button,
+   Click here to update, only while an update is available. Either asks first only when work would be lost (Update to
+   X: what closes, the unsaved documents, the kernels; What's new, Cancel, Update and restart). *@
+@implements IDisposable
+@inject SettingsClient Settings
+@inject LiveUpdates Live
+@inject Notes Notes
+@inject IJSRuntime Js
+
+@if (Corner)
+{
+    @if (_state is { Updating: { } updating })
+    {
+        <button type="button" class="update-corner btn ghost small" disabled title="Swiss Army Bench opens again by itself">Updating to @updating…</button>
+    }
+    else if (_state is { Available: true, Version: { } version })
+    {
+        <button type="button" class="update-corner btn ghost small" title="@($"Update to {version}")" @onclick="() => StartAsync(false)"><Icon Name="export" /> Update available</button>
+    }
+    else if (_state?.Failed is { } failed)
+    {
+        <button type="button" class="update-corner failed btn ghost small" title="@failed.Reason" @onclick="() => _failure = failed">Update failed</button>
+    }
+}
+else if (_state is { Available: true })
+{
+    <fieldset class="fieldset updates-fieldset">
+        <legend><Icon Name="export" /> Updates</legend>
+        <div class="updates-row"><button type="button" class="btn primary" @onclick="() => StartAsync(false)">Click here to update</button></div>
+    </fieldset>
+}
+@if (_risk is { } risk && _state?.Version is { } to)
+{
+    var lost = risk.Unsaved.Count > 0 || risk.Kernels > 0;
+    <AppDialog Title="@($"Update to {to}")" OnClose="() => _risk = null">
+        <ChildContent>
+            <p class="update-restart">@_state.Name closes, installs @to and opens again by itself. It takes about a minute.</p>
+            @if (risk.Unsaved.Count > 0)
+            {
+                <p>Unsaved changes are lost:</p>
+                <ul class="update-unsaved">
+                    @foreach (var name in risk.Unsaved)
+                    {
+                        <li>@name</li>
+                    }
+                </ul>
+            }
+            @if (risk.Kernels > 0)
+            {
+                <p>@risk.Kernels running kernel@(risk.Kernels == 1 ? " stops" : "s stop").</p>
+            }
+        </ChildContent>
+        <Foot>
+            @if (_state.Url is { } url)
+            {
+                <button type="button" class="btn link" @onclick='() => Js.InvokeVoidAsync("open", url, "_blank", "noopener")'>What's new</button>
+                <span class="grow"></span>
+            }
+            <button type="button" class="btn" @onclick="() => _risk = null">Cancel</button>
+            <button type="button" class="btn @(lost ? "danger" : "primary")" @onclick="() => StartAsync(true)">Update and restart</button>
+        </Foot>
+    </AppDialog>
+}
+@if (_failure is { } failure)
+{
+    <AppDialog Title="@($"Update to {failure.Version} failed")" OnClose="() => _failure = null">
+        <ChildContent><pre class="mono update-reason">@failure.Reason</pre></ChildContent>
+        <Foot><button type="button" class="btn primary" @onclick="() => _failure = null">Close</button></Foot>
+    </AppDialog>
+}
+
+@code {
+    private UpdatesStatus? _state;
+    private UpdateRisk? _risk;
+    private UpdateFailure? _failure;
+
+    /// <summary>The status bar's mark; otherwise Settings' Updates section.</summary>
+    [Parameter]
+    public bool Corner { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _state = await Settings.UpdatesAsync();
+        }
+        catch (ApiException)
+        {
+            _state = null; // an older server: no updates
+        }
+    }
+
+    /// <summary>Update to the version offered: asks first only when something would be lost.</summary>
+    private async Task StartAsync(bool confirmed)
+    {
+        _risk = null;
+        if (_state?.Version is not { } version)
+        {
+            _ = Notes.SayAsync("No update is available.");
+            return;
+        }
+        try
+        {
+            var answer = await Settings.StartUpdateAsync(version, confirmed);
+            if (answer.Confirm is { } risk)
+            {
+                _risk = risk;
+            }
+            else if (answer.Updating is { } updating)
+            {
+                _state = _state with { Updating = updating };
+            }
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+        }
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type is "update_changed" or "app_updating")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                if (notice.Type == "app_updating" && _state is not null)
+                {
+                    _state = _state with { Updating = notice.Text("version") };
+                }
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

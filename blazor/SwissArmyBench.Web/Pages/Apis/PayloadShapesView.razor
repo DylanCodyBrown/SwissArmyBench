@@ -1,0 +1,53 @@
+@* Payload shapes (the classic localApis.ts drawShapes): each canvas widget that uses an endpoint, what it expects
+   beside what the endpoint answers, each mismatch said before Play. Nothing shows while no widget uses one. Asked
+   again whenever Version changes. *@
+@using SwissArmyBench.Web.Api.LocalApi
+@inject LocalApiClient LocalApi
+
+@if (_shapes is { Uses.Count: > 0 } shapes)
+{
+    <section class="local-api-shapes" aria-label="Payload shapes">
+        <h3>Payload shapes</h3>
+        <table class="sandbox-tables">
+            <thead><tr><th>Widget</th><th>Endpoint</th><th>Expects</th><th>Answers</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var u in shapes.Uses)
+                {
+                    <tr>
+                        <td>@u.Widget@(u.Event is { } ev ? $" · {ev}" : string.Empty) <span class="muted">@u.Canvas.Replace(".canvas.json", string.Empty, StringComparison.Ordinal) › @u.Page</span></td>
+                        <td class="mono">@u.Endpoint</td>
+                        <td>@u.Expects</td>
+                        <td class="mono">@string.Join(", ", (u.Answers.Body ?? u.Answers.Fields ?? new Dictionary<string, string>()).Select(f => $"{f.Key}: {f.Value}"))</td>
+                        <td class="@(u.Problems.Count > 0 ? "bad" : null)">@string.Join(" ", u.Problems)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    private PayloadShapes? _shapes;
+    private object? _asked;
+
+    /// <summary>Anything that changes when API.py or a canvas does (the section's state): read again when it changes.</summary>
+    [Parameter]
+    public object? Version { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ReferenceEquals(_asked, Version) && _shapes is not null)
+        {
+            return;
+        }
+        _asked = Version;
+        try
+        {
+            _shapes = await LocalApi.ShapesAsync();
+        }
+        catch (ApiException)
+        {
+            _shapes = null; // nothing shows while it cannot be read
+        }
+    }
+}

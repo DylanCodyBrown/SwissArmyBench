@@ -1,0 +1,87 @@
+@* A notebook's Outline (the classic workbenchDocModes.ts drawOutline, Notebook mode's panel beside the document):
+   the Markdown headings and the named cells by level, the Tables group first when there is one, a mark on an edited or
+   out-of-date cell; a click goes to its cell. Close Outline puts it away. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<aside class="wb-mode-panel" aria-label="Outline">
+    <div class="side-pane-head">
+        <strong>Outline</strong>
+        <button type="button" class="btn ghost icon small" aria-label="Close Outline" title="Close Outline" @onclick="OnClose"><Icon Name="close" /></button>
+    </div>
+    @if (Flow is null)
+    {
+        <div class="loading-block">Reading the notebook…</div>
+    }
+    else
+    {
+        <ul class="wb-outline" aria-label="Outline">
+            @if (Tables)
+            {
+                <li><button type="button" class="wb-outline-item tables" @onclick="OnTables"><Icon Name="rows" /> <span>Tables</span></button></li>
+            }
+            @foreach (var (item, indent) in Indented(Flow.Outline))
+            {
+                <li>
+                    <button type="button" class="wb-outline-item @item.Kind @(item.Number == Selected ? "active" : string.Empty)" style="@($"padding-left: {10 + indent * 14}px")"
+                            data-number="@item.Number" @onclick="() => item.Number is { } n ? OnGo.InvokeAsync(n) : Task.CompletedTask">
+                        @if (item.Kind == "cell")
+                        {
+                            <Icon Name="notebook" />
+                        }
+                        <span class="@(item.Kind == "cell" ? "mono" : string.Empty)">@item.Text</span>
+                        @if (item.Number is { } number && Stale.Contains(number))
+                        {
+                            <span class="wb-outline-stale" title="Edited or out of date" aria-label="Edited or out of date"></span>
+                        }
+                    </button>
+                </li>
+            }
+        </ul>
+        @if (Flow.Outline.Count == 0 && !Tables)
+        {
+            <p class="hint app-empty">No headings or named cells</p>
+        }
+    }
+</aside>
+
+@code {
+    // Markdown's deepest heading.
+    private const int DeepestHeading = 6;
+
+    [Parameter]
+    public NotebookFlow? Flow { get; set; }
+
+    [Parameter]
+    public int? Selected { get; set; }
+
+    /// <summary>The notebook has a Tables group (its line comes first).</summary>
+    [Parameter]
+    public bool Tables { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnGo { get; set; }
+
+    [Parameter]
+    public EventCallback OnTables { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private HashSet<int> Stale => Flow?.Cells.Where(c => c.State is "edited" or "outOfDate").Select(c => c.Number).ToHashSet() ?? [];
+
+    /// <summary>Each line with its indent: a heading by its level under the shallowest, a named cell one under its heading.</summary>
+    public static IEnumerable<(OutlineItem Item, int Indent)> Indented(IReadOnlyList<OutlineItem> outline)
+    {
+        var top = outline.Where(o => o.Kind == "heading").Select(o => o.Level ?? 1).DefaultIfEmpty(1).Min();
+        top = Math.Min(top, DeepestHeading);
+        var depth = 0;
+        foreach (var item in outline)
+        {
+            if (item.Kind == "heading")
+            {
+                depth = (item.Level ?? 1) - top;
+            }
+            yield return (item, item.Kind == "heading" ? depth : depth + 1);
+        }
+    }
+}

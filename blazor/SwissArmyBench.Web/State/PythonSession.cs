@@ -1,0 +1,153 @@
+using SwissArmyBench.Web.Api.Workbench;
+
+namespace SwissArmyBench.Web.State;
+
+/// <summary>
+/// The Python session the open document runs in (the classic workbenchKernel.ts and projectSession.ts): the open
+/// project's one session for every notebook and script of it, else a loose file's kernel of its own. Its value is
+/// the kernel, its Python and its state in words (Not started, Starting…, Ready, Running…); it raises one Changed,
+/// and follows the live notices (a session restarted or ended from any window).
+/// </summary>
+public sealed class PythonSession : IDisposable
+{
+    private readonly WorkbenchClient _workbench;
+    private readonly LiveUpdates _live;
+    private string? _forPath;
+    private int _running;
+
+    public PythonSession(WorkbenchClient workbench, LiveUpdates live)
+    {
+        _workbench = workbench;
+        _live = live;
+        _live.NoticeArrived += OnNotice;
+    }
+
+    public event Action? Changed;
+
+    public string? Kernel { get; private set; }
+
+    public string? Python { get; private set; }
+
+    /// <summary>The project's one session (shared by its documents), with the server's words for it.</summary>
+    public SessionInfo? Shared { get; private set; }
+
+    public bool Starting { get; private set; }
+
+    public bool Busy => _running > 0;
+
+    /// <summary>What happened to the session last, from the server ("restarted: every variable is cleared").</summary>
+    public string? Said { get; private set; }
+
+    public string Words => Starting ? "Starting…" : Kernel is null ? "Not started" : Busy ? "Running…" : "Ready";
+
+    /// <summary>The kernel for a document (started when there is none, or the document is another loose file's).</summary>
+    public async Task<string> KernelForAsync(string? path)
+    {
+        if (Kernel is not null && (Shared is not null || _forPath == path))
+        {
+            return Kernel;
+        }
+        Starting = true;
+        Changed?.Invoke();
+        try
+        {
+            var started = await _workbench.StartAsync(path, path is not null ? _chosen.GetValueOrDefault(path) : _chosenUnsaved);
+            Kernel = started.Kernel;
+            Python = started.Python;
+            Shared = started.Session;
+            _forPath = path;
+            Said = null;
+            return started.Kernel;
+        }
+        finally
+        {
+            Starting = false;
+            Changed?.Invoke();
+        }
+    }
+
+    // The Python chosen for a loose document (the status bar's Environment), by its path; an unsaved one's apart.
+    private readonly Dictionary<string, string> _chosen = [];
+    private string? _chosenUnsaved;
+
+    /// <summary>The Python a loose document's kernel runs in from its next start (null: this app's own).</summary>
+    public string? ChosenFor(string? path) => path is null ? _chosenUnsaved : _chosen.GetValueOrDefault(path);
+
+    /// <summary>A loose document's Python chosen: its kernel stopped when it ran in another (true: one was).</summary>
+    public async Task<bool> ChooseAsync(string? path, string python)
+    {
+        if (path is null)
+        {
+            _chosenUnsaved = python;
+        }
+        else
+        {
+            _chosen[path] = python;
+        }
+        if (Kernel is not null && Shared is null && _forPath == path)
+        {
+            await StopAsync();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>A run began (true) or ended (false): the status bar says Running… while any runs.</summary>
+    public void Ran(bool started)
+    {
+        _running = Math.Max(0, _running + (started ? 1 : -1));
+        Changed?.Invoke();
+    }
+
+    public async Task InterruptAsync()
+    {
+        if (Kernel is not null)
+        {
+            await _workbench.InterruptAsync(Kernel);
+        }
+    }
+
+    public async Task RestartAsync()
+    {
+        if (Kernel is not null)
+        {
+            await _workbench.RestartAsync(Kernel);
+        }
+    }
+
+    /// <summary>The session stopped (its variables gone); the next Run starts a new one.</summary>
+    public async Task StopAsync()
+    {
+        if (Kernel is not null)
+        {
+            await _workbench.StopAsync(Kernel);
+            (Kernel, Shared, _running) = (null, null, 0);
+            Changed?.Invoke();
+        }
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Text("kernel") != Kernel || Kernel is null)
+        {
+            return;
+        }
+        if (notice.Type == "session_restarted")
+        {
+            Python = notice.Text("python") ?? Python;
+            Said = notice.Text("words");
+            _running = 0;
+            Changed?.Invoke();
+        }
+        else if (notice.Type == "session_ended")
+        {
+            Kernel = null;
+            Shared = null;
+            Said = notice.Text("words");
+            _running = 0;
+            Changed?.Invoke();
+        }
+    }
+
+    public void Dispose() => _live.NoticeArrived -= OnNotice;
+}

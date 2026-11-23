@@ -1,0 +1,87 @@
+@* The Source Control page (the classic scmPage.ts; the Git extension's rail area): VS Code's Source Control view
+   and its Source Control Graph, from VS Code's own layout, sizes, words, codicons, menus, keys and its Dark Modern
+   and Light Modern colours, over GitHub sync. No local Git: what needs one is shown disabled, as VS Code shows a
+   disabled command. SOURCE CONTROL (the repositories, the message box, Commit and its menu, the groups, each file's
+   inline actions and menus, list or tree), GRAPH (the history's swimlanes, a row's files), and Monaco's diff editor
+   with the files beside it. Logic in ScmPage.razor.cs and its parts. *@
+@page "/x-scm"
+@implements IAsyncDisposable
+
+<section class="area-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title">@_title</h1>
+    </header>
+    <div class="area-page-body scm-page-body">
+        <div class="scm-page monaco-workbench @(Theme.IsDark ? "vs-dark" : "vs")">
+            <div class="part sidebar scm-sidebar @(_collapsedPanes.Contains("graph") ? "graph-collapsed" : null)" role="complementary" style="@SidebarWidth">
+                <div class="pane">
+                    <ScmPaneHeader Id="scm" Title="SOURCE CONTROL" Expanded="@(!_collapsedPanes.Contains("scm"))" Count="Total" OnToggle="TogglePane">
+                        @if (Current is not null)
+                        {
+                            <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+                                <ScmAction Icon="@(_tree ? "list-flat" : "list-tree")" Title="@(_tree ? "View as List" : "View as Tree")" OnRun="ToggleViewAsync" />
+                                <ScmAction Icon="check" Title="Commit" OnRun="() => CommitAsync(Current)" />
+                                <ScmAction Icon="refresh" Title="Refresh" OnRun="LoadAsync" />
+                                <ScmAction Icon="ellipsis" Title="More Actions..." OnRun="e => MoreMenu(e, Current)" />
+                            </ul></div>
+                        }
+                    </ScmPaneHeader>
+                </div>
+                @if (!_collapsedPanes.Contains("scm"))
+                {
+                    <div class="pane-body scm-view">
+                        <ScmChangesView Changes="_changes" Status="_status" Current="Current" Tree="_tree" Shown="_shown" CollapsedGroups="_collapsedGroups" Messages="_messages"
+                                        Host="this" />
+                    </div>
+                }
+                <div class="pane">
+                    <ScmPaneHeader Id="graph" Title="GRAPH" Expanded="@(!_collapsedPanes.Contains("graph"))" OnToggle="TogglePane">
+                        @if (Current is { } repo && _changes?.SignedIn == true)
+                        {
+                            <div class="monaco-action-bar"><ul class="actions-container" role="toolbar">
+                                <ScmAction Icon="git-fetch" Title="Fetch From All Remotes" OnRun="FetchAsync" />
+                                <ScmAction Icon="repo-pull" Title="Pull" OnRun="() => PullAsync(repo.Which)" />
+                                <ScmAction Icon="repo-push" Title="Push" OnRun="() => PushAsync(repo.Which)" />
+                                <ScmAction Icon="refresh" Title="Refresh" OnRun="() => LoadHistoryAsync(repo)" />
+                            </ul></div>
+                        }
+                    </ScmPaneHeader>
+                </div>
+                @if (!_collapsedPanes.Contains("graph"))
+                {
+                    <div class="pane-body scm-view scm-history-view">
+                        <ScmGraphView Repo="Current" SignedIn="@(_changes?.SignedIn == true)" History="@(Current is { } r ? _histories.GetValueOrDefault(r.Which) : null)"
+                                      Opened="_opened" Shown="_shown" Host="this" />
+                    </div>
+                }
+            </div>
+            <div class="scm-sash" role="separator" aria-orientation="vertical" @onpointerdown="SashDownAsync" @onpointermove="SashMove" @onpointerup="() => _sashFrom = null" @ref="_sash"></div>
+            <div class="part editor scm-editor-part">
+                @if (_diff is { } diff && _shown is { } shown)
+                {
+                    <ScmDiffView Diff="diff" Shown="shown" Host="this" />
+                }
+                else
+                {
+                    <div class="scm-editor-empty"><Codicon Name="source-control" Extra="letterpress" /></div>
+                }
+            </div>
+        </div>
+    </div>
+</section>
+@if (_menu is { } menu)
+{
+    <ScmMenu Items="menu.Items" Label="@menu.Label" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}
+@if (_pick is { } pick)
+{
+    <QuickPick Request="pick" OnClosed="() => _pick = _pick == pick ? null : _pick" />
+}
+@if (_dialog is { } dialog)
+{
+    <ScmDialog Request="dialog" OnClosed="() => _dialog = _dialog == dialog ? null : _dialog" />
+}
+@if (_hover is { } hover)
+{
+    <ScmHover Hover="hover" />
+}

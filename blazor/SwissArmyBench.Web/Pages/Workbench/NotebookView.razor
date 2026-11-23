@@ -1,0 +1,43 @@
+@* A notebook (the classic workbenchNotebook.ts): its cells in order, each run in the document's Python session with
+   its outputs as they arrive; Run all; a new Python, SQL or Markdown cell; the Tables group (each open table's
+   read-only cell, kept by the server's rules) and the Blades pane's lines put into the selected cell. Logic in
+   NotebookView.razor.cs (the cells), NotebookView.Edits.cs (the cell commands) and NotebookView.Tables.cs (the Tables
+   group). *@
+@implements IDisposable
+
+<ErrorNote Error="_error" OnClose="() => _error = null" />
+<div class="wb-notebook-main">
+<div class="wb-cells">
+    @if (_kept.Cells.Count == 0)
+    {
+        <div class="empty-state">
+            <p>An empty notebook: add a cell to start.</p>
+            <button type="button" class="btn primary" @onclick='() => AddCellAsync("code")'><Icon Name="plus" /> Python cell</button>
+        </div>
+    }
+    @foreach (var cell in _kept.Cells.Where(c => !FoldedAway(c)))
+    {
+        if (cell.Role is "tables" or "table")
+        {
+            <TableGroupBar @key="cell" Cell="cell" Folded="IsFolded(cell)" Tables="TableCount" Runnable="TableCell(cell.Table) is not null"
+                           OnFold="() => ToggleFold(cell)" OnGoToCell="GoToNumberAsync" OnRunTable="RunTableAsync" OnRunTables="RunTablesAsync" />
+            continue;
+        }
+        <NotebookCellView @key="cell" @ref="_views[cell]" Cell="cell" Selected="cell == _selected" Connections="Connections" IntelFor="IntelFor"
+                          OnRun="RunAsync" OnSelect="Select" OnChanged="ChangedAsync" OnKey="KeyAsync" OnMove="MoveAsync" OnDelete="DeleteCellAsync" OnMenu="ShowCellMenu" OnRunTo="RunToAsync" OnAnswer="AnswerAsync"
+                          OnFix="FixAsync" OnGoTo="GoToFrameAsync" OnLineage="c => OnLineage.InvokeAsync(c.Number)" Routes="Routes" OnOpenTable="OpenRoutedTableAsync" Inline="Inline" InlineFor="InlineFor" Document="@(Path is null ? "the notebook" : System.IO.Path.GetFileName(Path))" />
+    }
+</div>
+@if (OutlineShown)
+{
+    <NotebookOutline Flow="_flow" Selected="_selected?.Number" Tables="_kept.Cells.Any(c => c.IsAppCell)" OnGo="GoToNumberAsync" OnTables="GoToTablesAsync" OnClose="ToggleOutlineAsync" />
+}
+</div>
+@if (_snippet)
+{
+    <SwissArmyBench.Web.Pages.Workbench.Blades.SnippetDialog Language="@SnippetLanguage" OnClose="() => _snippet = false" OnInsert="SnippetInsertAsync" />
+}
+@if (_menu is { } menu)
+{
+    <ContextMenu Title="@menu.Title" Entries="menu.Entries" X="menu.X" Y="menu.Y" OnClose="() => _menu = null" />
+}

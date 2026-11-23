@@ -1,0 +1,110 @@
+@* The viewer beside the Environment's list (the classic environmentPage.ts drawViewer): the selected row's name and
+   type, its size and where it comes from, every place that uses it (each Go there), its actions, a table's "Also
+   delete it in Python" tick for Remove, and the keys; folded and shown again with Ctrl+B. *@
+
+<aside class="env-side" aria-label="Viewer">
+    @if (Folded)
+    {
+        <button type="button" class="btn ghost icon env-fold" aria-label="Show the viewer" title="Show the viewer (Ctrl+B)" @onclick="OnFold"><Icon Name="panel" /></button>
+    }
+    else if (Item is null)
+    {
+        <h2 class="env-side-title"><span>Select a row</span>@Fold</h2>
+        <div class="env-side-part env-keys">Click a row, or use the keys below.</div>
+        @Keys
+    }
+    else
+    {
+        var library = Item.Kind == "library";
+        var used = Item.Used ?? [];
+        <h2 class="env-side-title"><span class="env-side-name">@Item.Name</span><span class="env-tag">@Item.Type</span>@Fold</h2>
+        <div class="env-side-part">
+            <div class="env-kv">
+                <span>@(library ? "Version" : "Size")</span><span>@(Item.Size.Length > 0 ? Item.Size : "—")</span>
+                <span>@(Item.Kind == "setting" ? "Comes from" : Item.Kind == "structure" ? "File" : "From")</span><span>@(Item.From.Length > 0 ? Item.From : "—")</span>
+            </div>
+            <b>@(library ? "Imported in" : "Used in") @used.Count.ToString("N0") place@(used.Count == 1 ? string.Empty : "s")</b>
+            @if (used.Count > 0)
+            {
+                <ul class="env-used" aria-label="Used in">
+                    @foreach (var use in used)
+                    {
+                        <li><span class="env-tag">@UsedWords(use.Kind)</span><button type="button" class="env-link" data-used-kind="@use.Kind" title="Go there" @onclick="() => OnFollow.InvokeAsync(use)">@use.Words</button></li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <span class="env-keys">@(library ? "Not imported yet." : "Not used anywhere yet.")</span>
+            }
+            @if (Item.Kind == "table")
+            {
+                <span class="env-keys">@TableWords</span>
+            }
+            <div class="env-actions">
+                @foreach (var action in Actions)
+                {
+                    <button type="button" class="btn small @(action.Primary ? "primary" : null)" @onclick="action.Run">
+                        @if (action.Icon is { } icon)
+                        {
+                            <Icon Name="@icon" />
+                        }
+                        @action.Label
+                    </button>
+                }
+            </div>
+            @if (Item.Kind == "table" && Item.InPython)
+            {
+                <label class="env-keys env-python-label"><input type="checkbox" class="env-python-too" checked="@PythonToo" @onchange="e => PythonTooChanged.InvokeAsync(e.Value is true)" /> Also delete it in Python (Remove)</label>
+            }
+        </div>
+        @Keys
+    }
+</aside>
+
+@code {
+    private static readonly Dictionary<string, string> _usedWords = new()
+    {
+        ["grid"] = "Grid",
+        ["cell"] = "Code",
+        ["widget"] = "Canvas",
+        ["endpoint"] = "API",
+        ["analysis"] = "Analyze",
+        ["table"] = "Table",
+        ["erd"] = "ERD",
+        ["connection"] = "Connection",
+        ["settings"] = "Run settings",
+    };
+
+    [Parameter]
+    public EnvironmentItem? Item { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EnvAction> Actions { get; set; } = [];
+
+    [Parameter]
+    public bool Folded { get; set; }
+
+    [Parameter]
+    public EventCallback OnFold { get; set; }
+
+    [Parameter]
+    public EventCallback<EnvironmentUse> OnFollow { get; set; }
+
+    [Parameter]
+    public bool PythonToo { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> PythonTooChanged { get; set; }
+
+    private static string UsedWords(string kind) => _usedWords.GetValueOrDefault(kind) ?? kind;
+
+    private string TableWords =>
+        Item?.Grids is { Count: > 0 } ? "Its grids are views of this one table: no copies."
+        : Item?.Open?.ValueKind == JsonValueKind.True ? "Not shown in a grid yet: Open in Grids makes a view, not a copy."
+        : "It is in Python only: no grid shows it yet.";
+
+    private RenderFragment Fold => @<button type="button" class="btn ghost icon env-fold" aria-label="Hide the viewer" title="Hide the viewer (Ctrl+B)" @onclick="OnFold"><Icon Name="panel" /></button>;
+
+    private static RenderFragment Keys => @<div class="env-side-part env-keys"><kbd>↑</kbd> <kbd>↓</kbd> move · <kbd>→</kbd> open a level · <kbd>←</kbd> close · <kbd>Enter</kbd> open it · <kbd>F2</kbd> rename · <kbd>Del</kbd> remove · <kbd>/</kbd> search</div>;
+}

@@ -1,0 +1,159 @@
+@* A connection's detail (the classic connectionsWindow.ts showDetail): the way back and the crumbs; its tools (its
+   colour, Open as grid, Edit, Test, Import relationships, the Dataverse switch, Update to the new driver, Refresh
+   catalog, Copy for Python, Remove); what only works here; a Test's rows; its tables (ConnectionTables) above where
+   it is used; its configuration (never a password's value), Access, Queries and its calls this session. *@
+
+<div class="connection-detail-top">
+    <BackLink To="Connections" Href="connections" />
+    <nav class="crumbs" aria-label="Where you are"><a href="connections">Connections</a> › <span>@Name</span></nav>
+</div>
+<ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+<Busy IsBusy="_usage is null && _error is null" Words="@($"Loading {Name}…")">
+    @if (_usage is { } usage)
+    {
+        var config = usage.Configuration;
+        var vault = config.Kind == "vault";
+        <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
+            <div class="connection-detail-tools" role="toolbar" aria-label="Connection">
+                @if (!vault)
+                {
+                    <ColourSwatch Name="@Name" />
+                }
+                @if (_listed is { Connection: "file" } file && file.Template != "folder")
+                {
+                    <button type="button" class="btn primary" @onclick="OpenFileAsync"><Icon Name="rows" /> Open as grid</button>
+                }
+                @if (!ReadOnly)
+                {
+                    <a class="btn" href="@($"connections?edit={Uri.EscapeDataString(Name)}")"><Icon Name="edit" /> Edit</a>
+                }
+                <button type="button" class="btn" @onclick="TestAsync"><Icon Name="play" /> Test</button>
+                @if (_listed is { Dialect: "sqlserver", Connection: "database" })
+                {
+                    <button type="button" class="btn" @onclick="ImportRelationshipsAsync"><Icon Name="diagram" /> Import relationships</button>
+                }
+                @if (_listed?.TablesKind == "dataverse_web")
+                {
+                    <button type="button" class="btn" @onclick="SqlEndpointAsync"><Icon Name="sql" /> Web API (switch to the SQL endpoint)</button>
+                }
+                @if (usage.UpdateDriver && !ReadOnly)
+                {
+                    <button type="button" class="btn primary" @onclick="UpdateDriverAsync"><Icon Name="import" /> Update to the new driver</button>
+                }
+                @if (_listed?.HasCatalog == true)
+                {
+                    <button type="button" class="btn" @onclick="RefreshAsync"><Icon Name="import" /> Refresh catalog</button>
+                }
+                @if (!vault)
+                {
+                    <button type="button" class="btn" @onclick="CopyForPythonAsync"><Icon Name="copy" /> Copy for Python</button>
+                }
+                @if (!ReadOnly)
+                {
+                    <button type="button" class="btn" @onclick="RemoveAsync"><Icon Name="trash" /> Remove</button>
+                }
+            </div>
+        </Busy>
+        @foreach (var local in usage.Local ?? [])
+        {
+            <ErrorNote Warning="true" Words="@local.Words" />
+        }
+        <div class="connection-result connection-tested" role="status">
+            <ErrorNote Error="_testError" OnClose="() => _testError = null" />
+            @if (_testRows is not null)
+            {
+                <TablePreviewView Preview="_testRows" />
+            }
+        </div>
+        @if (usage.Status is "failing" or "resuming" && usage.Error.Length > 0)
+        {
+            <ErrorNote Error="@(new ApiException(0, new Refusal(usage.Error, Name), string.Empty))" />
+        }
+        <div class="connection-detail">
+            <div class="connection-detail-main">
+                @if (_listed?.TablesKind is { Length: > 0 } tablesKind && tablesKind != "api")
+                {
+                    <ConnectionTables Name="@Name" />
+                }
+                <section class="connection-section connection-used" aria-label="Used in">
+                    <h2><Icon Name="link" /> Used in <span class="count">@usage.References.Count</span></h2>
+                    @if (usage.References.Count == 0)
+                    {
+                        <p class="empty-note">No references</p>
+                    }
+                    else
+                    {
+                        <ul class="connection-refs">
+                            @foreach (var reference in usage.References)
+                            {
+                                <li>
+                                    <button type="button" class="connection-ref km-@(reference.Kind == "grid" ? "plain" : reference.Kind)" data-kind="@reference.Kind" title="@(reference.Document.Length > 0 ? reference.Document : reference.Title)" @onclick="() => OpenReference(reference)">
+                                        <span class="connection-ref-icon" aria-hidden="true"><Icon Name="@RefIcon(reference)" /></span>
+                                        <span class="connection-ref-where"><strong>@reference.Title</strong> <span class="connection-ref-cell">@RefWhere(reference)</span>
+                                            @if (reference.TableCell)
+                                            {
+                                                <span class="badge">Table cell</span>
+                                            }
+                                        </span>
+                                        <code class="connection-ref-how">@reference.How</code>
+                                        @if (reference.Kind != "app")
+                                        {
+                                            <code class="connection-ref-line">@reference.Line</code>
+                                        }
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+            <div class="connection-detail-side">
+                <section class="connection-section" aria-label="Configuration">
+                    <h2><Icon Name="cog" /> Configuration</h2>
+                    <dl class="terms connection-config">
+                        @foreach (var (term, value, missing) in Terms(usage))
+                        {
+                            <dt>@term</dt>
+                            <dd class="@(term == "In code" ? "mono" : null)">
+                                @if (missing)
+                                {
+                                    <span class="error-mark"><Icon Name="problem" /> @value</span>
+                                }
+                                else
+                                {
+                                    @value
+                                }
+                            </dd>
+                        }
+                    </dl>
+                </section>
+                @if (!vault)
+                {
+                    <ConnectionAccess Name="@Name" />
+                    <ConnectionQueries Name="@Name" />
+                }
+                <section class="connection-section" aria-label="Calls this session">
+                    <h2><Icon Name="clock" /> Calls this session <span class="count connection-calls-count">@(usage.Calls?.Total ?? 0)</span></h2>
+                    <dl class="terms connection-calls">
+                        @foreach (var (kind, label) in CallWords.Kinds)
+                        {
+                            <dt>@label</dt>
+                            <dd>@(usage.Calls?.ByKind?.GetValueOrDefault(kind) ?? 0)</dd>
+                        }
+                        <dt>Last used</dt>
+                        <dd>@(usage.Calls?.LastUsed is { } last ? $"{CallWords.Ago(last)}{(usage.Calls.LastOk == false ? " (failed)" : string.Empty)}" : "Not yet")</dd>
+                        @foreach (var (term, value) in CallWords.Terms(usage.Calls?.Figures))
+                        {
+                            <dt>@term</dt>
+                            <dd>@value</dd>
+                        }
+                    </dl>
+                </section>
+            </div>
+        </div>
+    }
+</Busy>
+@if (_sheets is { } sheets)
+{
+    <SheetsDialog File="@Name" Sheets="sheets" OnDone="SheetsChosenAsync" />
+}

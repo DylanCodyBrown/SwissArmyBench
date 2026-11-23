@@ -1,0 +1,41 @@
+@* A Mermaid diagram (interop/mermaid.js) drawn from the server's text: the ERD, a lineage. Drawn again when the text
+   or the theme changes. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject ThemeState Theme
+
+<div class="mermaid-host" @ref="_host"></div>
+
+@code {
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private string? _drawn;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    protected override void OnInitialized() => Theme.Changed += Redraw;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var wanted = $"{Theme.Effective}\n{Text}";
+        if (wanted == _drawn || Text.Length == 0)
+        {
+            return;
+        }
+        _drawn = wanted;
+        _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/mermaid.js");
+        await _module.InvokeVoidAsync("render", _host, Text);
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Theme.Changed -= Redraw;
+        if (_module is not null)
+        {
+            await _module.DisposeAsync();
+        }
+    }
+}

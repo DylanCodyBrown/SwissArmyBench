@@ -1,0 +1,26 @@
+@* Leave a note… (beta mode, the classic betaNotes.ts openNote), the one note form every page opens: the place it is
+   about (from a right-click menu the element right-clicked, outlined while the form is open; else the place given),
+   what is wrong in the user's own words, Attach a picture of this window (the picture shows your data), Save
+   (Ctrl+Enter) and Cancel. The note goes to the beta log with the page and the element, never a cell's text. Logic
+   in BetaNoteHost.razor.cs. *@
+
+@if (Beta.Noting is { } fallback)
+{
+    var place = _element ?? fallback;
+    <AppDialog Title="Leave a note" Class="beta-note-form" OnClose="Beta.NoteDone">
+        <ChildContent>
+            @if (place.Box is { } box)
+            {
+                <div class="beta-outline" aria-hidden="true" style="@Outline(box)"></div>
+            }
+            <p class="hint beta-note-where">@place.Words</p>
+            <textarea rows="5" class="beta-note-text" placeholder="What is wrong" aria-label="What is wrong" data-no-variables @bind="_text" @bind:event="oninput" @onkeydown="KeyAsync"></textarea>
+            <label class="check"><input type="checkbox" class="beta-note-picture" @bind="_attach" /> Attach a picture of this window<span class="hint"> (the picture shows your data)</span></label>
+            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        </ChildContent>
+        <Foot>
+            <button type="button" class="btn ghost" @onclick="Beta.NoteDone">Cancel</button>
+            <Busy IsBusy="_saving" Words="Saving…"><button type="button" class="btn primary" @onclick="SaveAsync"><Icon Name="save" /> Save</button></Busy>
+        </Foot>
+    </AppDialog>
+}

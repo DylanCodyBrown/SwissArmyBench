@@ -1,0 +1,96 @@
+@* VS Code's quick pick (the classic scmPage.ts quickPick): a box to type in and the lines under it, filtered as it is
+   typed; the arrow keys move, Enter picks (or, where typed words may be the answer, takes them), Escape closes. *@
+<div class="scm-quick-input quick-input-widget" role="dialog" aria-label="@Request.Placeholder">
+    <div class="quick-input-box">
+        <input class="input" type="text" placeholder="@Request.Placeholder" aria-label="@Request.Placeholder" spellcheck="false"
+               @bind="_typed" @bind:event="oninput" @bind:after="() => _at = 0" @onkeydown="KeyAsync" @onblur="BlurAsync" @ref="_box" />
+    </div>
+    <div class="quick-input-list" role="listbox">
+        @for (var i = 0; i < Shown.Count; i++)
+        {
+            var at = i;
+            var item = Shown[at];
+            <div class="quick-input-list-entry @(at == _at ? "focused" : null)" role="option" aria-selected="@(at == _at ? "true" : "false")"
+                 @onmousedown="() => Done(item.Value)" @onmousedown:preventDefault="true">
+                <span class="label-name">@item.Label</span>
+                @if (item.Description is not null)
+                {
+                    <span class="label-description">@item.Description</span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    // A blur closes it a moment later (a click on a line lands first).
+    private const int BlurMs = 150;
+
+    private string _typed = string.Empty;
+    private int _at;
+    private ElementReference _box;
+    private bool _done;
+
+    [Parameter, EditorRequired]
+    public QuickPickRequest Request { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+
+    private IReadOnlyList<PickChoice> Shown => Request.Items
+        .Where(i => _typed.Trim().Length == 0
+            || i.Label.Contains(_typed.Trim(), StringComparison.OrdinalIgnoreCase)
+            || (i.Description ?? string.Empty).Contains(_typed.Trim(), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _box.FocusAsync();
+        }
+    }
+
+    private void Done(string? value)
+    {
+        if (_done)
+        {
+            return;
+        }
+        _done = true;
+        Request.Answer.TrySetResult(value);
+        _ = OnClosed.InvokeAsync();
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        var shown = Shown;
+        switch (e.Key)
+        {
+            case "Escape":
+                Done(null);
+                break;
+            case "ArrowDown":
+                _at = Math.Min(_at + 1, shown.Count - 1);
+                break;
+            case "ArrowUp":
+                _at = Math.Max(_at - 1, 0);
+                break;
+            case "Enter" when _at < shown.Count:
+                Done(shown[_at].Value);
+                break;
+            case "Enter" when Request.Free:
+                Done(_typed.Trim().Length > 0 ? _typed.Trim() : null);
+                break;
+            default:
+                break;
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task BlurAsync()
+    {
+        await Task.Delay(BlurMs);
+        Done(null);
+    }
+}
