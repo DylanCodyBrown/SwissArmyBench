@@ -59,6 +59,15 @@ public partial class GridsPage
         }
     }
 
+    /// <summary>The address's split, when both its grids are still open and the one in front is one of them.</summary>
+    private IReadOnlyList<string>? ReadSplit(HashSet<string> open)
+    {
+        var pair = SplitParameter?.Split(',');
+        return pair is [var left, var right] && left != right && open.Contains(left) && open.Contains(right) && (left == _active || right == _active)
+            ? [left, right]
+            : null;
+    }
+
     /// <summary>The split shown (or none): a compare on another pair ends; a compare running on this pair is taken
     /// up (a reload, the Key Finder's or the agent's compare).</summary>
     private async Task ShowSplitAsync(IReadOnlyList<string>? split)

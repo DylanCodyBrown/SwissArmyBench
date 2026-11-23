@@ -58,6 +58,10 @@ public partial class GridsPage : IDisposable
     [SupplyParameterFromQuery(Name = "new")]
     public string? NewParameter { get; set; }
 
+    /// <summary>The draft's Query from (the New query page's choice: "" the open tables); none: the New query page.</summary>
+    [SupplyParameterFromQuery(Name = "from")]
+    public string? FromParameter { get; set; }
+
     /// <summary>Two grids side by side: "left,right".</summary>
     [SupplyParameterFromQuery(Name = "split")]
     public string? SplitParameter { get; set; }
@@ -152,15 +156,6 @@ public partial class GridsPage : IDisposable
             await LoadConnectionAsync();
             _ = Api.PostAsync("/workspace/active", new { grid = wanted }).ContinueWith(_ => { }, TaskScheduler.Default);
         }
-    }
-
-    /// <summary>The address's split, when both its grids are still open and the one in front is one of them.</summary>
-    private IReadOnlyList<string>? ReadSplit(HashSet<string> open)
-    {
-        var pair = SplitParameter?.Split(',');
-        return pair is [var left, var right] && left != right && open.Contains(left) && open.Contains(right) && (left == _active || right == _active)
-            ? [left, right]
-            : null;
     }
 
     private async Task ReloadInfoAsync()
@@ -283,12 +278,6 @@ public partial class GridsPage : IDisposable
     {
         var grid = _active;
         _ = Notes.SayAsync(words, "Undo", () => grid is null ? Task.CompletedTask : InvokeAsync(() => ChangedAsync(() => Grids.UndoAsync(grid))));
-    }
-
-    private async Task MadeAsync(string grid)
-    {
-        await LoadAsync();
-        Nav.NavigateTo(Address(grid, null));
     }
 
     public void Dispose()

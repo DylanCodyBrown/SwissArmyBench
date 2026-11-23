@@ -159,6 +159,14 @@ window.sab = {
     return Boolean(document.activeElement?.closest("input, textarea, select, [contenteditable], .monaco-editor"));
   },
 
+  /** The focus moved `by` places among the elements `selector` finds (wrapping round); none focused: the first. */
+  moveFocus(selector, by) {
+    const all = [...document.querySelectorAll(selector)].filter((e) => e.offsetParent !== null);
+    if (!all.length) return;
+    const at = all.indexOf(document.activeElement);
+    all[at < 0 ? 0 : (at + by + all.length) % all.length].focus();
+  },
+
   /** A box takes the focus with its words selected (a name renamed in place). */
   focusSelect(selector) {
     const box = document.querySelector(selector);

@@ -46,6 +46,13 @@ public partial class GridTabs
     [Parameter]
     public bool IsNewQuery { get; set; }
 
+    /// <summary>The draft's name while a new query is being written (its own tab until it is built), or null.</summary>
+    [Parameter]
+    public string? Draft { get; set; }
+
+    [Parameter]
+    public EventCallback OnCloseDraft { get; set; }
+
     /// <summary>Buttons after the tabs (Open file…, Tables).</summary>
     [Parameter]
     public RenderFragment? Extra { get; set; }
@@ -107,6 +114,14 @@ public partial class GridTabs
             return;
         }
         await OnActivate.InvokeAsync(tab.Grid);
+    }
+
+    private async Task DraftAuxAsync(MouseEventArgs e)
+    {
+        if (e.Button == 1)
+        {
+            await OnCloseDraft.InvokeAsync();
+        }
     }
 
     private async Task AuxAsync(MouseEventArgs e, GridListItem tab)

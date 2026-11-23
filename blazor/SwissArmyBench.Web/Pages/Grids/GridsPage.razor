@@ -8,6 +8,7 @@
 
 <section class="area-page grids-page" @onkeydown="PageKeyAsync">
     <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split" IsNewQuery="IsNewQuery"
+              Draft="@(IsNewQuery && FromParameter is not null ? DraftName : null)" OnCloseDraft="CloseDraft"
               OnActivate="ActivateAsync" OnClose="CloseGridAsync" OnMenu="TabMenu" OnSplit="SplitWithAsync" OnOrder="SetOrderAsync"
               OnDragging="d => _dragging = d" OnRename="RenameAsync">
         <Extra>
@@ -16,9 +17,14 @@
         </Extra>
     </GridTabs>
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-    @if (IsNewQuery || (_tabs.Count == 0 && _loaded))
+    @if (IsNewQuery && FromParameter is { } from)
     {
-        <NewQuery OnMade="MadeAsync" />
+        <QueryTray @key="@($"draft:{from}:{_drafts}")" Draft="true" Name="@DraftName" From="@from" OpenTables="OpenTableNames" OnBuilt="DraftBuiltAsync" />
+        <div class="query-blank" aria-label="No rows yet"><span>No rows</span></div>
+    }
+    else if (IsNewQuery || (_tabs.Count == 0 && _loaded))
+    {
+        <NewQueryLanding GridsOpen="_tabs.Count > 0" OnChoose="OpenDraft" />
     }
     else if (_info is { } info)
     {
@@ -47,6 +53,10 @@
                           OnSelectionChanged="SelectionChangedAsync" OnCellMenu="CellMenu" OnHeaderMenu="HeaderMenu" OnSaid="Say"
                           OnRowPicked="row => RowPickedAsync(shown.Grid, row)" OnCellOpened="OpenCellAsync" Upto="shown.Grid == _active ? _previewUpto : null">
                     <Banner>
+                        @if (shown.Query is { } query)
+                        {
+                            <QueryTray @key="@($"built:{shown.Grid}")" Sql="@query" Name="@shown.Dataset" FixedConnection="@shown.QueryConnection" OpenTables="OpenTableNames" OnBuilt="RebuiltAsync" />
+                        }
                         @if (_changedOnDisk.Contains(shown.Dataset))
                         {
                             <div class="file-changed" role="status">

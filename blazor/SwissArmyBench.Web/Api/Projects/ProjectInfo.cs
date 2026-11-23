@@ -8,4 +8,7 @@ public sealed record ProjectInfo(
     bool Dirty,
     bool Autosave,
     bool Private = false,
-    string? AutosaveError = null);
+    string? AutosaveError = null,
+    string? Folder = null,
+    string? ReadOnly = null,
+    IReadOnlyList<ProjectProblem>? Problems = null);

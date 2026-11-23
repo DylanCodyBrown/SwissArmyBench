@@ -35,8 +35,16 @@
             </div>
         }
     }
+    @if (Draft is { } draft)
+    {
+        <div class="grid-tab tab-item tab-draft current active" role="tab" tabindex="0" aria-selected="true" title="Not built yet" @onmouseup="e => DraftAuxAsync(e)">
+            <Icon Name="sql" /><span class="tab-label">@(draft.Length > 0 ? draft : "New query")</span>
+            <button type="button" class="btn ghost icon small tab-close" aria-label="@($"Close {(draft.Length > 0 ? draft : "the new query")}")" title="@($"Close {(draft.Length > 0 ? draft : "the new query")}")"
+                    @onclick="OnCloseDraft" @onclick:stopPropagation="true"><Icon Name="close" /></button>
+        </div>
+    }
     @Extra
-    <a role="tab" class="grid-tab new-tab @(IsNewQuery ? "current active" : string.Empty)" aria-selected="@(IsNewQuery ? "true" : "false")" href="grids?new=1" aria-label="New query" title="New query"><Icon Name="plus" /></a>
+    <a role="tab" class="grid-tab new-tab @(IsNewQuery && Draft is null ? "current active" : string.Empty)" aria-selected="@(IsNewQuery && Draft is null ? "true" : "false")" href="grids?new=1" aria-label="New query" title="New query"><Icon Name="plus" /></a>
     <div class="tab-end" @ondragover:preventDefault="true" @ondrop="DropAtEndAsync"></div>
 </div>
 
