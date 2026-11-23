@@ -21,6 +21,8 @@ const entries = {
   plotly: "plotly.js",
   vega: "vega.js",
   mermaid: "mermaid.js",
+  // The Canvas's pointer capture, keys and zoom (Pages/Canvas).
+  canvas: "canvas.js",
   // Monaco's own worker (the editor's tokens and folding off the page's thread), beside codeEditor.js.
   "editor.worker": path.join(modules, "monaco-editor", "esm", "vs", "editor", "editor.worker.js"),
 };

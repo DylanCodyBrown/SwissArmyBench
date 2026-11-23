@@ -1,0 +1,98 @@
+@* The Canvas (the classic canvasPage.ts; the owner, 2026-11-21: "a simple grid container layout with sizing options
+   ... drag and draw containers or right click and insert all available streamlit widgets ... click in to see their
+   properties and edit them"): the page tabs and the run bar above, the board, the Properties and Widgets panes, the
+   bottom bar. Every change is a command the server checks and saves at once, made on the version this window holds.
+   With no canvas named, the project's canvases. Logic in CanvasPage.razor.cs and its parts. *@
+@page "/canvas"
+@implements IAsyncDisposable
+
+@if (Path is null)
+{
+    <CanvasLanding />
+}
+else
+{
+    <CascadingValue Value="_previews" IsFixed="true">
+        <main class="cvs" id="canvas">
+            <header class="cvs-top">
+                <PageTabs View="_view" OnSelect="SelectPage" OnSend="SendAsync" OnMenu="OpenMenu" />
+                <span class="cvs-grow"></span>
+                <span class="cvs-run" role="group" aria-label="Run the app">
+                    <ShareMark App="Shareable" />
+                    <span class="cvs-split">
+                        <button type="button" class="btn cvs-play @(Running ? "running" : null)" aria-label="@(Running ? "Stop" : "Play")" title="@PlayTitle" @onclick="PlayOrStopAsync">
+                            <Icon Name="@(Running ? "stop" : "play")" /><span class="btn-label">@(Running ? "Stop" : "Play")</span>
+                        </button>
+                        <button type="button" class="btn icon cvs-play-more" aria-label="More ways to run" title="More ways to run" @onclick="MoreWaysAsync"><Icon Name="down" /></button>
+                    </span>
+                    <button type="button" class="btn cvs-export" title="Export… (Ctrl+Shift+E)" @onclick="ExportAsync"><Icon Name="export" /><span class="btn-label">Export</span></button>
+                </span>
+            </header>
+            @if (_notice.Length > 0)
+            {
+                <div class="cvs-notice" role="status">@_notice</div>
+            }
+            <ErrorNote Error="_error" Words="@_warning" Warning="@(_warning is not null)" OnClose="ClearError" />
+            <div class="cvs-body">
+                <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
+                    <div class="cvs-stage">
+                        @if (_playUrl is not null)
+                        {
+                            <div class="cvs-live" @oncontextmenu="LiveMenu" @oncontextmenu:preventDefault="true">
+                                <div class="cvs-live-bar"><span>Playing</span>
+                                    <button type="button" class="btn ghost cvs-edit" @onclick="StopPlayAsync"><Icon Name="edit" /><span class="btn-label">Edit</span></button>
+                                </div>
+                                <iframe class="cvs-live-frame" src="@_playUrl" title="The page, playing" data-layout="@_view.Layout" style="@PlayFrameStyle"></iframe>
+                            </div>
+                        }
+                        else if (_loading)
+                        {
+                            <div class="loading-block">Opening the canvas…</div>
+                        }
+                        else if (_view.State is not null)
+                        {
+                            <CanvasBoard @ref="_board" View="_view" Widgets="_widgets" ShowWires="_showWires" Dragging="_dragging"
+                                         OnSend="SendAsync" OnSelect="Select" OnMenu="OpenMenu" OnInsert="InsertAsync" OnEditWidget="OpenWidgetsAsync"
+                                         OnReplace="ReplaceAt" OnWidth="RememberViewAsync" RunGroup="RunGroup" OnWheel="WheelAsync" />
+                        }
+                    </div>
+                </Busy>
+                @if (_view.State is not null)
+                {
+                    <SidePane Id="properties" Label="Properties" Shown="@_panes.Properties" Width="@_panes.PropertiesWidth" OnWidth="@(w => PaneWidthAsync("properties", w))">
+                        <PropertiesPane View="_view" Widgets="_widgets" Context="_context" OnSend="SendAsync" OnWire="WireAsync" OnEditWidget="OpenWidgetsAsync" />
+                    </SidePane>
+                    <SidePane Id="widgets" Label="Widgets" Shown="@_panes.Widgets" Width="@_panes.WidgetsWidth" OnWidth="@(w => PaneWidthAsync("widgets", w))">
+                        <GalleryPane @ref="_gallery" Widgets="_widgets" Editable="_view.Editable" OnInsert="InsertSelectedAsync" OnDragging="d => _dragging = d" OnOpenWidgets="OpenWidgetsAsync" />
+                    </SidePane>
+                }
+            </div>
+            @if (_view.State is not null)
+            {
+                <CanvasBottom View="_view" ShowWires="_showWires" Panes="_panes" OnSend="SendAsync" OnUndo="UndoAsync" OnLayout="SetLayoutAsync"
+                              OnPreviewWidth="RememberViewAsync" OnZoom="SetZoomAsync" OnFit="FitAsync" OnWires="ToggleWiresAsync" OnPane="TogglePaneAsync" />
+            }
+        </main>
+        @if (_menu is { } menu)
+        {
+            <CanvasMenu Items="menu.Items" Widgets="_widgets" X="menu.X" Y="menu.Y" OnClose="CloseMenu" />
+        }
+        @if (_replacing is { } replacing)
+        {
+            <WidgetPicker Widgets="_widgets" X="replacing.X" Y="replacing.Y" Standalone="true" OnPick="ReplaceAsync" OnClose="() => _replacing = null" />
+        }
+        @if (_buildsOpen && _view.State is { } state)
+        {
+            <BuildsDialog Canvas="@state.Canvas" OnClose="() => _buildsOpen = false" OnLaunched="BuildLaunchedAsync" OnRestored="Take" />
+        }
+        @if (_sharing)
+        {
+            <ShareDialog App="Shareable" OnClose="() => _sharing = false" />
+        }
+    </CascadingValue>
+}
+
+@code {
+    // The widget card being dragged from the Widgets pane: the board takes its drop.
+    private string? _dragging;
+}

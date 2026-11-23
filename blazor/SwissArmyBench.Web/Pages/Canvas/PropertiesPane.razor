@@ -1,0 +1,99 @@
+@* The Canvas's Properties pane (the classic canvasProps.ts; WinForms' Properties window): nothing selected says so;
+   a container's fields (Title, Border, Scrollable, Resizable, Height, Padding, Columns inside, Background, Size); a
+   widget's line with Edit widget, its properties by their masks (each checked by the server before it is kept, Back
+   to the default where the instance sets its own), its Inputs, Outputs and Events; then SIZE and LAYOUT (Show on,
+   Hidden in the app). Several of one kind: their shared properties. Logic in PropertiesPane.razor.cs. *@
+@using SwissArmyBench.Web.Pages.Widgets
+
+<div class="cvs-pane-head"><h2>Properties</h2></div>
+@if (Nodes.Count == 0)
+{
+    <p class="cvs-props-none">Select a container or a widget.</p>
+}
+else if (!Same)
+{
+    <p class="cvs-props-none">@Nodes.Count selected: they share no properties.</p>
+}
+else if (First.Kind == "container")
+{
+    <section class="cvs-props-section">
+        <h3>@(Nodes.Count > 1 ? $"CONTAINERS ({Nodes.Count})" : "CONTAINER")</h3>
+        <ContainerFields Node="First" Editable="View.Editable" OnSend="OnSend" />
+    </section>
+    @if (Nodes.Count == 1)
+    {
+        <section class="cvs-props-section"><h3>LAYOUT</h3><LayoutFields Node="First" Editable="View.Editable" OnSend="OnSend" /></section>
+    }
+}
+else
+{
+    <section class="cvs-props-section">
+        <h3>WIDGET</h3>
+        <div class="cvs-widget-line">
+            <span class="cvs-widget-title">@First.Widget</span>
+            <button type="button" class="btn ghost cvs-edit-widget" @onclick="() => OnEditWidget.InvokeAsync(First.Widget)">Edit widget</button>
+        </div>
+        @if (Known is { } known)
+        {
+            <div class="wg-prop-help">@known.Description</div>
+        }
+        else
+        {
+            <div class="wg-field-line">This widget is not in the library any more.</div>
+        }
+    </section>
+    @if (Known is { } widget)
+    {
+        @if (widget.Properties.Count > 0)
+        {
+            <section class="cvs-props-section">
+                <h3>PROPERTIES</h3>
+                @foreach (var prop in widget.Properties)
+                {
+                    <PropertyField @key="@($"{First.Id}:{prop.Name}")" Prop="prop" Values="Values" Context="FieldContext" ReadOnly="!View.Editable"
+                                   OnValue="v => SetValueAsync(prop.Name, v)" Marked="@Marks.GetValueOrDefault(prop.Name)"
+                                   Overridden="@(Nodes.Count == 1 && (First.Values?.ContainsKey(prop.Name) ?? false))" OnReset="() => ResetAsync(prop.Name)" />
+                }
+            </section>
+        }
+        @if (Nodes.Count == 1 && View.State?.Wiring is { } wiring && wiring.Ports.TryGetValue(First.Id, out var ports))
+        {
+            @if (ports.Ins.Count > 0)
+            {
+                <section class="cvs-props-section">
+                    <h3>INPUTS</h3>
+                    @foreach (var port in ports.Ins)
+                    {
+                        <InputField @key="@($"{First.Id}:in:{port.Name}")" Port="port" Id="@First.Id" Page="@ports.Page" Given="@WireOf(port.Name)" Wiring="wiring"
+                                    Context="Context" PageNames="View.PageNames" Editable="View.Editable" OnWire="w => WireAsync(port.Name, w)" />
+                    }
+                </section>
+            }
+            @if (ports.Outs.Count > 0)
+            {
+                <section class="cvs-props-section">
+                    <h3>OUTPUTS</h3>
+                    @foreach (var port in ports.Outs)
+                    {
+                        <OutputField Port="port" Id="@First.Id" Wiring="wiring" />
+                    }
+                </section>
+            }
+            @if (ports.Events.Count > 0)
+            {
+                <section class="cvs-props-section">
+                    <h3>EVENTS</h3>
+                    @foreach (var port in ports.Events)
+                    {
+                        <EventField @key="@($"{First.Id}:event:{port.Name}")" Port="port" Given="@WireOf(port.Name)" Context="Context" Editable="View.Editable" OnWire="w => WireAsync(port.Name, w)" />
+                    }
+                </section>
+            }
+        }
+    }
+    @if (Nodes.Count == 1)
+    {
+        <section class="cvs-props-section"><h3>SIZE</h3><SizeFields Node="First" Editable="View.Editable" OnSend="OnSend" /></section>
+        <section class="cvs-props-section"><h3>LAYOUT</h3><LayoutFields Node="First" Editable="View.Editable" OnSend="OnSend" /></section>
+    }
+}

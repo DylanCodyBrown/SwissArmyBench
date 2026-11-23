@@ -1,0 +1,137 @@
+@* One property's box by its mask (the classic widgetFields.ts, domain/widget_properties.py TYPES), shared by the
+   Widgets window's Properties (a default, written into the code) and the Canvas's (an instance's value): a switch,
+   a number, text, a colour, the date and time pickers, a dropdown, a table, a column, a variable, an endpoint, an
+   endpoint's path values, JSON. A change is handed to OnValue, which checks it (the server's check-value) and answers
+   what is wrong under the box, with the fix, before anything is kept. Logic in PropertyField.razor.cs. *@
+@using SwissArmyBench.Web.Pages.Canvas
+
+<div class="wg-prop @(Marked is not null ? "marked" : null)" data-property="@Prop.Name" data-mask="@Prop.Mask">
+    <div class="wg-prop-head">
+        <span class="wg-prop-name">@Prop.Name</span>
+        <span class="wg-prop-mask">@Prop.Type</span>
+        @if (Overridden && OnReset.HasDelegate)
+        {
+            <button type="button" class="wg-reset" title="Back to the widget's default" aria-label="@($"{Prop.Name}: back to the default")" @onclick="OnReset"><Icon Name="undo" /></button>
+        }
+    </div>
+    @if (Prop.Help.Length > 0)
+    {
+        <div class="wg-prop-help">@Prop.Help</div>
+    }
+    @switch (Prop.Mask)
+    {
+        case "switch":
+            <input type="checkbox" class="wg-switch" role="switch" checked="@PropertyValues.Flag(Value)" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value is true)" />
+            break;
+        case "number":
+            <input type="number" class="wg-input" value="@Text" disabled="@ReadOnly" aria-label="@Prop.Name" min="@Prop.Minimum" max="@Prop.Maximum" step="@StepText" @onchange="e => NumberAsync(e.Value as string)" />
+            break;
+        case "colour":
+            <span class="wg-colour-pair" aria-label="@Prop.Name">
+                <input type="color" class="wg-colour" value="@ColourShown" disabled="@ReadOnly" aria-label="@($"{Prop.Name}: pick")" @onchange="e => SendAsync(e.Value as string ?? string.Empty)" />
+                <input type="text" class="wg-input wg-colour-text" value="@Text" disabled="@ReadOnly" spellcheck="false" aria-label="@Prop.Name" data-no-variables @onchange="e => SendAsync((e.Value as string ?? string.Empty).Trim())" />
+            </span>
+            break;
+        case "date" or "time":
+            <input type="@Prop.Mask" class="wg-input" value="@Text" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value as string ?? string.Empty)" />
+            break;
+        case "datetime":
+            <input type="datetime-local" class="wg-input" value="@Text.Replace(' ', 'T')" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync((e.Value as string ?? string.Empty).Replace('T', ' '))" />
+            break;
+        case "dropdown":
+            <select class="wg-input" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value as string ?? string.Empty)">
+                @foreach (var choice in Prop.Choices)
+                {
+                    <option value="@choice" selected="@(choice == Text)">@choice</option>
+                }
+                @if (Text.Length > 0 && !Prop.Choices.Contains(Text))
+                {
+                    <option value="@Text" selected>@Text (not here)</option>
+                }
+            </select>
+            break;
+        case "table":
+            <TablePicker Context="Context" Value="@Text" ReadOnly="ReadOnly" Label="@Prop.Name" OnPick="v => SendAsync(v)" />
+            break;
+        case "column" when OfValue.StartsWith("out:", StringComparison.Ordinal) && Columns.Count > 0:
+            @* Wired from another widget's Out: its columns offered, still typed (a table can change its columns). *@
+            <span class="wg-column-field">
+                <input type="text" class="wg-input wg-column-typed" value="@Text" disabled="@ReadOnly" spellcheck="false" aria-label="@Prop.Name" data-no-variables list="@ListId" @onchange="e => SendAsync((e.Value as string ?? string.Empty).Trim())" />
+                <datalist id="@ListId">
+                    @foreach (var column in Columns)
+                    {
+                        <option value="@column"></option>
+                    }
+                </datalist>
+            </span>
+            break;
+        case "column" when OfValue.Length > 0 && Columns.Count == 0:
+            @* Its table comes from another widget or a connection not listed yet: the column typed. *@
+            <input type="text" class="wg-input" value="@Text" disabled="@ReadOnly" spellcheck="false" aria-label="@Prop.Name" data-no-variables @onchange="e => SendAsync((e.Value as string ?? string.Empty).Trim())" />
+            break;
+        case "column":
+            <select class="wg-input" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value as string ?? string.Empty)">
+                <option value="" selected="@(Text.Length == 0)">(none)</option>
+                @foreach (var column in Columns)
+                {
+                    <option value="@column" selected="@(column == Text)">@column</option>
+                }
+                @if (Text.Length > 0 && !Columns.Contains(Text))
+                {
+                    <option value="@Text" selected>@Text (not here)</option>
+                }
+            </select>
+            break;
+        case "endpoint":
+            <select class="wg-input" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value as string ?? string.Empty)">
+                <option value="" selected="@(Text.Length == 0)">@(Endpoints.Count > 0 ? "(pick an endpoint)" : "(API.py has no endpoints yet)")</option>
+                @foreach (var api in ApiActions.Groups(KnownEndpoints))
+                {
+                    <optgroup label="@api.Key">
+                        @foreach (var action in api)
+                        {
+                            <option value="@action" selected="@(action == Text)">@ApiActions.Parts(action).Words</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+            break;
+        case "path_values":
+            @* One box per {name} in its endpoint's path, following the endpoint picked. *@
+            <div class="wg-path-values" aria-label="@Prop.Name">
+                @if (PropertyValues.PathNames(OfValue).Count == 0)
+                {
+                    <span class="wg-help">@(OfValue.Length > 0 ? "Its path takes no values." : "Pick the endpoint first.")</span>
+                }
+                @foreach (var name in PropertyValues.PathNames(OfValue))
+                {
+                    <label class="wg-path-value">
+                        <span class="mono">{@name}</span>
+                        <input type="text" class="wg-input" value="@PropertyValues.Map(Value).GetValueOrDefault(name)" disabled="@ReadOnly" spellcheck="false"
+                               placeholder="@_pathPlaceholder" aria-label="@($"{Prop.Name}: {name}")" data-path-name="@name" @onchange="e => PathValueAsync(name, e.Value as string)" />
+                    </label>
+                }
+            </div>
+            break;
+        case "variable":
+            <select class="wg-input" disabled="@ReadOnly" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value as string ?? string.Empty)">
+                @foreach (var variable in Context?.Variables ?? [])
+                {
+                    <option value="@variable" selected="@(variable == Text)">@variable</option>
+                }
+                @if (Text.Length > 0 && !(Context?.Variables ?? []).Contains(Text))
+                {
+                    <option value="@Text" selected>@Text (not here)</option>
+                }
+            </select>
+            break;
+        case "json":
+            <textarea class="wg-input wg-json" rows="3" spellcheck="false" disabled="@ReadOnly" aria-label="@Prop.Name" data-no-variables
+                      @oninput="e => JsonTyped(e.Value as string)" @onchange="e => JsonAsync(e.Value as string)">@PropertyValues.Json(Value)</textarea>
+            break;
+        default:
+            <input type="text" class="wg-input" value="@Text" disabled="@ReadOnly" spellcheck="false" aria-label="@Prop.Name" @onchange="e => SendAsync(e.Value as string ?? string.Empty)" />
+            break;
+    }
+    <div class="wg-field-line" aria-live="polite" hidden="@(Line.Length == 0)">@Line</div>
+</div>

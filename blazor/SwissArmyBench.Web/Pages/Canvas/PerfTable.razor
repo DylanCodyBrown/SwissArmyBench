@@ -1,0 +1,29 @@
+@* One of the analyzer's tables (the classic perfPage.ts table): its heading row and its rows, numbers to the right;
+   "No <what> yet" while it is empty. *@
+@if (Rows.Count == 0)
+{
+    <p class="hint app-empty">No @Label yet</p>
+}
+else
+{
+    <table class="app-state pf-table" aria-label="@Label">
+        <thead><tr>@foreach (var cell in Head) { <th>@cell</th> }</tr></thead>
+        <tbody>
+            @foreach (var row in Rows)
+            {
+                <tr>@foreach (var cell in row) { <td class="@(cell is int or long or double ? "num" : null)">@cell</td> }</tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Head { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<IReadOnlyList<object>> Rows { get; set; } = [];
+}

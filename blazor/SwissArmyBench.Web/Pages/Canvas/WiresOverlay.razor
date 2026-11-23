@@ -1,0 +1,84 @@
+@* The Wiring view (the classic canvasWiring.ts wiresOverlay): a line from the exact Out port to each In port that
+   reads it on this page (automatic ones dashed), a small dot on each widget's edge per port (Ins left, Outs and
+   Events right); a wire from another page (or the app's viewer) a stub at its In with the page's name; a broken
+   wire's stub marked. *@
+@using System.Globalization
+@using SwissArmyBench.Web.Api.Canvas
+
+<svg class="cvs-wires" width="@N(View.PreviewWidth[View.Layout])" height="@N(Height)" aria-hidden="true">
+    @foreach (var wire in Wiring.Wires)
+    {
+        if (!Points.TryGetValue(wire.To, out var b))
+        {
+            continue;
+        }
+        if (!Points.TryGetValue(wire.From, out var a) || wire.Cross)
+        {
+            var label = WiringRules.IsApp(wire.From) ? wire.From[4..] : View.PageNames.GetValueOrDefault(wire.Page ?? string.Empty, wire.Page ?? wire.From);
+            @Stub(b, label, $"cross{(wire.Auto ? " auto" : string.Empty)}", wire.From, wire.To)
+            continue;
+        }
+        // Out of the right edge, into the left one; the bends kept on the board.
+        var bend = Math.Max(40, Math.Min(160, Math.Abs(b.X - a.X) / 2));
+        var c1 = Math.Min(View.PreviewWidth[View.Layout] - 2, a.X + bend);
+        var c2 = Math.Max(2, b.X - bend);
+        <path d="@($"M {N(a.X)} {N(a.Y)} C {N(c1)} {N(a.Y)}, {N(c2)} {N(b.Y)}, {N(b.X)} {N(b.Y)}")" class="cvs-wire@(wire.Auto ? " auto" : null)" data-from="@wire.From" data-to="@wire.To"></path>
+    }
+    @foreach (var broken in Wiring.Broken)
+    {
+        if (Points.TryGetValue($"{broken.Instance}.{broken.Port}", out var b))
+        {
+            @Stub(b, "broken", "broken", broken.Source ?? string.Empty, $"{broken.Instance}.{broken.Port}")
+        }
+    }
+    @foreach (var (reference, at) in Points)
+    {
+        <circle cx="@N(at.X)" cy="@N(at.Y)" r="4" class="cvs-port-dot @at.Side" data-port="@reference"><title>@reference</title></circle>
+    }
+</svg>
+
+@code {
+    // A stub reaches this far left of its In when there is room for its label.
+    private const double StubLength = 56;
+    private const double StubRoom = 64;
+
+    [Parameter, EditorRequired]
+    public CanvasWiring Wiring { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CanvasView View { get; set; } = default!;
+
+    [Parameter]
+    public double Height { get; set; }
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary>Each port's dot on this page: its widget's box in board pixels, its ports evenly spaced down an edge.</summary>
+    private Dictionary<string, PortPoint> Points => Wiring.Ports
+        .Where(p => p.Value.Page == View.Page && View.Find(p.Key) is not null)
+        .SelectMany(p =>
+        {
+            var node = View.Find(p.Key)!.Node;
+            var corner = View.Absolute(p.Key);
+            var (x, y, w, h) = (View.X(corner.X), corner.Y, View.X(node.W), node.H);
+            var ins = p.Value.Ins.Select((port, at) => ($"{p.Key}.{port.Name}", new PortPoint(x, CanvasGrid.Round(y + ((at + 1) * h / (p.Value.Ins.Count + 1))), "in")));
+            var outs = p.Value.Outs.Concat(p.Value.Events).ToList();
+            return ins.Concat(outs.Select((port, at) => ($"{p.Key}.{port.Name}", new PortPoint(x + w, CanvasGrid.Round(y + ((at + 1) * h / (outs.Count + 1))), "out"))));
+        })
+        .ToDictionary(p => p.Item1, p => p.Item2);
+
+    private RenderFragment Stub(PortPoint to, string label, string kind, string from, string toRef) => __builder =>
+    {
+        var room = to.X >= StubRoom;
+        var d = room ? $"M {N(to.X - StubLength)} {N(to.Y)} L {N(to.X)} {N(to.Y)}" : $"M {N(to.X)} {N(to.Y - 22)} L {N(to.X)} {N(to.Y)}";
+        <path d="@d" class="cvs-wire cvs-wire-stub @kind" data-from="@from" data-to="@toRef"></path>
+        // An SVG text element (Razor's own <text> tag means something else, so it is built by hand).
+        __builder.OpenElement(0, "text");
+        __builder.AddAttribute(1, "x", N(room ? to.X - 59 : to.X + 4));
+        __builder.AddAttribute(2, "y", N(room ? to.Y + 3 : to.Y - 14));
+        __builder.AddAttribute(3, "text-anchor", room ? "end" : "start");
+        __builder.AddAttribute(4, "class", $"cvs-wire-label {kind}");
+        __builder.AddContent(5, label);
+        __builder.CloseElement();
+    };
+}

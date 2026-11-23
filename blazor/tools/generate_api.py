@@ -512,6 +512,8 @@ HAND_WRITTEN: dict[str, str] = {
     "Grids/MadeTable": "shared by the query and the sandbox variant, each answering different fields",
     "Connections/*": "each connection kind's form is data drawn by the page (its fields are the kind's)",
     "Environment/*": "each tab's rows carry the kind's own fields",
+    "Canvas/*, Widgets/*, Sharing/*": "need the Streamlit extension, an open project and a canvas or a "
+    "launch (the generator's made-up server has none); a value, a wire and an action are free-form",
     "Projects/*, Settings/*, SessionLog/*, Catalog/*, Relationships/*, App/*": "written before the "
     "generator; moved to it area by area",
 }

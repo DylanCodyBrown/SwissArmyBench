@@ -320,3 +320,40 @@ export function create(host, dotnet, options) {
     },
   };
 }
+
+/**
+ * Monaco's diff editor in `host` (a build's files compared; the Source Control page's diff): show(before, after, file)
+ * puts two texts side by side (or inline), their language from the file's name; next() and previous() move between
+ * the changes (F7, Shift+F7).
+ */
+export function createDiff(host, options) {
+  const viewer = monaco.editor.createDiffEditor(host, {
+    theme: THEMES[options.theme] ?? "vs",
+    automaticLayout: true,
+    readOnly: true,
+    originalEditable: false,
+    renderSideBySide: !options.inline,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize: 13,
+  });
+  const EXTENSIONS = { py: "python", sql: "sql", json: "json", md: "markdown", html: "html", js: "javascript", ts: "typescript", tsx: "typescript", yaml: "yaml", yml: "yaml", toml: "ini", xml: "xml", css: "css" };
+  let models = [];
+  const show = (before, after, file) => {
+    const language = EXTENSIONS[(file ?? "").split(".").pop()?.toLowerCase() ?? ""] ?? "plaintext";
+    const made = [monaco.editor.createModel(before ?? "", language), monaco.editor.createModel(after ?? "", language)];
+    viewer.setModel({ original: made[0], modified: made[1] });
+    models.forEach((m) => m.dispose());
+    models = made;
+  };
+  return {
+    show,
+    next: () => viewer.goToDiff("next"),
+    previous: () => viewer.goToDiff("previous"),
+    setInline: (on) => viewer.updateOptions({ renderSideBySide: !on }),
+    dispose: () => {
+      viewer.dispose();
+      models.forEach((m) => m.dispose());
+    },
+  };
+}

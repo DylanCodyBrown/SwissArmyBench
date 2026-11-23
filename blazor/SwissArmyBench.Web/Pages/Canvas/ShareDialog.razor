@@ -1,0 +1,85 @@
+@* Share… a running app with your organization (the classic shareApp.ts openShareDialog): one sentence (who can open
+   it, where it runs); devtunnel not installed: Install now; not signed in: Sign in with your work account or Use a
+   code instead (the code, Copy, Open the page; Waiting for you to sign in…); ready: Share (Try again after a
+   failure); shared: the link with Copy and Open, Your organization, the amber note, Stop sharing. Logic in
+   ShareDialog.razor.cs. *@
+@using SwissArmyBench.Web.Api.Sharing
+@implements IDisposable
+
+<AppDialog Title="@($"Share {App.Title}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="share-dialog" data-app="@App.Id" data-state="@StateWord">
+            <Busy IsBusy="_busy is not null" Words="@(_busy ?? string.Empty)">
+                <div class="share-main">
+                    <ErrorNote Error="_error" OnClose="() => _error = null" />
+                    @if (_status is { } status)
+                    {
+                        <p class="share-sentence">@status.Sentence</p>
+                        @if (Share is { State: "sharing", Url: { } url })
+                        {
+                            <div class="share-link-row">
+                                <input class="share-link" type="text" readonly value="@url" aria-label="Link" onfocus="this.select()" />
+                                <button type="button" class="btn line share-copy" @onclick="@(() => CopyAsync(url, "Copied the link."))"><Icon Name="copy" /> Copy</button>
+                                <button type="button" class="btn line share-open" @onclick="() => OpenAsync(url)"><Icon Name="link" /> Open</button>
+                            </div>
+                            <p class="share-who"><Icon Name="user" />@(Share.Who ?? "Your organization")</p>
+                            <p class="share-note" role="note"><Icon Name="warning" />@Share.Note</p>
+                        }
+                        else if (!status.Installed)
+                        {
+                            <p class="share-needs">@status.Needs<span class="share-checks" title="@status.Checks"><Icon Name="info" /></span></p>
+                        }
+                        else if (status.SigningIn)
+                        {
+                            @if (status.Device is { } device)
+                            {
+                                <div class="share-device">
+                                    <code class="share-code">@device.Code</code>
+                                    <button type="button" class="btn line" @onclick="@(() => CopyAsync(device.Code, "Copied the code."))"><Icon Name="copy" /> Copy</button>
+                                    <button type="button" class="btn line" @onclick="() => OpenAsync(device.Url)"><Icon Name="link" /> Open the page</button>
+                                </div>
+                            }
+                            <div class="loading-block">Waiting for you to sign in…</div>
+                        }
+                        else if (!status.SignedIn || !status.WorkAccount)
+                        {
+                            <ErrorNote Words="@status.SignInError" />
+                        }
+                        else
+                        {
+                            <ErrorNote Words="@(Share is { State: "failed" } failed ? failed.Error : null)" />
+                            @if (status.Account is { } account)
+                            {
+                                <p class="share-account muted"><Icon Name="user" />@account</p>
+                            }
+                        }
+                    }
+                    else if (_error is null)
+                    {
+                        <div class="loading-block">Loading…</div>
+                    }
+                </div>
+            </Busy>
+        </div>
+    </ChildContent>
+    <Foot>
+        @switch (StateWord)
+        {
+            case "sharing":
+                <button type="button" class="btn danger share-stop" @onclick="@(() => ActAsync("Stopping…", () => Sharing.StopAsync(App.Kind, App.Id)))"><Icon Name="stop" /> Stop sharing</button>
+                break;
+            case "install":
+                <button type="button" class="btn primary share-install" @onclick="@(() => ActAsync("Installing devtunnel…", Sharing.InstallAsync))"><Icon Name="import" /> Install now</button>
+                break;
+            case "sign_in":
+                <button type="button" class="btn ghost share-device-code" @onclick="@(() => ActAsync("Signing in…", () => Sharing.SignInAsync(true)))">Use a code instead</button>
+                <button type="button" class="btn primary share-sign-in" @onclick="@(() => ActAsync("Signing in…", () => Sharing.SignInAsync(false)))"><Icon Name="user" /> Sign in with your work account</button>
+                break;
+            case "ready":
+                <button type="button" class="btn primary share-start" @onclick="@(() => ActAsync("Starting the tunnel…", () => Sharing.StartAsync(App.Kind, App.Id)))"><Icon Name="globe" /> @(Share is { State: "failed" } ? "Try again" : "Share")</button>
+                break;
+            default:
+                break;
+        }
+    </Foot>
+</AppDialog>

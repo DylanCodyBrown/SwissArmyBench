@@ -1,0 +1,51 @@
+@* The canvas's pages as tabs (the classic canvasPage.ts drawTabs): a click shows one, a double-click (or its menu's
+   Rename…) asks its new name, its right-click menu Rename… and Delete page (not the last one); + adds a page. *@
+@using SwissArmyBench.Web.Api.Canvas
+@inject SwissArmyBench.Web.State.Dialogs Dialogs
+
+<div class="cvs-tabs" role="tablist" aria-label="Pages">
+    @foreach (var tab in View.State?.Model.Pages ?? [])
+    {
+        <button type="button" role="tab" class="cvs-tab @(tab.Id == View.Page ? "current" : null)" aria-selected="@(tab.Id == View.Page ? "true" : "false")" data-page="@tab.Id"
+                @onclick="() => OnSelect.InvokeAsync(tab.Id)" @ondblclick="() => RenameAsync(tab)"
+                @oncontextmenu="e => Menu(e, tab)" @oncontextmenu:preventDefault="true">@tab.Name</button>
+    }
+    <button type="button" class="btn ghost icon cvs-tab-add" aria-label="New page" title="New page" @onclick="AddAsync"><Icon Name="plus" /></button>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public CanvasView View { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<string> OnSelect { get; set; }
+
+    [Parameter]
+    public Func<string, Dictionary<string, object?>, Task<CanvasState?>> OnSend { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<OpenMenu> OnMenu { get; set; }
+
+    private async Task RenameAsync(CanvasPageModel page)
+    {
+        var name = await Dialogs.AskTextAsync("The page's name", string.Empty, "The page's name", page.Name);
+        if (name is not null && name.Trim().Length > 0 && name != page.Name)
+        {
+            await OnSend("change_page", new() { ["page"] = page.Id, ["name"] = name.Trim() });
+        }
+    }
+
+    private Task Menu(MouseEventArgs e, CanvasPageModel page) => OnMenu.InvokeAsync(new OpenMenu(e.ClientX, e.ClientY,
+    [
+        new("Rename…", () => RenameAsync(page)),
+        new("Delete page", () => OnSend("remove_page", new() { ["page"] = page.Id }), Disabled: (View.State?.Model.Pages.Count ?? 0) < 2),
+    ]));
+
+    private async Task AddAsync()
+    {
+        if (await OnSend("add_page", []) is { Made: { } made })
+        {
+            await OnSelect.InvokeAsync(made);
+        }
+    }
+}

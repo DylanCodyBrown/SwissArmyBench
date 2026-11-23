@@ -1,0 +1,29 @@
+@* A node's LAYOUT (the classic canvasProps.ts showOn and hiddenInApp): Show on (both layouts, or one only), and
+   Hidden in the app (it runs and its Outs flow, the page gives it no space). *@
+@using SwissArmyBench.Web.Api.Canvas
+
+<label class="wg-field"><span class="wg-label">Show on</span>
+    <select class="wg-input cvs-show" aria-label="Show on" disabled="@(!Editable)" @onchange="@(e => OnSend("show", new() { ["id"] = Node.Id, ["show"] = e.Value as string }))">
+        @foreach (var (value, label) in _shows)
+        {
+            <option value="@value" selected="@((Node.Show ?? "both") == value)">@label</option>
+        }
+    </select>
+</label>
+<label class="cvs-flag">
+    <input type="checkbox" class="cvs-hidden" checked="@Node.Hidden" disabled="@(!Editable)" aria-label="Hidden in the app" @onchange="@(e => OnSend("hide", new() { ["id"] = Node.Id, ["hidden"] = e.Value is true }))" />
+    <span>Hidden in the app</span>
+</label>
+
+@code {
+    private static readonly (string Value, string Label)[] _shows = [("both", "Phone and Desktop"), ("desktop", "Desktop only"), ("phone", "Phone only")];
+
+    [Parameter, EditorRequired]
+    public CanvasNode Node { get; set; } = default!;
+
+    [Parameter]
+    public bool Editable { get; set; }
+
+    [Parameter]
+    public Func<string, Dictionary<string, object?>, Task<CanvasState?>> OnSend { get; set; } = default!;
+}

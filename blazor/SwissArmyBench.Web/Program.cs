@@ -6,6 +6,7 @@ using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Analyze;
 using SwissArmyBench.Web.Api.Apis;
 using SwissArmyBench.Web.Api.App;
+using SwissArmyBench.Web.Api.Canvas;
 using SwissArmyBench.Web.Api.Catalog;
 using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
@@ -16,7 +17,9 @@ using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Relationships;
 using SwissArmyBench.Web.Api.SessionLog;
 using SwissArmyBench.Web.Api.Settings;
+using SwissArmyBench.Web.Api.Sharing;
 using SwissArmyBench.Web.Api.Structures;
+using SwissArmyBench.Web.Api.Widgets;
 using SwissArmyBench.Web.Api.Workbench;
 using SwissArmyBench.Web.State;
 
@@ -62,6 +65,10 @@ public static class Program
         services.AddScoped<StructuresClient>();
         services.AddScoped<ApisClient>();
         services.AddScoped<ExtensionsClient>();
+        // The extensions' pages (the Canvas, Widgets, Share…).
+        services.AddScoped<CanvasClient>();
+        services.AddScoped<WidgetsClient>();
+        services.AddScoped<SharingClient>();
     }
 
     private static void AddState(IServiceCollection services)

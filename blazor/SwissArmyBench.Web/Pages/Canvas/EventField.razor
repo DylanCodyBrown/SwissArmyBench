@@ -1,0 +1,88 @@
+@* One Event's actions in order (the classic canvasWiring.ts eventField): Call an API endpoint (its body: the whole
+   payload, a part of it, or a field each; its path's values), Set a page value, Rerun the page; a typed payload's
+   fields offered in every box that names a part of it. Each change is sent and refused in place. Logic in
+   EventField.razor.cs. *@
+
+<div class="wg-prop cvs-port" data-port="@Port.Name" data-direction="event">
+    <div class="wg-prop-head"><span class="wg-prop-name">@Port.Name</span><span class="wg-prop-mask">@(Port.Schema.Length > 0 ? $"Event · {Port.Schema}" : "Event")</span></div>
+    @if (Port.Help.Length > 0)
+    {
+        <div class="wg-prop-help">@Port.Help</div>
+    }
+    @if (Payload.Count > 0)
+    {
+        <div class="cvs-payload">Its payload: @string.Join(", ", Port.Fields.Select(f => $"{f.Name} ({f.Type})"))</div>
+        <datalist id="@_listId">
+            @foreach (var field in Payload)
+            {
+                <option value="@field"></option>
+            }
+        </datalist>
+    }
+    @for (var i = 0; i < Actions.Count; i++)
+    {
+        var at = i;
+        var action = Actions[at];
+        <div class="cvs-action" data-action="@action.Do" data-at="@at">
+            <div class="cvs-action-head">
+                <span>@ActionWords(action.Do)</span>
+                <button type="button" class="btn ghost icon" aria-label="Remove the action" title="Remove the action" @onclick="() => RemoveAsync(at)"><Icon Name="close" /></button>
+            </div>
+            @if (action.Do == "call")
+            {
+                <label class="wg-field"><span class="wg-label">Call</span>
+                    <select class="wg-input" disabled="@(!Editable)" aria-label="Endpoint" @onchange="e => EndpointAsync(at, e.Value as string)">
+                        <option value="">(pick an endpoint)</option>
+                        @foreach (var api in ApiActions.Groups(Context?.Endpoints ?? []))
+                        {
+                            <optgroup label="@api.Key">
+                                @foreach (var reference in api)
+                                {
+                                    <option value="@reference" selected="@(reference == action.Endpoint)">@ApiActions.Parts(reference).Words</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                </label>
+                @foreach (var field in FieldsOf(action))
+                {
+                    @Text(field, action.Mapped?.GetValueOrDefault(field) ?? string.Empty, v => FieldAsync(at, field, v), FieldHint(field), true)
+                }
+                @if (action.Mapped is null)
+                {
+                    @Text("Body", action.BodyText, v => ChangeAsync(at, a => a with { Body = JsonSerializer.SerializeToElement(v) }), "empty: the whole payload", true)
+                }
+                @foreach (var name in PathNames(action))
+                {
+                    @Text($"Path: {name}", action.Params?.GetValueOrDefault(name) ?? string.Empty, v => ParamAsync(at, name, v), $"the payload's {name}", true)
+                }
+            }
+            else if (action.Do == "set")
+            {
+                @Text("Page value", action.Key ?? string.Empty, v => ChangeAsync(at, a => a with { Key = v }), "its key, as last_saved", false)
+                @Text("To", action.Value ?? string.Empty, v => ChangeAsync(at, a => a with { Value = v }), "empty: the whole payload", true)
+            }
+            else
+            {
+                <div class="wg-prop-help">The page runs again.</div>
+            }
+        </div>
+    }
+    <select class="wg-input cvs-action-add" disabled="@(!Editable)" aria-label="@($"{Port.Name}: add an action")" @onchange="e => AddAsync(e.Value as string)">
+        <option value="" selected>Add an action…</option>
+        <option value="call">Call an API endpoint</option>
+        <option value="set">Set a page value</option>
+        <option value="rerun">Rerun the page</option>
+    </select>
+    <div class="wg-field-line" aria-live="polite" hidden="@(_said is not { Length: > 0 })">@_said</div>
+</div>
+
+@code {
+    private RenderFragment Text(string label, string value, Func<string, Task> done, string placeholder, bool suggest) => __builder =>
+    {
+        <label class="wg-field"><span class="wg-label">@label</span>
+            <input type="text" class="wg-input" value="@value" placeholder="@placeholder" disabled="@(!Editable)" spellcheck="false" data-no-variables aria-label="@label"
+                   list="@(suggest && Payload.Count > 0 ? _listId : null)" @onchange="e => done((e.Value as string ?? string.Empty).Trim())" />
+        </label>
+    };
+}

@@ -1,0 +1,72 @@
+@* One In's source (the classic canvasWiring.ts inputField): not wired (its starting value, or the automatic wire by
+   name), a table, another widget's Out of a fitting type on this page or another, the viewer, a GET endpoint's
+   answer, a variable, a page value by its key, a value typed; a list of tables In an ordered list (Up, Down,
+   Remove, Add a table…). A broken wire says why. Every choice is sent and refused in place with the server's reason.
+   Logic in InputField.razor.cs. *@
+@using SwissArmyBench.Web.Api.Canvas
+
+<div class="wg-prop cvs-port @(Broken is not null ? "marked" : null)" data-port="@Port.Name" data-direction="in">
+    <div class="wg-prop-head"><span class="wg-prop-name">@Port.Name</span><span class="wg-prop-mask">In · @Port.Words</span></div>
+    @if (Port.Help.Length > 0)
+    {
+        <div class="wg-prop-help">@Port.Help</div>
+    }
+    @if (IsTableList)
+    {
+        @for (var i = 0; i < Items.Count; i++)
+        {
+            var at = i;
+            var key = WiringRules.KeyOf(Items[at]);
+            <div class="cvs-wire-row" data-at="@at">
+                <select class="wg-input" disabled="@(!Editable)" aria-label="@($"{Port.Name}: table {at + 1}")" @onchange="e => PutItemAsync(at, e.Value as string)">
+                    @Options(TableChoices, key)
+                </select>
+                <button type="button" class="btn ghost icon" aria-label="Up" title="Up" @onclick="() => MoveAsync(at, -1)"><Icon Name="up" /></button>
+                <button type="button" class="btn ghost icon" aria-label="Down" title="Down" @onclick="() => MoveAsync(at, 1)"><Icon Name="down" /></button>
+                <button type="button" class="btn ghost icon" aria-label="Remove" title="Remove" @onclick="() => RemoveAsync(at)"><Icon Name="close" /></button>
+            </div>
+        }
+        <select class="wg-input cvs-wire-add" disabled="@(!Editable)" aria-label="@($"{Port.Name}: add a table")" @onchange="e => AddAsync(e.Value as string)">
+            <option value="" selected>Add a table…</option>
+            @Options(TableChoices, string.Empty)
+        </select>
+    }
+    else
+    {
+        <select class="wg-input cvs-source" disabled="@(!Editable)" aria-label="@($"{Port.Name}: its source")" @onchange="e => PickedAsync(e.Value as string)">
+            <option value="" selected="@(Current.Length == 0)">@NotWiredWords</option>
+            @Options(SourceChoices, Current)
+            <option value="page" selected="@(Current == "page")">A page value by its key…</option>
+            @if (Port.Type != "Table")
+            {
+                <option value="value" selected="@(Current == "value")">A value…</option>
+            }
+            @if (Current.StartsWith("out:", StringComparison.Ordinal) && !Listed(Current))
+            {
+                <option value="@Current" selected>@Current[4..] (not there any more)</option>
+            }
+            @if (Current.StartsWith("table:", StringComparison.Ordinal) && !Listed(Current))
+            {
+                <option value="@Current" selected>@Current[6..]</option>
+            }
+        </select>
+        <input type="text" class="wg-input cvs-source-typed" hidden="@(_typing is null)" disabled="@(!Editable)" spellcheck="false" data-no-variables
+               aria-label="@($"{Port.Name}: {(_typing == "page" ? "the key" : "the value")}")" value="@TypedValue" @onchange="e => TypedAsync(e.Value as string)" @ref="_typedBox" />
+    }
+    <div class="wg-field-line" aria-live="polite" hidden="@(Line.Length == 0)">@Line</div>
+</div>
+
+@code {
+    private RenderFragment Options(IReadOnlyList<PickGroup> groups, string current) => __builder =>
+    {
+        foreach (var group in groups)
+        {
+            <optgroup label="@group.Label" data-page="@group.Page">
+                @foreach (var option in group.Options)
+                {
+                    <option value="@option.Value" selected="@(option.Value == current)">@option.Label</option>
+                }
+            </optgroup>
+        }
+    };
+}
