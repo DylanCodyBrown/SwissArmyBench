@@ -729,6 +729,9 @@ src/swissarmybench/
                          every time (Overview, Data sources, Data model with a Mermaid erDiagram, Transformations
                          as DuckDB SQL, Lineage as a flowchart LR, Deliverables, Running it with the Function App
                          checklist, Open issues), "None." when empty; names and types only; the same bytes
+    project_summary.py   Home's summary of the open project (the owner, 2026-11-24): its tables with rows (the
+                         store's), its documents with the page each opens on (data.ipynb and API.py first, made
+                         files left out), the connections it uses with their status and colour, the counts
     session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
                          relationship, a connection, a cell), names and counts only; the filter; Follow; a change's
                          words beside its entry (`change`), the `changed` entry of its own
@@ -1050,6 +1053,9 @@ src/swissarmybench/
     project_outline.py   the outline gathered (build) and written as ARCHITECTURE.md at the project's top, only
                          when its bytes change (write); seams: UsedTables.used(project) (the tables the project
                          uses) and Portability.verdict(connection) (default: "Not checked yet")
+    project_summary.py   Home's summary gathered (GET /project/summary, `project_summary`): the project (type,
+                         Local or Shared, unsaved, Autosave), its Python, tables, documents, the connections it
+                         uses (ProjectUse), the Session's last entries, its deliverable; one answer, one call
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from; a table as
                          Arrow for a kernel's DuckDB SQL naming it (view); the Environment's tables as a source
@@ -1267,7 +1273,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, connections, apis, folders, workbench, table_cells, lineage,
-                         projects, project_scope, project_outline, navigation, script_runs, session_log,
+                         projects, project_scope, project_outline, project_summary, navigation, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
                          explorer, library, project_python,
@@ -1397,7 +1403,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (364 in the base, 394 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (365 in the base, 395 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/

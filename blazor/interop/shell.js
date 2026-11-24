@@ -87,8 +87,22 @@ window.sab = {
     }
   },
 
+  /** The page's own title; the window's says it with the open project's name (the owner, 2026-11-24): "Tables ·
+   *  Captive · Swiss Army Bench", Home's "Captive · Swiss Army Bench", no project as before. */
   setTitle(title) {
-    document.title = title ? `${title} · Swiss Army Bench` : "Swiss Army Bench";
+    this.pageTitle = title ?? "";
+    this.showTitle();
+  },
+
+  /** The open project's name ("" with none), from ProjectState on every change: the title follows it at once. */
+  setProject(name) {
+    this.projectName = name ?? "";
+    this.showTitle();
+  },
+
+  showTitle() {
+    const parts = [this.pageTitle, this.projectName].filter((part, at, all) => part && all.indexOf(part) === at);
+    document.title = [...parts, "Swiss Army Bench"].join(" · ");
   },
 
   click(selector) {

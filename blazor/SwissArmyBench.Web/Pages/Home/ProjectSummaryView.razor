@@ -1,0 +1,34 @@
+@* Home with a project open: its summary (SummarySections), read from GET /project/summary and read again as the
+   notices say something changed (no Refresh button). New project and Open project… go to the projects page
+   (?view=projects: the Project Explorer), kept in the address so Back returns here. *@
+
+<section class="area-page project-summary">
+    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+    @if (_summary is { Project: not null } summary)
+    {
+        <SummarySections Summary="summary"
+                         Installing="@InstallingWords"
+                         OnSave="SaveAsync"
+                         OnAutosave="AutosaveAsync"
+                         OnNew="OnProjects"
+                         OnOpen="OnProjects"
+                         OnClose="CloseAsync"
+                         OnImport="ImportMenu"
+                         OnCopyPath="CopyPathAsync"
+                         OnShowFolder="ShowFolderAsync"
+                         OnOutline="OutlineAsync" />
+    }
+    else
+    {
+        <Busy IsBusy="true" Words="Reading the project…" />
+    }
+</section>
+
+@if (_importMenu is { } menu)
+{
+    <ContextMenu Title="Import" X="menu.X" Y="menu.Y" OnClose="() => _importMenu = null" Entries="ImportEntries" />
+}
+@if (_importing is { } kind)
+{
+    <ImportDialog Kind="@kind" OnDone="ImportedAsync" />
+}

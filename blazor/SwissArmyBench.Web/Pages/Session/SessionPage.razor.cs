@@ -83,11 +83,11 @@ public partial class SessionPage : IDisposable
     }
 
     /// <summary>The time of day an entry was made, in this computer's own time.</summary>
-    private static string TimeOf(string time) =>
+    internal static string TimeOf(string time) =>
         DateTimeOffset.TryParse(time, CultureInfo.InvariantCulture, DateTimeStyles.None, out var when) ? when.ToLocalTime().ToString("HH:mm:ss") : time;
 
     /// <summary>Where an entry's link goes in this front end: its area's page, with the object named.</summary>
-    private static string? LinkOf(SessionEntry entry) => entry.Area switch
+    internal static string? LinkOf(SessionEntry entry) => entry.Area switch
     {
         "grids" when entry.Target?.Grid is { } grid => $"tables?grid={Uri.EscapeDataString(grid)}",
         "grids" when entry.Target?.Dataset is { } dataset => $"tables?table={Uri.EscapeDataString(dataset)}",

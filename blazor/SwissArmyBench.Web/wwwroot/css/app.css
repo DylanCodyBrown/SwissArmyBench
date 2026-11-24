@@ -95,6 +95,8 @@ html.rail-names .nav-rail-toggle { padding-left: 22px; font-size: 12px; }
 }
 .status-bar a { color: inherit; }
 .status-project { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); }
+.status-bar .status-project-name { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); font-weight: 600; text-decoration: none; }
+.status-bar .status-project-name:hover { text-decoration: underline; }
 .status-spacer { flex: 1; }
 .status-offline { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); }
 .dirty-dot { color: var(--accent); }
@@ -220,6 +222,29 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .section-head h2 { flex: 1; font-size: 15px; }
 .toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+
+/* ===== Home's summary of the open project (Pages/Home/SummarySections) ===== */
+.project-summary { overflow: auto; }
+.summary-head { align-items: flex-start; padding-top: 18px; padding-bottom: 16px; }
+.summary-title { display: grid; flex: 1 1 420px; gap: 6px; min-width: 0; }
+.summary-name { font-size: 28px; font-weight: 700; }
+.summary-name span { min-width: 0; overflow-wrap: anywhere; }
+.summary-name .icon-svg { width: 28px; height: 28px; }
+.summary-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
+.summary-facts .chip { font-size: 12.5px; padding: 1px 8px; }
+.summary-unsaved { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); font-weight: 600; }
+.summary-folder, .summary-python { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.summary-folder code { min-width: 0; overflow-wrap: anywhere; color: var(--fg); }
+.summary-sections {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 18px 24px 24px;
+}
+.summary-section { margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); }
+.summary-section .section-head h2 { display: flex; align-items: center; gap: 8px; }
+.summary-count { padding: 0 7px; border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; }
+.summary-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.summary-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.summary-link { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.summary-swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--border-strong); }
 
 /* ===== a dialog of the app's own (never the browser's confirm or prompt) ===== */
 .dialog-shade { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }

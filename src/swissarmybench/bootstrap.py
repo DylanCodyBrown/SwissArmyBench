@@ -263,6 +263,7 @@ class Services:
     sab_projects: SabProjects
     project_explorer: ProjectExplorer
     project_scope: ProjectScope
+    project_use: ProjectUse
     project_outline: ProjectOutline
     script_exports: ScriptExports
     session_log: SessionLog
@@ -1246,8 +1247,7 @@ def _structures_and_apis(b: Built) -> None:
     tables the open project uses."""
     ws, datasets, documents, hooks, sab_projects = b.ws, b.datasets, b.documents, b.hooks, b.sab_projects
     library_folder = b.library_folder
-    # Code files that update themselves everywhere (services/code_files.py): the open project's and the
-    # library's.
+    # Code files that update themselves everywhere (services/code_files.py): the project's and the library's.
     b.code_files = CodeFiles(
         ws,
         lambda: (

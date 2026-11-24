@@ -34,6 +34,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_project_explorer.py  the Project Explorer: every project as a card, sorted, the types explained
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_project_outline.py  the project's outline: ARCHITECTURE.md, read or written
+  routes_project_summary.py  Home's summary of the open project: one answer from the other services'
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_modes.py          project modes: the open project's type and its working set (canvases, families)
   (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
@@ -136,6 +137,7 @@ from swissarmybench.server import (
     routes_project_outline,
     routes_project_python,
     routes_project_scope,
+    routes_project_summary,
     routes_projects,
     routes_regression,
     routes_relationships,
@@ -436,6 +438,7 @@ def create_app(
                 *routes_project_explorer.routes(ctx.project_explorer),
                 *routes_project_scope.routes(ctx.project_scope),
                 *routes_project_outline.routes(ctx.project_outline),
+                *routes_project_summary.routes(ctx),
                 *routes_script_export.routes(ctx.script_exports),
                 *routes_modes.routes(ctx.modes),
                 # Each extension that is on: its routes, given the base's seams (services/hooks.py Seams,

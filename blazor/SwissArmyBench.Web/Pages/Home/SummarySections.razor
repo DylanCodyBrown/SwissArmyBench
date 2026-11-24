@@ -1,0 +1,245 @@
+@* Home's summary of the open project, drawn from GET /project/summary (the owner, 2026-11-24: "The project home page
+   should become a summary of the current open project"): at the top its name, type, Local or Shared, folder (Copy
+   path, Show in folder), unsaved (● and Save), Autosave, its Python and Close project; then Tables, Documents,
+   Connections it uses and Recent activity with their counts, each item a link to where it lives; the type's
+   deliverable and Export outline. Drawn from its parameters only (ProjectSummaryView loads and follows it). *@
+
+<header class="area-page-head summary-head">
+    <div class="summary-title">
+        <h1 class="area-page-title summary-name" title="@Project.Path"><Icon Name="project" /> <span>@Project.Name</span></h1>
+        <div class="summary-facts" aria-label="About the project">
+            <span class="chip" data-fact="type">@TypeWords</span>
+            <span class="chip @(Project.Where == "shared" ? "shared" : string.Empty)" data-fact="where">@(Project.Where == "shared" ? "Shared" : "Local")</span>
+            @if (Project.Dirty)
+            {
+                <span class="summary-unsaved" data-fact="saved"><span class="dirty-dot" aria-hidden="true">●</span> Unsaved changes</span>
+            }
+            else
+            {
+                <span class="muted" data-fact="saved"><Icon Name="check" /> Saved</span>
+            }
+            @if (Project.ReadOnly is { } readOnly)
+            {
+                <span class="chip" data-fact="read-only" title="@readOnly">Read-only</span>
+            }
+        </div>
+        <div class="summary-folder" data-fact="folder">
+            <Icon Name="folder" /> <code title="@Project.Path">@Project.Path</code>
+            <button type="button" class="btn small ghost" @onclick="OnCopyPath"><Icon Name="copy" /> Copy path</button>
+            <button type="button" class="btn small ghost" @onclick="OnShowFolder">Show in folder</button>
+        </div>
+        <div class="summary-python" data-fact="python">
+            <Icon Name="python" /> <span>@PythonWords</span>
+        </div>
+    </div>
+    <div class="area-page-actions">
+        @if (Project.Dirty)
+        {
+            <button type="button" class="btn primary" @onclick="OnSave"><Icon Name="save" /> Save</button>
+        }
+        <label class="check" title="@Project.AutosaveError"><input type="checkbox" role="switch" aria-label="Autosave" checked="@Project.Autosave" @onchange="e => OnAutosave.InvokeAsync(e.Value is true)" /> Autosave</label>
+        <button type="button" class="btn" @onclick="OnNew"><Icon Name="plus" /> New project</button>
+        <button type="button" class="btn" @onclick="OnOpen"><Icon Name="folder" /> Open project…</button>
+        <button type="button" class="btn" aria-haspopup="menu" @onclick="OnImport"><Icon Name="import" /> Import…</button>
+        <button type="button" class="btn ghost" @onclick="OnClose"><Icon Name="close" /> Close project</button>
+        <TourButton />
+    </div>
+</header>
+
+<div class="summary-sections">
+    <section class="section summary-section" aria-label="Tables" data-section="tables">
+        <div class="section-head">
+            <h2><Icon Name="table" /> Tables <span class="summary-count">@Summary.Tables.Count</span></h2>
+            <a class="btn small ghost" href="tables">Open Tables</a>
+        </div>
+        @if (Summary.Tables.Count == 0)
+        {
+            <p class="muted">No tables yet. Open a file, paste data or read a connection's table on the Tables page.</p>
+        }
+        else
+        {
+            <ul class="summary-list">
+                @foreach (var table in Summary.Tables)
+                {
+                    <li>
+                        <a href="@($"tables?table={Uri.EscapeDataString(table.Name)}")" class="summary-link">@table.Name</a>
+                        <span class="muted">@TableWords(table)</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="section summary-section" aria-label="Documents" data-section="documents">
+        <div class="section-head">
+            <h2><Icon Name="notebook" /> Documents <span class="summary-count">@Summary.Documents.Count</span></h2>
+            <a class="btn small ghost" href="notebooks">Notebooks</a>
+            <a class="btn small ghost" href="scripts">Scripts</a>
+        </div>
+        @if (Summary.Documents.Count == 0)
+        {
+            <p class="muted">No notebooks or scripts yet.</p>
+        }
+        else
+        {
+            <ul class="summary-list">
+                @foreach (var document in Summary.Documents)
+                {
+                    <li data-kind="@document.Kind">
+                        <Icon Name="@DocumentIcon(document)" />
+                        <a href="@($"{document.Page}?path={Uri.EscapeDataString(document.Full)}")" class="summary-link" title="@document.Full">@document.Path</a>
+                        <span class="muted">@DocumentWords(document)</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="section summary-section" aria-label="Connections it uses" data-section="connections">
+        <div class="section-head">
+            <h2><Icon Name="plug" /> Connections it uses <span class="summary-count">@Summary.Connections.Count</span></h2>
+            <a class="btn small ghost" href="connections">Connections</a>
+        </div>
+        @if (Summary.Connections.Count == 0)
+        {
+            <p class="muted">None yet: a connection counts once a notebook, a script, a table or API.py reads it.</p>
+        }
+        else
+        {
+            <ul class="summary-list">
+                @foreach (var connection in Summary.Connections)
+                {
+                    <li>
+                        <span class="summary-swatch" style="@(connection.Colour.Length > 0 ? $"background: {connection.Colour}" : null)" aria-hidden="true"></span>
+                        <a href="@($"connections?name={Uri.EscapeDataString(connection.Name)}")" class="summary-link">@connection.Name</a>
+                        <span class="muted">@string.Join(" · ", new[] { connection.Type, connection.Status }.Where(w => w.Length > 0))</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="section summary-section" aria-label="Recent activity" data-section="recent">
+        <div class="section-head">
+            <h2><Icon Name="session" /> Recent activity</h2>
+            <a class="btn small ghost" href="session">See all</a>
+        </div>
+        @if (Summary.Recent.Count == 0)
+        {
+            <p class="muted">What you and your agent open, change and make this session shows here.</p>
+        }
+        else
+        {
+            <ul class="summary-list">
+                @foreach (var entry in Summary.Recent)
+                {
+                    <li>
+                        <span class="muted">@SwissArmyBench.Web.Pages.Session.SessionPage.TimeOf(entry.Time)</span>
+                        <span class="muted">@(entry.Actor == "agent" ? "Agent" : "You")</span>
+                        @if (SwissArmyBench.Web.Pages.Session.SessionPage.LinkOf(entry) is { } link)
+                        {
+                            <a href="@link" class="summary-link">@entry.What</a>
+                        }
+                        else
+                        {
+                            <span>@entry.What</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    @if (Summary.Deliverable is { } deliverable)
+    {
+        <section class="section summary-section" aria-label="Deliverable" data-section="deliverable">
+            <div class="section-head">
+                <h2><Icon Name="export" /> Deliverable</h2>
+            </div>
+            <p>@deliverable.Deliverable</p>
+            <ul class="summary-list">
+                @foreach (var file in deliverable.Files)
+                {
+                    <li><code>@file.Path</code> <span class="muted">@(file.Present ? file.About : $"{file.About} (not made yet)")</span></li>
+                }
+            </ul>
+        </section>
+    }
+
+    <section class="section summary-section" aria-label="Outline" data-section="outline">
+        <div class="section-head">
+            <h2><Icon Name="outline" /> Outline</h2>
+            <button type="button" class="btn small" @onclick="OnOutline"><Icon Name="outline" /> Export outline</button>
+        </div>
+        <p class="muted">ARCHITECTURE.md at the project's top: its sources, data model, transformations, lineage and how to run it.</p>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ProjectSummary Summary { get; set; } = default!;
+
+    /// <summary>The installs bar's words while it checks or installs (ProjectSetup), else null.</summary>
+    [Parameter]
+    public string? Installing { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnAutosave { get; set; }
+
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    [Parameter]
+    public EventCallback OnOpen { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>Import…'s menu, at the click (notebooks, scripts and apps; connections; blades).</summary>
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnImport { get; set; }
+
+    [Parameter]
+    public EventCallback OnCopyPath { get; set; }
+
+    [Parameter]
+    public EventCallback OnShowFolder { get; set; }
+
+    [Parameter]
+    public EventCallback OnOutline { get; set; }
+
+    private SummaryProject Project => Summary.Project!;
+
+    private string TypeWords => Project.TypeName.Length > 0 ? Project.TypeName : Project.Type;
+
+    private string PythonWords => Installing ?? Summary.Python?.Words ?? "Its Python: not said yet";
+
+    private static string TableWords(SummaryTable table)
+    {
+        var rows = table.Rows is { } count ? $"{count:N0} rows" : "not read";
+        return table.From.Length > 0 ? $"{rows} · from {table.From}" : rows;
+    }
+
+    private static string DocumentWords(SummaryDocument document) => document.Kind switch
+    {
+        "notebook" => "Notebook",
+        "script" when document.Api => "The local sandbox API",
+        "script" => "Script",
+        "app" => "Canvas",
+        "structure" => "Structure",
+        _ => document.Kind,
+    };
+
+    private static string DocumentIcon(SummaryDocument document) => document.Kind switch
+    {
+        "notebook" => "notebook",
+        "script" when document.Api => "apis",
+        "script" => "python",
+        "app" => "page",
+        "structure" => "structures",
+        _ => "file",
+    };
+}

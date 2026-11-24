@@ -1,0 +1,46 @@
+@* The window's title says the open project (the owner, 2026-11-24: "the swiss army bench window header says the name
+   of the project"): its name handed to shell.js's title on every change (open, new, close, switch), so every page's
+   title reads "<page> · <project> · Swiss Army Bench" and the desktop app's window header the same. Nothing drawn. *@
+@implements IDisposable
+@inject ProjectState Project
+@inject IJSRuntime Js
+
+@code {
+    /// <summary>A pop-out window reads the project itself (the main frame's layout already does).</summary>
+    [Parameter]
+    public bool Read { get; set; }
+
+    private string? _said;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Project.Changed += OnChanged;
+        if (Read)
+        {
+            await Project.RefreshAsync();
+        }
+        await SayAsync();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(SayAsync);
+
+    private async Task SayAsync()
+    {
+        var name = Project.Current?.Name ?? string.Empty;
+        if (name == _said)
+        {
+            return;
+        }
+        _said = name;
+        try
+        {
+            await Js.InvokeVoidAsync("sab.setProject", name);
+        }
+        catch (JSDisconnectedException)
+        {
+            // the window is closing
+        }
+    }
+
+    public void Dispose() => Project.Changed -= OnChanged;
+}
