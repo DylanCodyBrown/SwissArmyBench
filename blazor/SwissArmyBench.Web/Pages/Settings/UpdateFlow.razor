@@ -12,15 +12,15 @@
 {
     @if (_state is { Updating: { } updating })
     {
-        <button type="button" class="update-corner btn ghost small" disabled title="Swiss Army Bench opens again by itself">Updating to @updating…</button>
+        <button type="button" class="update-corner btn small" disabled title="Swiss Army Bench opens again by itself">Updating to @updating…</button>
     }
     else if (_state is { Available: true, Version: { } version })
     {
-        <button type="button" class="update-corner btn ghost small" title="@($"Update to {version}")" @onclick="() => StartAsync(false)"><Icon Name="export" /> Update available</button>
+        <button type="button" class="update-corner btn small" title="@($"Update to {version}")" @onclick="() => StartAsync(false)"><Icon Name="export" /> Update available</button>
     }
     else if (_state?.Failed is { } failed)
     {
-        <button type="button" class="update-corner failed btn ghost small" title="@failed.Reason" @onclick="() => _failure = failed">Update failed</button>
+        <button type="button" class="update-corner failed btn small" title="@failed.Reason" @onclick="() => _failure = failed">Update failed</button>
     }
 }
 else if (_state is { Available: true })

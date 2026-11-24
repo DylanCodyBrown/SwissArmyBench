@@ -49,26 +49,26 @@
 .beta-mark[hidden] {
   display: none;
 }
-/* An update (updates.ts): a button in the window's top-right corner, only while there is one (red if it failed). */
-.update-corner {
-  position: fixed;
-  top: 8px;
-  right: 12px;
-  z-index: 900;
+/* An update: a solid green pill in the status bar, only while there is one (red if it failed). In the bar's own
+   flow, never pinned over the page (it sat on the Projects page's Tour button: the owner, 2026-11-24). `.btn` is
+   named too so a button's own look never wins over it. */
+.btn.update-corner {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 28px;
-  padding: 0 12px;
+  height: 22px;
+  padding: 0 10px;
   border: 1px solid var(--ok);
   border-radius: 999px;
   background: var(--ok);
-  color: var(--bg);
+  color: var(--ok-fg);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
   cursor: pointer;
+}
+.btn.update-corner:hover {
+  filter: brightness(1.08);
 }
 .update-corner .icon-svg {
   width: 14px;
@@ -77,11 +77,11 @@
 .update-corner[hidden] {
   display: none;
 }
-.update-corner:disabled {
+.btn.update-corner:disabled {
   cursor: default;
   opacity: 0.85;
 }
-.update-corner.failed {
+.btn.update-corner.failed {
   border-color: var(--error);
   background: var(--error-soft);
   color: var(--error);
