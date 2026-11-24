@@ -256,6 +256,10 @@ class UpdatePlan:
     # The desktop app's process (desktop.json): waited for a moment, then ended by the helper itself; the
     # helper's start step starts the new version's app again.
     end_pids: tuple[int, ...] = ()
+    # The last resort when the restore (with the extensions) fails too: the current version alone, so the app
+    # always opens again (the owner, 2026-11-24: after an extension's Install, "uv trampoline failed to
+    # canonicalize script path": uv had taken the old environment away and neither install put one back).
+    restore_bare: tuple[str, ...] = ()
 
     def steps(self) -> list[str]:
         return ["wait", *(["stop"] if self.stop_in else []), "install", "check", "start"]
@@ -274,6 +278,7 @@ class UpdatePlan:
             "environ": dict(self.environ),
             "stop_in": self.stop_in,
             "end_pids": list(self.end_pids),
+            "restore_bare": list(self.restore_bare),
             "steps": self.steps(),
         }
 
@@ -310,6 +315,7 @@ def plan_update(
         wait_pids=tuple(pid for pid in wait_pids if pid > 0),
         install=tuple(install_command(uv, version, source, python_version, find_links, wheels)),
         restore=tuple(install_command(uv, current, "pypi", python_version, find_links, restore_wheels)),
+        restore_bare=tuple(install_command(uv, current, "pypi", python_version, find_links)),
         installed_version=(tool_python, "-I", "-c", probe),
         start=start,
         info_file=info_file,

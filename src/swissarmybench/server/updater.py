@@ -44,6 +44,7 @@ INSTALL_TIMEOUT_SECONDS: float = 900.0
 CREATE_NEW_PROCESS_GROUP: int = 0x00000200
 CREATE_NO_WINDOW: int = 0x08000000
 CREATE_BREAKAWAY_FROM_JOB: int = 0x01000000
+FREE_SECONDS = 15.0  # how long the tool's folder may stay held before the change stops, untouched
 IN_USE = (
     "Files of the app are in use by another program (an agent's MCP server, a terminal running sab). "
     "Close it and try again."
@@ -69,6 +70,8 @@ class Ops(Protocol):
     def note(self, path: str, note: dict[str, str]) -> None: ...
 
     def stop_in(self, folder: str) -> int: ...
+
+    def free(self, folder: str) -> bool: ...
 
     def fetch(self, url: str, folder: str) -> str: ...
 
@@ -138,15 +141,26 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
         if not waited(WAIT_FOR_EXIT_SECONDS, functools.partial(_gone, ops, int(pid))):
             ops.note(plan["note_file"], {"version": version, "reason": "The app's window did not close."})
             return "failed"
+    reason = ""
     if plan.get("stop_in"):
         # Windows: any other program still running from the tool's folder (an editor's MCP server)
         # holds its files; uv cannot replace them while it runs.
         steps.append("stop")
-        ops.stop_in(str(plan["stop_in"]))
+        folder = str(plan["stop_in"])
+        ops.stop_in(folder)
+        # Before uv takes anything away: a folder still held stops the change here, the old version whole
+        # (the owner, 2026-11-24: an extension's Install left "uv trampoline failed to canonicalize script
+        # path": uv had removed part of the app before a locked file stopped it).
+        for _ in range(int(FREE_SECONDS)):
+            if ops.free(folder):
+                break
+            ops.stop_in(folder)  # one that started again meanwhile (an editor restarting its MCP server)
+            ops.sleep(1.0)
+        else:
+            reason = "" if ops.free(folder) else IN_USE
 
-    reason = ""
     install = list(plan["install"])
-    if any(part.startswith("https://") for part in install):
+    if not reason and any(part.startswith("https://") for part in install):
         steps.append("download")
         try:
             install = local_wheels(install, ops, tempfile.mkdtemp(prefix="sab-wheels-"))
@@ -191,6 +205,23 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
         ops.start(list(plan["start"]), environ)
         if waited(WAIT_FOR_START_SECONDS, lambda: ops.started(plan["info_file"], current)):
             return "restored"
+    bare = list(plan.get("restore_bare") or [])
+    if bare and bare != restore:
+        # The last resort: the current version alone, so the app opens again (its extensions to install anew).
+        steps.append("restore bare")
+        code, _ = ops.run(bare, environ)
+        if code == 0:
+            ops.start(list(plan["start"]), environ)
+            if waited(WAIT_FOR_START_SECONDS, lambda: ops.started(plan["info_file"], current)):
+                ops.note(
+                    plan["note_file"],
+                    {
+                        "version": version,
+                        "reason": f"{reason} Swiss Army Bench {current} was put back without its extensions: "
+                        "install them again from the Extensions page.",
+                    },
+                )
+                return "restored"
     return "failed"
 
 
@@ -316,7 +347,9 @@ class SystemOps:
             pass
 
     def stop_in(self, folder: str) -> int:
-        """Stop every process whose program is inside `folder`, but this one; how many were stopped.
+        """Stop every process whose program is inside `folder`, or whose command line names it (a venv's
+        python.exe is a launcher: the base Python it starts runs the folder's code and holds its files: an
+        agent's MCP server), but this one; how many were stopped.
         Windows only (elsewhere a running program's files can be replaced): PowerShell's process list
         with each program's path (the standard library has none), the folder and this process's id
         passed as variables, never pasted into the command."""
@@ -324,8 +357,10 @@ class SystemOps:
             return 0
         script = (
             "$f = $env:SAB_STOP_IN.TrimEnd('\\') + '\\'; $me = [int]$env:SAB_SELF; $n = 0; "
-            "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ProcessId -ne $me -and "
-            "$_.ExecutablePath.StartsWith($f, [StringComparison]::OrdinalIgnoreCase) } | "
+            "$c = [StringComparison]::OrdinalIgnoreCase; "
+            "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $me -and ("
+            "($_.ExecutablePath -and $_.ExecutablePath.StartsWith($f, $c)) -or "
+            "($_.CommandLine -and $_.CommandLine.IndexOf($f, $c) -ge 0)) } | "
             "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; $n++ }; $n"
         )
         code, output = self.run(
@@ -338,6 +373,23 @@ class SystemOps:
         if int(last):
             time.sleep(1.0)  # Windows lets go of a stopped program's files a moment later
         return int(last)
+
+    def free(self, folder: str) -> bool:
+        """Is nothing holding the folder's files? Windows refuses to rename a folder while a file in it is
+        open: it is renamed and named back at once (elsewhere: free)."""
+        if sys.platform != "win32" or not folder or not Path(folder).is_dir():
+            return True
+        trial = Path(f"{folder.rstrip(chr(92) + '/')}.sab-check")
+        try:
+            Path(folder).rename(trial)
+        except OSError:
+            return False
+        try:
+            trial.rename(folder)
+        except OSError:  # never leave it renamed
+            time.sleep(0.5)
+            trial.rename(folder)
+        return True
 
     def fetch(self, url: str, folder: str) -> str:
         """The wheel at `url` (this version's GitHub release) saved in `folder` under its own name."""

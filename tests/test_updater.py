@@ -62,6 +62,12 @@ class FakeOps:
         self.did.append(f"stop {folder}")
         return 1
 
+    held = 0  # how many looks before nothing holds the tool's folder
+
+    def free(self, folder: str) -> bool:
+        self.held -= 1
+        return self.held < 0
+
     fetch_fails = False
 
     def end(self, pid: int) -> None:
@@ -491,3 +497,54 @@ def test_an_update_and_an_extension_change_keep_the_users_own_packages(tmp_path:
     assert change["restore"][-2:] == ["--with", "azure-identity"]
     for handed in spawned:
         shutil.rmtree(Path(handed[-1]).parent)
+
+
+def test_when_the_restore_fails_too_the_current_version_alone_is_put_back() -> None:
+    """The owner, 2026-11-24: after an extension's Install the app would not open at all ("uv trampoline
+    failed to canonicalize script path"): uv had taken the old environment away and neither the install nor
+    the restore (both with the extensions) put one back. The last resort is the current version alone."""
+    shaped = rules.plan_update(
+        version="0.0.2",
+        current="0.0.1",
+        source="pypi",
+        uv="uv",
+        tool_python="python",
+        python_version="3.12",
+        wait_pids=[],
+        info_file="server.json",
+        note_file="update_failed.json",
+        wheels=("swissarmybench_git-0.0.2.whl",),
+        restore_wheels=("swissarmybench_git-0.0.1.whl",),
+    ).to_json()
+    assert shaped["restore_bare"][-1] == "swissarmybench[server]==0.0.1"
+    assert "--with" not in shaped["restore_bare"]
+    failed = (2, "error: the extension could not be resolved")
+
+    class Ops(FakeOps):
+        def run(self, command: list[str], environ: dict[str, str]) -> tuple[int, str]:
+            kind = "bare" if command[-1].endswith("==0.0.1") else "with"
+            self.did.append(kind)
+            return self.answers[kind].pop(0)
+
+    ops = Ops({"with": [failed] * 4, "bare": [(0, "")]}, starts=[None, "0.0.1"])
+    assert run(shaped, ops) == "restored"
+    assert ops.did == ["with", "with", "with", "start", "with", "bare", "start"]
+    assert "without its extensions" in ops.notes[-1]["reason"]
+
+
+def test_a_tool_folder_still_held_stops_the_change_before_uv_touches_it() -> None:
+    """The owner, 2026-11-24: "Files of the app are in use by another program". uv had already taken part of
+    the app away when a locked file stopped it. Now the folder is tried first; still held after the programs
+    running from it are stopped again and again, nothing is installed and the old version, whole, starts."""
+    shaped = dict(plan(), stop_in="C:/made-up/uv/tools/swissarmybench")
+    ops = FakeOps({"install": []}, starts=["0.0.1"])
+    ops.held = 10_000
+    steps: list[str] = []
+    assert run(shaped, ops, steps) == "restored"
+    assert "install" not in ops.did and ops.did[-1] == "start"
+    assert ops.notes == [{"version": "0.0.2", "reason": IN_USE}]
+    # Held a moment only (a program let go once stopped again): the install goes ahead.
+    ops = FakeOps({"install": [(0, "")], "check": [(0, "0.0.2")]}, starts=["0.0.2"])
+    ops.held = 2
+    assert run(shaped, ops) == "updated"
+    assert ops.did.count("stop C:/made-up/uv/tools/swissarmybench") == 3

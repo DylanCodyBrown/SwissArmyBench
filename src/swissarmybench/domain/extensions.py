@@ -362,6 +362,7 @@ def plan_change(
         wait_pids=tuple(pid for pid in wait_pids if pid > 0),
         install=tuple(install_command(uv, current, python_version, wheels)),
         restore=tuple(install_command(uv, current, python_version, before)),
+        restore_bare=tuple(install_command(uv, current, python_version, [])),
         installed_version=(tool_python, "-I", "-c", probe),
         start=(tool_python, "-m", f"{PACKAGE}.server", "start"),
         info_file=info_file,
