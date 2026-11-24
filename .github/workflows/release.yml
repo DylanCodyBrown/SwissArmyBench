@@ -66,7 +66,7 @@ jobs:
           uv run --no-sync mypy
           dotnet build blazor/SwissArmyBench.Web/SwissArmyBench.Web.csproj -warnaserror --nologo
           dotnet format blazor/SwissArmyBench.Web/SwissArmyBench.Web.csproj --verify-no-changes
-          dotnet test blazor/SwissArmyBench.Web.Tests --nologo
+          (cd blazor && dotnet test --project SwissArmyBench.Web.Tests)
       - name: Tests (the browser tests need Edge and run on a desktop before tagging)
         run: uv run --no-sync pytest -q --ignore=tests/e2e
       - name: Build
