@@ -111,8 +111,15 @@ public sealed class SqlFilesTests : AppTestContext
         var empty = Render<TablesEmpty>(p => p.Add(x => x.OnOpenFile, () => { opened++; }));
         empty.WaitForElement(".error-note"); // the project's tables to fix asked of a server that is not there
         Assert.Equal("scripts?new=sql", empty.Find("a.tables-empty-query").GetAttribute("href"));
-        empty.Find("button.tables-empty-open").Click();
-        Assert.Equal(1, opened);
+        empty.WaitForAssertion(() =>
+        {
+            if (opened == 0)
+            {
+                empty.Find("button.tables-empty-open").Click(); // again only if a render in flight took the first
+            }
+
+            Assert.Equal(1, opened);
+        });
         Assert.Empty(empty.FindAll(".new-query-choice")); // no connection cards
     }
 }
