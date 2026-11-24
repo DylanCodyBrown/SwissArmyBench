@@ -19,7 +19,7 @@ public partial class WorkbenchPage
         }
         List<(string Place, CodeEditor Editor, Func<int, int, Task> Go)> editors = doc.NotebookView is { } nb
             ? nb.Editors().Select(e => (e.Place, e.Editor, (Func<int, int, Task>)((l, c) => nb.RevealAsync(e.Cell, l, c)))).ToList()
-            : doc.ScriptView?.Editor is { } script ? [(string.Empty, script, (l, c) => script.RevealAsync(l, c))] : [];
+            : (doc.ScriptView?.Editor ?? doc.SqlView?.Editor) is { } script ? [(string.Empty, script, (l, c) => script.RevealAsync(l, c))] : [];
         List<MenuEntry> entries = [];
         var ruff = false;
         foreach (var (place, editor, go) in editors)

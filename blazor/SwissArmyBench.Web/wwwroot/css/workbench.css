@@ -199,3 +199,10 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .new-blade-kinds { display: grid; gap: 4px; margin-top: 8px; }
 .import-card { margin-bottom: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
 .setting-row { display: grid; gap: 2px; margin-bottom: 6px; }
+
+/* ===== a SQL file (2026-11-24): where it runs beside Run file, its Output under the code ===== */
+.wb-sql-from { max-width: 22ch; height: 26px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--raised); color: var(--fg); }
+.wb-sql-output { flex: 0 0 auto; max-height: 34%; min-height: 0; }
+.wb-sql-output .sql-status { color: var(--muted); }
+.wb-sql-error { margin: 6px 10px; }
+.wb-sql-error pre { margin: 4px 0 0; white-space: pre-wrap; }

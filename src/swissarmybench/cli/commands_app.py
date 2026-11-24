@@ -230,7 +230,8 @@ def app_audit(a: dict[str, Any]) -> Any:
         "the rail: projects (the mark), data (browse tables), tables (or grids), analyze, erd, notebooks, "
         "scripts, apps, blades, connections, environment, structures, session, settings; back, forward, "
         "add_connection, add_api; home: "
-        "new_query (the New query page), query, query:<connection> (its draft, Query from set), grid:<id>; "
+        "new_sql (a new SQL file on the Scripts page; new_sql:<connection> its header set; new_query and query "
+        "read as it), grid:<id>; "
         "scripts (its Blades pane): blade:<name>, new_blade",
     ),
     opt("window", "home (default), notebooks, scripts or workbench (either: the one last used)."),

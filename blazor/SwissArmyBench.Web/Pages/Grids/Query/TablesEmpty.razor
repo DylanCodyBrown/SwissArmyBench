@@ -1,0 +1,50 @@
+@* The Tables page with no table open (the owner, 2026-11-24: the New query page "isnt needed"): one sentence, Open a
+   file… and New query (a new .sql file on the Scripts page: SQL is written only there), and the project's tables that
+   did not come back, each with its fix. *@
+@inject ApiClient Api
+
+<div class="tables-empty">
+    <ErrorNote Error="_error" OnClose="() => _error = null" />
+    <div class="empty-state">
+        <p>No table is open: open a file, or write a query on the Scripts page and run it.</p>
+        <div class="empty-state-actions">
+            <button type="button" class="btn primary tables-empty-open" @onclick="OnOpenFile"><Icon Name="folder" /> Open a file…</button>
+            <a class="btn tables-empty-query" href="@NewQueryAddress"><Icon Name="sql" /> New query</a>
+        </div>
+    </div>
+    @if (_problems.Count > 0)
+    {
+        <section class="start-section landing-fixes" aria-label="Tables to bring back">
+            <h2>Tables</h2>
+            @foreach (var problem in _problems)
+            {
+                <FixRow Problem="problem" OnChanged="LoadAsync" />
+            }
+        </section>
+    }
+</div>
+
+@code {
+    /// <summary>Where New query goes: a new SQL file on the Scripts page (the Tables page's "+" too).</summary>
+    public const string NewQueryAddress = "scripts?new=sql";
+
+    private IReadOnlyList<SwissArmyBench.Web.Api.Projects.ProjectProblem> _problems = [];
+    private Exception? _error;
+
+    [Parameter]
+    public EventCallback OnOpenFile { get; set; }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _problems = (await Api.GetAsync<SwissArmyBench.Web.Api.Projects.ProjectAnswer>("/project")).Project?.Problems ?? [];
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

@@ -6378,3 +6378,22 @@ Windows (the preview photographer's hidden-window way, the update's restart on t
   tests and the drivers check (Streamlit in this .venv, as noted before), the updater's uv tool check and a fresh
   Python's export check (this run's PYTHONPATH reaches the made venv), the desktop shell (Qt), the million-row
   timings (passes alone). mypy: one error in sab_canvas.py, a file this work does not touch.
+
+## A tab's Rename… and .sql files on the Scripts page (2026-11-24)
+
+The owner: "we should allow renaming here" / "also we should allow .sql files" / "clicking the + in grids menu jumps
+to the scripts page with an open script" / "sql authorship will have one place in scripts". Checked on made-up data:
+- tests/test_sql_files.py (16): the header line read and written (line ends kept), statements split outside strings,
+  brackets and comments, the one at the cursor, Run file's one query (a second statement's line said), the table
+  named after the file, an error's line (DuckDB's LINE n, a quoted name), the tree's SQL files group, a rename's
+  path (its kind's ending kept); over HTTP: a run builds orders_by_month and again replaces it in the same grid,
+  Run selection at a line, a binder error's line 4, Edit in Scripts made once (the user's edits kept) and run back
+  into its table, a rename with its recent entry following (409 over another file).
+- bUnit SqlFilesTests (9): the header, the table name, the kind, the tab menu's Rename… (F2; a blade's disabled), F2
+  on a focused tab, the Tables page's "+" (scripts?new=sql, no draft tab) and its empty state (no connection cards).
+- Blazor browser tests (tests/e2e/blazor/test_workbench_sql.py, 4): "+" to a new SQL file, Rename… as Save as, Run
+  file landing on the table's tab with its query read-only; a failure's line marked (a run before Monaco finished
+  loading marks it once made); F2 rename on disk; Edit in Scripts. With the related browser files: 75 passed.
+- The whole suite without e2e: 5939 passed, 9 failed, 42 skipped; the failures are this .venv's known ones (the four
+  data.py export tests, the drivers check, the updater's uv tool, a fresh Python's export, the million-row timings)
+  and test_sharing under load (21 of 21 alone). bUnit 180 of 180; mypy: the one known error in sab_canvas.py.

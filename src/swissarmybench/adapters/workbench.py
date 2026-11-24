@@ -77,16 +77,19 @@ class Documents:
         except OSError:
             return None
 
-    def write(self, path: str, text: str, force: bool = False) -> tuple[str, float]:
+    def write(
+        self, path: str, text: str, force: bool = False, make_folder: bool = False
+    ) -> tuple[str, float]:
         """Write the file whole (a temporary file renamed over it, so a failed save leaves the old one).
-        Its folder must exist, except the Workbench's own default folder, made on its first save."""
+        Its folder must exist, except the Workbench's own default folder, made on its first save, and one the
+        app makes for its own file (`make_folder`: a project's scripts/ for a table's .sql file)."""
         try:
             file = Path(path).expanduser().resolve()
         except OSError as error:
             raise FileNotFoundError(
                 f"{path[:200]} is not a place this computer can save ({error.strerror})."
             ) from None
-        if file.parent == self.default_folder.resolve():
+        if make_folder or file.parent == self.default_folder.resolve():
             file.parent.mkdir(parents=True, exist_ok=True)
         if not file.parent.is_dir():
             raise FileNotFoundError(f"The folder {file.parent} is not there.")
@@ -109,6 +112,35 @@ class Documents:
             ) from None
         write_atomic(file, data, mode=mode)
         return str(file), file.stat().st_mtime
+
+    def exists(self, path: str) -> bool:
+        try:
+            return Path(path).expanduser().is_file()
+        except OSError:
+            return False
+
+    def move(self, path: str, to: str) -> str:
+        """A document renamed (the tab's Rename): the file moved to `to` in the same folder, never over
+        another
+        one; its recent entry and its remembered Python follow. Its new full path."""
+        file = Path(path).expanduser().resolve()
+        target = Path(to).expanduser().resolve()
+        if not file.is_file():
+            raise FileNotFoundError(f"{file} is not there.")
+        if target.exists():
+            raise FileExistsError(f"{target.name} is there already.")
+        file.rename(target)
+        listed = [
+            {"path": str(target) if r["path"] == str(file) else r["path"], "opened": r["opened"]}
+            for r in self.recent()
+        ]
+        if listed:
+            self._recent.write_text(json.dumps(listed[:MAX_RECENT], indent=1), encoding="utf-8")
+        chosen = self._chosen()
+        if str(file) in chosen:
+            chosen[str(target)] = chosen.pop(str(file))
+            self._environments.write_text(json.dumps(chosen, indent=1), encoding="utf-8")
+        return str(target)
 
     def scratch(self, text: str) -> str:
         """An unsaved script written to a private folder of its own, so %run can run it as a file."""

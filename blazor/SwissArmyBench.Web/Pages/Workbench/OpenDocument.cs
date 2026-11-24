@@ -46,8 +46,16 @@ public sealed class OpenDocument
 
     public CodeFileView? CodeFileView { get; set; }
 
-    /// <summary>A notebook or a script: code that runs in the session (not a blade, structure or workbook).</summary>
-    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && CodeFile is null;
+    /// <summary>A new SQL file's tab (New ▸ SQL file), until it is saved; a saved one is a .sql file.</summary>
+    public bool NewSql { get; init; }
+
+    /// <summary>A .sql file (the owner, 2026-11-24): SQL run on its connection, its result an open table.</summary>
+    public bool IsSql => NewSql || (Path is { } path && path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
+
+    public SqlFileView? SqlView { get; set; }
+
+    /// <summary>A notebook or a script: code that runs in the session (not a blade, structure, workbook or SQL file).</summary>
+    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && !IsSql && CodeFile is null;
 
     /// <summary>A project's data.ipynb's view: cells, lineage or dictionary.</summary>
     public string DataView { get; set; } = "cells";
@@ -104,12 +112,16 @@ public sealed class OpenDocument
 
     public ScriptView? ScriptView { get; set; }
 
-    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : "script";
+    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : "script";
 
     public string Title => Blade ?? (CodeFile is { } file ? FilePaths.Name(file) : Path is { } path
         ? FilePaths.Name(path)
         : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : "Script";
+
+    /// <summary>Renamed from its tab (Rename…): a notebook, a script or a SQL file; a blade, a structure, a workbook
+    /// and a code app's file keep their own ways.</summary>
+    public bool CanRename => IsCode || IsSql;
 }

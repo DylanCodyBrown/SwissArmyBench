@@ -48,4 +48,20 @@ public sealed class ScriptIdeClient
     public Task<FilePlace> DeleteAsync(string path) => _api.PostAsync<FilePlace>("/scripts/files/delete", new { path });
 
     public Task<FilePlace> NewPackageAsync(string name, string? parent) => _api.PostAsync<FilePlace>("/scripts/files/package", new { name, parent });
+
+    /// <summary>A .sql file run: its text as on screen, where it runs ("" the open tables), and with a line, Run
+    /// selection there (the selected text, else the statement at the line).</summary>
+    public Task<SqlRun> RunSqlAsync(SqlRunRequest request, CancellationToken cancel = default) =>
+        _api.PostAsync<SqlRun>("/scripts/sql/run", new
+        {
+            path = request.Path,
+            text = request.Text,
+            connection = request.Connection,
+            line = request.Line,
+            selection = request.Selection,
+            table = request.Table,
+        }, cancel);
+
+    /// <summary>Edit in Scripts: a table a query made, as its .sql file (made now when it is not there yet).</summary>
+    public Task<SqlTableFile> SqlForTableAsync(string table) => _api.PostAsync<SqlTableFile>("/scripts/sql/for-table", new { table });
 }

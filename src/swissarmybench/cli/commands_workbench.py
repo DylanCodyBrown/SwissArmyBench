@@ -22,7 +22,7 @@ def workbench_home(a: dict[str, Any]) -> Any:
 @command(
     "workbench_open",
     "A notebook's cells (with their outputs) or a script's text, and its remembered Python",
-    req("path", "An .ipynb or .py file."),
+    req("path", "An .ipynb, .py or .sql file."),
     values=True,
 )
 def workbench_open(a: dict[str, Any]) -> Any:
@@ -128,20 +128,45 @@ def workbench_debug(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_file",
-    "Project modules: move (rename, imports follow; a plan until apply), package, duplicate",
-    req("action", "move, package or duplicate."),
-    opt("path", "The module (package: its parent)."),
+    "Project modules: move (rename, imports follow; a plan until apply), package, duplicate; rename: a "
+    "notebook, a .sql file or a loose script renamed in its folder (a tab's Rename…)",
+    req("action", "move, package, duplicate or rename."),
+    opt("path", "The module (package: its parent); rename: the document."),
     opt("to", "The new name."),
     opt("apply", "move: do it.", "bool"),
 )
 def workbench_file(a: dict[str, Any]) -> Any:
     act = a["action"]
+    if act == "rename":
+        return api.call("POST", "/workbench/rename", {"path": a.get("path"), "to": a.get("to")})
     if act == "package":
         return api.call("POST", "/scripts/files/package", {"name": a.get("to"), "parent": a.get("path")})
     body = {"path": a.get("path"), "to": a.get("to"), "apply": bool(a.get("apply"))}
     if act == "move":
         return api.call("POST", "/scripts/files/move", body)
     return api.call("POST", "/scripts/files/duplicate", body)
+
+
+@command(
+    "workbench_sql",
+    "A .sql file (the Scripts page's SQL): run builds the open table named after the file (orders_by_month.sql: "
+    "orders_by_month; run again replaces it, its steps kept) on the file's `-- connection: <name>` (none: DuckDB "
+    "over the open tables and [Conn].table names); a failure names its line. for_table: a table a query made "
+    "as its .sql file (Edit in Scripts), its path",
+    req("action", "run or for_table."),
+    opt("path", "run: the .sql file (its text read when text is not sent)."),
+    opt("text", "run: the SQL (unsaved text wins over the file's)."),
+    opt("connection", 'run: where it runs ("" the open tables), else the file\'s header.'),
+    opt("line", "run: Run selection at this line (the statement there); none: Run file.", "int"),
+    opt("table", "run: the table's name (default: the file's name); for_table: the table."),
+)
+def workbench_sql(a: dict[str, Any]) -> Any:
+    if a["action"] == "for_table":
+        return api.call("POST", "/scripts/sql/for-table", {"table": a.get("table")})
+    if a["action"] != "run":
+        return {"error": "action: run or for_table."}
+    body = {k: a[k] for k in ("path", "text", "connection", "line", "table") if a.get(k) is not None}
+    return api.call("POST", "/scripts/sql/run", body)
 
 
 @command(
@@ -172,7 +197,7 @@ def workbench_format(a: dict[str, Any]) -> Any:
 @command(
     "workbench_save",
     "Save a notebook's cells or a script's text (refused if changed on disk since modified, unless force)",
-    req("path", "An .ipynb or .py file."),
+    req("path", "An .ipynb, .py or .sql file."),
     opt(
         "cells",
         '[{"kind": "code" | "sql" | "dax" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',

@@ -367,6 +367,11 @@ window.sab = {
     all[((at < 0 ? 0 : at + step) + all.length) % all.length].focus();
   },
 
+  /** This window's name: sab-home is the app's first window (a .sql file's run brings the Tables page there). */
+  windowName() {
+    return window.name;
+  },
+
   /** A page of the app in a window of its own, reused by its name (the Queries window); false when blocked. */
   openWindow(url, name, features) {
     const opened = window.open(url, name, features);

@@ -76,7 +76,21 @@ public partial class WorkbenchPage
         _layout.Add(doc.Key);
     }
 
-    private int NextUntitled() => _documents.Where(d => d.Path is null).Select(d => d.Untitled).DefaultIfEmpty(0).Max() + 1;
+    private int NextUntitled(bool sql = false) =>
+        _documents.Where(d => d.Path is null && d.NewSql == sql).Select(d => d.Untitled).DefaultIfEmpty(0).Max() + 1;
+
+    // A new SQL file's first text: a SELECT to finish (the dropdown beside Run file says where it runs).
+    private const string SqlStarter = "SELECT *\nFROM ";
+
+    private OpenDocument NewSqlDocument() => new(++_nextKey, false) { Untitled = NextUntitled(sql: true), NewSql = true, ScriptText = SqlStarter };
+
+    /// <summary>New ▸ SQL file: an untitled .sql tab on the Scripts page (DuckDB over the open tables until a
+    /// connection is chosen beside Run file).</summary>
+    private Task NewSqlAsync()
+    {
+        AddDocument(NewSqlDocument());
+        return FollowAddressAsync();
+    }
 
     /// <summary>A tab brought to the front: the address follows it (replaced, so Back leaves the page).</summary>
     private async Task ShowAsync(int key)
@@ -91,10 +105,11 @@ public partial class WorkbenchPage
     {
         var path = Front?.Path;
         var fresh = BladeAddress is null && CodeFileAddress is null && path is null && Front is not null;
+        var freshKind = Front is { NewSql: true } ? "sql" : "1";
         // The address this writes is the page's own: read back, it must not open or make anything again (a
         // shown untitled script's ?new=1 made another one on every click: the owner, 2026-11-23).
-        _shownFor = AddressKey(BladeAddress is null && CodeFileAddress is null ? path : null, fresh, Front?.Blade, null, null, Front?.CodeFile);
-        Nav.NavigateTo(BladeAddress ?? CodeFileAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new=1") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
+        _shownFor = AddressKey(BladeAddress is null && CodeFileAddress is null ? path : null, fresh ? freshKind : string.Empty, Front?.Blade, null, null, Front?.CodeFile);
+        Nav.NavigateTo(BladeAddress ?? CodeFileAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new={freshKind}") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
         await Js.InvokeVoidAsync("sab.setTitle", Title);
     }
 
@@ -211,12 +226,11 @@ public partial class WorkbenchPage
         }
         var home = await Workbench.HomeAsync();
         var start = doc.Path is null ? home.Folder : FilePaths.Folder(doc.Path);
-        if (await Files.ChooseAsync("save", "Save as", start, Kind) is not { } chosen)
+        if (await Files.ChooseAsync("save", "Save as", start, Kind, name: doc.Path is null ? SuggestedName(doc) : null) is not { } chosen)
         {
             return;
         }
-        var extension = doc.IsNotebook ? ".ipynb" : ".py";
-        await SaveToAsync(doc, chosen.EndsWith(extension, StringComparison.OrdinalIgnoreCase) ? chosen : chosen + extension);
+        await SaveToAsync(doc, WithEnding(doc, chosen));
     }
 
     private async Task SaveToAsync(OpenDocument doc, string path, bool force = false)
@@ -264,11 +278,11 @@ public partial class WorkbenchPage
     private Task EditorPageKeyAsync(string key) => key == "saveAs" ? SaveAsAsync(Front) : SaveAsync(Front);
 
     private Task InsertAsync(string line) =>
-        Front?.NotebookView?.InsertAsync(line) ?? Front?.ScriptView?.InsertAsync(line) ?? Task.CompletedTask;
+        Front?.NotebookView?.InsertAsync(line) ?? Front?.ScriptView?.InsertAsync(line) ?? Front?.SqlView?.InsertAsync(line) ?? Task.CompletedTask;
 
     /// <summary>A group's main Run: Run all for a notebook, Run file for a script (F5).</summary>
     private Task RunMainAsync(OpenDocument doc) => IsApiFile(doc) ? RunApiAsync(doc)
-        : doc.NotebookView?.RunAllAsync() ?? doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask;
+        : doc.NotebookView?.RunAllAsync() ?? doc.SqlView?.RunFileAsync() ?? doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask;
 
     /// <summary>API.py, the project's local sandbox API: its main Run is Run API.</summary>
     private static bool IsApiFile(OpenDocument doc) =>

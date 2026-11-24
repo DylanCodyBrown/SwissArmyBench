@@ -136,6 +136,9 @@ class ProjectScope:
                 except OSError:
                     texts.append((relative, None))
             groups = code_tree.script_tree(texts, self.edited_by_hand())
+            sql = code_tree.sql_group(files)  # the project's .sql files (2026-11-24)
+            if sql is not None:
+                groups.append(sql)
         # Both pages: a structure's tab beside the code (its top's and structures/' JSON, YAML, XML, TOML).
         structures = code_tree.structure_group(self._files.structure_files(current.folder))
         if structures is not None:

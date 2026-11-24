@@ -1,9 +1,8 @@
 @* The Notebooks page and the Scripts page (two pages, the owner 2026-11-21; the classic workbenchPage.ts and
-   workbenchBars.ts): the top bar (the open project's menu, the document in front's name and unsaved dot, Save, Save
-   as…, New, Open…, the "…" menu), the documents as tabs in groups (split right or down, each group's row with the
-   document's controls), the Files and Blades panes on the right, the status bar (the Python session, Problems, the
-   panes' toggles), and the command palette (Ctrl+Shift+P). With no document open, the page's documents to open.
-   Logic in WorkbenchPage.razor.cs (the page), .Documents.cs (open, save, close), .Menus.cs (menus and commands). *@
+   workbenchBars.ts): the top bar (the project's menu, the document's name and unsaved dot, Save, Save as…, New, Open…,
+   "…"), the documents as tabs in groups (split right or down, each group's row with the document's controls), the Files
+   and Blades panes, the status bar and the command palette (Ctrl+Shift+P); with none open, the documents to open. Logic
+   in WorkbenchPage.razor.cs, .Documents.cs (open, save, close), .Menus.cs (menus), .Rename.cs and .Sql.cs (a SQL file). *@
 @implements IAsyncDisposable
 @using SwissArmyBench.Web.Pages.Workbench.Tabs
 
@@ -247,7 +246,7 @@
         @<GroupView Group="group" Number="@(_layout.Groups.ToList().IndexOf(group) + 1)" Documents="_byKey" Focused="group == _layout.Focused" Only="_layout.Groups.Count == 1"
                     Content="DocumentFragment" Controls="ControlsFragment"
                     OnShow="ShowAsync" OnClose="CloseAsync" OnFocus="() => _layout.Focus(group)"
-                    OnNewTab="e => ShowMenuAsync(e, NewTabMenu())" OnTabMenu="t => ShowMenuAsync(t.At, TabMenu(t.Key))" />;
+                    OnNewTab="e => ShowMenuAsync(e, NewTabMenu())" OnTabMenu="t => ShowMenuAsync(t.At, TabMenu(t.Key))" OnRename="RenameTabAsync" />;
 
     private RenderFragment<OpenDocument> DocumentFragment => doc =>
         @<text>
@@ -309,6 +308,10 @@
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" OnLineage="n => ShowLineageAsync(doc, n)" />
                 </div>
             }
+            else if (doc.IsSql)
+            {
+                <div class="wb-script-host"><SqlFileView @ref="doc.SqlView" Text="@doc.ScriptText" Path="@doc.Path" Table="@SqlHeader.TableOf(doc.Path)" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="SqlBuiltAsync" OnOpenTable="r => ShowTableAsync(r.Grid)" /></div>
+            }
             else
             {
                 <div class="wb-script-host">
@@ -350,6 +353,10 @@
             {
                 <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, TabMenu(doc.Key))"><Icon Name="more" /></button>
             }
+            else if (doc.IsSql)
+            {
+                <SqlFileBar Text="@doc.ScriptText" Connections="_sqlConnections" Running="doc.SqlView?.Running == true" OnText="t => ScriptChanged(doc, t)" OnRunFile="() => RunMainAsync(doc)" OnRunSelection="() => doc.SqlView?.RunSelectionAsync() ?? Task.CompletedTask" />
+            }
             else if (doc.IsNotebook)
             {
                 <button type="button" class="btn small line wb-add-cell" aria-label="Add cell" title="Add cell" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, CellMenu(doc))">
@@ -382,7 +389,7 @@
                 }
                 <button type="button" class="btn small ghost icon wb-debug-start" aria-label="Start debugging" title="Start debugging (Ctrl+Shift+D)" @onclick="() => DebugAsync(doc)"><Icon Name="bug" /></button>
             }
-            @if (doc.IsCode)
+            @if (doc.IsCode || doc.IsSql)
             {
             <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, DocumentMenu(doc))"><Icon Name="more" /></button>

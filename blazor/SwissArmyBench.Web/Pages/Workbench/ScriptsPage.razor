@@ -1,8 +1,8 @@
-@* The Scripts page (/scripts, the classic window sab-scripts: the Python IDE): ?path= opens a script, ?new=1 starts
-   one. *@
+@* The Scripts page (/scripts, the classic window sab-scripts: the Python IDE): ?path= opens a script or a SQL file,
+   ?new=1 starts a script, ?new=sql a SQL file (the Tables page's "+"). *@
 @page "/scripts"
 
-<WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" Blade="@BladeParameter" Line="@LineParameter" Cell="@CellParameter" CodeFile="@CodeFileParameter" />
+<WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" NewKind="@NewParameter" Blade="@BladeParameter" Line="@LineParameter" Cell="@CellParameter" CodeFile="@CodeFileParameter" />
 
 @code {
     [SupplyParameterFromQuery(Name = "path")]

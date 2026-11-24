@@ -72,6 +72,9 @@ public sealed class WorkbenchClient
     public Task<SavedDocument> SaveScriptAsync(string path, string text, double? modified, bool force = false) =>
         _api.PostAsync<SavedDocument>("/workbench/save", new { path, text, modified, force });
 
+    /// <summary>A notebook, a SQL file or a loose script renamed in its folder (a tab's Rename…): its new path.</summary>
+    public Task<RenamedDocument> RenameAsync(string path, string to) => _api.PostAsync<RenamedDocument>("/workbench/rename", new { path, to });
+
     /// <summary>The kernel a document runs in: the open project's one Python session for its documents, else one of
     /// its own (in the folder the document is in).</summary>
     public Task<StartedKernel> StartAsync(string? path, string? python = null) =>

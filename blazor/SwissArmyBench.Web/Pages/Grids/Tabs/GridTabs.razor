@@ -1,5 +1,5 @@
 @* The grid page's tab row (the classic panes.ts): a tab per open grid in the order dragged into, grouped under its
-   connection once any connection's table is open (a group's head folds it), "+" the New query page. A tab: a click
+   connection once any connection's table is open (a group's head folds it), "+" a new SQL file on the Scripts page. A tab: a click
    shows it, a double-click or F2 renames its table in place, the middle button or Delete closes it, a right-click
    its menu, the arrows, Home and End move between tabs; dragged onto another tab's left quarter it moves there,
    onto the rest of a tab (or the grid) the two go side by side. Logic in GridTabs.razor.cs. *@
@@ -35,23 +35,17 @@
             </div>
         }
     }
-    @if (Draft is { } draft)
-    {
-        <div class="grid-tab tab-item tab-draft current active" role="tab" tabindex="0" aria-selected="true" title="Not built yet" @onmouseup="e => DraftAuxAsync(e)">
-            <Icon Name="sql" /><span class="tab-label">@(draft.Length > 0 ? draft : "New query")</span>
-            <button type="button" class="btn ghost icon small tab-close" aria-label="@($"Close {(draft.Length > 0 ? draft : "the new query")}")" title="@($"Close {(draft.Length > 0 ? draft : "the new query")}")"
-                    @onclick="OnCloseDraft" @onclick:stopPropagation="true"><Icon Name="close" /></button>
-        </div>
-    }
     @Extra
-    <a role="tab" class="grid-tab new-tab @(IsNewQuery && Draft is null ? "current active" : string.Empty)" aria-selected="@(IsNewQuery && Draft is null ? "true" : "false")" href="tables?new=1" aria-label="New query" title="New query"><Icon Name="plus" /></a>
+    @* "+" is a new SQL file on the Scripts page (the owner, 2026-11-24: "clicking the + in grids menu jumps to the
+       scripts page with an open script"): SQL is written only there; its run lands back here as a tab. *@
+    <a class="grid-tab new-tab" href="@SwissArmyBench.Web.Pages.Grids.Query.TablesEmpty.NewQueryAddress" aria-label="New query" title="New query: a SQL file on the Scripts page (Ctrl+T)"><Icon Name="plus" /></a>
     <div class="tab-end" @ondragover:preventDefault="true" @ondrop="DropAtEndAsync"></div>
 </div>
 
 @code {
     private RenderFragment TabFor(GridListItem tab) => __builder =>
     {
-        var selected = tab.Grid == Active && !IsNewQuery;
+        var selected = tab.Grid == Active;
         var inSplit = Split?.Contains(tab.Grid) ?? false;
         var label = Designations.TryGetValue(tab.Dataset, out var designation) ? designation : TabOrder.Label(tab, Tabs, Order);
         <div class="grid-tab tab-item @(selected ? "current active" : string.Empty) @(inSplit ? "in-split" : string.Empty) @(_dropSplit == tab.Grid ? "drop-split" : string.Empty)"

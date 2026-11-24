@@ -71,17 +71,21 @@ EVERYWHERE: tuple[str, ...] = (
     "connection:<name>",
     "add_connection",
     "add_api",
+    # A new SQL file on the Scripts page (the owner, 2026-11-24: "clicking the + in grids menu jumps to the
+    # scripts page with an open script"; SQL is written only there): new_sql:<connection> its header set.
+    "new_sql",
 )
-# Each window's own views. `grid:<id>` (a table's tab) and `blade:<name>` name one. The home page's New query
-# page (the "+", the Tables page with none open: the owner, 2026-11-20) is new_query; query is its draft,
-# query:<connection> the draft with Query from set to that connection (a click on the page).
+# Each window's own views. `grid:<id>` (a table's tab) and `blade:<name>` name one. The New query page and its
+# draft went 2026-11-24 (SQL is written only on the Scripts page): their words, new_query, query and
+# query:<connection>, are read as new_sql (OLD_QUERY_WORDS).
 OWN: dict[str, tuple[str, ...]] = {
-    "home": ("new_query", "query", "query:<connection>", "grid:<id>"),
+    "home": ("grid:<id>",),
     "workbench": (),
     "notebooks": (),
     "scripts": ("blade:<name>", "new_blade"),  # a blade's tab on the Scripts page, New blade
 }
 NAMED: tuple[str, ...] = ("grid", "blade", "connection")
+OLD_QUERY_WORDS: tuple[str, ...] = ("new_query", "query")
 MAX_NAME: int = 512
 
 
@@ -105,6 +109,8 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
         raise NavigationError(f"to is where to go: {', '.join(places(window))}.")
     to = SAME.get(to.strip(), to.strip())
     kind, _, name = to.partition(":")
+    if kind in OLD_QUERY_WORDS:  # the New query page's words (2026-11-24): a new SQL file instead
+        to, kind = (f"new_sql:{name}" if name else "new_sql"), "new_sql"
     wanted = kind if name or kind in NAMED else to
     allowed = {p.partition(":")[0] for p in places(window)}
     if wanted not in allowed or (kind in ("grid", "blade", "connection") and not name):
@@ -123,7 +129,7 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
         notice["new_window"] = True
     if kind == "grid":
         notice["grid"] = name
-    elif kind in ("blade", "connection") or (kind == "query" and name):
+    elif kind in ("blade", "connection") or (kind == "new_sql" and name):
         notice["name"] = name
     return notice
 

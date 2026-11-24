@@ -1,0 +1,60 @@
+@* A SQL file's controls in its group's bar (the owner, 2026-11-24: "select a connection in a drop down beside the run
+   file button"): Query from (Open tables (DuckDB) first, then each connection that runs SQL, its colour on the box),
+   kept in the file as its `-- connection:` line so it reopens the same; Run file (F5) and Run selection (Ctrl+Enter). *@
+@inject SwissArmyBench.Web.State.ConnectionColours Colours
+
+<select class="wb-sql-from" aria-label="Query from" title="@FromTitle" style="@FromStyle" @onchange="PickAsync">
+    <option value="" selected="@(Connection is null)">Open tables (DuckDB)</option>
+    @if (Connections.Count > 0)
+    {
+        <optgroup label="Connections">
+            @foreach (var c in Connections)
+            {
+                <option value="@c" selected="@(string.Equals(Connection, c, StringComparison.OrdinalIgnoreCase))">@c</option>
+            }
+        </optgroup>
+    }
+    @if (Connection is { } named && !Connections.Contains(named, StringComparer.OrdinalIgnoreCase))
+    {
+        <option value="@named" selected="true">@named (not here)</option>
+    }
+</select>
+<button type="button" class="btn small primary wb-run-file" title="Run file (F5)" disabled="@Running" @onclick="OnRunFile"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
+<button type="button" class="btn small ghost wb-run-selection" title="Run selection (Ctrl+Enter)" disabled="@Running" @onclick="OnRunSelection"><Icon Name="play" /> <span class="btn-label">Selection</span></button>
+
+@code {
+    /// <summary>The file's text: its header names where it runs.</summary>
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>The connections that run SQL, by name.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Connections { get; set; } = [];
+
+    [Parameter]
+    public bool Running { get; set; }
+
+    /// <summary>The text with its header naming the choice (none: the open tables).</summary>
+    [Parameter]
+    public EventCallback<string> OnText { get; set; }
+
+    [Parameter]
+    public EventCallback OnRunFile { get; set; }
+
+    [Parameter]
+    public EventCallback OnRunSelection { get; set; }
+
+    private string? Connection => SqlHeader.Of(Text);
+
+    private string FromTitle => Connection is { } on
+        ? $"Runs on {on}, in its own SQL"
+        : "Runs in DuckDB over the open tables ([Connection].table reads a connection's)";
+
+    private string? FromStyle => Colours.Of(Connection) is { } colour ? $"border-left: 4px solid {colour}" : null;
+
+    private Task PickAsync(ChangeEventArgs e)
+    {
+        var picked = e.Value?.ToString() ?? string.Empty;
+        return OnText.InvokeAsync(SqlHeader.With(Text, picked.Length > 0 ? picked : null));
+    }
+}

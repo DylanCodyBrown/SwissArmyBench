@@ -56,11 +56,11 @@ public partial class WorkbenchPage
     /// <summary>In this project…: the documents of the page's kind opened lately, each opened on its click.</summary>
     private async Task InThisProjectAsync(MouseEventArgs at)
     {
-        var extension = IsNotebooks ? ".ipynb" : ".py";
+        string[] extensions = IsNotebooks ? [".ipynb"] : [".py", ".sql"];
         _recent = await RecentAsync();
         List<MenuEntry> entries = _recent
-            .Where(r => r.Exists && r.Path.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-            .Select(r => new MenuEntry(FilePaths.Name(r.Path), IsNotebooks ? "notebook" : "code", async () =>
+            .Where(r => r.Exists && extensions.Any(e => r.Path.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+            .Select(r => new MenuEntry(FilePaths.Name(r.Path), IsNotebooks ? "notebook" : r.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) ? "sql" : "code", async () =>
             {
                 await OpenPathAsync(r.Path);
                 await FollowAddressAsync();
@@ -73,6 +73,7 @@ public partial class WorkbenchPage
     private List<MenuEntry> NewEntries() =>
     [
         new($"New {KindWord}", IsNotebooks ? "notebook" : "code", NewAsync),
+        .. SqlEntries(),
         .. CanvasEntries(),
         .. LanguageEntries(),
         MenuEntry.Separator,
@@ -85,19 +86,16 @@ public partial class WorkbenchPage
 
     private (string, IReadOnlyList<MenuEntry>) NewTabMenu() => ("New tab", NewEntries());
 
+    /// <summary>New SQL file (the Scripts page only: SQL is written here, the owner 2026-11-24).</summary>
+    private IEnumerable<MenuEntry> SqlEntries() => IsNotebooks ? [] : [new("New SQL file", "sql", NewSqlAsync)];
+
     private (string, IReadOnlyList<MenuEntry>) ProjectMenu() => ("Project", ProjectEntries());
 
     /// <summary>A tab's right click: its moves, and Close.</summary>
     private (string, IReadOnlyList<MenuEntry>) TabMenu(int key)
     {
         var doc = _byKey[key];
-        return ("Tab menu",
-        [
-            SplitEntry(doc, SplitSide.Right),
-            SplitEntry(doc, SplitSide.Down),
-            MenuEntry.Separator,
-            new("Close", "close", () => CloseAsync(key)),
-        ]);
+        return ("Tab menu", TabMenus.Entries(doc, SplitEntry(doc, SplitSide.Right), SplitEntry(doc, SplitSide.Down), () => RenameTabAsync(key), () => CloseAsync(key)));
     }
 
     /// <summary>The project's entries: New project…, Open project…, Export data.py, and with one open, Copy project
@@ -155,7 +153,9 @@ public partial class WorkbenchPage
     {
         List<MenuEntry> entries = doc.IsNotebook
             ? [new("Clear every output", "clean", () => Toggle(() => doc.NotebookView?.ClearAll()))]
-            : [new("Run statement", "play", () => doc.ScriptView?.RunSelectionAsync() ?? Task.CompletedTask, Keys: "Ctrl+Enter")];
+            : doc.IsSql
+                ? [new("Run selection", "play", () => doc.SqlView?.RunSelectionAsync() ?? Task.CompletedTask, Keys: "Ctrl+Enter")]
+                : [new("Run statement", "play", () => doc.ScriptView?.RunSelectionAsync() ?? Task.CompletedTask, Keys: "Ctrl+Enter")];
         entries.AddRange(
         [
             MenuEntry.Separator,
@@ -164,10 +164,10 @@ public partial class WorkbenchPage
             new("Import…", "import", () => Toggle(() => _importKind = "documents"), Project.Current is null ? NoProject : null),
             new("Save", "save", () => SaveAsync(doc), Keys: "Ctrl+S"),
             new("Save as…", "save", () => SaveAsAsync(doc), Keys: "Ctrl+Shift+S"),
-            new("Export as one Python script…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "script"))),
-            new("Export as one notebook…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "notebook"))),
+            new("Rename…", "edit", () => RenameTabAsync(doc.Key), Keys: "F2"),
+            .. ExportEntries(doc),
             MenuEntry.Separator,
-            .. SessionEntries(),
+            .. doc.IsSql ? [] : SessionEntries(),
             MenuEntry.Separator,
             SplitEntry(doc, SplitSide.Right, "Ctrl+\\"),
             SplitEntry(doc, SplitSide.Down),
@@ -177,6 +177,13 @@ public partial class WorkbenchPage
         ]);
         return ("Document menu", entries);
     }
+
+    /// <summary>A notebook's or a script's exports (a SQL file has none: its run is its table).</summary>
+    private List<MenuEntry> ExportEntries(OpenDocument doc) => doc.IsSql ? [] :
+    [
+        new("Export as one Python script…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "script"))),
+        new("Export as one notebook…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "notebook"))),
+    ];
 
     /// <summary>The session's entries: for a project's document they say whose they are, with its Libraries….</summary>
     private List<MenuEntry> SessionEntries() => Session.Shared is null

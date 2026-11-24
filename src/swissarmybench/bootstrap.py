@@ -190,6 +190,7 @@ from swissarmybench.services.shared_catalog import Here, SharedCatalog, connecti
 from swissarmybench.services.sharing import Sharing
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
+from swissarmybench.services.sql_files import SqlFiles
 from swissarmybench.services.structures import Structures
 from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.team import Team
@@ -222,6 +223,7 @@ class Services:
     regression: Regression
     timeseries: TimeSeries
     sql: SqlBox
+    sql_files: SqlFiles
     exports: Exports
     codes: CodeService
     cards: Cards
@@ -294,8 +296,7 @@ class Services:
     context_md: ContextMd
     live: LiveUpdates
     workers: PriorityWorkers
-    # The project modes (the open project's type to its working set) and the extensions that are on
-    # (swissarmybench/extensions.py): each one's routes are mounted beside the base's (server/app.py).
+    # The project modes and the extensions that are on (extensions.py): their routes beside the base's.
     modes: Modes
     switched_on: list[Any]  # the extensions' own modules, each one switched on here
     # What an extension builds its own services from (services/hooks.py: what it hands back), beside the
@@ -633,8 +634,7 @@ class Built:
     token: str
     settings: Settings
     on_shutdown: Callable[[], None] | None
-    # Whether this server writes its state files at all (create_app's audit_log=False: the tests' servers
-    # write none): read through state_file() and library_files(), never as a flag of its own.
+    # Does this server write state files (the tests' do not)? Read through state_file() and library_files().
     persist: bool
     state_dir: Path
     export_dir: Path
@@ -743,6 +743,7 @@ class Built:
     regression: Regression
     timeseries: TimeSeries
     sql: SqlBox
+    sql_files: SqlFiles
     exports: Exports
     codes: CodeService
     inbox: Inbox
@@ -932,8 +933,7 @@ def _workspace_and_beta(b: Built) -> None:
         return datetime.now(UTC).isoformat(timespec="seconds")
 
     b.call_stats = CallStats(StatsFiles(), project, stamp)
-    # The change log (Plans/changes.plan.md): each change a service raises on its audit entry, heard with
-    # the Session page's and written as it happens to the open project's .sab/changes.jsonl.
+    # The change log (Plans/changes.plan.md): each change raised on an audit entry, to .sab/changes.jsonl.
     b.changes = ChangeLog(ChangeFiles(), project, stamp)
     b.ws = _workspace(
         b.settings, b.port, b.token, b.store, b.connection, b.live, b.workers, b.session_log, b.state_file,
@@ -949,8 +949,7 @@ def _data(b: Built) -> None:
     ws, settings, state_dir, blade_store = b.ws, b.settings, b.state_dir, b.blade_store
     b.processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
     b.tickets = ExportTickets()  # the agent exports the user approved, not yet written
-    # The questions for the user that the agent's requests wait on (the page's approval prompt): one
-    # for every use case that writes the user's rows to disk for the agent.
+    # The user's Allow the agent's requests wait on (the page's approval prompt), for every use case.
     b.approvals = Approvals(b.live)
     adapter.observe(b.call_stats.adapter)
     api_adapter.observe(b.call_stats.api_observed)
@@ -1003,8 +1002,7 @@ def _data(b: Built) -> None:
 def _models_and_cells(b: Built) -> None:
     """Relationships, a script's run settings, every table's read-only cell, what extensions hand back."""
     ws, state_dir, library_folder, blade_store = b.ws, b.state_dir, b.library_folder, b.blade_store
-    # Relationship sets come from the person's own folder and the shared folders, which are the blade
-    # folders: one team folder carries blades and sets alike.
+    # Relationship sets come from the blade folders (one team folder carries blades and sets alike).
     b.compares = Compares(ws)
     b.models = Models(
         ws,
@@ -1097,8 +1095,7 @@ def _workbench_part(b: Built) -> None:
 
 def _connections(b: Built) -> None:
     ws, blades, library_folder, state_dir = b.ws, b.blades, b.library_folder, b.state_dir
-    # Each connection's colour: the library's colours.toml, the same in every project; never one of the
-    # rail's (the kind colours, the accent).
+    # Each connection's colour: the library's colours.toml, in every project; never one of the rail's.
     b.connection_colours = ConnectionColours(
         ws,
         blades,
@@ -1919,6 +1916,9 @@ def _doors(b: Built) -> None:
     b.regression = Regression(ws)
     b.timeseries = TimeSeries(ws)
     b.sql = SqlBox(ws, b.datasets, table_reader)
+    b.sql_files = SqlFiles(
+        ws, b.datasets, b.connection_swap.new_query, b.documents, b.sab_projects, b.code_files.touched
+    )
     b.exports = Exports(ws, export_writer, b.tickets, now=lambda: datetime.now(UTC))
     b.codes = CodeService(ws, b.verifier)
     b.inbox = Inbox(ws)

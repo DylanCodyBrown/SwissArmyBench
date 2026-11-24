@@ -90,6 +90,12 @@ public partial class WorkbenchPage
     [Parameter]
     public bool New { get; set; }
 
+    /// <summary>What ?new= asks for: "sql" a new SQL file (the Scripts page), else the page's kind.</summary>
+    [Parameter]
+    public string? NewKind { get; set; }
+
+    private bool NewIsSql => !IsNotebooks && NewKind == "sql";
+
     /// <summary>The script's line to reveal (its cursor there), or the notebook's cell to select (the classic file.openCell).</summary>
     [Parameter]
     public int? Line { get; set; }
@@ -120,7 +126,7 @@ public partial class WorkbenchPage
         Live.NoticeArrived += OnInlineNotice;
         Live.NoticeArrived += OnFileNotice;
         Live.NoticeArrived += OnPythonNotice;
-        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync(), LoadVaultsAsync());
+        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadSqlConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync(), LoadVaultsAsync());
     }
 
     private async Task LoadBetaAsync()
@@ -148,12 +154,12 @@ public partial class WorkbenchPage
     }
 
     /// <summary>What an address asks for, as one key: the one the page last acted on is not acted on again.</summary>
-    private static string AddressKey(string? path, bool fresh, string? blade, int? line, int? cell, string? codeFile) =>
+    private static string AddressKey(string? path, string fresh, string? blade, int? line, int? cell, string? codeFile) =>
         $"{path}|{fresh}|{blade}|{line}|{cell}|{codeFile}";
 
     protected override async Task OnParametersSetAsync()
     {
-        var wanted = AddressKey(Path, New, Blade, Line, Cell, CodeFile);
+        var wanted = AddressKey(Path, New ? NewKind ?? "1" : string.Empty, Blade, Line, Cell, CodeFile);
         if (wanted == _shownFor)
         {
             return;
@@ -175,7 +181,7 @@ public partial class WorkbenchPage
         }
         else if (New)
         {
-            AddDocument(new OpenDocument(++_nextKey, IsNotebooks) { Untitled = NextUntitled() });
+            AddDocument(NewIsSql ? NewSqlDocument() : new OpenDocument(++_nextKey, IsNotebooks) { Untitled = NextUntitled() });
         }
         else
         {

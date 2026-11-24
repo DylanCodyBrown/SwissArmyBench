@@ -165,8 +165,8 @@ terminal (it starts the app when it is not running).
   project**.
 - **New project** asks its name and type and makes its folder in the projects folder (**Choose another
   folder…** for elsewhere): data.ipynb (with the tables open now), data.py, a canvas for a Streamlit app,
-  a `.gitignore` and a README. It opens at once, on the **New query** page: your connections,
-  one click each to start a query on it (no connection yet: **Add connection**).
+  a `.gitignore` and a README. It opens at once, on the Tables page (**Open a file…** or **New query**: a
+  new SQL file on the Scripts page).
 - **Open project…** picks a folder. A folder that is not a project yet asks **Make this folder a
   project?**: yes adds data.ipynb and the app's .sab folder around what is there, never writing over a
   file.
@@ -303,13 +303,14 @@ A SQL step is still one step among the others: in Edit steps, **Add a SQL step**
 
 ### A new table from a query
 
-The + after the last tab opens a new tab with a query tray over a blank table. Use it to build a table of your own from the tables you have open, such as a join of two of them.
+SQL is written in one place: the Scripts page. The + after the last tab (Ctrl+T, Ctrl+N) opens a new SQL file there. Use it to build a table of your own from the tables you have open, such as a join of two of them, or from a connection in its own SQL.
 
-1. Click + after the last tab. The new tab is named query_1, or the next free number. Type another name in the tray if you want one.
-2. Write one SELECT. A table name reads that table as its tab shows it, after its steps, so a filter you added there applies here too. If a table is open in two tabs, its name reads the first one.
-3. Press the green Run button, or Ctrl+Enter. The result becomes the table in this tab, with the ribbon, the steps strip and everything else a pushed table has.
+1. Click + after the last tab. A new SQL file opens on the Scripts page. Right-click its tab and choose **Rename…** to name it: the table it makes takes the file's name (orders_by_month.sql makes orders_by_month).
+2. Choose where it runs in the box beside **Run file**: **Open tables (DuckDB)**, or one of your connections. The choice is kept in the file as its first line, `-- connection: <name>`.
+3. Write one SELECT. Over the open tables, a table name reads that table as its tab shows it, after its steps; `[Connection].table` reads a connection's table.
+4. Press **Run file** (F5). The result becomes the open table, and the Tables page comes forward on its tab. **Selection** (Ctrl+Enter) runs the selected text, or the statement under the cursor. A failure stays on the Scripts page with its line marked.
 
-The tray stays at the top of the tab. Change the query and press Run again to rebuild the table in place; the steps you added to it then apply to the new rows. The arrow at the left of the tray folds it down to one row. The table doesn't update by itself when the tables it reads change: press Run again for that.
+Run it again to rebuild the table in place; the steps you added to it then apply to the new rows. A table a query made shows its query read-only at the top of its tab, with **Edit in Scripts**: its .sql file (made from the query the first time) opens on the Scripts page.
 
 ### Profiles
 

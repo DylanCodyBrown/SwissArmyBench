@@ -1,7 +1,9 @@
 # The Workbench
 
-Notebooks (`.ipynb`) and scripts (`.py`) on IPython kernels on this computer, in a browser window of
-their own (the rail's Notebooks and Scripts open it; code never opens in the Tables page).
+Notebooks (`.ipynb`), scripts (`.py`) and SQL files (`.sql`, the Scripts page's: DuckDB SQL over the open
+tables, or a connection's own SQL by its `-- connection: <name>` line) on IPython kernels on this computer,
+in a browser window of their own (the rail's Notebooks and Scripts open it; code never opens in the Tables
+page, and SQL is written only on the Scripts page).
 
 ## Files and kernels (no window needed)
 - `workbench_home` (default folder, recent files), `workbench_open`, `workbench_save` (refused if the
@@ -29,7 +31,8 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the Tab
   `workbench_environment_choose` (the Python a document runs in).
 
 ## The window (it must be open; the "front document" is the one in front)
-- New ("file.newNotebook", "file.newScript"; "file.newApp" opens the Canvas page) and Open… ("file.open").
+- New ("file.newNotebook", "file.newScript", "file.newSql" on Scripts; "file.newApp" opens the Canvas page), Open…
+  ("file.open") and Rename… ("file.rename", a tab's F2).
   Every notebook is a notebook (the owner, 2026-11-22: "we just have notebooks"): one tab kind `notebook`, one
   Notebooks list (data.ipynb first: the notebook data.py is made from), no `role`. App notebooks, live Streamlit cells and the old `.stapp.json` canvases went (2026-11-21): an app
   is widgets on the Canvas (the streamlit guide); a cell that calls Streamlit runs in the kernel like any
@@ -130,7 +133,10 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the Tab
   `workbench_references`, `workbench_rename` (a
   plan; `apply` writes it, never a made file), `workbench_search` (with `to`: replace), `workbench_format`,
   `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (move: rename a module or
-  package, its imports in the project following, a plan until `apply`; package: a new one; duplicate). Delete
+  package, its imports in the project following, a plan until `apply`; package: a new one; duplicate; rename:
+  a notebook, a .sql file or a loose script renamed in its folder, a tab's Rename…). `workbench_sql`: run a .sql
+  file (path, or text; line: the statement there, Run selection) as the open table named after the file, a
+  failure naming its line; for_table: a query's table as its .sql file (Edit in Scripts). Delete
   (to the trash) is the user's own. `workbench_debug(action, document)`: the script in its running kernel
   under the debugger: start (code, breakpoints [{line, condition?, log?}]), state (paused line, frames,
   output), breakpoints, over, into, out, continue, variables, evaluate (expression in the frame), stop. The window's `view.fullScreen`,

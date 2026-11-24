@@ -31,7 +31,13 @@ APP_FOLDER: str = ".sab"
 BLADES: str = f"{APP_FOLDER}/blades"
 DASHBOARDS: str = f"{APP_FOLDER}/visualizations"  # the saved dashboards (.sab/dashboards before 2026-11-17)
 OLD_DASHBOARDS: str = f"{APP_FOLDER}/dashboards"
-KINDS: tuple[str, ...] = ("notebook", "script", "app", "structure")  # a structure: structures/<name>.json
+KINDS: tuple[str, ...] = (
+    "notebook",
+    "script",
+    "sql",
+    "app",
+    "structure",
+)  # a structure: structures/<name>.json
 MAX_IMPORT: int = 200  # documents, connections or blades in one import
 # The project's own files the app writes from others: shown, marked, never imported on their own
 # (data.py and an older app's pages; the scaffold's core files and the sandbox mirror, domain/scaffold.py
@@ -84,7 +90,7 @@ def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) 
     """The project's notebooks, scripts and apps from its files (path inside it, size, last change), by
     kind then name; `made`: an export the app writes (data.py, pages/*.py)."""
     if kind is not None and kind not in KINDS:
-        raise ScopeError("kind is notebook, script, app or structure.")
+        raise ScopeError("kind is notebook, script, sql, app or structure.")
     found = []
     for relative, size, modified in files:
         if relative.startswith(APP_FOLDER + "/"):

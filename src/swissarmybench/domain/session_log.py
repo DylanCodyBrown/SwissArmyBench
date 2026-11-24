@@ -186,6 +186,8 @@ _WINDOW_WORDS: dict[str, str] = {
     "html.resize": "Sized an HTML cell of {t}",
     "file.newNotebook": "Made a new notebook",
     "file.newScript": "Made a new script",
+    "file.newSql": "Made a new SQL file",
+    "file.rename": "Renamed {t}",
     "file.newApp": "Opened the Canvas",
     "file.save": "Saved {t}",
     "file.saveAs": "Saved a copy of {t}",
@@ -429,6 +431,18 @@ RULES: dict[str, Rule] = {
     # The Workbench: documents and their cells.
     "workbench_window": _window,
     "save_document": lambda d, x: (f"Saved {_file(d)}", _area_of_document(d), _document(d)),
+    "rename_document": lambda d, x: (
+        f"Renamed {_file(d)} to {_file(x.get('to'))}",
+        _area_of_document(d),
+        _document(x.get("to")),
+    ),
+    # A .sql file (2026-11-24): its run built the open table named after it; Edit in Scripts made it.
+    "sql_file_run": lambda d, x: (f"Ran {_file(d)} into {_name(x.get('table'))}", "scripts", _document(d)),
+    "sql_file_made": lambda d, x: (
+        f"Made {_file(d)} from {_name(x.get('table'))}'s query",
+        "scripts",
+        _document(d),
+    ),
     "export_notebook": lambda d, x: (f"Exported {_file(d)}", "notebooks", _document(d)),
     "export_script": lambda d, x: (f"Exported {_file(d)}", "scripts", _document(d)),
     # Streamlit apps: the canvas's pages and blocks.

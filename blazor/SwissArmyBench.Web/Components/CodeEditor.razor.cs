@@ -25,6 +25,9 @@ public partial class CodeEditor
     // A line to show asked for before Monaco was made (a file just opened at a definition): shown once it is.
     private int? _revealWhenMade;
 
+    // A run's failure marked before Monaco was made: marked once it is.
+    private (int? Line, string? Message)? _markWhenMade;
+
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
@@ -116,6 +119,10 @@ public partial class CodeEditor
             {
                 await _editor.InvokeVoidAsync("revealLine", line);
             }
+            if (_markWhenMade is { } mark)
+            {
+                await _editor.InvokeVoidAsync("markError", mark.Line, mark.Message);
+            }
             return;
         }
         if (_editor is null)
@@ -141,6 +148,29 @@ public partial class CodeEditor
 
     /// <summary>The selected text, else the cursor's line (a script's Run selection).</summary>
     public async Task<string> SelectionAsync() => _editor is null ? string.Empty : await _editor.InvokeAsync<string>("selection");
+
+    /// <summary>The selected text and the line it starts on; empty text when nothing is selected (the cursor's line
+    /// then): a SQL file's Run selection runs the statement there.</summary>
+    public async Task<(string Text, int Line)> SelectedAsync()
+    {
+        if (_editor is null)
+        {
+            return (string.Empty, 1);
+        }
+        var picked = await _editor.InvokeAsync<EditorSelection>("selected");
+        return (picked.Text, picked.Line);
+    }
+
+    /// <summary>The run's failure marked at its line (a SQL file's), or the mark cleared (null).</summary>
+    public async Task MarkErrorAsync(int? line, string? message)
+    {
+        if (_editor is null)
+        {
+            _markWhenMade = (line, message); // marked once Monaco is made (a run on a page just opened)
+            return;
+        }
+        await _editor.InvokeVoidAsync("markError", line, message);
+    }
 
     /// <summary>The text as it is now in the editor (typing not yet told).</summary>
     public async Task<string> TextAsync() => _editor is null ? Value : await _editor.InvokeAsync<string>("getValue");

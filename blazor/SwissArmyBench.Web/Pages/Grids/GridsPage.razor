@@ -1,5 +1,5 @@
 @* The Tables page (the classic home page's grids, panes.ts): the tab row (a tab per open grid, grouped by connection,
-   "+" the New query page), the ribbon above the grid (Table, Transformations: the steps strip, Column, and Compare
+   "+" a new SQL file on the Scripts page: SQL is written only there, the owner 2026-11-24), the ribbon above the grid (Table, Transformations: the steps strip, Column, and Compare
    while two grids are side by side), the grid itself (AG Grid, rows paged from the server, selected like Excel) or
    two side by side (a tab dragged onto another, or Compare with…), lined up row for row once a compare has keys.
    ?grid= names the grid in front, &split=left,right the two side by side. The tools are in GridsPage.Tools.cs, the
@@ -8,8 +8,7 @@
 @page "/grids"
 
 <section class="area-page grids-page" @onkeydown="PageKeyAsync">
-    <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split" IsNewQuery="IsNewQuery"
-              Draft="@(IsNewQuery && FromParameter is not null ? DraftName : null)" OnCloseDraft="CloseDraft"
+    <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split"
               OnActivate="ActivateAsync" OnClose="CloseGridAsync" OnMenu="TabMenu" OnSplit="SplitWithAsync" OnOrder="SetOrderAsync"
               OnDragging="d => _dragging = d" OnRename="RenameAsync">
         <Extra>
@@ -19,14 +18,9 @@
     </GridTabs>
     <ProjectGroup @ref="_projectGroup" />
     <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
-    @if (IsNewQuery && FromParameter is { } from)
+    @if (_tabs.Count == 0 && _loaded)
     {
-        <QueryTray @key="@($"draft:{from}:{_drafts}")" Draft="true" Name="@DraftName" From="@from" OpenTables="OpenTableNames" OnBuilt="DraftBuiltAsync" />
-        <div class="query-blank" aria-label="No rows yet"><span>No rows</span></div>
-    }
-    else if (IsNewQuery || (_tabs.Count == 0 && _loaded))
-    {
-        <NewQueryLanding GridsOpen="_tabs.Count > 0" OnChoose="OpenDraft" />
+        <TablesEmpty OnOpenFile="OpenFileAsync" />
     }
     else if (_info is { } info)
     {
@@ -57,7 +51,7 @@
                     <Banner>
                         @if (shown.Query is { } query)
                         {
-                            <QueryTray @key="@($"built:{shown.Grid}")" Sql="@query" Name="@shown.Dataset" FixedConnection="@shown.QueryConnection" OpenTables="OpenTableNames" OnBuilt="RebuiltAsync" />
+                            <QueryShown @key="@($"built:{shown.Grid}")" Sql="@query" Table="@shown.Dataset" Connection="@shown.QueryConnection" />
                         }
                         @if (_changedOnDisk.Contains(shown.Dataset))
                         {
