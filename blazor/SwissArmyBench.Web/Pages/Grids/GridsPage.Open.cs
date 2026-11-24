@@ -48,7 +48,7 @@ public partial class GridsPage
         asked?.Answer.TrySetResult(chosen);
     }
 
-    /// <summary>Open file…: the chooser, then the file (each chosen sheet of a workbook) as a grid.</summary>
+    /// <summary>Open file…: the chooser, then the file (each chosen sheet of a workbook) as a table.</summary>
     private async Task OpenFileAsync()
     {
         try

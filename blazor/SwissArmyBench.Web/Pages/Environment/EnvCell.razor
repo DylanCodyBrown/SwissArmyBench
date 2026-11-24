@@ -1,5 +1,5 @@
 @* One cell of an Environment row, by its column's heading (the classic environmentPage.ts COLUMNS): a table's rows by
-   columns, columns, grids, used in, from; a variable's type, value; a structure's format, size, paths, file; a
+   columns, columns, tabs, used in, from; a variable's type, value; a structure's format, size, paths, file; a
    setting's kind, value (shown on the user's click), where it comes from; a library's Pinned, version (→ newer), what
    it is for, where it is imported. *@
 
@@ -8,15 +8,15 @@
     case "Rows by columns" or "Size":
         <span class="env-size">@Item.Size</span>
         break;
-    case "Grids":
+    case "Tabs":
         <span class="env-from">
             @if (Item.Grids is { Count: > 0 } grids)
             {
-                <span class="env-tag env-tag-grid" title="A grid is a view of this table, never a copy">In @Plural(grids.Count, "grid")</span>
+                <span class="env-tag env-tag-grid" title="A tab on the Tables page is a view of this table, never a copy">In @Plural(grids.Count, "tab")</span>
             }
             else
             {
-                <span class="env-none">no grid</span>
+                <span class="env-none">no tab</span>
             }
         </span>
         break;

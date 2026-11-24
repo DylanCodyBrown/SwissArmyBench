@@ -1,5 +1,5 @@
 @* A connection's detail (the classic connectionsWindow.ts showDetail): the way back and the crumbs; its tools (its
-   colour, Open as grid, Edit, Test, Import relationships, the Dataverse switch, Update to the new driver, Refresh
+   colour, Open as table, Edit, Test, Import relationships, the Dataverse switch, Update to the new driver, Refresh
    catalog, Copy for Python, Remove); what only works here; a Test's rows; its tables (ConnectionTables) above where
    it is used; its configuration (never a password's value), Access, Queries and its calls this session. *@
 
@@ -21,7 +21,7 @@
                 }
                 @if (_listed is { Connection: "file" } file && file.Template != "folder")
                 {
-                    <button type="button" class="btn primary" @onclick="OpenFileAsync"><Icon Name="rows" /> Open as grid</button>
+                    <button type="button" class="btn primary" @onclick="OpenFileAsync"><Icon Name="rows" /> Open as table</button>
                 }
                 @if (!ReadOnly)
                 {

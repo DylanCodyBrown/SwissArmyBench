@@ -1,5 +1,5 @@
 @* Copy as code (the classic stepsPanel.ts code view): the grid's steps as one DuckDB query and as Python, checked
-   against the grid by the server before it is offered (Verified, else the difference said), Copy as SQL and Copy
+   against the table by the server before it is offered (Verified, else the difference said), Copy as SQL and Copy
    as Python. *@
 
 <AppDialog Title="@($"Copy as code: {Dataset}")" OnClose="OnClose">
@@ -13,7 +13,7 @@
         {
             @if (found.Verified)
             {
-                <p class="status-ok" role="status"><Icon Name="check" /> Verified: it gives the grid's rows (@(found.RowsChecked?.ToString("N0") ?? "all") checked).</p>
+                <p class="status-ok" role="status"><Icon Name="check" /> Verified: it gives the table's rows (@(found.RowsChecked?.ToString("N0") ?? "all") checked).</p>
             }
             else
             {

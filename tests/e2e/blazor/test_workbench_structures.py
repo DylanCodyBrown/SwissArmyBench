@@ -102,11 +102,11 @@ def test_the_tables_group_and_the_data_explorer(browser: Browser, server: dict[s
     expect(heading).to_contain_text("Tables")
     table_line = page.locator(".wb-table-line.role-table").first
     expect(table_line.locator(".wb-run-table")).to_be_visible()
-    before = page.locator(".wb-tcell", has_text="follows the grid").count()
+    before = page.locator(".wb-tcell", has_text="follows the Tables page").count()
     heading.locator(".wb-fold").click()
-    expect(page.locator(".wb-tcell", has_text="follows the grid")).to_have_count(0)
+    expect(page.locator(".wb-tcell", has_text="follows the Tables page")).to_have_count(0)
     heading.locator(".wb-fold").click()
-    expect(page.locator(".wb-tcell", has_text="follows the grid")).to_have_count(before)
+    expect(page.locator(".wb-tcell", has_text="follows the Tables page")).to_have_count(before)
 
     page.click(".wb-status button:has-text('Data Explorer')")
     explorer = page.locator(".wb-explorer")

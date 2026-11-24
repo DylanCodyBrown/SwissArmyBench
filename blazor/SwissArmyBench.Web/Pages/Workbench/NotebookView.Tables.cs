@@ -86,7 +86,7 @@ public partial class NotebookView
         Grouped = arranged.Grouped,
     };
 
-    /// <summary>A table open in Grids added to this document: its read-only cell (false: no such table is open).</summary>
+    /// <summary>A table open in Tables added to this document: its read-only cell (false: no such table is open).</summary>
     public async Task<bool> AddTableAsync(string table)
     {
         if ((await Workbench.TablesAsync()).Tables.All(t => t.Name != table))

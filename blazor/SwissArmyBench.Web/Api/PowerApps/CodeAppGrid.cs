@@ -1,6 +1,6 @@
 namespace SwissArmyBench.Web.Api.PowerApps;
 
-/// <summary>A Dataverse source opened as a grid: opened, its dataset, or why not.</summary>
+/// <summary>A Dataverse source opened on the Tables page: opened, its dataset, or why not.</summary>
 public sealed record CodeAppGrid
 {
     public bool Opened { get; init; }

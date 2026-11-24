@@ -1,6 +1,6 @@
 @* The Code App's Project tab (the classic codeAppPage.ts drawProject): no code app open, Open <the last one> again;
    open, its facts (name, folder, pushed or not), Data sources (Add a Dataverse table, Add a connector; each source's
-   Open as grid and Remove), the Data notebook (Open data notebook, Use in app and what went into data.ts), and its
+   Open as table and Remove), the Data notebook (Open data notebook, Use in app and what went into data.ts), and its
    Files (New page, Show all files; each opens in the Workbench). Logic in CodeAppProjectTab.razor.cs. *@
 @using SwissArmyBench.Web.Api.PowerApps
 
@@ -47,7 +47,7 @@ else if (Project.App is { } app)
                             <td class="ca-row-actions">
                                 @if (source.Kind == "dataverse")
                                 {
-                                    <button type="button" class="btn ghost ca-open-grid" title="@($"{source.Name} as a grid, through the library's Dataverse connection")" disabled="@(_opening == source.Name)" @onclick="() => GridAsync(source)"><Icon Name="table" /><span class="btn-label">@(_opening == source.Name ? "Opening…" : "Open as grid")</span></button>
+                                    <button type="button" class="btn ghost ca-open-grid" title="@($"{source.Name} as a table, through the library's Dataverse connection")" disabled="@(_opening == source.Name)" @onclick="() => GridAsync(source)"><Icon Name="table" /><span class="btn-label">@(_opening == source.Name ? "Opening…" : "Open as table")</span></button>
                                 }
                                 <button type="button" class="btn ghost ca-remove" title="@($"Remove {source.Name}")" @onclick="() => RemoveAsync(source)"><Icon Name="trash" /><span class="btn-label">Remove</span></button>
                             </td>

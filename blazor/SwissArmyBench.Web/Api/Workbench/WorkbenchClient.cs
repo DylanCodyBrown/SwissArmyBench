@@ -22,7 +22,7 @@ public sealed class WorkbenchClient
     /// <summary>Open a file as a table (its name from the file's).</summary>
     public Task LoadFileAsync(string name, string path) => _api.PostAsync($"/datasets/{ApiClient.Part(name)}/load", new { path });
 
-    /// <summary>A cell's table result (the kernel's Out[n]) or a variable by its name opened as a grid.</summary>
+    /// <summary>A cell's table result (the kernel's Out[n]) or a variable by its name opened on the Tables page.</summary>
     public Task<MadeGrid> OpenGridAsync(string kernel, int? output, string? name) => output is { } count
         ? _api.PostAsync<MadeGrid>($"/workbench/kernels/{ApiClient.Part(kernel)}/grid", new { output = count })
         : _api.PostAsync<MadeGrid>($"/workbench/kernels/{ApiClient.Part(kernel)}/grid", new { name });

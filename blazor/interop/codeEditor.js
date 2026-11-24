@@ -354,7 +354,7 @@ export function create(host, dotnet, options) {
     quickSuggestions: { other: true, comments: false, strings: true },
     fixedOverflowWidgets: true,
     readOnly: !!options.readOnly,
-    readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the grid: change the table's steps there." },
+    readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the Tables page: change the table's steps there." },
     placeholder: options.placeholder,
     glyphMargin: !!options.breakpoints,
   });

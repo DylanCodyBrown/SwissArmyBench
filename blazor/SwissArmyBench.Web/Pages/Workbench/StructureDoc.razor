@@ -4,7 +4,7 @@
    editable at all times (the server's parse its realtime linter), the tree in its place or beside it kept in step
    (a node's right click: Copy path, Copy as code, Add key…, Duplicate, Move up and down, Delete), the search with
    Previous and Next (Enter, Shift+Enter; Escape clears), the selected node's path with its actions, Transform
-   (Pick, Filter…, Sort…, Flatten, Open as grid) making a view of it through steps (each step's ×), and its file
+   (Pick, Filter…, Sort…, Flatten, Open as table) making a view of it through steps (each step's ×), and its file
    changed on disk (Reload, Keep mine; a gone file: Save as…, Close). Logic in StructureDoc.razor.cs,
    StructureDoc.Edits.cs (the tree's edits and the steps) and StructureDoc.Disk.cs (saving and the disk). *@
 
@@ -95,7 +95,7 @@
                         }
                         @if (SelectedValue is not null)
                         {
-                            <button type="button" class="btn small ghost sd-transform" aria-haspopup="menu" title="Make a view of it through steps, or a grid (the file stays as it is)" @onclick="ShowTransform"><Icon Name="steps" /> Transform</button>
+                            <button type="button" class="btn small ghost sd-transform" aria-haspopup="menu" title="Make a view of it through steps, or a table (the file stays as it is)" @onclick="ShowTransform"><Icon Name="steps" /> Transform</button>
                         }
                     </div>
                     @if ((shown.Steps ?? []).Count > 0)

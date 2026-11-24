@@ -1,6 +1,6 @@
 """The Blazor APIs and Structures pages on made-up data: a made-up orders service's API
 (tests/api_standins.py) as a card, its operations explored, Try it (the answer opened as a structure
-right there: its tree, a node's path, Open as grid); a structure made from pasted text, its tree and
+right there: its tree, a node's path, Open as table); a structure made from pasted text, its tree and
 text views, an edit applied, Close."""
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def test_an_api_explored_and_tried(browser: Browser, server: dict[str, Any], ord
     expect(page.locator(".note-corner")).to_contain_text("The query is made again from the settings.")
     tree.locator(".tree-row", has_text="items").first.click()
     expect(page.locator(".structure-path code")).to_have_text("$.items")
-    page.click(".structure-path button:has-text('Open as grid')")
+    page.click(".structure-path button:has-text('Open as table')")
     expect(page.locator(".grid-title")).to_contain_text("items")
     page.close()
 

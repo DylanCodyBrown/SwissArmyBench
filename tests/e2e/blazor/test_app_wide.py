@@ -173,6 +173,8 @@ def test_the_desktop_apps_keys(browser: Browser, server: dict[str, Any]) -> None
     page.set_default_timeout(15_000)
     page.goto(f"http://127.0.0.1:{server['port']}/blazor/grids?grid={grid}#token={server['token']}")
     page.wait_for_selector(".nav-rail", timeout=60_000)
+    # /blazor/grids is the Tables page's old address (renamed 2026-11-23) still lands there, marked Tables.
+    expect(page.locator(".nav-rail-item[data-area=grids]")).to_have_attribute("aria-current", "page")
     current = page.locator(".grid-tab.tab-item.current")
     expect(current).to_have_attribute("data-grid", grid)
     # The browser keeps Ctrl+Tab and Ctrl+W for itself under a test's driver: the page hears them as the

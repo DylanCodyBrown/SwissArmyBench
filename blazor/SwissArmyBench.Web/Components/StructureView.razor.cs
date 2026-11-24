@@ -43,7 +43,7 @@ public partial class StructureView
     private Task GridAsync() => DoAsync(async () =>
     {
         var made = await Structures.GridAsync(Document.Id, _selected ?? StructurePath.Root);
-        Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(made.Grid ?? string.Empty)}");
+        Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(made.Grid ?? string.Empty)}");
     });
 
     private Task ApplyAsync() => DoAsync(async () =>

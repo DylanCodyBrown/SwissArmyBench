@@ -73,7 +73,7 @@ public partial class WorkbenchPage
         await GuardAsync(async () =>
         {
             await Workbench.LoadFileAsync(name, path);
-            await Notes.SayAsync($"{name} is open as a grid.");
+            await Notes.SayAsync($"{name} is open on the Tables page.");
         });
     }
 
@@ -89,7 +89,7 @@ public partial class WorkbenchPage
     {
         if (result.Grid is { } grid)
         {
-            Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
+            Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(grid)}");
             return;
         }
         if (result.Connection is { } connection && result.Place is { } place)
@@ -97,7 +97,7 @@ public partial class WorkbenchPage
             await GuardAsync(async () =>
             {
                 await ConnectionsApi.OpenAsync(connection, new TreeTable(place.Table, place.Database, place.Schema));
-                await Notes.SayAsync($"{place.Table} is open as a grid.");
+                await Notes.SayAsync($"{place.Table} is open on the Tables page.");
             });
         }
     }

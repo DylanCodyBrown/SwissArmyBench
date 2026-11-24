@@ -2,7 +2,7 @@ namespace SwissArmyBench.Web.Api.Workbench;
 
 /// <summary>A structure's tab beside the code (the classic structureDoc.ts's routes): open its file, the text kept as
 /// typed (its parse the realtime linter), the tree's edits on the file, Format, the steps that make a view of it,
-/// Open as grid, Save and Save as, and its file changed on disk (Reload, Keep mine).</summary>
+/// Open as table, Save and Save as, and its file changed on disk (Reload, Keep mine).</summary>
 public sealed class StructureTabClient
 {
     private readonly ApiClient _api;

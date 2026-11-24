@@ -1,5 +1,5 @@
 @* One card of the board (the classic aiPanel.ts): its title and table, its content by its kind (a note as Markdown, a
-   Plotly figure, a picture, a Mermaid diagram), and an analysis's actions under it: Show the math, Open as grid,
+   Plotly figure, a picture, a Mermaid diagram), and an analysis's actions under it: Show the math, Open as table,
    Copy code, Run again, and the result's hand-offs (Show these rows...); Pin, More card actions (Edit note, Move
    earlier or later, Start a new page here), Remove; its corner grip (drag or the arrow keys) and its head dragged to
    another place. Logic in BoardCardView.razor.cs and BoardCardView.Moves.cs. *@
@@ -53,7 +53,7 @@
     {
         <footer class="board-card-actions">
             <button type="button" class="btn small ghost" @onclick="() => MathAsync(run)">Show the math</button>
-            <button type="button" class="btn small ghost" @onclick="() => GridAsync(run)">Open as grid</button>
+            <button type="button" class="btn small ghost" @onclick="() => GridAsync(run)">Open as table</button>
             <button type="button" class="btn small ghost" @onclick="() => CodeAsync(run)">Copy code</button>
             <button type="button" class="btn small ghost" @onclick="() => OnAgain.InvokeAsync(run)">Run again…</button>
             @foreach (var (label, step) in HandOffs)

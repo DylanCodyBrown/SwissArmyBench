@@ -55,8 +55,8 @@ def test_a_sql_cell_and_the_tables_group(browser: Browser, server: dict[str, Any
     call(server, "POST", "/samples/store", {})
     path = made_up_notebook(server, "data.ipynb")  # a data.ipynb holds the tables no document made
     page = open_page(browser, server, f"notebooks?path={path}")
-    expect(page.locator(".wb-tcell", has_text="follows the grid").first).to_be_visible()
-    table_cell = page.locator(".wb-tcell", has_text="follows the grid").first
+    expect(page.locator(".wb-tcell", has_text="follows the Tables page").first).to_be_visible()
+    table_cell = page.locator(".wb-tcell", has_text="follows the Tables page").first
     expect(table_cell.locator(".wb-cell-kind")).to_have_count(0)  # the app's cell: no kind to change
 
     type_in_new_cell(page, "SQL", "select count(*) as order_count from orders")

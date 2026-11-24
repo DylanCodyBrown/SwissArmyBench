@@ -14,6 +14,9 @@ public static class Areas
     public const string Session = "session";
     public const string Extensions = "extensions";
 
+    /// <summary>The Tables page's old address (Grids, renamed 2026-11-23): it still lands there, marked as Tables.</summary>
+    public const string OldTablesRoute = "grids";
+
     public static readonly IReadOnlyList<RailArea> All =
     [
         new("projects", "Home", "home", "", Keys: "Alt+Home"),
@@ -21,7 +24,7 @@ public static class Areas
         new("apis", "APIs", "apis", "apis"),
         new("environment", "Environment", "environment", "environment"),
         new("data", "Catalog", "data", "catalog"),
-        new("grids", "Grids", "grids", "grids"),
+        new("grids", "Tables", "grids", "tables"),
         new("erd", "ERD", "diagram", "erd"),
         new("scripts", "Scripts", "code", "scripts", Kind: "script"),
         new("notebooks", "Notebooks", "notebook", "notebooks", Kind: "notebook"),
@@ -42,6 +45,10 @@ public static class Areas
     public static string? AreaOfPath(string relativePath)
     {
         var first = relativePath.Split('?', '#')[0].Split('/')[0];
+        if (first == OldTablesRoute)
+        {
+            return "grids";
+        }
         if (first == Structures.Route)
         {
             return "environment";

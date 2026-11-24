@@ -1,6 +1,6 @@
 @* One notebook cell (the classic workbenchNotebook.ts): its number, its kind (Python, SQL with its connection,
    Markdown, DAX), Run, Move, Delete, its editor (Monaco), and its outputs. A Markdown cell shows its text drawn
-   until it is edited. A cell of the Tables group is the app's: read-only, it follows the grid. Logic in
+   until it is edited. A cell of the Tables group is the app's: read-only, it follows the Tables page. Logic in
    NotebookCellView.razor.cs. *@
 
 <section class="@(Cell.IsAppCell ? "wb-tcell" : "wb-cell") kind-@Cell.Kind @(Selected ? "selected" : string.Empty) @(Cell.Running ? "running" : string.Empty)"

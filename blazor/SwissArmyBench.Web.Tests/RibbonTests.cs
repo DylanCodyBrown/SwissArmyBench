@@ -7,7 +7,7 @@ using Xunit;
 
 namespace SwissArmyBench.Web.Tests;
 
-/// <summary>The Grids page's logic: which Column tools apply to the selected columns, and why not.</summary>
+/// <summary>The Tables page's logic: which Column tools apply to the selected columns, and why not.</summary>
 public sealed class RibbonTests : AppTestContext
 {
     private static readonly GridInfo _orders = new()

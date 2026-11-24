@@ -13,7 +13,7 @@ public sealed class ComparesClient
 
     public async Task<IReadOnlyList<GridCompare>> RunningAsync() => (await _api.GetAsync<ComparesAnswer>("/compares")).Compares;
 
-    /// <summary>A compare started; `show` puts the two grids side by side wherever the Grids page is (the Key
+    /// <summary>A compare started; `show` puts the two grids side by side wherever the Tables page is (the Key
     /// Finder's Compare on these).</summary>
     public Task<GridCompare> StartAsync(string left, string right, IEnumerable<IReadOnlyList<string>> keys, string mode = "outer", bool show = false) =>
         _api.PostAsync<GridCompare>("/compares", new { left, right, keys, mode, show });

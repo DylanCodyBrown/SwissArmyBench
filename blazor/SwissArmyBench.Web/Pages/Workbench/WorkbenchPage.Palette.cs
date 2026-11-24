@@ -38,7 +38,7 @@ public partial class WorkbenchPage
             new("html.run", "HTML", "Run an HTML cell (or a Markdown cell with names): fill its names", () => notebook!.RunHtmlCellsAsync(), WhyNot: noNotebook),
             new("html.resize", "HTML", "Size an HTML cell's pane", ResizeHtmlAsync, WhyNot: noNotebook),
             new("html.edit", "HTML", "Open an HTML cell's HTML", () => notebook!.EditSelectedAsync(), WhyNot: noNotebook),
-            new("tables.add", "Tables", "Add a table open in Grids to the document in front (its read-only cell)", () => AskTableAsync("Add a table", AddTableAsync), WhyNot: noNotebook),
+            new("tables.add", "Tables", "Add a table open in Tables to the document in front (its read-only cell)", () => AskTableAsync("Add a table", AddTableAsync), WhyNot: noNotebook),
             new("doc.repoint", "Documents", "Point an open document's cells at another connection (unsaved until Save)", RepointAsync, WhyNot: noNotebook),
             new("explorer.insert", "Data", "Insert a Data Explorer result's code into the focused document", InsertFoundAsync, WhyNot: code),
             new("tabs.reopen", "Tabs", "Reopen the last closed table (in the home window)", ReopenTableAsync),
@@ -80,7 +80,7 @@ public partial class WorkbenchPage
     {
         if (Front?.NotebookView is { } notebook && !await notebook.AddTableAsync(table))
         {
-            await Notes.SayAsync($"{table} is not open in Grids.");
+            await Notes.SayAsync($"{table} is not open in Tables.");
         }
     }
 
@@ -141,7 +141,7 @@ public partial class WorkbenchPage
         try
         {
             await Workbench.ReopenTableAsync();
-            Nav.NavigateTo("grids");
+            Nav.NavigateTo("tables");
         }
         catch (ApiException error) when (error.Status == 404)
         {

@@ -132,7 +132,7 @@ def test_a_connections_detail(browser: Browser, server: dict[str, Any]) -> None:
     expect(orders).to_contain_text("main.orders: the first")
     tree.locator(".conn-tree-search").fill("")
     tree.locator("button:has-text('Open all')").click()
-    expect(page.locator(".dialog")).to_contain_text("Open all 2 tables of main? Each opens as its own grid.")
+    expect(page.locator(".dialog")).to_contain_text("Open all 2 tables of main? Each opens as its own tab.")
     page.locator(".dialog button[aria-label=Close]").click()
     # Queries: the limits saved.
     page.fill("input[aria-label='Queries at once']", "6")

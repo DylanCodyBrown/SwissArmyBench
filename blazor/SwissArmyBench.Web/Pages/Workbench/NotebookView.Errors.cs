@@ -36,7 +36,7 @@ public partial class NotebookView
                 await RunMakerAsync(running, name);
                 return;
             case "table" when fix.Name is { } table:
-                // A table open in Grids that the code names: its read-only cell added to this document.
+                // A table open in Tables that the code names: its read-only cell added to this document.
                 if (await AddTableAsync(table))
                 {
                     await Notes.SayAsync($"Added {table}'s table cell: run the cell again");

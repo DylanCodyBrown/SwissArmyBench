@@ -205,8 +205,8 @@ public partial class TourHost : IAsyncDisposable
             _sorted ??= SortAsync(staged.Orders.Grid);
             await _sorted;
             Nav.NavigateTo(grid == "pair"
-                ? $"grids?grid={ApiClient.Part(staged.Orders.Grid)}&split={ApiClient.Part($"{staged.Orders.Grid},{staged.Customers.Grid}")}"
-                : $"grids?grid={ApiClient.Part(staged.Orders.Grid)}");
+                ? $"tables?grid={ApiClient.Part(staged.Orders.Grid)}&split={ApiClient.Part($"{staged.Orders.Grid},{staged.Customers.Grid}")}"
+                : $"tables?grid={ApiClient.Part(staged.Orders.Grid)}");
         }
     }
 

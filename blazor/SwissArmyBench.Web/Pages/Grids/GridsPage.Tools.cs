@@ -11,7 +11,7 @@ using SwissArmyBench.Web.Components;
 namespace SwissArmyBench.Web.Pages.Grids;
 
 /// <summary>
-/// The Grids page's tools (the classic ribbon.ts, cellMenu.ts and stepForms.ts's editStep): what each ribbon button
+/// The Tables page's tools (the classic ribbon.ts, cellMenu.ts and stepForms.ts's editStep): what each ribbon button
 /// and menu line does. Every change lands as a step (filter, sort, columns...), so it can be turned off, edited and
 /// exported like any other.
 /// </summary>

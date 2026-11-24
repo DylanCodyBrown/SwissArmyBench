@@ -2,7 +2,7 @@
    (the active pane outlined); cross compare's banner when this side is filtered to a picked key; the grid itself
    and, on the active pane, a column's card beside it. A pointer down anywhere in it makes it the active pane. *@
 
-<section class="pane @(Active ? "active" : string.Empty)" data-grid="@Info.Grid" aria-label="@($"Data grid: {Info.Dataset}")" @onpointerdown="Activate">
+<section class="pane @(Active ? "active" : string.Empty)" data-grid="@Info.Grid" aria-label="@($"Table: {Info.Dataset}")" @onpointerdown="Activate">
     @if (Split)
     {
         <header class="pane-head">

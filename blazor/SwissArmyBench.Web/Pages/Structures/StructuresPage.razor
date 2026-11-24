@@ -2,7 +2,7 @@
    classic structuresPage.ts): an open structure is a tab (×, asked when unsaved); New, Open…, Paste; with none open
    the project's structure files as cards. One structure: its Format, Tree | Both | Text, Search, Undo, Redo, Run again
    (an API's answer), Lineage, Save, Save as…; where an answer came from; the steps strip (each ×); the selected node's
-   path and its actions (Copy path, Pick, Filter…, Sort…, Flatten, Open as grid, Make a sandbox variant, Return as
+   path and its actions (Copy path, Pick, Filter…, Sort…, Flatten, Open as table, Make a sandbox variant, Return as
    table…, Add key…, Rename key…, Set value…, Remove); the tree and the text side by side. Logic in
    StructuresPage.razor.cs and StructuresPage.Steps.cs. *@
 @page "/structures"
@@ -217,7 +217,7 @@
                     }
                     @if (records || _node?.GetArrayLength() > 0)
                     {
-                        <button type="button" class="btn structures-to-grid" @onclick="() => OpenAsGridAsync(where)"><Icon Name="grids" /> Open as grid</button>
+                        <button type="button" class="btn structures-to-grid" @onclick="() => OpenAsGridAsync(where)"><Icon Name="grids" /> Open as table</button>
                         @if (records)
                         {
                             <button type="button" class="btn structures-to-sandbox" @onclick="() => _variantPath = where"><Icon Name="branch" /> Make a sandbox variant</button>

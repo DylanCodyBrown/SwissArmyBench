@@ -89,10 +89,11 @@ public partial class SessionPage : IDisposable
     /// <summary>Where an entry's link goes in this front end: its area's page, with the object named.</summary>
     private static string? LinkOf(SessionEntry entry) => entry.Area switch
     {
-        "grids" when entry.Target?.Grid is { } grid => $"grids?grid={Uri.EscapeDataString(grid)}",
-        "grids" when entry.Target?.Dataset is { } dataset => $"grids?table={Uri.EscapeDataString(dataset)}",
+        "grids" when entry.Target?.Grid is { } grid => $"tables?grid={Uri.EscapeDataString(grid)}",
+        "grids" when entry.Target?.Dataset is { } dataset => $"tables?table={Uri.EscapeDataString(dataset)}",
         "connections" when entry.Target?.Connection is { } name => $"connections?name={Uri.EscapeDataString(name)}",
-        "grids" or "connections" or "analyze" or "erd" or "environment" or "apis" or "notebooks" or "scripts" => entry.Area,
+        "grids" => "tables",
+        "connections" or "analyze" or "erd" or "environment" or "apis" or "notebooks" or "scripts" => entry.Area,
         _ => null,
     };
 

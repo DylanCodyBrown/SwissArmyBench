@@ -2,7 +2,7 @@ using Microsoft.JSInterop;
 
 namespace SwissArmyBench.Web.Pages.Grids.Open;
 
-/// <summary>What shell.js's fileDrop calls when a file is dropped on the page, or a table pasted: the Grids page opens it.</summary>
+/// <summary>What shell.js's fileDrop calls when a file is dropped on the page, or a table pasted: the Tables page opens it.</summary>
 public sealed class DropTarget
 {
     private readonly GridsPage _page;

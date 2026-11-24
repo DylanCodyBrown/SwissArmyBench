@@ -6,7 +6,7 @@ namespace SwissArmyBench.Web.Api.Workbench;
 
 /// <summary>
 /// A cell another kernel runs, by the routes the open project's mode declared (the classic routedCells.ts): its run
-/// streamed one output record a line then {done}; a TSX cell's page; a table result opened as a grid by its id; the
+/// streamed one output record a line then {done}; a TSX cell's page; a table result opened on the Tables page by its id; the
 /// declarations for the editor's TypeScript service, asked once a route. Nothing here names a mode or an extension.
 /// </summary>
 public sealed class RoutedCellsClient
@@ -34,7 +34,7 @@ public sealed class RoutedCellsClient
         return drawn.TryGetProperty("html", out var html) ? html.GetString() ?? string.Empty : string.Empty;
     }
 
-    /// <summary>A table result opened as a grid by its id: the grid's dataset name.</summary>
+    /// <summary>A table result opened on the Tables page by its id: the grid's dataset name.</summary>
     public async Task<string?> OpenTableAsync(CellRoute route, string? path, string id, string? name)
     {
         if (route.Grid is not { Length: > 0 } grid)

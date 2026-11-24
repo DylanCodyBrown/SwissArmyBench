@@ -78,8 +78,8 @@ public partial class ConnectionTables
     private async Task OpenAsync(TreeTable table) => await GuardAsync("Opening…", async () =>
     {
         var got = await Connections.OpenAsync(Name, table);
-        _ = Notes.SayAsync($"{got.Dataset ?? table.Table} is open as a grid.");
-        Nav.NavigateTo("grids");
+        _ = Notes.SayAsync($"{got.Dataset ?? table.Table} is open on the Tables page.");
+        Nav.NavigateTo("tables");
     });
 
     private async Task PreviewAsync(TreeTable table)
@@ -109,7 +109,7 @@ public partial class ConnectionTables
     private async Task OpenAllAsync(TreeGroup group)
     {
         var schema = group.Schema ?? string.Empty;
-        if (!await Dialogs.AskYesNoAsync("Open all", $"Open all {group.Count} tables of {schema}? Each opens as its own grid.", "Open all"))
+        if (!await Dialogs.AskYesNoAsync("Open all", $"Open all {group.Count} tables of {schema}? Each opens as its own tab.", "Open all"))
         {
             return;
         }

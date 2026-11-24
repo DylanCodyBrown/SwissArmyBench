@@ -1,7 +1,7 @@
 namespace SwissArmyBench.Web.State;
 
 /// <summary>The grid's selection in the status bar (Excel's Count, Sum and Average, the classic status bar's): the
-/// Grids page sets it as the selection changes and clears it when it closes.</summary>
+/// Tables page sets it as the selection changes and clears it when it closes.</summary>
 public sealed class GridStatus
 {
     public event Action? Changed;

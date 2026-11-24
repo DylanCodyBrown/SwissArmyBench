@@ -63,7 +63,7 @@ def test_check_this_table_and_a_column(browser: Browser, server: dict[str, Any])
 
 def test_the_panel_buttons(browser: Browser, server: dict[str, Any]) -> None:
     page = open_page(browser, server, "analyze")
-    page.click("button[aria-label='Dock the panel below the grid']")
+    page.click("button[aria-label='Dock the panel below the board']")
     expect(page.locator(".analyze-page.dock-bottom")).to_be_visible()
     page.click("button[aria-label='Dock the panel to the right']")
     page.click("button[aria-label='Maximize the panel']")
@@ -103,5 +103,5 @@ def test_add_chart_and_its_card(browser: Browser, server: dict[str, Any]) -> Non
     large.locator("button:has-text('Close')").last.click()
 
     card.locator(".vega-host svg path.mark-rect, .vega-host svg .mark-rect path").first.click()
-    expect(page.locator(".toast", has_text="Filtered the grid to status")).to_be_visible()
+    expect(page.locator(".toast", has_text="Filtered the table to status")).to_be_visible()
     page.close()

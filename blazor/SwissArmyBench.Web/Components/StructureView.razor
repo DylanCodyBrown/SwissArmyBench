@@ -1,4 +1,4 @@
-@* A structure (the classic structureDoc.ts): Tree | Text, the selected node's path with Copy path and Open as grid,
+@* A structure (the classic structureDoc.ts): Tree | Text, the selected node's path with Copy path and Open as table,
    the text editable in Monaco in its own format (Apply sends it; a text that does not parse is kept and its error
    said), Save to its file. Logic in StructureView.razor.cs. *@
 
@@ -23,7 +23,7 @@
     <div class="structure-path" aria-live="polite">
         <code>@(_selected ?? StructurePath.Root)</code>
         <button type="button" class="btn small ghost" @onclick="CopyPathAsync"><Icon Name="copy" /> Copy path</button>
-        <button type="button" class="btn small ghost" @onclick="GridAsync"><Icon Name="grids" /> Open as grid</button>
+        <button type="button" class="btn small ghost" @onclick="GridAsync"><Icon Name="grids" /> Open as table</button>
     </div>
     <ErrorNote Error="_error" OnClose="() => _error = null" />
     @if (Document.TextError is { } problem)

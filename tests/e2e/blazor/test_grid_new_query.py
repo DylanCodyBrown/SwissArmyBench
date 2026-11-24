@@ -13,7 +13,7 @@ from tests.e2e.blazor.conftest import call, open_page
 
 def test_a_new_query_builds_a_table_and_runs_again(browser: Browser, server: dict[str, Any]) -> None:
     call(server, "POST", "/samples/store", {})
-    page = open_page(browser, server, "grids?new=1")
+    page = open_page(browser, server, "tables?new=1")
     expect(page.locator(".new-query-title")).to_have_text("New query")
     page.locator(".new-query-choice", has_text="Open tables (DuckDB)").click()
     expect(page.locator(".tab-draft")).to_contain_text("query")

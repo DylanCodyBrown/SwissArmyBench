@@ -1,7 +1,7 @@
 @* Statements and invoices (the classic excelTemplates.ts openStatements): a template, the groups' table and the lines'
    table (open tables), grouped by columns, named from them, numbered, dated, one workbook each or one of sheets.
    Dry run first (the files, their rows and totals: nothing written); Build only for the request the dry run was for;
-   then the register as a grid. Logic in StatementsDialog.razor.cs. *@
+   then the register as a table. Logic in StatementsDialog.razor.cs. *@
 @using SwissArmyBench.Web.Api.Accounting
 
 <AppDialog Title="Statements and invoices" OnClose="OnClose">
@@ -95,7 +95,7 @@
         </div>
     </ChildContent>
     <Foot>
-        <button type="button" class="btn ghost xc-register" title="What was built, as a grid" @onclick="RegisterAsync"><Icon Name="rows" /><span class="btn-label">Register</span></button>
+        <button type="button" class="btn ghost xc-register" title="What was built, as a table" @onclick="RegisterAsync"><Icon Name="rows" /><span class="btn-label">Register</span></button>
         <button type="button" class="btn xc-dry-run" @onclick="() => BuildAsync(true)"><Icon Name="eye" /><span class="btn-label">Dry run</span></button>
         <button type="button" class="btn primary xc-build" aria-label="@BuildWord" disabled="@(!CanBuild)" @onclick="() => BuildAsync(false)"><Icon Name="check" /><span class="btn-label">@BuildWord</span></button>
         <button type="button" class="btn ghost" @onclick="OnClose">Close</button>

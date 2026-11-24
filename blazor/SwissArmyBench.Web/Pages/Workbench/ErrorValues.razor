@@ -1,5 +1,5 @@
 @* The values of an error's moment (the classic workbenchErrors.ts valuesTable): each name, what it held and its
-   type; a table among them opens as a grid. *@
+   type; a table among them opens on the Tables page. *@
 
 <table class="wb-err-values">
     <tbody>
@@ -11,7 +11,7 @@
                     @row.Repr
                     @if (row.Table && OnOpenGrid.HasDelegate)
                     {
-                        <button type="button" class="btn small ghost icon" aria-label="@($"Open {row.Name} as a grid")" title="@($"Open {row.Name} as a grid")" @onclick="() => OnOpenGrid.InvokeAsync(row.Name)"><Icon Name="export" /></button>
+                        <button type="button" class="btn small ghost icon" aria-label="@($"Open {row.Name} as a table")" title="@($"Open {row.Name} as a table")" @onclick="() => OnOpenGrid.InvokeAsync(row.Name)"><Icon Name="export" /></button>
                     }
                 </td>
                 <td class="hint">@row.Type</td>

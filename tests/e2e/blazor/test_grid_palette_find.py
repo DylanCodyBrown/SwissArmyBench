@@ -13,7 +13,7 @@ from tests.e2e.blazor.conftest import call, open_page
 def test_the_palette_shortcuts_and_find_data(browser: Browser, server: dict[str, Any]) -> None:
     made = call(server, "POST", "/samples/store", {})
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".ag-row").first).to_be_visible()
     page.locator(".ag-root").first.click()
     page.keyboard.press("Control+Shift+P")
@@ -53,6 +53,6 @@ def test_the_palette_shortcuts_and_find_data(browser: Browser, server: dict[str,
     page.get_by_label("Find data: tables, columns, connections").fill("cust")
     result = find.locator(".ex-result", has_text="customers").first
     expect(result).to_be_visible()
-    result.get_by_role("button", name="Open as grid").click()
+    result.get_by_role("button", name="Open as table").click()
     expect(page.locator(".grid-tab.tab-item.current")).to_contain_text("customers")
     page.close()

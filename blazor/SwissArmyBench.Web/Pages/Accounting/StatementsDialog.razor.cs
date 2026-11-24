@@ -139,7 +139,7 @@ public partial class StatementsDialog
         try
         {
             await Accounting.RegisterAsync();
-            _ = Notes.SayAsync("The register is open as a grid");
+            _ = Notes.SayAsync("The register is open on the Tables page");
         }
         catch (ApiException error)
         {

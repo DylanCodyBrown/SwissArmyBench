@@ -14,7 +14,7 @@ from tests.e2e.blazor.conftest import call, open_page
 def test_the_relationships_window_finds_manages_and_saves(browser: Browser, server: dict[str, Any]) -> None:
     made = call(server, "POST", "/samples/store", {})
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.click("[data-tool=relationships]")
     window = page.locator(".dialog")
     expect(window).to_contain_text("Saved sets")

@@ -14,7 +14,7 @@ public partial class AnalyzePage
     private string _dock = "right";
     private string _panel = "open";
 
-    private string DockWords => _dock == "bottom" ? "Dock the panel to the right" : "Dock the panel below the grid";
+    private string DockWords => _dock == "bottom" ? "Dock the panel to the right" : "Dock the panel below the board";
 
     private string MaxWords => _panel == "max" ? "Restore the panel" : "Maximize the panel";
 

@@ -46,7 +46,7 @@
     [Inject]
     private SwissArmyBench.Web.State.Notes Notes { get; set; } = default!;
 
-    /// <summary>A value of the error's (a table) opened as a grid: the page's own way, else by its name in the kernel.</summary>
+    /// <summary>A value of the error's (a table) opened on the Tables page: the page's own way, else by its name in the kernel.</summary>
     private async Task OpenGridAsync(string name)
     {
         if (OnOpenGrid.HasDelegate)
@@ -61,7 +61,7 @@
         try
         {
             await Workbench.OpenGridAsync(kernel, null, name);
-            await Notes.SayAsync($"{name} is open as a grid.");
+            await Notes.SayAsync($"{name} is open on the Tables page.");
         }
         catch (ApiException error)
         {
@@ -89,7 +89,7 @@
     [Parameter]
     public EventCallback<string> OnOpenGrid { get; set; }
 
-    /// <summary>A routed kernel's table result opened as a grid by its id.</summary>
+    /// <summary>A routed kernel's table result opened on the Tables page by its id.</summary>
     [Parameter]
     public EventCallback<string> OnOpenTable { get; set; }
 

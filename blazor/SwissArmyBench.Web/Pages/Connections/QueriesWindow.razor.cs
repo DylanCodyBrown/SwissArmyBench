@@ -252,7 +252,7 @@ public sealed partial class QueriesWindow : IDisposable
         }
         try
         {
-            await Queries.NavigateAsync("grids"); // the page that asked: the home window
+            await Queries.NavigateAsync("tables"); // the page that asked: the home window
         }
         catch (ApiException)
         {

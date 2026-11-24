@@ -62,7 +62,7 @@ public partial class QueryTray
 
     private QueryConnection? Picked => _connections.FirstOrDefault(c => c.Name == _from);
 
-    private string SourceTitle => Picked is { } p ? $"The query runs on {p.Name}, in its own SQL" : "The query runs in DuckDB over the open grids";
+    private string SourceTitle => Picked is { } p ? $"The query runs on {p.Name}, in its own SQL" : "The query runs in DuckDB over the open tables";
 
     protected override async Task OnInitializedAsync()
     {

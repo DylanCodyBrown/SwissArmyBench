@@ -91,7 +91,7 @@ public partial class AnalyzePage
 
     public static string Markdown(IReadOnlyList<BoardCard> cards, IReadOnlyDictionary<string, string?> pictures, DateTime when)
     {
-        string from(BoardCard c) => c.Dataset is { } d ? $"the grid `{d}`" : c.Origin.Length > 0 ? c.Origin : "Analyze";
+        string from(BoardCard c) => c.Dataset is { } d ? $"the table `{d}`" : c.Origin.Length > 0 ? c.Origin : "Analyze";
         var tables = cards.Select(c => c.Dataset ?? (c.Origin.Length > 0 ? c.Origin : "Analyze")).Distinct().Select(t => $"`{t}`");
         var text = new StringBuilder()
             .AppendLine("# Analyze").AppendLine()

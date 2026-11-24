@@ -42,7 +42,7 @@ def test_catalog_search_and_environment_open(browser: Browser, server: dict[str,
     expect(page.locator(".db-tree")).to_contain_text("customers")
     page.click(".nav-rail-item[data-area=environment]")
     row = page.locator(".env-row[data-name=orders]").first
-    expect(row).to_contain_text("In 1 grid")
+    expect(row).to_contain_text("In 1 tab")
     row.dblclick()
     expect(page.locator(".grid-title")).to_contain_text("orders")
     page.close()

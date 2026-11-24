@@ -190,7 +190,7 @@ public partial class DataExplorer : IDisposable
             case "tables":
                 var sql = r.Source == "grid" ? r.Variable ?? r.Name : r.Sql ?? r.Name;
                 var opens = r.Source == "grid" || (r.Connection is not null && r.Place is not null);
-                List<ExplorerAction> table = opens ? [new("Open as grid", "rows", () => OpenTableAsync(r)), new("Preview", "eye", () => PreviewAsync(r))] : [];
+                List<ExplorerAction> table = opens ? [new("Open as table", "rows", () => OpenTableAsync(r)), new("Preview", "eye", () => PreviewAsync(r))] : [];
                 table.Add(new(r.Source == "grid" ? "Copy name" : "Copy SQL name", "copy", () => CopyAsync(sql, sql), sql));
                 var query = r.Source == "grid" ? r.Variable ?? r.Name : r.Sql;
                 if (query is not null)
@@ -306,7 +306,7 @@ public partial class DataExplorer : IDisposable
     {
         if (r.Source == "grid" && r.Grid is { } grid)
         {
-            await GoAsync($"grids?grid={Uri.EscapeDataString(grid)}");
+            await GoAsync($"tables?grid={Uri.EscapeDataString(grid)}");
             return;
         }
         if (r.Connection is { } connection && r.Place is { } place)
@@ -314,7 +314,7 @@ public partial class DataExplorer : IDisposable
             try
             {
                 await Connections.OpenAsync(connection, new TreeTable(place.Table, place.Database, place.Schema));
-                _ = Notes.SayAsync($"{r.Name} is open as a grid.");
+                _ = Notes.SayAsync($"{r.Name} is open on the Tables page.");
                 await OnOpened.InvokeAsync();
             }
             catch (ApiException error)

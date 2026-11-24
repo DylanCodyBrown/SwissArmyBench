@@ -5,7 +5,7 @@ using SwissArmyBench.Web.Api.Grids;
 namespace SwissArmyBench.Web.Api.Structures;
 
 /// <summary>Structures (routes_structures.py): the open ones and the project's files, one structure's value and
-/// text, New, Open a file, Paste, the text changed, Save, Open as grid, Close.</summary>
+/// text, New, Open a file, Paste, the text changed, Save, Open as table, Close.</summary>
 public sealed class StructuresClient
 {
     private readonly ApiClient _api;

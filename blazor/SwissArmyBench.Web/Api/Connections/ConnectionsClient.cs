@@ -72,11 +72,11 @@ public sealed class ConnectionsClient
     /// <summary>Packages installed into the app's Python.</summary>
     public Task InstallAsync(IReadOnlyList<string> packages) => _api.PostAsync("/blades/install", new { packages });
 
-    /// <summary>A table opened as a grid (Open).</summary>
+    /// <summary>A table opened on the Tables page (Open).</summary>
     public Task<OpenAnswer> OpenAsync(string name, TreeTable table) =>
         _api.PostAsync<OpenAnswer>($"{Path(name)}/open", new { database = table.Database, schema = table.Schema, table = table.Table });
 
-    /// <summary>A file connection's file as a grid; a workbook answers its sheets first, then each opens by name.</summary>
+    /// <summary>A file connection's file as a table; a workbook answers its sheets first, then each opens by name.</summary>
     public Task<OpenAnswer> OpenFileAsync(string name, string? sheet = null) =>
         _api.PostAsync<OpenAnswer>($"{Path(name)}/open", sheet is null ? new { } : new { table = sheet });
 

@@ -187,7 +187,7 @@ public partial class Home : IDisposable
         await LoadAsync();
     }
 
-    /// <summary>Open a file as a table (CSV, Parquet, Excel, JSON): it opens on the Grids page.</summary>
+    /// <summary>Open a file as a table (CSV, Parquet, Excel, JSON): it opens on the Tables page.</summary>
     private async Task OpenFileAsync()
     {
         var path = await Files.ChooseAsync("file", "Open a file", null, "table");
@@ -199,7 +199,7 @@ public partial class Home : IDisposable
         await GuardAsync(() => Api.PostAsync<System.Text.Json.JsonElement>($"/datasets/{ApiClient.Part(name)}/load", new { path }));
         if (_error is null)
         {
-            Nav.NavigateTo("grids");
+            Nav.NavigateTo("tables");
         }
     }
 

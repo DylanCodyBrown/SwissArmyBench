@@ -58,11 +58,11 @@ public partial class KeyFinderDialog
 
     private object Options => new { trim = _trim, ignore_case = _ignoreCase, max_length = Math.Max(1, _maxLength) };
 
-    private string Against => _target == "*" ? "every other open grid" : _targets.FirstOrDefault(t => t.Grid == _target)?.Label ?? "the other grid";
+    private string Against => _target == "*" ? "every other open table" : _targets.FirstOrDefault(t => t.Grid == _target)?.Label ?? "the other table";
 
     private IReadOnlyList<KeyTarget> Targets => _result?.Targets.Select(t => t.Deserialize<KeyTarget>(ApiClient.Json)!).ToList() ?? [];
 
-    private string TargetsWords => Targets.Count > 0 ? string.Join(", ", Targets.Select(t => t.Label)) : "no other grid";
+    private string TargetsWords => Targets.Count > 0 ? string.Join(", ", Targets.Select(t => t.Label)) : "no other table";
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,7 +134,7 @@ public partial class KeyFinderDialog
         {
             await Compares.StartAsync(Grid, pair.TargetGrid, [[pair.SourceColumn, pair.TargetColumn]], "outer", show: true);
             var on = pair.SourceColumn == pair.TargetColumn ? pair.SourceColumn : $"{pair.SourceColumn} = {pair.TargetColumn}";
-            _ = Notes.SayAsync($"{_result?.Source} and {pair.TargetDataset} are side by side in the grid window, lined up on {on}.");
+            _ = Notes.SayAsync($"{_result?.Source} and {pair.TargetDataset} are side by side on the Tables page, lined up on {on}.");
             await OnClose.InvokeAsync();
         }
         catch (ApiException error)

@@ -13,7 +13,7 @@ using Xunit;
 
 namespace SwissArmyBench.Web.Tests;
 
-/// <summary>The Grids page's pure rules: the tab row's order and groups, the known joins a compare starts from, the
+/// <summary>The Tables page's pure rules: the tab row's order and groups, the known joins a compare starts from, the
 /// value viewer's reading of a value, the Analyze cards, and the Compare row's tools.</summary>
 public sealed class GridRulesTests : AppTestContext
 {

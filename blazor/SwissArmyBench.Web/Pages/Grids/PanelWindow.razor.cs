@@ -76,7 +76,7 @@ public partial class PanelWindow
         }
         if (Grid is not { Length: > 0 } grid)
         {
-            _error = new InvalidOperationException("This window names no grid.");
+            _error = new InvalidOperationException("This window names no table.");
             return;
         }
         try

@@ -97,7 +97,7 @@ public partial class StructuresPage
         try
         {
             await ActAsync("/grid", new { path = where });
-            _ = Notes.SayAsync("Opened as a grid");
+            _ = Notes.SayAsync("Opened as a table");
         }
         finally
         {

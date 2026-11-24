@@ -10,7 +10,7 @@ using SwissArmyBench.Web.State;
 namespace SwissArmyBench.Web.Pages.Workbench;
 
 // An output's actions (the classic workbenchOutputs.ts): a picture or a figure's Send to Analyze (a card of its own,
-// the note's Show going to it), a table result's Open as grid (the kernel still holds it as Out[n]), and a long
+// the note's Show going to it), a table result's Open as table (the kernel still holds it as Out[n]), and a long
 // traceback's first and last frames with the middle behind Show N more frames.
 public partial class OutputView
 {
@@ -39,7 +39,7 @@ public partial class OutputView
             ? lines.EnumerateArray().Select(l => l.GetString() ?? string.Empty).ToList()
             : [];
 
-    /// <summary>A result's number (Out[n]): a table result opens as a grid by it.</summary>
+    /// <summary>A result's number (Out[n]): a table result opens on the Tables page by it.</summary>
     private int? ResultCount =>
         OutputReader.Type(Output) == "execute_result" && Output.TryGetProperty("execution_count", out var count) && count.ValueKind == JsonValueKind.Number
             ? count.GetInt32()
@@ -73,7 +73,7 @@ public partial class OutputView
         try
         {
             var opened = await Workbench.OpenGridAsync(kernel, count, null);
-            await Notes.SayAsync($"{opened.Dataset} is open as a grid.");
+            await Notes.SayAsync($"{opened.Dataset} is open on the Tables page.");
         }
         catch (ApiException error)
         {

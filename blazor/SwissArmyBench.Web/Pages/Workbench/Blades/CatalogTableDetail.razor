@@ -1,5 +1,5 @@
 @* A catalog's table (the classic catalogRail.ts tableDetails): its name (view, its words), where it is and how many
-   columns, Open as grid, Copy the name, Copy the SELECT (or DAX), its columns, and its first rows read from its
+   columns, Open as table, Copy the name, Copy the SELECT (or DAX), its columns, and its first rows read from its
    connection. *@
 @using System.Text.Json
 @using SwissArmyBench.Web.Api.Blades
@@ -12,7 +12,7 @@
     <h2>@Table.Table@if (Table.Kind == "view") { <span class="hint">  view</span> }</h2>
     <p class="hint">@($"{Where} · {(_columns?.Columns.Count ?? Table.Columns)} column{((_columns?.Columns.Count ?? Table.Columns) == 1 ? string.Empty : "s")}")</p>
     <div class="row-actions">
-        <button type="button" class="btn small primary" @onclick="OpenAsync"><Icon Name="rows" /> Open as grid</button>
+        <button type="button" class="btn small primary" @onclick="OpenAsync"><Icon Name="rows" /> Open as table</button>
         <button type="button" class="btn small" @onclick='() => CopyAsync(Name, "the name")'><Icon Name="copy" /> Copy the name</button>
         <button type="button" class="btn small" @onclick="() => CopyAsync(_columns?.Select ?? string.Empty, First)"><Icon Name="sql" /> Copy the @First</button>
     </div>
@@ -106,8 +106,8 @@
         try
         {
             var opened = await Catalogs.OpenAsync(Catalog, Table);
-            await Notes.SayAsync($"{opened.Dataset} is open as a grid.");
-            Nav.NavigateTo("grids");
+            await Notes.SayAsync($"{opened.Dataset} is open on the Tables page.");
+            Nav.NavigateTo("tables");
         }
         catch (ApiException error)
         {

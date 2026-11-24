@@ -25,7 +25,7 @@
         }
         else if (_state is { Tables.Count: 0 })
         {
-            <p class="empty-note">No tables yet: Add table…, or Add to sandbox on a grid's Table row.</p>
+            <p class="empty-note">No tables yet: Add table…, or Add to sandbox on the Tables page's Table row.</p>
         }
         else if (_state is { } state)
         {
@@ -83,7 +83,7 @@
                             <td class="muted when">@When(t.ChangedAt)</td>
                             <td class="muted">@ChangeWords(t.Changes)</td>
                             <td class="sandbox-actions">
-                                <button type="button" class="btn" @onclick="@(() => ActAsync("Opening…", () => Sandbox.OpenAsync(t.Name), string.Empty))"><Icon Name="rows" /> Open in Grids</button>
+                                <button type="button" class="btn" @onclick="@(() => ActAsync("Opening…", () => Sandbox.OpenAsync(t.Name), string.Empty))"><Icon Name="rows" /> Open in Tables</button>
                                 <a class="btn" href="@($"apis?endpoint={Uri.EscapeDataString(t.Name)}")" title="@($"New endpoint over {t.Name}: the wizard")"><Icon Name="plus" /> New endpoint</a>
                                 <button type="button" class="btn icon" aria-label="@($"Reset {t.Name}")" title="@($"Reset {t.Name} alone")" @onclick="@(() => ActAsync("Resetting…", () => Sandbox.ResetAsync(t.Name), $"{t.Name} is back to its baseline."))"><Icon Name="reset" /></button>
                                 <button type="button" class="btn icon" aria-label="@($"Remove {t.Name}")" title="@($"Remove {t.Name}")" @onclick="@(() => ActAsync("Removing…", () => Sandbox.RemoveAsync(t.Name), $"{t.Name} is out of the sandbox."))"><Icon Name="trash" /></button>

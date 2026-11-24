@@ -1,9 +1,10 @@
-@* The Grids page (the classic home page's grids, panes.ts): the tab row (a tab per open grid, grouped by connection,
+@* The Tables page (the classic home page's grids, panes.ts): the tab row (a tab per open grid, grouped by connection,
    "+" the New query page), the ribbon above the grid (Table, Transformations: the steps strip, Column, and Compare
    while two grids are side by side), the grid itself (AG Grid, rows paged from the server, selected like Excel) or
    two side by side (a tab dragged onto another, or Compare with…), lined up row for row once a compare has keys.
    ?grid= names the grid in front, &split=left,right the two side by side. The tools are in GridsPage.Tools.cs, the
    split and the compare in GridsPage.Compare.cs. *@
+@page "/tables"
 @page "/grids"
 
 <section class="area-page grids-page" @onkeydown="PageKeyAsync">

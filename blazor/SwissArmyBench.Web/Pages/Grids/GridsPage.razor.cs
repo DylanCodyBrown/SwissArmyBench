@@ -125,7 +125,7 @@ public partial class GridsPage : IDisposable
         {
             _dialog = TablesList;
         }
-        await Js.InvokeVoidAsync("sab.setTitle", _info?.Title ?? "Grids");
+        await Js.InvokeVoidAsync("sab.setTitle", _info?.Title ?? "Tables");
     }
 
     private async Task LoadAsync()

@@ -19,7 +19,7 @@ def orders(server: dict[str, Any]) -> str:
 
 def test_a_header_rests_renames_and_the_corner_selects_all(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.set_viewport_size(WIDE)
     header = page.locator(".ag-header-cell[col-id=status] .sab-header")
     expect(header).to_be_visible()
@@ -55,7 +55,7 @@ def test_a_header_rests_renames_and_the_corner_selects_all(browser: Browser, ser
 
 def test_a_cells_value_and_the_analyze_sends(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.set_viewport_size(WIDE)
     cell = page.locator(".ag-row[row-index='0'] .ag-cell[col-id=status]")
     expect(cell).not_to_have_text("")
@@ -102,7 +102,7 @@ def test_the_steps_panel_previews_and_undo_brings_a_step_back(
         f"/grids/{grid}/step-ops",
         {"op": "add", "step": {"kind": "limit", "params": {"n": 10}}},
     )
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     strip = page.locator(".steps-strip")
     expect(strip).to_contain_text("Keep the first 10 rows")
     # View steps opens the steps in a window of their own (the classic ?panel=steps); a step's words
@@ -132,7 +132,7 @@ def test_the_steps_panel_previews_and_undo_brings_a_step_back(
 
 def test_the_key_finder_finds_as_it_opens(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     # The Key Finder opens in a window of its own (the classic ?panel=keys).
     with page.context.expect_page() as opened:
         page.click("[data-tool=keyfinder]")

@@ -5,11 +5,11 @@
     <h3 class="kf-heading">Most distinct column combination in @Source</h3>
     @if (Found.Stopped)
     {
-        <ErrorNote Words="Stopped at the time limit. Filter the grid first." Warning="true" />
+        <ErrorNote Words="Stopped at the time limit. Filter the table first." Warning="true" />
     }
     else if (Found.Steps.Count == 0)
     {
-        <p class="hint">@(Found.RowsChecked > 0 ? "No column could be checked." : "The grid has no rows.")</p>
+        <p class="hint">@(Found.RowsChecked > 0 ? "No column could be checked." : "The table has no rows.")</p>
     }
     else
     {

@@ -3,7 +3,7 @@ using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Grids;
 
-/// <summary>The live notices the Grids page follows (the classic main.ts onLiveNotice): a table opened, closed or
+/// <summary>The live notices the Tables page follows (the classic main.ts onLiveNotice): a table opened, closed or
 /// renamed elsewhere (the tabs again), a grid changed by the agent or another window (its view again, said), a
 /// compare started by the Key Finder or the agent (the two grids side by side).</summary>
 public partial class GridsPage
@@ -46,7 +46,7 @@ public partial class GridsPage
                 }
                 if (notice.Text("by") == "agent")
                 {
-                    _ = Notes.SayAsync("The agent changed this grid's view.");
+                    _ = Notes.SayAsync("The agent changed this table's view.");
                 }
                 await RecountCompareAsync();
             });

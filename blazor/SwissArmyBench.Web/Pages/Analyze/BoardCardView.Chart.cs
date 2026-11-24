@@ -57,7 +57,7 @@ public partial class BoardCardView
         var cell = Mark == "heatmap" && picked.Y is not null;
         var y = cell ? JsonDocument.Parse(picked.Y!).RootElement.Clone() : (JsonElement?)null;
         await AnalyzeApi.SelectAsync(Card.Id, value, y);
-        var words = $"Filtered the grid to {Field("x")} = {Shown(value)}{(y is { } row ? $" and {Field("y")} = {Shown(row)}" : string.Empty)}.";
+        var words = $"Filtered the table to {Field("x")} = {Shown(value)}{(y is { } row ? $" and {Field("y")} = {Shown(row)}" : string.Empty)}.";
         _ = Notes.SayAsync(words);
     });
 

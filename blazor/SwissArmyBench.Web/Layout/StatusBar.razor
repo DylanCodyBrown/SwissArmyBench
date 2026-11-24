@@ -41,7 +41,7 @@
     }
     @if (Grid.Budget is { } budget)
     {
-        <a class="meter warn" href="grids?tables=1" title="Over 80% of the data budget is in use. Open the Tables list to remove some.">
+        <a class="meter warn" href="tables?tables=1" title="Over 80% of the data budget is in use. Open the Tables list to remove some.">
             <span class="meter-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Grid.BudgetShare" aria-label="Data budget used"><span style="@($"width: {Math.Min(100, Grid.BudgetShare)}%")"></span></span>
             @budget
         </a>

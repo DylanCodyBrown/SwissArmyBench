@@ -104,11 +104,11 @@ public partial class CodeAppProjectTab
         _opening = null;
         if (got is { Opened: true })
         {
-            await Notes.SayAsync($"{got.Dataset ?? source.Name} is open as a grid.");
+            await Notes.SayAsync($"{got.Dataset ?? source.Name} is open on the Tables page.");
         }
         else if (got is not null)
         {
-            Notes.Error(new InvalidOperationException(got.Message ?? $"{source.Name} did not open as a grid."));
+            Notes.Error(new InvalidOperationException(got.Message ?? $"{source.Name} did not open."));
         }
     }
 

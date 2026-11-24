@@ -1,6 +1,6 @@
 """The Blazor Notebooks and Scripts pages' modes and moves on made-up data: a script's Run settings
 (arguments and a variable), a notebook's Present and a project's data.ipynb's Dictionary, a figure's Send
-to Analyze with the note's Show, a table result's Open as grid, Jupyter's command mode keys, a file
+to Analyze with the note's Show, a table result's Open as table, Jupyter's command mode keys, a file
 changed elsewhere compared, Import… and New environment's dialog."""
 
 from __future__ import annotations

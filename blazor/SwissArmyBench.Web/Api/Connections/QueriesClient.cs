@@ -26,6 +26,6 @@ public sealed class QueriesClient
 
     public Task ClearAsync() => _api.PostAsync("/connections/queries/clear", new { });
 
-    /// <summary>A window sent somewhere (a new query on a connection: "query:Shop"; "grids").</summary>
+    /// <summary>A window sent somewhere (a new query on a connection: "query:Shop"; "tables").</summary>
     public Task NavigateAsync(string to) => _api.PostAsync("/navigate", new { to });
 }

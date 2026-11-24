@@ -7,7 +7,7 @@ namespace SwissArmyBench.Web.Api.Analyze;
 /// <summary>
 /// The Analyze page (routes_analyze.py, routes_cards.py): the toolbar, the one form planned by the server, Make it
 /// fit's fixes, a run and its Cancel, the made-up sample, the board's cards and a result's actions (Show the math,
-/// Open as grid, Copy code, Run again).
+/// Open as table, Copy code, Run again).
 /// </summary>
 public sealed class AnalyzeClient
 {
@@ -33,7 +33,7 @@ public sealed class AnalyzeClient
     public Task<AnalyzeRun> RunAsync(string analysis, string? table, JsonElement? columns, JsonElement? options, string token, CancellationToken cancel) =>
         _api.PostAsync<AnalyzeRun>("/analyze/run", new { analysis, table, columns, options, token }, cancel);
 
-    /// <summary>Run it on the contract's made-up sample (opened as a table of its own).</summary>
+    /// <summary>Run it on the contract's made-up sample (opened on the Tables page of its own).</summary>
     public Task<AnalyzeRun> RunSampleAsync(string analysis, string token, CancellationToken cancel) =>
         _api.PostAsync<AnalyzeRun>("/analyze/run", new { analysis, sample = true, token }, cancel);
 
@@ -49,7 +49,7 @@ public sealed class AnalyzeClient
 
     public Task<RunInputs> InputsAsync(string run) => _api.GetAsync<RunInputs>($"/analyze/runs/{ApiClient.Part(run)}");
 
-    /// <summary>Open as grid: the result's rows in a table of their own.</summary>
+    /// <summary>Open as table: the result's rows in a table of their own.</summary>
     public Task<MadeTable> OpenGridAsync(string run) => _api.PostAsync<MadeTable>($"/analyze/runs/{ApiClient.Part(run)}/grid");
 
     /// <summary>Check this table: every analysis ranked on it.</summary>

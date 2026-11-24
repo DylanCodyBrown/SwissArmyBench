@@ -9,7 +9,7 @@
         <div class="kf-form form-row">
             <label class="field"><span>Compare with</span>
                 <select aria-label="Compare with" @bind="_target">
-                    <option value="*">Every other open grid</option>
+                    <option value="*">Every other open table</option>
                     @foreach (var target in _targets)
                     {
                         <option value="@target.Grid">@(target.Self ? $"{target.Label} (self-join)" : target.Label)</option>
@@ -119,7 +119,7 @@
                     <ul>
                         @foreach (var (column, here) in skipped)
                         {
-                            <li><strong>@column.Column</strong>@(here ? " (this grid)" : string.Empty): @column.Reason</li>
+                            <li><strong>@column.Column</strong>@(here ? " (this table)" : string.Empty): @column.Reason</li>
                         }
                     </ul>
                 </details>

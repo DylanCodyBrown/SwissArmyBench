@@ -8,7 +8,7 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 
 // A structure tab's edits and steps (the classic structureDoc.ts and structureDocMenus.ts): a node's right-click menu,
 // Add key…'s small form, the tree's edits on the file itself (its text written again in its format), and Transform's
-// steps (Pick, Filter…, Sort…, Flatten) that make a view of the file, each one's × taking it away; Open as grid.
+// steps (Pick, Filter…, Sort…, Flatten) that make a view of the file, each one's × taking it away; Open as table.
 public partial class StructureDoc
 {
     private static readonly string[] _filterTests = ["=", "!=", ">", ">=", "<", "<=", "contains", "starts with", "exists", "missing"];
@@ -131,7 +131,7 @@ public partial class StructureDoc
         }
         if (list && node.GetArrayLength() > 0 && (_through || (_shown?.Steps ?? []).Count == 0))
         {
-            entries.Add(new("Open as grid", "grids", () => OpenGridAsync(path)));
+            entries.Add(new("Open as table", "grids", () => OpenGridAsync(path)));
         }
         if (entries.Count == 0)
         {
@@ -175,7 +175,7 @@ public partial class StructureDoc
         if (_shown is not null)
         {
             var made = await Structures.GridAsync(_shown.Id, path);
-            _ = Notes.SayAsync($"Opened {made.Dataset} as a grid ({made.Rows} rows).");
+            _ = Notes.SayAsync($"Opened {made.Dataset} as a table ({made.Rows} rows).");
         }
     });
 }

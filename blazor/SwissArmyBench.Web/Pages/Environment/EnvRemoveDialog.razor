@@ -40,7 +40,7 @@
 
     private string Words => Item.Kind switch
     {
-        "table" when IsOpen => $"The table closes with {(Item.Grids is { Count: > 0 } grids ? $"{grids.Count} grid{(grids.Count == 1 ? string.Empty : "s")}" : "no grid")}; its source is not touched.",
+        "table" when IsOpen => $"The table closes with {(Item.Grids is { Count: > 0 } grids ? $"{grids.Count} tab{(grids.Count == 1 ? string.Empty : "s")}" : "no tab")}; its source is not touched.",
         "table" => "It is a table in Python only.",
         "variable" => "The variable is deleted in Python.",
         "structure" => Item.Saved ? $"Its file {Item.From} is deleted from the project." : "The open structure closes; it was never saved.",

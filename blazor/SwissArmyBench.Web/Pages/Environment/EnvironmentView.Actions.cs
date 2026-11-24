@@ -33,7 +33,7 @@ public partial class EnvironmentView
         return item.Kind switch
         {
             Table => [
-                new EnvAction("Open in Grids", () => OpenItemAsync(item), Primary: true),
+                new EnvAction("Open in Tables", () => OpenItemAsync(item), Primary: true),
                 insert,
                 copy,
                 .. open ? [rename, Keeping(item)] : Array.Empty<EnvAction>(),
@@ -131,7 +131,7 @@ public partial class EnvironmentView
         }
         if (got.Link?.Grid is { } grid)
         {
-            Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
+            Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(grid)}");
         }
     });
 
@@ -145,7 +145,7 @@ public partial class EnvironmentView
                 Select($"table:{name}", true);
                 break;
             case "grid" when link.Grid is { } grid:
-                Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
+                Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(grid)}");
                 break;
             case "document" when link.Path is { } path:
                 Nav.NavigateTo($"{(path.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ? "scripts" : "notebooks")}?path={Uri.EscapeDataString(path)}");

@@ -100,9 +100,9 @@
     private static string UsedWords(string kind) => _usedWords.GetValueOrDefault(kind) ?? kind;
 
     private string TableWords =>
-        Item?.Grids is { Count: > 0 } ? "Its grids are views of this one table: no copies."
-        : Item?.Open?.ValueKind == JsonValueKind.True ? "Not shown in a grid yet: Open in Grids makes a view, not a copy."
-        : "It is in Python only: no grid shows it yet.";
+        Item?.Grids is { Count: > 0 } ? "Its tabs on the Tables page are views of this one table: no copies."
+        : Item?.Open?.ValueKind == JsonValueKind.True ? "Not on the Tables page yet: Open in Tables makes a view, not a copy."
+        : "It is in Python only: the Tables page does not show it yet.";
 
     private RenderFragment Fold => @<button type="button" class="btn ghost icon env-fold" aria-label="Hide the viewer" title="Hide the viewer (Ctrl+B)" @onclick="OnFold"><Icon Name="panel" /></button>;
 

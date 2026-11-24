@@ -54,7 +54,7 @@ public static partial class GridCards
     public static IReadOnlyList<BoardCard> KeyFinder(Api.Grids.KeyFinderResult result, IReadOnlyList<string> targets)
     {
         static string Share(double v) => $"{Math.Round(100 * v).ToString(CultureInfo.InvariantCulture)}%";
-        var with = targets.Count > 0 ? string.Join(", ", targets.Select(t => $"`{t}`")) : "no other grid";
+        var with = targets.Count > 0 ? string.Join(", ", targets.Select(t => $"`{t}`")) : "no other table";
         var markdown = string.Join("\n",
             $"# Likely join columns for {result.Source}",
             $"**{Format(result.PairCount)} column pair{(result.PairCount == 1 ? string.Empty : "s")} share values** with {with}.",

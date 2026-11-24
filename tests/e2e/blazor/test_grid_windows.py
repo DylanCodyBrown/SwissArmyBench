@@ -15,7 +15,7 @@ def test_steps_and_the_key_finder_open_in_their_own_windows(browser: Browser, se
     made = call(server, "POST", "/samples/store", {})
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
     call(server, "POST", f"/grids/{grid}/step-ops", {"op": "add", "step": {"kind": "distinct", "params": {}}})
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".steps-strip")).to_contain_text("Keep distinct rows")
     with page.context.expect_page() as opened:
         page.locator(".steps-strip").get_by_role("button", name="View steps").click()
@@ -41,7 +41,7 @@ def test_the_analyze_address_and_the_palettes_analyses(browser: Browser, server:
     made = call(server, "POST", "/samples/store", {})
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
     first = call(server, "GET", "/analyze")["analyses"][0]
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".ag-row").first).to_be_visible()
     page.locator(".ag-root").first.click()
     page.keyboard.press("Control+Shift+P")

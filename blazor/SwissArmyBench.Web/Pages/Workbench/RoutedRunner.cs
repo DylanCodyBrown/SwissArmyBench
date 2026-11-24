@@ -93,9 +93,9 @@ public sealed class RoutedRunner
         }
     }
 
-    /// <summary>A table result opened as a grid by its id; the words to say (null: nothing to say).</summary>
+    /// <summary>A table result opened on the Tables page by its id; the words to say (null: nothing to say).</summary>
     public async Task<string?> OpenTableAsync(CellRoute route, string? path, string id, string? name) =>
-        await _routed.OpenTableAsync(route, path, id, name) is { } dataset ? $"{dataset} is open as a grid." : "The result is open as a grid.";
+        await _routed.OpenTableAsync(route, path, id, name) is { } dataset ? $"{dataset} is open on the Tables page." : "The result is open on the Tables page.";
 
     /// <summary>The route's declarations for the editor's TypeScript service.</summary>
     public Task<string> TypesAsync(CellRoute route) => _routed.TypesAsync(route);

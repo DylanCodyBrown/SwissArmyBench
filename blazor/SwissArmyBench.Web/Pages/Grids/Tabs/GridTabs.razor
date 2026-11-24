@@ -44,7 +44,7 @@
         </div>
     }
     @Extra
-    <a role="tab" class="grid-tab new-tab @(IsNewQuery && Draft is null ? "current active" : string.Empty)" aria-selected="@(IsNewQuery && Draft is null ? "true" : "false")" href="grids?new=1" aria-label="New query" title="New query"><Icon Name="plus" /></a>
+    <a role="tab" class="grid-tab new-tab @(IsNewQuery && Draft is null ? "current active" : string.Empty)" aria-selected="@(IsNewQuery && Draft is null ? "true" : "false")" href="tables?new=1" aria-label="New query" title="New query"><Icon Name="plus" /></a>
     <div class="tab-end" @ondragover:preventDefault="true" @ondrop="DropAtEndAsync"></div>
 </div>
 

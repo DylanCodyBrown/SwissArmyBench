@@ -15,11 +15,11 @@
     @if (GridsOpen || _connections.Count > 0)
     {
         <ul class="new-query-list" aria-label="Query from">
-            @if (GridsOpen && Shows("Open tables (DuckDB) The grids open here, as they show them"))
+            @if (GridsOpen && Shows("Open tables (DuckDB) The tables open here, as their tabs show them"))
             {
                 <li><button type="button" class="new-query-choice" data-from="" @onclick='() => OnChoose.InvokeAsync("")'>
                         <span class="new-query-icon" aria-hidden="true"><Icon Name="table" /></span>
-                        <span class="new-query-text"><strong>Open tables (DuckDB)</strong><span class="new-query-kind">The grids open here, as they show them</span></span>
+                        <span class="new-query-text"><strong>Open tables (DuckDB)</strong><span class="new-query-kind">The tables open here, as their tabs show them</span></span>
                     </button></li>
             }
             @foreach (var c in _connections.Where(c => Shows($"{c.Name} {c.KindWords}")))

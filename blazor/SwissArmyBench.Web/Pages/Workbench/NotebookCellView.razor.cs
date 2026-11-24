@@ -116,7 +116,7 @@ public partial class NotebookCellView
     [Parameter]
     public IReadOnlyDictionary<string, SwissArmyBench.Web.Api.App.CellRoute> Routes { get; set; } = new Dictionary<string, SwissArmyBench.Web.Api.App.CellRoute>();
 
-    /// <summary>A routed table result's Open as grid, by its id.</summary>
+    /// <summary>A routed table result's Open as table, by its id.</summary>
     [Parameter]
     public EventCallback<(CellModel Cell, string Id)> OnOpenTable { get; set; }
 
@@ -154,7 +154,7 @@ public partial class NotebookCellView
     {
         "tables" => "Tables",
         "table" => $"Table {Cell.Table}",
-        "transformations" => $"{Cell.Table}: follows the grid",
+        "transformations" => $"{Cell.Table}: follows the Tables page",
         _ => Cell.Role,
     };
 

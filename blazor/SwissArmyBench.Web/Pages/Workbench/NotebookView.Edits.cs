@@ -198,7 +198,7 @@ public partial class NotebookView
         // A table's read-only cell goes only once the table is closed in the grid (an open table keeps its cell).
         if (cell.Role == "transformations" && cell.Table is { } table && await OpenInGridAsync(table))
         {
-            await Notes.SayAsync($"{table} is open in the grid, so it keeps its cell. Close the table there first.");
+            await Notes.SayAsync($"{table} is open on the Tables page, so it keeps its cell. Close the table there first.");
             return;
         }
         await DeleteAsync(cell);

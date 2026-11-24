@@ -21,7 +21,7 @@ def test_a_sandbox_grid_edits_adds_deletes_and_resets(browser: Browser, server: 
         for g in call(server, "GET", "/grids")["grids"]
         if g["dataset"] == f"sandbox_{made['added']}"
     )
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     bar = page.locator(".sandbox-bar")
     expect(bar).to_contain_text("products · sandbox")
     expect(bar).to_contain_text("Local test data, never live")
@@ -60,7 +60,7 @@ def test_a_file_changed_on_disk_offers_reload(browser: Browser, server: dict[str
     grid = next(
         g["grid"] for g in call(server, "GET", "/grids")["grids"] if g["dataset"] == "made_up_targets"
     )
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".status-rows")).to_contain_text("of 1")
     # The server looks at a watched file every few seconds: its first look keeps the file as it was read.
     page.wait_for_timeout(4_000)

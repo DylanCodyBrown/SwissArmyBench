@@ -10,7 +10,7 @@ from playwright.sync_api import Browser, expect
 
 from tests.e2e.blazor.conftest import call, open_page
 
-RAIL = ["Home", "Connections", "APIs", "Environment", "Catalog", "Grids", "ERD", "Scripts", "Notebooks"]
+RAIL = ["Home", "Connections", "APIs", "Environment", "Catalog", "Tables", "ERD", "Scripts", "Notebooks"]
 
 
 def test_the_rail_in_the_classic_order_and_a_click_moves_this_tab(
@@ -80,8 +80,8 @@ def test_an_old_address_lands_on_its_blazor_page(browser: Browser, server: dict[
     page.wait_for_url("**/blazor/connections**", timeout=60_000)
     page.wait_for_selector(".nav-rail", timeout=60_000)  # the token traded for the page's cookie first
     page.goto(f"{base}/g/{grid}")
-    page.wait_for_url(f"**/blazor/grids?grid={grid}")
+    page.wait_for_url(f"**/blazor/tables?grid={grid}")
     expect(page.locator(".ag-row").first).to_be_visible(timeout=60_000)
     page.goto(f"{base}/workspace#grid={grid}")
-    page.wait_for_url(f"**/blazor/grids?grid={grid}", timeout=60_000)
+    page.wait_for_url(f"**/blazor/tables?grid={grid}", timeout=60_000)
     page.close()

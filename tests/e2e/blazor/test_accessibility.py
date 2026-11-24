@@ -17,7 +17,7 @@ PAGES = [
     "catalog",
     "environment",
     "grids",
-    "grids?new=1",
+    "tables?new=1",
     "erd",
     "session",
     "settings",
@@ -42,7 +42,7 @@ def test_every_control_on_the_page_has_a_name(browser: Browser, server: dict[str
 def test_the_grid_page_keyboard_paths(browser: Browser, server: dict[str, Any]) -> None:
     made = call(server, "POST", "/samples/store", {})
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".ag-row").first).to_be_visible()
 
     # A step's editor: named controls, Escape closes it.

@@ -44,7 +44,7 @@ public partial class CatalogTree
     [Parameter, EditorRequired]
     public BrowseAnswer Answer { get; set; } = default!;
 
-    /// <summary>A result's actions: the Data Explorer's own (Open as grid, Preview, Copy SQL name…).</summary>
+    /// <summary>A result's actions: the Data Explorer's own (Open as table, Preview, Copy SQL name…).</summary>
     [Parameter, EditorRequired]
     public Func<SearchResult, IReadOnlyList<ExplorerAction>> Actions { get; set; } = default!;
 

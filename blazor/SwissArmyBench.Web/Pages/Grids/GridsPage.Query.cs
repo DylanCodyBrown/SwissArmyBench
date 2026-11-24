@@ -20,10 +20,10 @@ public partial class GridsPage
     private void OpenDraft(string from)
     {
         _drafts++;
-        Nav.NavigateTo($"grids?new=1&from={Uri.EscapeDataString(from)}");
+        Nav.NavigateTo($"tables?new=1&from={Uri.EscapeDataString(from)}");
     }
 
-    private void CloseDraft() => Nav.NavigateTo(_active is { } active ? Address(active, _split) : "grids?new=1");
+    private void CloseDraft() => Nav.NavigateTo(_active is { } active ? Address(active, _split) : "tables?new=1");
 
     private async Task DraftBuiltAsync(BuiltTable built)
     {

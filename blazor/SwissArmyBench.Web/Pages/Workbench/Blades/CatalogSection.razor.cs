@@ -92,7 +92,7 @@ public partial class CatalogSection
 
     private Task MenuAsync(MouseEventArgs at, CatalogTable table)
     {
-        List<MenuEntry> entries = [new("Open as grid", "rows", () => OpenAsync(table))];
+        List<MenuEntry> entries = [new("Open as table", "rows", () => OpenAsync(table))];
         if (Dax)
         {
             entries.Add(new("Import its relationships", "import", () => ImportAsync(table.Schema)));
@@ -106,8 +106,8 @@ public partial class CatalogSection
         await Notes.SayAsync($"Opening {table.Table}…");
         var opened = await Catalogs.OpenAsync(_current.Name, table);
         var cut = opened.Total > opened.Shown && opened.Shown is not null;
-        await Notes.SayAsync(cut ? $"{opened.Dataset}: the first {opened.Shown:N0} of {opened.Total:N0} rows open as a grid." : $"{opened.Dataset} is open as a grid.");
-        Nav.NavigateTo("grids");
+        await Notes.SayAsync(cut ? $"{opened.Dataset}: the first {opened.Shown:N0} of {opened.Total:N0} rows open on the Tables page." : $"{opened.Dataset} is open on the Tables page.");
+        Nav.NavigateTo("tables");
     });
 
     private Task ImportAsync(string dataset) => _current is null ? Task.CompletedTask : GuardAsync(() => Catalogs.ImportRelationshipsAsync(_current.Name, dataset));

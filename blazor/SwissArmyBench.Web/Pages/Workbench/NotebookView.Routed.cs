@@ -9,7 +9,7 @@ using SwissArmyBench.Web.State;
 namespace SwissArmyBench.Web.Pages.Workbench;
 
 // The cells another kernel runs (the classic workbenchNotebook.ts "cells another kernel runs"): a TypeScript cell, a
-// DuckDB SQL cell where the mode runs SQL in its kernel, a TSX cell drawn; a table result's Open as grid; the route's
+// DuckDB SQL cell where the mode runs SQL in its kernel, a TSX cell drawn; a table result's Open as table; the route's
 // declarations given once to the editor's TypeScript service. The routes are the mode's data (MODE cell_routes).
 public partial class NotebookView
 {
@@ -54,7 +54,7 @@ public partial class NotebookView
         return true;
     }
 
-    /// <summary>A routed table result opened as a grid by its id, named after the cell when it has a name.</summary>
+    /// <summary>A routed table result opened on the Tables page by its id, named after the cell when it has a name.</summary>
     private async Task OpenRoutedTableAsync((CellModel Cell, string Id) table)
     {
         if (RoutedRunner.RouteOf(table.Cell, Routes) is not { } route)

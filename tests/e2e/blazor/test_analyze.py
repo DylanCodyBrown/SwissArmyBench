@@ -1,6 +1,6 @@
 """The Blazor Analyze page on the made-up sample store: the toolbar of every analysis by group, the one form
 the server plans (the table, a slot's columns, the sentence of what will run), Run, the result's cards
-landing on the board (a note and its Plotly figure), Show the math, Open as grid, a card removed, and Try it
+landing on the board (a note and its Plotly figure), Show the math, Open as table, a card removed, and Try it
 on this sample."""
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def test_an_analysis_runs_from_its_form_and_lands_on_the_board(
         0
     )
 
-    note.locator("button:has-text('Open as grid')").click()
+    note.locator("button:has-text('Open as table')").click()
     expect(page.locator(".grid-title")).to_contain_text("outliers")
     page.close()
 

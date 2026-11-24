@@ -74,5 +74,5 @@ def test_the_data_notebooks_cells_run_on_their_routes(browser: Browser, server: 
     result = script.locator(".wb-result")
     expect(result).to_contain_text("North", timeout=60_000)
     result.locator(".wb-to-grid").click()
-    expect(page.locator(".note-corner")).to_contain_text("open as a grid")
+    expect(page.locator(".note-corner")).to_contain_text("open on the Tables page")
     page.close()

@@ -23,7 +23,7 @@ def orders_grid(server: dict[str, Any]) -> str:
 
 def test_table_tool_opens_its_step_editor_and_adds_the_step(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders_grid(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".ribbon")).to_contain_text("Table")
     page.click("[data-tool=limit]")
     expect(page.locator(".dialog")).to_contain_text("Add step: Keep first rows")
@@ -46,7 +46,7 @@ def test_table_tool_opens_its_step_editor_and_adds_the_step(browser: Browser, se
 
 def test_column_tool_acts_on_the_selected_column(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders_grid(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.set_viewport_size(WIDE)
     expect(page.locator("[data-tool=col-sort-desc]")).to_be_disabled()
     page.click(".ag-header-cell[col-id=amount] .sab-header-name")
@@ -69,7 +69,7 @@ def test_column_tool_acts_on_the_selected_column(browser: Browser, server: dict[
 
 def test_filter_editor_ticks_a_columns_values(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders_grid(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.set_viewport_size(WIDE)
     page.click(".ag-header-cell[col-id=status] .sab-header-name")
     page.click("[data-tool=col-filter]")
@@ -87,7 +87,7 @@ def test_filter_editor_ticks_a_columns_values(browser: Browser, server: dict[str
 
 def test_a_cells_copy_from_its_menu(browser: Browser, server: dict[str, Any]) -> None:
     grid = orders_grid(server)
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     cell = page.locator(".ag-row[row-index='0'] .ag-cell[col-id=order_id]")
     expect(cell).not_to_have_text("")
@@ -115,7 +115,7 @@ def test_copy_as_code_is_verified_before_it_is_offered(browser: Browser, server:
         f"/grids/{grid}/step-ops",
         {"op": "add", "step": {"kind": "limit", "params": {"n": 5}}},
     )
-    page = open_page(browser, server, f"grids?grid={grid}")
+    page = open_page(browser, server, f"tables?grid={grid}")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.click("[data-tool=code]")
     dialog = page.locator(".dialog")

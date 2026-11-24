@@ -41,7 +41,7 @@ def test_the_environments_tabs_search_and_rows(browser: Browser, server: dict[st
     row = page.locator(".env-row[data-name=orders]").first
     row.locator(".env-more").click()
     menu = page.locator(".context-menu[aria-label='Actions for orders']")
-    expect(menu).to_contain_text("Open in Grids")
+    expect(menu).to_contain_text("Open in Tables")
     menu.locator("[role=menuitem]", has_text="Copy name").click()
     note(page, "Copied its name.")
     row.click()
@@ -83,7 +83,7 @@ def test_a_structures_steps_and_actions(browser: Browser, server: dict[str, Any]
     tree = page.locator(".structure-tree")
     tree.locator(".structure-row[data-path='$.orders']").click()
     actions = page.locator(".structures-node-actions")
-    for words in ("Pick", "Filter…", "Sort…", "Flatten", "Open as grid", "Make a sandbox variant", "Remove"):
+    for words in ("Pick", "Filter…", "Sort…", "Flatten", "Open as table", "Make a sandbox variant", "Remove"):
         expect(actions.locator(f"button:has-text('{words}')")).to_be_visible()
     actions.locator("button:has-text('Filter…')").click()
     dialog = page.locator(".dialog[aria-label=Filter]")

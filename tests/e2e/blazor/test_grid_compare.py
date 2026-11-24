@@ -20,7 +20,7 @@ def store(server: dict[str, Any]) -> dict[str, str]:
 
 def test_compare_with_lines_two_grids_up(browser: Browser, server: dict[str, Any]) -> None:
     grids = store(server)
-    page = open_page(browser, server, f"grids?grid={grids['orders']}")
+    page = open_page(browser, server, f"tables?grid={grids['orders']}")
     page.set_viewport_size({"width": 1500, "height": 900})
     orders_tab = page.locator(f".grid-tab[data-grid='{grids['orders']}']")
     orders_tab.click(button="right")
@@ -78,7 +78,7 @@ def test_compare_with_lines_two_grids_up(browser: Browser, server: dict[str, Any
 
 def test_a_tab_closes_with_undo_and_renames_in_place(browser: Browser, server: dict[str, Any]) -> None:
     grids = store(server)
-    page = open_page(browser, server, f"grids?grid={grids['products']}")
+    page = open_page(browser, server, f"tables?grid={grids['products']}")
     tab = page.locator(f".grid-tab[data-grid='{grids['products']}']")
     expect(tab).to_be_visible()
     tab.get_by_role("button", name="Close products").click()

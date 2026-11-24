@@ -103,5 +103,5 @@
 }
 @if (_pasting)
 {
-    <SwissArmyBench.Web.Pages.Grids.Open.PasteDataDialog OnClose="() => _pasting = false" OnPasted='n => Nav.NavigateTo($"grids?table={Uri.EscapeDataString(n)}")' />
+    <SwissArmyBench.Web.Pages.Grids.Open.PasteDataDialog OnClose="() => _pasting = false" OnPasted='n => Nav.NavigateTo($"tables?table={Uri.EscapeDataString(n)}")' />
 }

@@ -24,7 +24,7 @@ public partial class OutputView
     [Parameter]
     public string Document { get; set; } = "the Workbench";
 
-    /// <summary>A routed kernel's table result opened as a grid by its id (none: no button).</summary>
+    /// <summary>A routed kernel's table result opened on the Tables page by its id (none: no button).</summary>
     [Parameter]
     public EventCallback<string> OnOpenTable { get; set; }
 

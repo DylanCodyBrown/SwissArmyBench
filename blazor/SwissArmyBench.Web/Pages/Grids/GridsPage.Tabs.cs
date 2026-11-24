@@ -18,8 +18,8 @@ public partial class GridsPage
 
     private static string Address(string grid, IReadOnlyList<string>? split) =>
         split is [var left, var right]
-            ? $"grids?grid={Uri.EscapeDataString(grid)}&split={Uri.EscapeDataString(left)},{Uri.EscapeDataString(right)}"
-            : $"grids?grid={Uri.EscapeDataString(grid)}";
+            ? $"tables?grid={Uri.EscapeDataString(grid)}&split={Uri.EscapeDataString(left)},{Uri.EscapeDataString(right)}"
+            : $"tables?grid={Uri.EscapeDataString(grid)}";
 
     /// <summary>A pane clicked: it becomes the one in front (the address follows, with no history entry).</summary>
     private Task FocusPaneAsync(string grid)
@@ -52,7 +52,7 @@ public partial class GridsPage
         if (_active == grid || other is not null)
         {
             var next = other ?? _order.ElementAtOrDefault(Math.Min(at, _order.Count - 1));
-            Nav.NavigateTo(next is null ? "grids" : Address(next, null), replace: true);
+            Nav.NavigateTo(next is null ? "tables" : Address(next, null), replace: true);
         }
     }
 

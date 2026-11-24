@@ -147,18 +147,18 @@ public partial class ConnectionDetail
 
     private static string RefWhere(ConnectionReference reference) => reference.Kind switch
     {
-        "grid" => "an open grid",
+        "grid" => "an open table",
         "app" => $"{reference.Page ?? "a page"} · {reference.Line}",
         _ when reference.Cell is { } cell => $"@cell{cell}{(reference.Name is { } named ? $" {named}" : string.Empty)}",
         _ => "main code",
     };
 
-    /// <summary>A reference's click: its grid on the Grids page, or its document on its kind's page at its cell.</summary>
+    /// <summary>A reference's click: its tab on the Tables page, or its document on its kind's page at its cell.</summary>
     private void OpenReference(ConnectionReference reference)
     {
         if (reference.Kind == "grid" && reference.Grid is { } grid)
         {
-            Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
+            Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(grid)}");
             return;
         }
         var page = reference.Kind == "script" ? "scripts" : "notebooks";
@@ -255,7 +255,7 @@ public partial class ConnectionDetail
         });
     }
 
-    /// <summary>A file connection's file as a grid: a workbook asks which sheets first.</summary>
+    /// <summary>A file connection's file as a table: a workbook asks which sheets first.</summary>
     private Task OpenFileAsync() => GuardAsync("Opening…", async () =>
     {
         var answer = await Connections.OpenFileAsync(Name);
@@ -264,8 +264,8 @@ public partial class ConnectionDetail
             _sheets = sheets;
             return;
         }
-        _ = Notes.SayAsync($"{answer.Dataset} is open as a grid.");
-        Nav.NavigateTo("grids");
+        _ = Notes.SayAsync($"{answer.Dataset} is open on the Tables page.");
+        Nav.NavigateTo("tables");
     });
 
     private Task SheetsChosenAsync(IReadOnlyList<string> chosen) => GuardAsync("Opening…", async () =>
@@ -277,7 +277,7 @@ public partial class ConnectionDetail
         }
         if (chosen.Count > 0)
         {
-            Nav.NavigateTo("grids");
+            Nav.NavigateTo("tables");
         }
     });
 

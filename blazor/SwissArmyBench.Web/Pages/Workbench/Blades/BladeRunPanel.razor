@@ -1,5 +1,5 @@
 @* The run panel under the code (the classic codeIde.ts runPanel, design principle 8.14): Output (what it printed),
-   Result (a table's first rows with Open as grid, a value, or the error panel), Problems (the lint's, each a click to
+   Result (a table's first rows with Open as table, a value, or the error panel), Problems (the lint's, each a click to
    its line; No problems.), and Fold the panel. *@
 @using System.Text.Json
 @using SwissArmyBench.Web.Api.Blades
@@ -46,7 +46,7 @@
                 else if (Table is { } table)
                 {
                     <p class="hint">It made a table: @table.Total row@(table.Total == 1 ? string.Empty : "s")@(table.Rows.Count < table.Total ? $" (the first {table.Rows.Count} shown)" : string.Empty).
-                        <button type="button" class="btn small" @onclick="OpenAsGridAsync">Open as grid</button></p>
+                        <button type="button" class="btn small" @onclick="OpenAsGridAsync">Open as table</button></p>
                     <div class="ide-result-table">
                         <table class="grid-preview">
                             <thead><tr>@foreach (var c in table.Columns) { <th>@c</th> }</tr></thead>
@@ -109,6 +109,6 @@
     private async Task OpenAsGridAsync()
     {
         await Blades.OpenResultAsync(Name);
-        Nav.NavigateTo("grids");
+        Nav.NavigateTo("tables");
     }
 }

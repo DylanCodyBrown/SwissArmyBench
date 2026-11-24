@@ -61,13 +61,13 @@ public partial class MainLayout : IDisposable
         await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync(), Beta.StartAsync(), Tour.StartAsync(), Setup.LoadAsync());
     }
 
-    /// <summary>A classic address's #grid= (a pushed table, the desktop app's file): that grid on the Grids page.</summary>
+    /// <summary>A classic address's #grid= (a pushed table, the desktop app's file): that grid on the Tables page.</summary>
     private async Task OpenStartGridAsync()
     {
         var grid = await Js.InvokeAsync<string>("sab.takeStartGrid");
         if (!string.IsNullOrEmpty(grid))
         {
-            Navigation.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}", replace: true);
+            Navigation.NavigateTo($"tables?grid={Uri.EscapeDataString(grid)}", replace: true);
         }
     }
 

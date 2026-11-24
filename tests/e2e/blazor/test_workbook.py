@@ -143,7 +143,7 @@ def test_templates_and_statements(browser: Browser, server: dict[str, Any]) -> N
     built.locator(".xc-build").click()
     expect(page.locator(".note-corner")).to_contain_text(re.compile(r"Built \d+ in "))
     built.locator(".xc-register").click()
-    expect(page.locator(".note-corner")).to_contain_text("The register is open as a grid")
+    expect(page.locator(".note-corner")).to_contain_text("The register is open on the Tables page")
     page.close()
 
 

@@ -82,7 +82,7 @@ public partial class BoardCardView
     {
         var made = await AnalyzeApi.OpenGridAsync(run);
         _ = Notes.SayAsync($"Opened as {made.Dataset}.");
-        Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(made.Grid ?? string.Empty)}");
+        Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(made.Grid ?? string.Empty)}");
     });
 
     private Task CodeAsync(string run) => DoAsync(async () =>
@@ -103,7 +103,7 @@ public partial class BoardCardView
         await Grids.AddStepAsync(grid, step.GetProperty("kind").GetString() ?? string.Empty, step.GetProperty("params"));
         var dataset = analysis.TryGetProperty("dataset", out var named) ? named.GetString() : null;
         _ = Notes.SayAsync($"Added a step to {dataset ?? grid}.");
-        Nav.NavigateTo($"grids?grid={Uri.EscapeDataString(grid)}");
+        Nav.NavigateTo($"tables?grid={Uri.EscapeDataString(grid)}");
     });
 
     private async Task DoAsync(Func<Task> action)
