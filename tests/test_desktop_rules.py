@@ -366,6 +366,8 @@ def test_the_listener_answers_while_a_handler_runs() -> None:
 
 def test_a_windows_title_never_shows_an_address() -> None:
     assert rules.window_title("Workbench") == "Workbench"
+    # The open project's name in the page's title (the owner, 2026-11-24) is the window header's as it is.
+    assert rules.window_title("Tables · Captive · Swiss Army Bench") == "Tables · Captive · Swiss Army Bench"
     assert rules.window_title(f"{OURS}/workspace#token=secret") == "Swiss Army Bench"
     assert (
         rules.window_title("") == "Swiss Army Bench"

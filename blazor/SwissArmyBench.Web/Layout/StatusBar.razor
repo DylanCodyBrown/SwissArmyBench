@@ -13,8 +13,9 @@
     <span class="status-app version-mark" title="@Version">@Version</span>
     @if (Project.Current is { } open)
     {
-        <span class="status-project" title="@open.Path">
-            <Icon Name="folder" /> @open.Name
+        <span class="status-project">
+            @* The open project on every page; a click goes to Home's summary of it. *@
+            <a class="status-project-name" href="./" title="@($"{open.Path}: its summary on Home")" aria-label="@($"Project {open.Name}: its summary")"><Icon Name="folder" /> @open.Name</a>
             @if (open.Dirty)
             {
                 <span class="dirty-dot" aria-label="Unsaved changes">●</span>

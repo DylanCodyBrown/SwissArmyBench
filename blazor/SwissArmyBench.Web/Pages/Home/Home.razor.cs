@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Files;
 using SwissArmyBench.Web.Api.Projects;
-using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Home;
@@ -13,8 +11,6 @@ namespace SwissArmyBench.Web.Pages.Home;
 public partial class Home : IDisposable
 {
     private bool _pasting;
-    private (double X, double Y)? _importMenu;
-    private string? _importing;
     private SyncFolder? _sync;
 
     private const string CustomSort = "custom";
@@ -63,13 +59,33 @@ public partial class Home : IDisposable
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>The projects page's view in the address (?view=projects), so Back returns to the summary.</summary>
+    public const string ProjectsView = "projects";
+
+    /// <summary>?view=projects: the projects page even with a project open (New project, Open project…).</summary>
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? View { get; set; }
+
+    /// <summary>The folder open when the projects page showed: another one opened or made there lands on its summary.</summary>
+    private string? _openWhenShown;
+
+    private bool ShowsSummary => Project.Current is not null && View != ProjectsView;
+
+    protected override void OnInitialized() => Project.Changed += OnProjectChanged;
+
+    protected override async Task OnParametersSetAsync()
     {
+        if (ShowsSummary)
+        {
+            return; // the summary sets the title and reads its own answer
+        }
+        _openWhenShown = Project.Current?.Path;
         await Js.InvokeVoidAsync("sab.setTitle", "Projects");
-        Project.Changed += OnProjectChanged;
-        _busy = true;
+        _busy = _listing is null; // read again each time it shows: the cards may have changed meanwhile
         await LoadAsync();
     }
+
+    private void ToProjects() => Nav.NavigateTo($"./?view={ProjectsView}");
 
     private async Task LoadAsync()
     {
@@ -216,32 +232,6 @@ public partial class Home : IDisposable
         }
     }
 
-    // Import… (the classic projectImport.ts, from the Workbench, the Connections layer and the Blades pane there):
-    // notebooks, scripts and apps into the open project; connections and blades into this computer's library.
-    private void ImportMenu(MouseEventArgs e) => _importMenu = (e.ClientX, e.ClientY + 12);
-
-    private IReadOnlyList<MenuEntry> ImportEntries =>
-    [
-        new("Notebooks, scripts and apps…", "notebook", () => Importing(ImportDialog.Documents)),
-        new("Connections…", "plug", () => Importing(ImportDialog.Connections)),
-        new("Blades…", "code", () => Importing(ImportDialog.Blades)),
-    ];
-
-    private Task Importing(string kind)
-    {
-        _importing = kind;
-        return Task.CompletedTask;
-    }
-
-    private async Task ImportedAsync(Imported? done)
-    {
-        _importing = null;
-        if (done is { Documents.Count: > 0 })
-        {
-            await LoadAsync();
-        }
-    }
-
     // A shared card's sync words and its Pull and Push come from the Git extension when it is on (asked as the
     // cards draw; the server asks GitHub at most once a minute).
     private async Task ReadSyncAsync()
@@ -261,7 +251,24 @@ public partial class Home : IDisposable
         StateHasChanged();
     }
 
-    private void OnProjectChanged() => _ = InvokeAsync(LoadAsync);
+    private void OnProjectChanged() => _ = InvokeAsync(ProjectChangedAsync);
+
+    private async Task ProjectChangedAsync()
+    {
+        if (Project.Current is { } now && View == ProjectsView && now.Path != _openWhenShown)
+        {
+            Nav.NavigateTo("./"); // opened or made on the projects page: its summary
+            return;
+        }
+        if (ShowsSummary)
+        {
+            StateHasChanged(); // the summary reads itself
+            return;
+        }
+        _openWhenShown = Project.Current?.Path;
+        await Js.InvokeVoidAsync("sab.setTitle", "Projects");
+        await LoadAsync();
+    }
 
     public void Dispose()
     {

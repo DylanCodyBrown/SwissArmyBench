@@ -55,7 +55,7 @@ def test_the_footer_zooms_and_the_project_group_saves(browser: Browser, server: 
 def test_save_asks_keep_its_rows_once(browser: Browser, server: dict[str, Any]) -> None:
     """A pasted table has no source to read again: Save asks Keep its rows once (the classic chooseRows)."""
     call(server, "POST", "/project/new", {"name": "made_up_rows_shop", "discard": True})
-    page = open_page(browser, server, "")
+    page = open_page(browser, server, "?view=projects")
     page.get_by_role("button", name="Paste data").click()
     page.get_by_label("Pasted table").fill("city\tvisits\nNorthvale\t3\n")
     page.locator(".dialog-foot").get_by_role("button", name="Open").click()

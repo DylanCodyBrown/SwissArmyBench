@@ -44,6 +44,9 @@ public sealed class ProjectsClient
 
     public Task<ProjectAnswer> CurrentAsync() => _api.GetAsync<ProjectAnswer>("/project");
 
+    /// <summary>Home's summary of the open project: its tables, documents, connections, the Session's last entries.</summary>
+    public Task<ProjectSummary> SummaryAsync() => _api.GetAsync<ProjectSummary>("/project/summary");
+
     /// <summary>New project: its name, where (a folder, or "where": "shared"), and its type's own fields (make).</summary>
     public Task<ProjectAnswer> NewAsync(IReadOnlyDictionary<string, object?> body) => _api.PostAsync<ProjectAnswer>("/project/new", body);
 

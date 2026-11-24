@@ -1,19 +1,29 @@
-@* Home: the Projects page (the classic projectsPage.ts and projectExplorer.ts). The project open now with its
-   Close, New project, Open project…, Open a file…, What kind of project?, the filters and sort, and every project as
-   a card (Local or Shared). *@
+@* Home (the owner, 2026-11-24): with a project open, its summary (ProjectSummaryView); with none, or at
+   ?view=projects (its New project and Open project…), the projects page: the Project Explorer (the classic
+   projectsPage.ts and projectExplorer.ts) with New project, Open project…, Open a file…, What kind of project?, the
+   filters and sort, and every project as a card (Local or Shared). Opening or making one there lands on its summary. *@
 @page "/"
 
+@if (ShowsSummary)
+{
+    <ProjectSummaryView OnProjects="ToProjects" />
+}
+else
+{
 <section class="area-page">
     <header class="area-page-head">
         <h1 class="area-page-title"><Icon Name="home" /> Projects</h1>
         <div class="area-page-actions">
+            @if (Project.Current is { } back)
+            {
+                <a class="btn ghost projects-back" href="./"><Icon Name="back" /> Back to @back.Name</a>
+            }
             <button type="button" class="btn primary" @onclick="() => _newOpen = true"><Icon Name="plus" /> New project</button>
             <button type="button" class="btn" @onclick="OpenProjectAsync"><Icon Name="folder" /> Open project…</button>
             <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="file" /> Open a file…</button>
             <button type="button" class="btn" @onclick="() => _pasting = true"><Icon Name="table" /> Paste data</button>
-            @if (Project.Current is { } open)
+            @if (Project.Current is not null)
             {
-                <button type="button" class="btn" aria-haspopup="menu" @onclick="ImportMenu"><Icon Name="import" /> Import…</button>
                 <button type="button" class="btn ghost" @onclick="CloseProjectAsync"><Icon Name="close" /> Close project</button>
             }
             <TourButton />
@@ -88,18 +98,11 @@
         </Busy>
     </div>
 </section>
+}
 
 @if (_newOpen && _listing is { } forNew)
 {
     <NewProjectDialog Listing="forNew" Type="_newType" OnDone="NewDoneAsync" />
-}
-@if (_importMenu is { } menu)
-{
-    <ContextMenu Title="Import" X="menu.X" Y="menu.Y" OnClose="() => _importMenu = null" Entries="ImportEntries" />
-}
-@if (_importing is { } kind)
-{
-    <ImportDialog Kind="@kind" OnDone="ImportedAsync" />
 }
 @if (_pasting)
 {

@@ -60,6 +60,15 @@ def project_private(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "project_summary",
+    "Home's summary of the open project: its name, type, Local or Shared, folder, unsaved, Autosave, its Python, "
+    "tables, documents, the connections it uses, the Session's last entries and its deliverable",
+)
+def project_summary(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/project/summary")
+
+
+@command(
     "project_documents",
     "The open project's notebooks, scripts and apps",
     opt("kind", "notebook, script or app."),
