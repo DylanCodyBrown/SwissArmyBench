@@ -802,6 +802,11 @@ version starts again and says why. While an update is available, **Settings, Upd
 restarts first); otherwise Settings shows nothing about updates.
 The agent has `app_update_check` and `app_update` (which waits for your Allow).
 
+From a terminal, `swissarmybench update` does the same: it asks for the newest release and, when it is newer,
+installs it that same way (the app closes, installs and opens again; with no app running, its server starts in the
+background for it). Use it instead of reinstalling: an update keeps the installed extensions and the libraries you
+added, and never touches your library (connections, key vaults, variables), your settings or your projects.
+
 ## Extensions
 
 Swiss Army Bench is the base; **extensions** plug into it (Plans/editions.plan.md). The rail's

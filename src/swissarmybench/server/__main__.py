@@ -101,7 +101,7 @@ def main() -> None:
         "command",
         nargs="?",
         default=None,
-        choices=["app", "start", "stop", "status", "open", "icon", "tray", "autostart"],
+        choices=["app", "start", "stop", "status", "open", "update", "icon", "tray", "autostart"],
     )
     parser.add_argument(
         "switch",
@@ -129,6 +129,8 @@ def main() -> None:
         return
     if command == "icon":
         sys.exit(write_icon(args.switch))
+    if command == "update":
+        sys.exit(update(path))
     if command == "app":
         if args.browser or not desktop.can_run():
             sys.exit(0 if open_in_browser(path, args.switch) else 1)
@@ -182,6 +184,43 @@ def main() -> None:
     except (AlreadyStartingError, PortError) as error:
         print(error, file=sys.stderr)
         sys.exit(1)
+
+
+def update(path: Path, wait: float = 60.0) -> int:
+    """`swissarmybench update` (the owner, 2026-11-24: "I want an update command"): the app's own Update to X,
+    from a terminal. The newest release is asked for and, when it is newer, installed the way Settings' Click
+    here to update does (the app closes, uv installs it with the extensions and the libraries you added, the
+    app opens again); the library, connections, variables and projects are never touched. With no app
+    running, its server is started in the background for it first."""
+    info = running_server(path)
+    if info is None:
+        detached(server_command(None, False))
+        deadline = time.monotonic() + wait
+        while info is None and time.monotonic() < deadline:
+            time.sleep(0.3)
+            info = running_server(path)
+        if info is None:
+            print("Swiss Army Bench did not start, so it could not update.", file=sys.stderr)
+            return 1
+    try:
+        state = post_json(info, "/updates/check", {"asked": True})
+        if not isinstance(state, dict) or not state.get("available"):
+            error = state.get("error") if isinstance(state, dict) else None
+            print(error or f"Swiss Army Bench {__version__} is the newest: nothing to update.")
+            return 1 if error else 0
+        version = str(state.get("version"))
+        answer = post_json(info, "/updates/install", {"version": version, "confirmed": True})
+    except OSError as error:
+        print(f"The update was refused: {error}", file=sys.stderr)
+        return 1
+    if not isinstance(answer, dict) or answer.get("updating") != version:
+        print(f"The update to {version} did not start: {answer}", file=sys.stderr)
+        return 1
+    print(
+        f"Updating Swiss Army Bench {__version__} to {version}: it closes, installs and opens again by "
+        "itself. Your connections, variables, library and projects stay where they are."
+    )
+    return 0
 
 
 def write_icon(target: str | None) -> int:
