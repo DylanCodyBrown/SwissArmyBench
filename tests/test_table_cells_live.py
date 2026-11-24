@@ -44,12 +44,12 @@ def version_of(live: Live, name: str) -> int:
 
 
 def settled_version(live: Live, name: str, seconds: float = 20) -> int:
-    """The open table's version once the kernel's watcher has stopped sending it: the same over two of its
-    scans (every 0.5 s) and a margin, waited for at most `seconds`."""
+    """The open table's version once the kernel's watcher has stopped sending it: the same over 2.5 s (five of
+    its scans, every 0.5 s: a busy machine's scan can run late), waited for at most `seconds`."""
     deadline = time.monotonic() + seconds
     seen = version_of(live, name)
     while time.monotonic() < deadline:
-        time.sleep(1.2)
+        time.sleep(2.5)
         now = version_of(live, name)
         if now == seen:
             return now
