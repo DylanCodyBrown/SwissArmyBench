@@ -5,6 +5,8 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   GET    /workbench/home                    where Save as starts, and the recent files
   POST   /workbench/open      {"path"}      a notebook's cells or a script's text
   POST   /workbench/save      {"path", "cells" | "text", "modified", "force"}
+  POST   /workbench/rename    {"path", "to"}: a notebook, a SQL file or a loose script renamed in its folder
+                                            (a tab's Rename…; a project's .py: /scripts/files/move)
   GET    /workbench/pythons                 the Pythons a kernel can run in (this server's own first)
   GET    /workbench/environments            what New environment offers: libraries, presets, versions
   POST   /workbench/environments  {"folder", "python", "packages", "document"}: make one; its progress
@@ -41,7 +43,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain import workbench_pages
-from swissarmybench.server.http import actor, error_as, json_lines, json_response, read_json
+from swissarmybench.server.http import actor, error_as, json_lines, json_response, read_json, with_body
 from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
@@ -185,6 +187,7 @@ def routes(
         Route("/workbench/notebook/flow", notebook_flow, methods=["POST"]),
         Route("/workbench/open", open_document, methods=["POST"]),
         Route("/workbench/save", save, methods=["POST"]),
+        Route("/workbench/rename", with_body(workbench.rename), methods=["POST"]),
         Route("/workbench/pythons", pythons),
         Route("/workbench/environments", environments),
         Route("/workbench/environments", create_environment, methods=["POST"]),

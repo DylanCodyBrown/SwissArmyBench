@@ -161,6 +161,25 @@ def notebook_tree(paths: Iterable[str]) -> list[dict[str, Any]]:
 
 
 STRUCTURES = "structures"
+SQL = "sql"
+
+
+def sql_group(paths: Iterable[str]) -> dict[str, Any] | None:
+    """The Scripts page's SQL files group (the owner, 2026-11-24: "also we should allow .sql files"): every
+    .sql of the project, by folder then name, each opening as a SQL tab (domain/sql_files.py). None when there
+    are none."""
+    files = []
+    for relative in paths:
+        relative = relative.replace("\\", "/")
+        if not relative.lower().endswith(".sql") or not listed(relative):
+            continue
+        files.append(
+            {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
+        )
+    if not files:
+        return None
+    files.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
+    return {"id": SQL, "name": "SQL files", "files": files, "kind": SQL}
 
 
 def structure_group(paths: Iterable[str]) -> dict[str, Any] | None:

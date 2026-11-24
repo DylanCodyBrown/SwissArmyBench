@@ -404,7 +404,8 @@ def write_notebook(
 
 
 def kind_of(path: str) -> str:
-    """ "notebook", "script" or "app" (a Streamlit app: sales.stapp.json), by the file's ending."""
+    """ "notebook", "script", "sql" (a .sql file) or "app" (a Streamlit app: sales.stapp.json), by the file's
+    ending."""
     lowered = path.lower()
     if lowered.endswith(APP_SUFFIX):
         return "app"
@@ -412,9 +413,13 @@ def kind_of(path: str) -> str:
         return "notebook"
     if lowered.endswith(".py"):
         return "script"
+    if lowered.endswith(".sql"):
+        return "sql"  # a SQL file (domain/sql_files.py): the Scripts page's, beside the .py files
     if lowered.endswith(CANVAS_SUFFIX):
         raise NotebookError("An app's canvas (.canvas.json) opens on the Canvas page, not in a code page.")
-    raise NotebookError("The Notebooks and Scripts pages open notebooks (.ipynb) and Python scripts (.py).")
+    raise NotebookError(
+        "The Notebooks and Scripts pages open notebooks (.ipynb), Python scripts (.py) and SQL files (.sql)."
+    )
 
 
 def quote_path(path: str) -> str:

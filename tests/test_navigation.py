@@ -44,19 +44,23 @@ def test_each_window_names_the_places_it_has() -> None:
             "to": "connection",
             "name": "Warehouse",
         }
-    assert "grid:<id>" in rules.places("home") and "query" not in rules.places("workbench")
+    assert "grid:<id>" in rules.places("home") and "grid:<id>" not in rules.places("workbench")
 
 
-def test_the_new_query_page_and_a_draft_on_a_connection() -> None:
-    """The owner, 2026-11-20: "this should just be a new query page, with the active connections and you
-    can click one to start a new grid sql": the page (new_query), and a draft with Query from set
-    (query:<name>)."""
-    assert rules.place("home", "new_query") == {"window": "home", "to": "new_query"}
-    assert rules.place("home", "query") == {"window": "home", "to": "query"}
-    assert rules.place("home", "query:Warehouse") == {"window": "home", "to": "query", "name": "Warehouse"}
-    assert rules.said(rules.place("home", "query:Warehouse")) == "home window to query Warehouse"
-    with pytest.raises(rules.NavigationError, match="cannot go to 'new_query'"):
-        rules.place("workbench", "new_query")
+def test_a_new_query_is_a_new_sql_file_on_the_scripts_page() -> None:
+    """The owner, 2026-11-24: "clicking the + in grids menu jumps to the scripts page with an open script" /
+    "sql authorship will have one place in scripts": new_sql from any window (new_sql:<connection> its
+    header set); the New query page's words, new_query, query and query:<name>, read as it."""
+    assert rules.place("home", "new_sql") == {"window": "home", "to": "new_sql"}
+    assert rules.place("scripts", "new_sql:Warehouse") == {
+        "window": "scripts",
+        "to": "new_sql",
+        "name": "Warehouse",
+    }
+    assert rules.place("home", "new_query") == {"window": "home", "to": "new_sql"}
+    assert rules.place("home", "query") == {"window": "home", "to": "new_sql"}
+    assert rules.place("home", "query:Warehouse") == {"window": "home", "to": "new_sql", "name": "Warehouse"}
+    assert rules.said(rules.place("home", "query:Warehouse")) == "home window to new_sql Warehouse"
 
 
 def test_every_rail_area_is_a_place_from_every_window() -> None:
@@ -110,7 +114,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
             "kitchen",
             "The home window cannot go to 'kitchen'. It can go to: home, projects, connections, apis",
         ),
-        ("workbench", "query", "The workbench window cannot go to 'query'"),
+        ("workbench", "grid:g1", "The workbench window cannot go to 'grid:g1'"),
         ("scripts", "grid:g1", "The scripts window cannot go to 'grid:g1'"),
         ("home", "grid:", "cannot go to 'grid:'"),
         ("catalog", "blade:", "cannot go to 'blade:'"),

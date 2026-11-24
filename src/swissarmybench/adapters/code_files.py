@@ -7,7 +7,7 @@ from pathlib import Path
 
 Stamp = tuple[int, int]
 MAX_WATCHED = 4000
-_ENDINGS = (".py", ".ipynb")
+_ENDINGS = (".py", ".ipynb", ".sql")  # a .sql file (2026-11-24) follows its changes too
 # A project's structure files (a tab beside the code follows them as a script's): its top, structures/.
 _STRUCTURE_ENDINGS = (".json", ".yaml", ".yml", ".xml", ".toml")
 
@@ -33,7 +33,7 @@ def stamp(path: str) -> Stamp | None:
 
 
 def code_files_in(folder: str | None, structures: bool = False) -> list[str]:
-    """A folder's code files (.py and .ipynb), hidden folders, caches and environments left out; with
+    """A folder's code files (.py, .ipynb and .sql), hidden folders, caches and environments left out; with
     `structures` (the open project's folder) its structure files too, at its top and in its structures/."""
     if not folder:
         return []

@@ -2,7 +2,8 @@
 page they are seperate things" / "right now they all open tabbed beside each other").
 
 A notebook (.ipynb) opens only on the Notebooks page (/notebooks, the window named sab-notebooks), a .py
-script only on the Scripts page (/scripts, sab-scripts), from anywhere. A Streamlit app's canvas and a
+script and a .sql file (2026-11-24) only on the Scripts page (/scripts, sab-scripts), from anywhere. A
+Streamlit app's canvas and a
 workbook design stay beside the notebooks, as before. A structure's file (.json, .yaml, .yml, .xml, .toml:
 2026-11-22, the owner: "I want it beside the ide so you can search and explore") opens as a tab on either
 page, the one it was opened from; from outside (the desktop app, an address, the agent with no page) on the
@@ -20,21 +21,37 @@ from typing import Any
 PAGES: tuple[str, ...] = ("notebooks", "scripts")
 WINDOW_NAMES: dict[str, str] = {"notebooks": "sab-notebooks", "scripts": "sab-scripts"}
 WORDS: dict[str, str] = {"notebooks": "Notebooks", "scripts": "Scripts"}
-_KIND_PAGE: dict[str, str] = {"notebook": "notebooks", "app": "notebooks", "script": "scripts"}
+_KIND_PAGE: dict[str, str] = {
+    "notebook": "notebooks",
+    "app": "notebooks",
+    "script": "scripts",
+    "sql": "scripts",
+}
 # A structure's tab opens on either page (the one it was opened from): it has no page of its own.
-_KIND_WORDS: dict[str, str] = {"notebook": "A notebook", "app": "A Streamlit app", "script": "A script"}
+_KIND_WORDS: dict[str, str] = {
+    "notebook": "A notebook",
+    "app": "A Streamlit app",
+    "script": "A script",
+    "sql": "A SQL file",
+}
 
 
 # A file's page by its name's ending, the first that matches: .py the Scripts page; .ipynb, an old app's
 # .stapp.json and a workbook's .design.json the Notebooks page.
 _PATH_PAGES: tuple[tuple[str, str], ...] = (
     (".py", "scripts"),
+    (".sql", "scripts"),  # a SQL file (domain/sql_files.py, the owner 2026-11-24)
     (".ipynb", "notebooks"),
     (".stapp.json", "notebooks"),
     (".design.json", "notebooks"),
 )
 # A document's kind by its file's ending (the landing pages, the Session page's links, a tab's colour).
-_PATH_KINDS: tuple[tuple[str, str], ...] = ((".stapp.json", "app"), (".ipynb", "notebook"), (".py", "script"))
+_PATH_KINDS: tuple[tuple[str, str], ...] = (
+    (".stapp.json", "app"),
+    (".ipynb", "notebook"),
+    (".py", "script"),
+    (".sql", "sql"),
+)
 _WRONG_PAGE: str = "{kind} opens on the {page} page, not here."
 _STATE_FOLDER: str = ".sab"
 
@@ -115,6 +132,32 @@ def rules() -> dict[str, Any]:
     }
 
 
+_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql")
+
+
+def renamed(path: str, to: Any) -> str:
+    """A document's new path when its tab's Rename… names it `to` (2026-11-24, the owner: "we should allow
+    renaming here"): the same folder, its kind's ending kept (added when `to` leaves it out; another kind's
+    refused). A ValueError says why a name cannot be one."""
+    if not isinstance(to, str) or not to.strip():
+        raise ValueError("Send its new name.")
+    name = to.strip()
+    if "/" in name or "\\" in name or name in (".", "..") or name.startswith("."):
+        raise ValueError(f"{name!r} is not a file name: no folder, and not starting with a dot.")
+    cut = max(path.rfind("/"), path.rfind("\\"))
+    folder, old = path[: cut + 1], path[cut + 1 :]
+    ending = next((e for e in _DOCUMENT_ENDINGS if old.lower().endswith(e)), "")
+    if not name.lower().endswith(ending):
+        if any(name.lower().endswith(e) for e in _DOCUMENT_ENDINGS):
+            raise ValueError(f"{old} stays a {ending} file: rename it to a name ending {ending}.")
+        name += ending
+    if name[: len(name) - len(ending)].strip() == "":
+        raise ValueError("Send its new name.")
+    if name == old:
+        raise ValueError("That is its name already.")
+    return folder + name
+
+
 def url_of(page: str) -> str:
     return f"/{page}"
 
@@ -129,6 +172,7 @@ def old_address(query: Mapping[str, str]) -> tuple[str, dict[str, str]]:
 # The commands that make one kind: that kind's page.
 _COMMAND_PAGES: dict[str, str] = {
     "file.newScript": "scripts",
+    "file.newSql": "scripts",
     "file.newNotebook": "notebooks",
     "file.newApp": "notebooks",
 }

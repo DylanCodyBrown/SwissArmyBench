@@ -10,9 +10,10 @@ steps strip counts the table's steps; Edit steps opens them in a tab of their ow
   (`datasets_sheets` lists a workbook's sheets). Pass the path, never the contents.
 - `datasets_paste(name, text)`: a copied table. `tabs_new_query(name, sql)`: one SELECT over the open
   tables as their tabs show them; `tabs_new_connection_query(name, connection, sql)`: one on a connection,
-  in its own SQL. The + (and the Tables page with no table open) is the New query page: Open tables and the
-  connections that run SQL; `app_navigate(to="new_query")` shows it, `to="query:<connection>"` opens its
-  draft with Query from set, as the user's click does.
+  in its own SQL. SQL is written only on the Scripts page (the owner, 2026-11-24): the Tables page's + (and
+  New query with no table open) opens a new .sql file there; `workbench_sql(action="run", path)` runs one as
+  the table named after the file, `workbench_sql(action="for_table", table)` is a query's table's Edit in
+  Scripts (its .sql file). `app_navigate(to="new_sql")` (old: new_query, query) is the +.
 - `datasets_sample`: the made-up sample store (customers, products, orders; free names): the empty pages'
   Try it with sample data.
 - From Python the user calls `sab.push(df)`. `datasets_python_sessions` lists running Pythons and their

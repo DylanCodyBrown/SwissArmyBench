@@ -332,7 +332,14 @@ class ConnectionSwap:
         existing = self.ws.store.get(name)
         if existing is not None:
             origin = self._datasets.origins.get(name)
-            made_here = origin.kind == "connection" and bool(origin.sql) and existing.query is not None
+            # A query's table either way: a .sql file's connection changed from the open tables keeps its
+            # name.
+            made_here = (
+                origin is not None
+                and origin.kind in ("connection", "query")
+                and bool(origin.sql)
+                and existing.query is not None
+            )
             if not (body.get("replace") is True and made_here):
                 raise ValueError(f"A table named {name!r} already exists; pick a new name.")
         read = await self._connections.read_query(to, sql, {"dataset": body.get("dataset") or ""})

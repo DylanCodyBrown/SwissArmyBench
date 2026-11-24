@@ -13,10 +13,12 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import changes as change_rules
 from swissarmybench.domain import (
+    code_tree,
     dictionary,
     errors,
     html_cells,
     notebook_flow,
+    project_paths,
     project_python,
     workbench_pages,
 )
@@ -57,6 +59,8 @@ class Documents(Protocol):
     def scratch(self, text: str) -> str: ...
 
     def made_default_folder(self) -> str: ...
+
+    def move(self, path: str, to: str) -> str: ...
 
 
 class Kernel(Protocol):
@@ -279,6 +283,32 @@ class Workbench:
         )
         self.ws.audit.write(who, "save_document", full, **change)
         return {"path": full, "modified": modified}
+
+    async def rename(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{path, to}: a document renamed in its folder (a tab's Rename…: a notebook, a SQL file, a script
+        outside
+        the project; a project's .py goes through the Scripts IDE's move, its imports following). Its kind's
+        ending kept, never over another file, a made file refused; its recent entry follows. {from, to}."""
+        if not isinstance(body, dict) or not isinstance(body.get("path"), str) or not body["path"].strip():
+            raise ValueError('Send {"path": "...", "to": "new name"}.')
+        path = body["path"]
+        rules.kind_of(path)  # a notebook, a script or a SQL file
+        target = workbench_pages.renamed(path, body.get("to"))
+        project = self.project()
+        if project is not None:
+            relative = project_paths.relative_in(path, project[0])
+            made = code_tree.made_from(relative) if relative else None
+            if made:
+                raise Conflict(f"{relative} is made from {made}: rename its source instead.")
+        try:
+            full = self._documents.move(path, target)
+        except FileNotFoundError as error:
+            raise NotFound(str(error)) from None
+        except FileExistsError as error:
+            raise Conflict(str(error)) from None
+        self.ws.audit.write(who, "rename_document", path, to=full)
+        await self.ws.live.broadcast({"type": "code_file_moved", "from": path, "to": full, "by": who})
+        return {"from": path, "to": full}
 
     def _document_shape(self, kind: str, path: str) -> dict[str, Any] | None:
         """A notebook's or a script's structure as it is on disk before a save (None: a new file)."""
