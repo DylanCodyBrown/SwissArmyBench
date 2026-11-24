@@ -6397,3 +6397,12 @@ to the scripts page with an open script" / "sql authorship will have one place i
 - The whole suite without e2e: 5939 passed, 9 failed, 42 skipped; the failures are this .venv's known ones (the four
   data.py export tests, the drivers check, the updater's uv tool, a fresh Python's export, the million-row timings)
   and test_sharing under load (21 of 21 alone). bUnit 180 of 180; mypy: the one known error in sab_canvas.py.
+
+## 0.0.36 (2026-11-24): release checks on the merged branch
+
+- Blazor: `dotnet build -warnaserror` clean, `dotnet format --verify-no-changes` clean, bUnit 184 of 184.
+- Blazor browser tests (tests/e2e/blazor, Release build, two workers): 150 passed, 2 skipped.
+- Unit suite (no e2e, four workers): 5,957 passed. The 6 failures are this container's own: the four data.py export
+  tests and the drivers check (Streamlit installed in this .venv) and test_performance under parallel load (passes
+  alone). mypy: only sab_canvas.py:622 (Streamlit's own type hints, installed here).
+- Power BI catalog: a made-up workspace of 33 datasets read whole (tests/test_powerbi.py); real Power BI not run here.
