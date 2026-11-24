@@ -6702,6 +6702,11 @@ runs it over every way (a driver not installed is skipped) and again in SWISSARM
   queryTab.ts queryConnections); a click opens the draft with Query from set and the editor's cursor after FROM.
   Open a file, Paste, Query, Catalog, Add connection and the Projects link left it (the folder button and Ctrl+V
   stay); no connection is the empty state. The agent: app_navigate new_query and query:<connection>.
+- Gone 2026-11-24 (the owner: "this isnt needed" / "sql authorship will have one place in scripts and not on the
+  grid menu"): the page, its draft and the query tray are a new .sql file on the Scripts page ("+", Ctrl+T, Ctrl+N,
+  the empty Tables page's New query; app_navigate new_sql, the old words read as it). A query's table shows its
+  query read-only with Edit in Scripts. Left for the owner: the steps' SQL step (Edit steps) and the connection
+  swap's query review (ConnectionSqlDialog) still take SQL typed on the Tables page.
 
 ### Multi-factor sign-in
 - A new way, **Username, with multi-factor sign-in (a browser window, or a code on another device)**: Dataverse

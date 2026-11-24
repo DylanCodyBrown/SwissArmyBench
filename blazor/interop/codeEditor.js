@@ -590,6 +590,21 @@ export function create(host, dotnet, options) {
     },
     setReadOnly: (on) => editor.updateOptions({ readOnly: !!on }),
     lintNow: () => lint(model, owner.language),
+    /** The selected text ("" when none) and its first line, else the cursor's (a SQL file's Run selection). */
+    selected: () => {
+      const chosen = editor.getSelection();
+      if (chosen && !chosen.isEmpty()) return { text: model.getValueInRange(chosen), line: chosen.startLineNumber };
+      return { text: "", line: editor.getPosition()?.lineNumber ?? 1 };
+    },
+    /** A run's failure at its line (a SQL file's): marked in the code and shown; null clears it. */
+    markError: (line, message) => {
+      if (!line) return void monaco.editor.setModelMarkers(model, "sab-run", []);
+      const end = model.getLineMaxColumn(Math.min(line, model.getLineCount()));
+      monaco.editor.setModelMarkers(model, "sab-run", [
+        { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: end, message: message ?? "", severity: monaco.MarkerSeverity.Error },
+      ]);
+      editor.revealLineInCenterIfOutsideViewport(line);
+    },
     /** The selected text, else the cursor's whole line (a script's Run selection). */
     selection: () => {
       const selected = editor.getSelection();

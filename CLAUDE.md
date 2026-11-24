@@ -58,6 +58,17 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `grid`), the guide topic `grids`, the rail area's id `grids`, SQL's `grid` view, Python and C# names
   (`Pages/Grids`, `GridsPage`, `Api/Grids`), CSS classes, data.py's `structures read as grids` marker. AG Grid the
   library, the Canvas's layout grid and the Analyze board's 12-column grid keep the word.
+- **SQL is written only on the Scripts page (the owner, 2026-11-24: "sql authorship will have one place in scripts
+  and not on the grid menu"; "also we should allow .sql files" / "clicking the + in grids menu jumps to the scripts
+  page with an open script" / "then when you run the file, it adds the table and opens the grid back on the grid
+  menu").** A `.sql` file is a script of the Scripts page (Monaco in SQL, the SQL cell's completion and lint; its
+  `-- connection: <name>` line, written by the dropdown beside Run file, else DuckDB over the open tables); Run
+  file (F5) or the statement under the cursor (Ctrl+Enter) becomes the open table named after the file, run again
+  replaced, and the Tables page comes forward on its tab (domain/sql_files.py, services/sql_files.py over the
+  "+" tab's server paths; `workbench_sql`). The Tables page's "+", Ctrl+T, Ctrl+N and its empty state's New query
+  open a new .sql file there; its New query page and query tray went; a query's table shows its query read-only
+  with Edit in Scripts. A tab's right click has Rename… (F2: a module with its imports, a notebook, a SQL file or
+  an untitled one's Save as; `workbench_file` rename).
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -671,6 +682,9 @@ src/swissarmybench/
                          name, a library's source that may be shown read-only (library_file)
     script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
                          plain value, a key vault, never a secret's value), the variables a script needs
+    sql_files.py         a .sql file (2026-11-24): its `-- connection:` header read and written, its statements
+                         (split outside strings and comments), the one at the cursor, Run file's one query, the
+                         table named after the file, the line an error points at (DuckDB's LINE n, a quoted name)
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
@@ -1021,6 +1035,9 @@ src/swissarmybench/
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
                          (rename, replace, duplicate and delete in the change log too)
+    sql_files.py         a .sql file's run (the statement as the open table named after the file, through
+                         datasets.build_from_query or connection_swap.new_query: no SQL runner of its own; a
+                         failure's line) and Edit in Scripts (a query's table as scripts/<table>.sql, made once)
     debugger.py          the Scripts page's debugger: a session per kernel over the kernel's own debugpy (the
                          Jupyter debug protocol), the run and the events' watcher, steps, variables, evaluate,
                          stop; `debug_state` notices
@@ -1271,8 +1288,8 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
                          explorer, library, project_python,
-                         shared_catalog, team, found_connections, script_ide, debugger, sharing, actions, call_stats,
-                         changes). Every route serves
+                         shared_catalog, team, found_connections, script_ide, sql_files, debugger, sharing, actions,
+                         call_stats, changes). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -1397,7 +1414,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (364 in the base, 394 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (365 in the base, 395 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/

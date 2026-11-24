@@ -66,7 +66,7 @@
                                    @onclick='e => file.Item is null ? Task.CompletedTask : OnAction.InvokeAsync((file, "open-item"))' @onclick:preventDefault="file.Item is not null" data-path="@file.Path"
                                    title="@(file.MadeFrom is { } from ? $"{file.Path}: made from {from}" : file.Path)" aria-current="@(Same(full) ? "page" : null)"
                                    @oncontextmenu="e => MenuAsync(e, file)" @oncontextmenu:preventDefault="Own(file)" @onkeydown="e => KeyAsync(e, file)">
-                                    <Icon Name="@(full.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebook" : "code")" />
+                                    <Icon Name="@(full.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? "notebook" : full.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) ? "sql" : "code")" />
                                     <span class="wb-codex-name">@(Page == "scripts" && file.Module is { } module ? module : file.Name)</span>
                                     @if (file.Edited)
                                     {

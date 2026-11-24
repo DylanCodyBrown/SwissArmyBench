@@ -219,29 +219,16 @@ body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offs
 .swap-ref code { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .empty-note { color: var(--muted); }
 
-/* ===== a new table from a query (startView.ts, queryTab.ts) ===== */
-.new-query-page { display: grid; gap: 12px; padding: 18px 24px; overflow: auto; }
-.new-query-title { font-size: 20px; }
-.new-query-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.new-query-choice { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); color: var(--fg); text-align: left; cursor: pointer; }
-.new-query-choice:hover, .new-query-choice:focus-visible { border-color: var(--accent); }
-.new-query-text { display: grid; }
-.new-query-kind { color: var(--muted); font-size: 0.9em; }
-.new-query-needs { margin-left: auto; color: var(--warn); font-size: 0.85em; }
-.new-query-search { max-width: 360px; }
+/* ===== no table open, and a query's table (SQL is written on the Scripts page: 2026-11-24) ===== */
+.tables-empty { display: grid; align-content: start; gap: 12px; padding: 18px 24px; overflow: auto; }
 .empty-state { display: grid; justify-items: start; gap: 8px; }
+.empty-state-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .project-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
 .project-fix-message { color: var(--muted); }
-.query-tray { display: grid; border-bottom: 1px solid var(--border); background: var(--surface); }
-.query-tray-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; }
-.query-tray .sql-editor { height: 180px; border-top: 1px solid var(--border); }
-.query-tray .run { border-color: var(--ok); background: var(--ok); color: #fff; }
-.query-name { width: 16ch; }
-.query-from { display: inline-flex; align-items: center; gap: 6px; }
-.query-from.fixed { color: var(--muted); }
-.sql-status { color: var(--muted); }
-.sql-status.error { color: var(--error); }
-.query-blank { display: grid; flex: 1; place-items: center; color: var(--muted); }
+.query-shown { display: grid; border-bottom: 1px solid var(--border); background: var(--surface); }
+.query-shown-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; }
+.query-shown-on { color: var(--muted); }
+.query-shown-sql { max-height: 140px; margin: 0; padding: 6px 12px; overflow: auto; border-top: 1px solid var(--border); color: var(--fg); white-space: pre-wrap; }
 
 /* ===== the command palette and the shortcuts sheet (workbenchCommands.ts), the Data Explorer (dataExplorer.ts) ===== */
 .wb-palette-shade { position: fixed; inset: 0; z-index: 90; display: flex; justify-content: center; padding-top: 12vh; background: color-mix(in srgb, #000 25%, transparent); }

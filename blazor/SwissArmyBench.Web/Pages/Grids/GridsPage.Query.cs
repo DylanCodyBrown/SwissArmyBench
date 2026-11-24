@@ -1,37 +1,22 @@
-using SwissArmyBench.Web.Api.Grids;
-using SwissArmyBench.Web.Pages.Grids.Query;
-
 namespace SwissArmyBench.Web.Pages.Grids;
 
 /// <summary>
-/// A new table from a query (the classic queryTab.ts): the New query page's choice opens the draft (its tray over a
-/// blank grid, a tab of its own until it is built); Run builds the table, whose tab keeps the tray so its query can
-/// change and run again.
+/// A new query is a new SQL file on the Scripts page (the owner, 2026-11-24: "sql authorship will have one place in
+/// scripts and not on the grid menu"): the "+", Ctrl+T and Ctrl+N go there, and an old address (tables?new=1, the
+/// New query page that went) lands there too. A table a query made shows its query here with Edit in Scripts.
 /// </summary>
 public partial class GridsPage
 {
-    private int _drafts;
+    private bool IsNewQuery => NewParameter is not null;
 
-    /// <summary>The draft's name: query, query_2… (never an open table's).</summary>
-    private string DraftName => Enumerable.Range(2, 1000).Select(n => $"query_{n}").Prepend("query").First(n => _tabs.All(t => t.Dataset != n));
-
-    private IReadOnlyList<string> OpenTableNames => _order.Select(id => _tabs.FirstOrDefault(t => t.Grid == id)?.Dataset).OfType<string>().Distinct().ToList();
-
-    private void OpenDraft(string from)
+    /// <summary>tables?new=1 (a bookmark, an old link): the new SQL file on the Scripts page, this address replaced.</summary>
+    private bool LeftForNewQuery()
     {
-        _drafts++;
-        Nav.NavigateTo($"tables?new=1&from={Uri.EscapeDataString(from)}");
+        if (!IsNewQuery)
+        {
+            return false;
+        }
+        Nav.NavigateTo(Query.TablesEmpty.NewQueryAddress, replace: true);
+        return true;
     }
-
-    private void CloseDraft() => Nav.NavigateTo(_active is { } active ? Address(active, _split) : "tables?new=1");
-
-    private async Task DraftBuiltAsync(BuiltTable built)
-    {
-        _ = Notes.SayAsync($"Built {built.Dataset}: {QueryTray.Rows(built.Rows)}{(built.Connection is { } on ? $" from {on}" : string.Empty)}.");
-        await LoadAsync();
-        Nav.NavigateTo(Address(built.Grid, null));
-    }
-
-    /// <summary>Run again: the table rebuilt in place (its tab's steps apply to the new rows).</summary>
-    private Task RebuiltAsync(BuiltTable built) => ReloadInfoAsync();
 }

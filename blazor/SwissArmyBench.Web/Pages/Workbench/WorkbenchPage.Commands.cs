@@ -39,9 +39,12 @@ public partial class WorkbenchPage
     private List<PaletteCommand> FileCommands() =>
     [
         new("file.new", "File", $"New {KindWord}", NewAsync),
+        new("file.newSql", "File", "New SQL file", NewSqlAsync, WhyNot: IsNotebooks ? "SQL files are the Scripts page's" : null),
         new("file.open", "File", "Open a notebook or script…", OpenAsync, "Ctrl+O"),
         new("file.save", "File", "Save", SaveFrontAsync, "Ctrl+S", Front is null && Project.Current is null ? NothingSaves : null),
         new("file.saveAs", "File", "Save a copy as…", () => SaveAsAsync(Front), "Ctrl+Shift+S", NeedsDocument),
+        new("file.rename", "File", "Rename the document…", () => Front is { } doc ? RenameTabAsync(doc.Key) : Task.CompletedTask,
+            WhyNot: NeedsDocument ?? (Front is { CanRename: false } ? TabMenus.RenameElsewhere : null)),
         new("file.close", "File", "Close the document", () => Front is { } doc ? CloseAsync(doc.Key) : Task.CompletedTask, WhyNot: NeedsDocument),
         new("file.exportScript", "File", "Export as one Python script…", () => Front is { } doc ? ExportDocumentAsync(doc, "script") : Task.CompletedTask, WhyNot: NeedsDocument),
         new("file.exportNotebook", "File", "Export as one notebook…", () => Front is { } doc ? ExportDocumentAsync(doc, "notebook") : Task.CompletedTask, WhyNot: NeedsDocument),
@@ -78,8 +81,8 @@ public partial class WorkbenchPage
         return
         [
             new("run.main", "Run", "Run the file, or every cell", () => Front is { } doc ? RunMainAsync(doc) : Task.CompletedTask, "F5", NeedsDocument),
-            new("run.statement", "Run", "Run the statement at the cursor, then the next", () => Front?.ScriptView?.RunSelectionAsync() ?? Task.CompletedTask, "Ctrl+Enter",
-                Front?.ScriptView is null ? "A script's command: put a script in front" : null),
+            new("run.statement", "Run", "Run the statement at the cursor, then the next", () => Front?.ScriptView?.RunSelectionAsync() ?? Front?.SqlView?.RunSelectionAsync() ?? Task.CompletedTask, "Ctrl+Enter",
+                Front?.ScriptView is null && Front?.SqlView is null ? "A script's command: put a script in front" : null),
             new("run.cell", "Run", "Run the selected cell", () => notebook!.RunSelectedAsync(), "Ctrl+Enter", cell),
             new("run.above", "Run", "Run the cells above", () => notebook!.RunAboveAsync(), WhyNot: cell),
             new("run.below", "Run", "Run this cell and the ones below", () => notebook!.RunBelowAsync(), WhyNot: cell),

@@ -1,0 +1,49 @@
+@* A table a query made: its query read-only, where it runs, and Edit in Scripts (the owner, 2026-11-24: "sql
+   authorship will have one place in scripts and not on the grid menu"): its .sql file (made from the query the first
+   time) opened on the Scripts page, where running it replaces this table. *@
+@inject SwissArmyBench.Web.Api.Workbench.ScriptIdeClient Ide
+@inject NavigationManager Nav
+
+<section class="query-shown" aria-label="The query that builds this table">
+    <div class="query-shown-bar">
+        <button type="button" class="btn ghost icon small" aria-label="@(_open ? "Hide the query" : "Show the query")" title="@(_open ? "Hide the query" : "Show the query")"
+                aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open"><Icon Name="@(_open ? "up" : "down")" /></button>
+        <strong>Query</strong>
+        <span class="query-shown-on">@(Connection is { Length: > 0 } on ? $"on {on}, in its own SQL" : "on the open tables (DuckDB)")</span>
+        <button type="button" class="btn small query-edit" title="Its .sql file on the Scripts page: run it there to replace this table" @onclick="EditAsync"><Icon Name="edit" /> Edit in Scripts</button>
+        <ErrorNote Error="_error" OnClose="() => _error = null" />
+    </div>
+    @if (_open)
+    {
+        <pre class="query-shown-sql mono" aria-label="SQL query">@Sql</pre>
+    }
+</section>
+
+@code {
+    private bool _open = true;
+    private Exception? _error;
+
+    [Parameter, EditorRequired]
+    public string Sql { get; set; } = string.Empty;
+
+    /// <summary>The table's name: its .sql file's.</summary>
+    [Parameter, EditorRequired]
+    public string Table { get; set; } = string.Empty;
+
+    /// <summary>The connection the query runs on (none: the open tables).</summary>
+    [Parameter]
+    public string? Connection { get; set; }
+
+    private async Task EditAsync()
+    {
+        try
+        {
+            var file = await Ide.SqlForTableAsync(Table);
+            Nav.NavigateTo($"scripts?path={Uri.EscapeDataString(file.Path)}");
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
+    }
+}

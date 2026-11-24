@@ -58,12 +58,9 @@ public partial class GridsPage : IDisposable
     [SupplyParameterFromQuery(Name = "table")]
     public string? TableParameter { get; set; }
 
+    /// <summary>An old New query address (tables?new=1): a new SQL file on the Scripts page instead.</summary>
     [SupplyParameterFromQuery(Name = "new")]
     public string? NewParameter { get; set; }
-
-    /// <summary>The draft's Query from (the New query page's choice: "" the open tables); none: the New query page.</summary>
-    [SupplyParameterFromQuery(Name = "from")]
-    public string? FromParameter { get; set; }
 
     /// <summary>The Tables list open (the status bar's memory meter links here).</summary>
     [SupplyParameterFromQuery(Name = "tables")]
@@ -72,8 +69,6 @@ public partial class GridsPage : IDisposable
     /// <summary>Two grids side by side: "left,right".</summary>
     [SupplyParameterFromQuery(Name = "split")]
     public string? SplitParameter { get; set; }
-
-    private bool IsNewQuery => NewParameter is not null;
 
     /// <summary>The grid in front (the ribbon acts on it): the active pane's view.</summary>
     private GridInfo? _info
@@ -120,6 +115,10 @@ public partial class GridsPage : IDisposable
 
     protected override async Task OnParametersSetAsync()
     {
+        if (LeftForNewQuery())
+        {
+            return;
+        }
         await LoadAsync();
         if (TablesParameter is not null)
         {
@@ -157,9 +156,9 @@ public partial class GridsPage : IDisposable
             _goneSaid = asked;
             _ = Notes.SayAsync("It is not open any more.");
         }
-        if (wanted is null || IsNewQuery || !open.Contains(wanted))
+        if (wanted is null || !open.Contains(wanted))
         {
-            _active = IsNewQuery ? _active : null;
+            _active = null;
             await ShowSplitAsync(null);
             return;
         }

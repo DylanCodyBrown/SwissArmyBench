@@ -76,8 +76,12 @@ public partial class FilesPane
 
     private bool Same(string path) => string.Equals(path, Current, StringComparison.Ordinal);
 
-    /// <summary>A module of the user's own: it has the right click's actions (never a made, library or other file).</summary>
-    private bool Own(TreeFile file) => Page == "scripts" && !file.ReadOnly && file.MadeFrom is null && !file.Library && file.Path.EndsWith(".py", StringComparison.Ordinal);
+    /// <summary>A module or a SQL file of the user's own: it has the right click's actions (never a made, library or
+    /// other file).</summary>
+    private bool Own(TreeFile file) => Page == "scripts" && !file.ReadOnly && file.MadeFrom is null && !file.Library
+        && (file.Path.EndsWith(".py", StringComparison.Ordinal) || IsSql(file));
+
+    private static bool IsSql(TreeFile file) => file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A file opens on its kind's page (a notebook on Notebooks, a .py on Scripts).</summary>
     private static string AddressOf(string path) =>
@@ -90,12 +94,14 @@ public partial class FilesPane
             return Task.CompletedTask;
         }
         Func<Task> act(string action) => () => OnAction.InvokeAsync((file, action));
-        List<MenuEntry> entries =
-        [
-            new("Rename…", "edit", act(Rename)),
-            new("Duplicate", "copy", act(Duplicate)),
-            new("Delete", "trash", act(Delete)),
-        ];
+        List<MenuEntry> entries = IsSql(file)
+            ? [new("Rename…", "edit", act(Rename)), new("Delete", "trash", act(Delete))]
+            :
+            [
+                new("Rename…", "edit", act(Rename)),
+                new("Duplicate", "copy", act(Duplicate)),
+                new("Delete", "trash", act(Delete)),
+            ];
         if (file.Name == "__init__.py")
         {
             entries.AddRange([MenuEntry.Separator, new("Rename package…", "edit", act(RenamePackage)), new("New package here…", "folder", act(NewPackageHere)), new("Delete package", "trash", act(DeletePackage))]);

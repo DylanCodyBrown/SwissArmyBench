@@ -289,8 +289,6 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .column-card { flex: none; width: 320px; overflow: auto; padding: 12px 14px; border-left: 1px solid var(--border); background: var(--raised); display: grid; gap: 8px; align-content: start; }
 .column-card h2 { flex: 1; font-size: 15px; }
 .column-card h3 { font-size: 13px; color: var(--muted); }
-.new-query { display: grid; gap: 10px; max-width: 900px; padding: 18px 24px; }
-.new-query h1 { font-size: 18px; }
 .query-sql { width: 100%; }
 
 /* ===== the Environment and Catalog pages ===== */

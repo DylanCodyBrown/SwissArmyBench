@@ -81,7 +81,7 @@ public partial class GridsPage
         all.Add(new("tabs.next", "Tabs", "Next tab", () => CycleAsync(1), WhyNot: _tabs.Count > 1 ? null : "one table or none is open"));
         all.Add(new("tabs.previous", "Tabs", "Previous tab", () => CycleAsync(-1), WhyNot: _tabs.Count > 1 ? null : "one table or none is open"));
         all.Add(new("tabs.reopen", "Tabs", "Reopen the last closed tab", ReopenAsync));
-        all.Add(new("tabs.new-query", "Tabs", "New query", () => Navigate("tables?new=1")));
+        all.Add(new("tabs.new-query", "Tabs", "New query: a SQL file on the Scripts page", () => Navigate(Query.TablesEmpty.NewQueryAddress)));
         all.Add(new("application.zoom-reset", "Application", "Zoom 100%", () => Js.InvokeVoidAsync("sab.zoomReset").AsTask(), "Ctrl+0"));
         all.Add(new("application.find-data", "Application", "Find data…", () => { Palette.Show("find"); return Task.CompletedTask; }, "Ctrl+K"));
         all.AddRange(_analyses.Select(a => new PaletteCommand(

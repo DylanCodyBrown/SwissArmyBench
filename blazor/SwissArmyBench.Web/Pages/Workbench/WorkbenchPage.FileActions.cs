@@ -15,6 +15,9 @@ public partial class WorkbenchPage
         var folder = full is null ? null : FilePaths.Folder(full);
         await GuardAsync(asked.Action switch
         {
+            // A SQL file in the tree is renamed as its tab is (its tab's unsaved changes asked about first).
+            FilesPane.Rename when full is not null && full.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) => () =>
+                _documents.FirstOrDefault(d => SamePath(d.Path, full)) is { } open ? RenameTabAsync(open.Key) : RenameInFolderAsync(full),
             FilesPane.Rename when full is not null => () => Toggle(() => _renamingFile = full),
             FilesPane.RenamePackage when folder is not null => () => Toggle(() => _renamingFile = folder),
             FilesPane.Duplicate when full is not null => () => DuplicateFileAsync(full),
@@ -70,12 +73,7 @@ public partial class WorkbenchPage
     {
         var from = _renamingFile;
         _renamingFile = null;
-        foreach (var doc in _documents.Where(d => d.Path is not null && from is not null && SamePath(d.Path, from)))
-        {
-            doc.Path = to; // the tab follows its file
-        }
-        await LoadTreeAsync();
-        await FollowAddressAsync();
+        await FollowRenameAsync(from, to);
     }
 
     private async Task OpenAtAsync((string Path, int Line) at)

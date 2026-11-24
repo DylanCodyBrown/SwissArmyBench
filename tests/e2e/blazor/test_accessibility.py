@@ -17,7 +17,7 @@ PAGES = [
     "catalog",
     "environment",
     "grids",
-    "tables?new=1",
+    "scripts?new=sql",
     "erd",
     "session",
     "settings",
