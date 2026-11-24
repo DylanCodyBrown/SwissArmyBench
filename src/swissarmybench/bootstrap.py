@@ -907,14 +907,14 @@ def _connection_runs(b: Built) -> None:
         run=blade_runner.run,
         run_streaming=blade_runner.run_streaming,
         failed=blade_runner.RefreshError,
-        # Built later, and each runs a blade through this: read when a run starts.
-        gate=lambda *a: b.connection_slots.run_blade(*a),
+        gate=lambda *a: b.connection_slots.run_blade(*a),  # built later: read when a run starts
         record=lambda *a, **k: b.connection_usage.record(*a, **k),
         keep_names=lambda vault, names: b.blades.keep_names(vault, names),
         report=process_event,
         run_file=lambda name: os.path.join(tempfile.gettempdir(), "swissarmybench-blades", name),
         blade_seconds=settings.blade_timeout_seconds,
         vault_seconds=settings.vault_timeout_seconds,
+        install_missing=blade_runner.install_missing,
     )
 
 
@@ -1486,10 +1486,10 @@ def _found_and_setup(b: Built) -> None:
         b.approvals,
         b.project_python,
     )  # fmt: skip
-    b.live.listeners.append(b.environment.heard)
-    # What the project needs, found and installed at once as it opens (2026-11-23): ProjectPython's own.
+    b.live.listeners.append(b.environment.heard)  # then what the project needs: as it opens, as code is saved
     needs = NeedSources(b.project_use.connections, blade_store.get, b.hooks, b.code_files.touched)
-    ProjectInstalls(b.project_python, install, b.approvals, needs, b.environment.changed)
+    installs = ProjectInstalls(b.project_python, install, b.approvals, needs, b.environment.changed)
+    b.live.listeners.append(installs.heard)
     # Shared projects: each one's connections that do not work here, and one opened that only works here.
     b.shared_projects = SharedProjects(
         b.project_explorer.shared_folder,

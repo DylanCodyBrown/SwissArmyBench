@@ -1022,7 +1022,9 @@ src/swissarmybench/
                          for the canvases' widgets) and what is missing installed in ONE install (server/environments.py
                          install, each output line heard), the `project_installs` notice whole each time, what was
                          installed added to requirements.txt, a failure kept with Try again, `restart` when a session
-                         runs (the bar's Restart, asked); check, run (the agent's on Allow): `project_installs`
+                         runs (the bar's Restart, asked); check, run (the agent's on Allow): `project_installs`;
+                         and again as its code is saved (heard: a file_changed of its .py, .ipynb or requirements.txt,
+                         settled 2 s; the owner, 2026-11-24)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     intellisense.py      the editors' intelligence: complete, signature, hover, lint (Jedi in the kernel or
                          a Script over the project; the app's names; Ruff or pyflakes where there; a worker
@@ -1327,7 +1329,10 @@ src/swissarmybench/
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
                          starting it detached; SWISSARMYBENCH_CLAUDE_STANDIN's stand-in for tests
     blade_runner.py      Refresh/Test in a child process; the blade IDE's Run (run_streaming: prints streamed,
-                         the result a table or a value, a failure as the error panel's detail); installing packages
+                         the result a table or a value, a failure as the error panel's detail); installing packages;
+                         install_missing: what a run's code (and its vaults') imports that the app's Python lacks,
+                         installed before it runs (BladeRuns.ready: the user's runs; the agent's stays Install now on
+                         Allow; SWISSARMYBENCH_AUTO_INSTALL=off in the tests; the owner, 2026-11-24)
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a loose notebook's environment and a project's `.venv` (make_venv: uv, else venv
                          and pip; its own .gitignore inside it); the client lent to kernels

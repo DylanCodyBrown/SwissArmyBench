@@ -45,6 +45,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         # The file chooser falls back to the page's own picker (no system dialog opens during a test).
         "SWISSARMYBENCH_SYSTEM_DIALOGS": "off",
         "SWISSARMYBENCH_PROJECT_VENV": "off",
+        "SWISSARMYBENCH_AUTO_INSTALL": "off",
     }
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     info: dict[str, Any] | None = None

@@ -17,12 +17,15 @@ starts a process or reads a file.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade, env_settings
+from swissarmybench.domain.connection_slots import AGENT
+from swissarmybench.services.connection_slots import CURRENT
 
 Job = dict[str, Any]
 Report = Callable[..., None]  # (kind, event, code, seconds, reason): a child process, told to the beta log
@@ -65,6 +68,7 @@ class BladeRuns:
         run_file: Callable[[str], str],
         blade_seconds: float,
         vault_seconds: float,
+        install_missing: Callable[[list[str]], Awaitable[list[str]]] | None = None,
     ) -> None:
         self._payload, self._load_payload = payload, load_payload
         self._run, self._run_streaming = run, run_streaming
@@ -80,6 +84,21 @@ class BladeRuns:
         self._run_file = run_file
         self._blade_seconds = blade_seconds
         self._vault_seconds = vault_seconds
+        # What a run's code imports that the app's Python lacks, installed first (server/blade_runner.py).
+        self._install_missing = install_missing
+        self._installing = asyncio.Lock()
+
+    async def ready(self, job: Job) -> list[str]:
+        """The packages a job's code (and its vaults') needs, installed before it runs, one install at a
+        time: the user's runs only (the agent's install waits for the user's Allow: Install now)."""
+        caller = CURRENT.get()
+        if self._install_missing is None or (caller is not None and caller.role == AGENT):
+            return []
+        codes = [str(job.get("code") or "")] + [
+            str(v.get("code") or "") for v in job.get("vaults") or [] if isinstance(v, dict)
+        ]
+        async with self._installing:
+            return await self._install_missing(codes)
 
     def given_out(self, job: Job) -> None:
         """A vault that loads every secret: its names as given out here (no variable twice, a taken one
@@ -99,6 +118,7 @@ class BladeRuns:
     ) -> dict[str, Any]:
         job = self._payload(blade, mode, typed, extra)
         self.given_out(job)
+        await self.ready(job)
         kind = "catalog" if mode == "catalog" else "blade"
 
         async def work() -> dict[str, Any]:
@@ -127,6 +147,7 @@ class BladeRuns:
         """The blade IDE's Run: the blade (its code the editor's) in a child process, its output streamed."""
         job = self._payload(blade, "run", typed)
         self.given_out(job)
+        await self.ready(job)
         job["filename"] = self._run_file(filename)
         answer = await self._run_streaming(
             job, self._blade_seconds, on_output, started, report=lambda *e: self._report("blade", *e)

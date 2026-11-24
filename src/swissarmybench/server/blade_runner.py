@@ -354,6 +354,24 @@ async def install_packages(packages: list[str]) -> tuple[int | None, str]:
     return process.returncode, out.decode("utf-8", "replace")
 
 
+async def install_missing(codes: list[str]) -> list[str]:
+    """What these codes import that this Python lacks (each known to pip by its import's name; one only
+    guessed is left to Install now), installed before they run (the owner, 2026-11-24: missing packages
+    found and installed by themselves). The packages installed; none when nothing was missing or it failed.
+    SWISSARMYBENCH_AUTO_INSTALL=off: never (the tests: Install now stays the way)."""
+    from swissarmybench.adapters.blade_run import needed
+
+    if os.environ.get("SWISSARMYBENCH_AUTO_INSTALL", "").lower() in ("off", "0", "false", "no"):
+        return []
+    pips = list(
+        dict.fromkeys(p.pip for code in codes for p in needed(code) if not p.installed and not p.guessed)
+    )
+    if not pips:
+        return []
+    code, _ = await install_packages(pips)
+    return pips if code == 0 else []
+
+
 # ===== the child process =====
 
 

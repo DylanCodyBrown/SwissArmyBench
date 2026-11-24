@@ -69,6 +69,8 @@ os.environ["SWISSARMYBENCH_SYSTEM_DIALOGS"] = "off"
 # Nor a project's own .venv made as it opens (services/project_python.py: a download and a minute): a test
 # about it asks (Settings(project_venv=True)) and stands the making in (tests/libraries_standin.py).
 os.environ.setdefault("SWISSARMYBENCH_PROJECT_VENV", "off")
+# Missing packages never installed by a run here (server/blade_runner.py install_missing): its test asks.
+os.environ.setdefault("SWISSARMYBENCH_AUTO_INSTALL", "off")
 
 PORT = 8765
 TOKEN = "test-token"

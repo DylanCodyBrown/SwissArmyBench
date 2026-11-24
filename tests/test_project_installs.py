@@ -110,6 +110,25 @@ def test_a_project_opened_gets_everything_it_needs_in_one_install(
     assert again["words"] == "Everything this project needs is installed."
 
 
+def test_a_new_import_saved_later_is_installed_by_itself(installing: TestClient, tmp_path: Path) -> None:
+    """The owner, 2026-11-24: "the app is still not auto detecting missing packages and installing them":
+    not only as the project opens, but as its code is saved."""
+    folder = made_up_project(tmp_path / "work" / "Pricing")
+    ok(installing.post("/project/open", json={"path": str(folder), "make": True}, headers=AUTH))
+    assert settled(installing, "done", "failed")["state"] == "done"
+    script = folder / "scripts" / "price.py"
+    saved = {"path": str(script), "text": "import pretty_made_up\n"}
+    ok(installing.post("/workbench/save", json=saved, headers=AUTH))
+    for _ in range(300):  # the saves settle (2 s), then the one install
+        if list(libraries_standin.site_packages(folder).glob("pretty_made_up-*")):
+            break
+        time.sleep(0.05)
+    assert list(libraries_standin.site_packages(folder).glob("pretty_made_up-*"))
+    done = settled(installing, "done", "failed")
+    assert done["state"] == "done" and [p["name"] for p in done["packages"]] == ["pretty_made_up"]
+    assert "pretty_made_up" in (folder / "requirements.txt").read_text(encoding="utf-8")
+
+
 def test_a_project_without_a_venv_has_it_made_first_then_its_needs_installed(
     installing: TestClient, tmp_path: Path
 ) -> None:

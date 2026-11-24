@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import blades as blade_rules
-from swissarmybench.domain import connection_kinds
+from swissarmybench.domain import connection_kinds, project_paths
 from swissarmybench.domain import environment as requirements_rules
 from swissarmybench.domain import project_needs as needs_rules
 from swissarmybench.domain import project_python as rules
@@ -121,6 +121,10 @@ class ProjectPython:
         if self._folder is None:
             return None
         return self._folder, self.files.python_of(self._folder)[0]
+
+    def auto(self) -> bool:
+        """Whether the project's Python and installs are made by themselves (SWISSARMYBENCH_PROJECT_VENV)."""
+        return self._enabled
 
     # ===== the project's `.venv` =====
 
@@ -268,6 +272,8 @@ class NeedSources:
 
 SAY_EVERY: float = 0.25  # the progress notice at most this often while no package changes its status
 TYPE_WHY: str = "the project's type"
+SETTLE_SECONDS: float = 2.0  # a saved code file looked at again once the saves have stopped this long
+CODE_FILES: tuple[str, ...] = (".py", ".ipynb", "requirements.txt")
 
 
 class ProjectInstalls:
@@ -294,6 +300,7 @@ class ProjectInstalls:
         self._state = needs_rules.State()
         self._task: asyncio.Task[None] | None = None
         self._said_at = 0.0
+        self._settling: asyncio.TimerHandle | None = None
         python.installs = self
 
     # ===== what the screens and the agent read =====
@@ -323,6 +330,29 @@ class ProjectInstalls:
             self._state.state = "checking"
             self._task = asyncio.ensure_future(self._pass(folder, install=True, who="app"))
         await self._say()
+
+    def heard(self, message: dict[str, Any]) -> None:
+        """A notice went to the pages (the live listeners): a code file of the open project saved or changed
+        (a new import, requirements.txt) has its needs looked for again and what is missing installed, once
+        the saves settle (the owner, 2026-11-24: not only as the project opens)."""
+        path = message.get("path")
+        folder = self._folder
+        if message.get("type") != "file_changed" or folder is None or not isinstance(path, str):
+            return
+        if not path.endswith(CODE_FILES) or not project_paths.inside(path, folder):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        if self._settling is not None:
+            self._settling.cancel()
+        self._settling = loop.call_later(SETTLE_SECONDS, self._again, folder)
+
+    def _again(self, folder: str) -> None:
+        self._settling = None
+        if folder == self._folder and not self._busy() and self._python.auto():
+            self._task = asyncio.ensure_future(self._pass(folder, install=True, who="app"))
 
     async def check(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         """Look again (installs nothing): the needs, and which the project's Python lacks."""
