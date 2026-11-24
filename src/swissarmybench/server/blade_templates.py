@@ -402,11 +402,120 @@ POWERBI_BROWSER = _powerbi(_POWERBI_BROWSER, "\nfrom azure.identity import Inter
 # The workspace's datasets, each as a schema: its tables, columns (with types) and measures, each
 # measure listed on its own table and marked. A dataset is asked the model's own description
 # (INFO.VIEW) first; an older model's numbered form; then, for a sign-in that may not read the model's
-# description, the columns' statistics (no types, no measures). Datasets are read one after another,
-# at most MAX_DATASETS of them and for at most MAX_SECONDS; one that cannot be read (or was not
-# reached) is a row with no table and the reason, which the tree shows on that dataset alone
-# (adapters/catalogs.py keeps it as the schema's note).
-POWERBI_CATALOG = """MAX_DATASETS = 25  # each takes two queries or more; Power BI takes 120 a minute
+# description, the columns' statistics (no types, no measures). EVERY dataset is read (the owner,
+# 2026-11-24: a workspace of 108 datasets showed its first 25): a few at a time, never faster than Power
+# BI's 120 queries a minute for one user, a refusal for too many requests waited out and asked again, for
+# at most MAX_SECONDS (inside a catalog load's ten minutes). One that cannot be read (or was not reached in
+# time) is a row with no table and the reason, which the tree shows on that dataset alone
+# (adapters/catalogs.py keeps it as the schema's note); it can still be opened by itself.
+POWERBI_CATALOG = """import threading
+from concurrent.futures import ThreadPoolExecutor
+
+AT_ONCE = 4  # datasets read side by side
+PER_MINUTE = 110  # queries: under Power BI's 120 a minute for one user
+MAX_SECONDS = 540  # a catalog load runs ten minutes at most
+started = time.time()
+pace = threading.Lock()
+asked = []
+
+
+def read(dataset, dax):
+    for attempt in range(4):
+        with pace:  # never more than PER_MINUTE queries in any minute
+            now = time.time()
+            del asked[: len([t for t in asked if now - t >= 60])]
+            if len(asked) >= PER_MINUTE:
+                time.sleep(max(0.0, 60 - (now - asked[0])))
+            asked.append(time.time())
+        try:
+            dataset.execute(dax)
+            break
+        except PowerBIError as error:
+            if "(429)" not in str(error) or attempt == 3 or time.time() - started > MAX_SECONDS:
+                raise
+            time.sleep(20 * (attempt + 1))  # too many requests: wait, then ask again
+    columns = [d[0] for d in dataset.description]
+    return [dict(zip(columns, row)) for row in dataset.fetchall()]
+
+
+def own(table):  # the date tables Power BI makes by itself
+    return str(table).startswith(("LocalDateTable_", "DateTableTemplate_"))
+
+
+def described(dataset):
+    try:
+        found = read(dataset, "EVALUATE INFO.VIEW.COLUMNS()")
+        columns = [(c["Table"], c["Name"], c.get("DataType") or "") for c in found]
+        found = read(dataset, "EVALUATE INFO.VIEW.MEASURES()")
+        measures = [(m["Table"], m["Name"], m.get("DataType") or "") for m in found]
+    except (PowerBIError, KeyError):
+        try:  # the numbered form: ids for tables, numbers for types
+            types = {2: "Text", 6: "Integer", 8: "Double", 9: "DateTime", 10: "Decimal", 11: "Boolean"}
+            tables = {t["ID"]: t["Name"] for t in read(dataset, "EVALUATE INFO.TABLES()")}
+            columns = [
+                (
+                    tables.get(c["TableID"]),
+                    c.get("ExplicitName") or c.get("InferredName"),
+                    types.get(c.get("ExplicitDataType"), ""),
+                )
+                for c in read(dataset, "EVALUATE INFO.COLUMNS()")
+                if c.get("Type") != 3  # 3: each table's hidden row number
+            ]
+            measures = [
+                (tables.get(m["TableID"]), m["Name"], types.get(m.get("DataType"), ""))
+                for m in read(dataset, "EVALUATE INFO.MEASURES()")
+            ]
+        except (PowerBIError, KeyError):
+            found = read(dataset, "EVALUATE COLUMNSTATISTICS()")
+            columns = [(c["Table Name"], c["Column Name"], "") for c in found]
+            measures = []
+    return [
+        (table, name, kind)
+        for table, name, kind in columns
+        if table and name and not own(table) and not str(name).startswith("RowNumber-")
+    ] + [
+        (table, name, f"measure, {kind}" if kind else "measure")
+        for table, name, kind in measures
+        if table and name
+    ]
+
+
+def row(dataset, table="", column="", kind="", note=""):
+    return {
+        "schema_name": dataset,
+        "table_name": table,
+        "column_name": column,
+        "data_type": kind,
+        "description": note,
+    }
+
+
+def one(found):
+    if time.time() - started > MAX_SECONDS:
+        return [], f"Not read in time (the catalog stops after {MAX_SECONDS} seconds): open it by itself."
+    try:
+        rows = described(conn.dataset(found["id"]))
+        return rows, "" if rows else "It has no tables."
+    except (PowerBIError, KeyError) as error:
+        return [], f"Could not be read: {error}"
+
+
+every = conn.datasets()
+with ThreadPoolExecutor(max_workers=AT_ONCE) as pool:
+    results = list(pool.map(one, every))
+catalog = []
+for found, (rows, note) in zip(every, results):  # in the workspace's own order
+    if note:
+        catalog.append(row(found["name"], note=note))
+    catalog += [row(found["name"], table, name, kind) for table, name, kind in rows]
+if not catalog:
+    raise PowerBIError("The workspace has no datasets this sign-in may read.")"""
+
+# The catalog code earlier starters gave a Power BI connection, word for word: a saved connection that still
+# holds one of them lists its tables with today's (adapters/blades.py listed; nothing is written). An edited
+# one is the user's own and kept.
+OLD_POWERBI_CATALOGS: tuple[str, ...] = (
+    """MAX_DATASETS = 25  # each takes two queries or more; Power BI takes 120 a minute
 MAX_SECONDS = 200
 
 
@@ -486,7 +595,8 @@ for at, found in enumerate(conn.datasets()):
         catalog.append(row(found["name"], note=note))
     catalog += [row(found["name"], table, name, kind) for table, name, kind in rows]
 if not catalog:
-    raise PowerBIError("The workspace has no datasets this sign-in may read.")"""
+    raise PowerBIError("The workspace has no datasets this sign-in may read.")""",
+)
 
 
 DATABASES: tuple[Template, ...] = (

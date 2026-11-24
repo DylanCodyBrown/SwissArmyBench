@@ -96,6 +96,8 @@ class BladeStore:
         # A connection saved with no query that lists its tables gets its starter's as it is read
         # (domain/blade_tables.py listing_for): a connection's tables are always listed.
         self._listing = listing
+        # (and one saved with an earlier starter's own listing, word for word, gets today's): `listing` says
+        # which, None for a blade that keeps its own.
         self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
         # The extensions' own starter blades (each an extension's STARTERS folder, while it is on).
         self._more_starters = more_starters or (lambda: [])
@@ -390,8 +392,9 @@ class BladeStore:
         return self._saved_paths().get(name.casefold())
 
     def listed(self, blade: Blade) -> Blade:
-        """The blade, a connection with no listing query given its starter's (nothing is written)."""
-        if blade.has_catalog or self._listing is None:
+        """The blade, a connection with no listing query, or with an earlier starter's word for word, given
+        its starter's (nothing is written)."""
+        if self._listing is None:
             return blade
         found = self._listing(blade)
         if found is None:

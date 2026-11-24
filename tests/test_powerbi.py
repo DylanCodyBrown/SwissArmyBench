@@ -7,6 +7,7 @@ plain Python, as the owner's connection is made from their vault."""
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,7 @@ from starlette.testclient import TestClient
 from swissarmybench.adapters.blade_run import BladeRunError, run_catalog, run_code
 from swissarmybench.client import blades_client, sql_cell
 from swissarmybench.domain import notebooks, powerbi
-from swissarmybench.domain.blades import detect_settings, read_code
+from swissarmybench.domain.blades import Blade, detect_settings, read_code
 from swissarmybench.domain.catalogs import count_sql, dax_table, normalize_dialect, select_sql
 from swissarmybench.domain.connections import signs_in_interactively
 from swissarmybench.domain.relationships import Model, Relationship, conflicts, merge
@@ -374,25 +375,59 @@ def test_the_catalog_is_the_workspace_each_dataset_a_schema(standin: made_up.Sta
     assert standin.queries(BUDGET) == ["EVALUATE INFO.VIEW.COLUMNS()", "EVALUATE INFO.VIEW.MEASURES()"]
 
 
-def test_the_catalog_reads_a_stated_number_of_datasets_and_says_which_it_left(
+def test_the_catalog_reads_every_dataset_at_power_bis_pace_and_says_which_it_left(
     standin: made_up.StandIn,
 ) -> None:
-    assert "MAX_DATASETS = 25" in POWERBI_CATALOG and "MAX_SECONDS = 200" in POWERBI_CATALOG  # stated
-    rows = catalog_rows(standin, None, POWERBI_CATALOG.replace("MAX_DATASETS = 25", "MAX_DATASETS = 1"))
-    assert {r["schema_name"] for r in rows if r["table_name"]} == {SALES}
-    left = {r["schema_name"]: r["description"] for r in rows if not r["table_name"]}
-    assert left == {
-        BUDGET: "Not read: the catalog reads a workspace's first 1 datasets.",
-        "Broken model": "Not read: the catalog reads a workspace's first 1 datasets.",
-    }
-    assert not standin.queries(BUDGET) and not standin.queries("Broken model")  # never asked
+    """The owner, 2026-11-24: a workspace of 108 datasets showed its first 25. Every dataset is read now, a
+    few at a time and under Power BI's 120 queries a minute; one not reached in time says so."""
+    assert "MAX_DATASETS" not in POWERBI_CATALOG and "PER_MINUTE = 110" in POWERBI_CATALOG
+    many = [
+        replace(made_up.BUDGET_MODEL, id=f"made-up-{n:03}", name=f"Made-up model {n:03}") for n in range(30)
+    ]
+    standin.models = [*standin.models, *many]
+    rows = catalog_rows(standin, None)
+    read = {r["schema_name"] for r in rows if r["table_name"]}
+    assert {f"Made-up model {n:03}" for n in range(30)} <= read and SALES in read  # all of them, not 25
+    assert [r["schema_name"] for r in rows if not r["table_name"]] == ["Broken model"]  # only the broken one
+    order = list(dict.fromkeys(r["schema_name"] for r in rows))
+    assert order == [m.name for m in standin.models]  # in the workspace's own order
     # Out of time: the datasets not reached say so; nothing is asked of them.
-    rows = catalog_rows(standin, None, POWERBI_CATALOG.replace("MAX_SECONDS = 200", "MAX_SECONDS = -1"))
-    assert {r["description"] for r in rows} == {"Not read: the catalog stops after -1 seconds."}
+    standin.models = standin.models[:3]
+    rows = catalog_rows(standin, None, POWERBI_CATALOG.replace("MAX_SECONDS = 540", "MAX_SECONDS = -1"))
+    assert {r["description"] for r in rows} == {
+        "Not read in time (the catalog stops after -1 seconds): open it by itself."
+    }
     # A workspace with no datasets at all says so.
     standin.models = []
     with pytest.raises(BladeRunError, match="has no datasets this sign-in may read"):
         catalog_rows(standin, None)
+
+
+def test_a_saved_connection_with_the_old_25_dataset_catalog_lists_with_todays() -> None:
+    """A connection saved from the earlier starter holds its catalog code word for word: it lists its tables
+    with today's. One the user edited is theirs and kept."""
+    from swissarmybench.domain import blade_tables
+    from swissarmybench.server.blade_templates import OLD_POWERBI_CATALOGS, TEMPLATES
+
+    old = OLD_POWERBI_CATALOGS[0]
+    assert "MAX_DATASETS = 25" in old
+    assert blade_tables.superseded(old.replace("\n", "\r\n") + "\n", OLD_POWERBI_CATALOGS)
+    assert not blade_tables.superseded(old.replace("25", "60"), OLD_POWERBI_CATALOGS)
+    assert not blade_tables.superseded("", OLD_POWERBI_CATALOGS)
+    starter = next(t for t in TEMPLATES if t.catalog_command == POWERBI_CATALOG)
+    saved = Blade(
+        name="Made-up workspace",
+        kind=starter.kind,
+        code=starter.code,
+        variable=starter.variable,
+        dialect=starter.dialect,
+        template=starter.id,
+        catalog_language="python",
+        catalog_command=old,
+    )
+    assert blade_tables.listing_kept(saved, TEMPLATES, OLD_POWERBI_CATALOGS) == ("python", POWERBI_CATALOG)
+    edited = replace(saved, catalog_command=old.replace("25", "60"))
+    assert blade_tables.listing_kept(edited, TEMPLATES, OLD_POWERBI_CATALOGS) is None
 
 
 def test_the_catalog_lists_tables_columns_with_types_and_measures(standin: made_up.StandIn) -> None:

@@ -31,6 +31,7 @@ from swissarmybench.domain.blades import (
     HEADER_TYPE,
     STARTERS,
     TABLE_NAME_RULE,
+    Blade,
     BladeCodeError,
     PortableError,
     Template,
@@ -167,6 +168,22 @@ def listing_for(
     if found is None or not found.catalog_language or not found.catalog_command:
         return None
     return found.catalog_language, found.catalog_command
+
+
+def superseded(command: str | None, old: Sequence[str]) -> bool:
+    """A saved listing query that is, word for word (line ends and the outer blank space aside), one an
+    earlier starter gave: today's starter's lists the tables instead (a Power BI workspace's first 25 datasets
+    only: the owner, 2026-11-24). One the user edited is theirs and kept."""
+    text = (command or "").replace("\r\n", "\n").strip()
+    return bool(text) and any(text == o.replace("\r\n", "\n").strip() for o in old)
+
+
+def listing_kept(blade: Blade, templates: Sequence[Template], old: Sequence[str]) -> tuple[str, str] | None:
+    """The listing query a saved blade is read with instead of its own: its starter's when it has none or its
+    own is an earlier starter's word for word (superseded); None keeps its own."""
+    if blade.has_catalog and not superseded(blade.catalog_command, old):
+        return None
+    return listing_for(blade.kind, blade.template, blade.dialect, templates)
 
 
 # The adapter lists a connection's tables (Plans/adapter.plan.md: "The Catalog lists through the adapter's

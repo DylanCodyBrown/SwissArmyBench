@@ -266,6 +266,19 @@ def test_mcp_and_settings_files_have_no_token_and_grant_nothing() -> None:
     assert hook["command"] == '"/Program Files/x/swissarmybench-context" --folder'
 
 
+def test_a_windows_hook_path_keeps_its_folders_in_git_bash() -> None:
+    """The owner, 2026-11-24: the hook ran as `C:UsersDylan.Brown...swissarmybench-context.exe: command not
+    found`. Git Bash, which Claude Code runs hooks in on Windows, ate the unquoted `\\`. The path is written
+    with `/` and quoted, which Git Bash, cmd and PowerShell all read as the same file."""
+    made_up = "C:\\Users\\Made.Up\\AppData\\swissarmybench\\Scripts\\swissarmybench-context.exe"
+    hook = json.loads(rules.settings_json(made_up))["hooks"]["UserPromptSubmit"][0]["hooks"][0]
+    assert (
+        hook["command"]
+        == '"C:/Users/Made.Up/AppData/swissarmybench/Scripts/swissarmybench-context.exe" --folder'
+    )
+    assert rules.hook_command("swissarmybench-context") == "swissarmybench-context"  # a bare name stays bare
+
+
 def test_folder_names_are_safe() -> None:
     assert rules.folder_name(None) == "no-project"
     assert rules.folder_name('Q3 "close"; rm -rf /') == "Q3 -close- rm -rf"

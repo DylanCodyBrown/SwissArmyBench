@@ -411,8 +411,11 @@ def mcp_json(command: str) -> str:
 
 
 def hook_command(command: str) -> str:
-    """A hook's command line runs in a shell: a path with spaces is quoted."""
-    return f'"{command}"' if any(c in command for c in " &()") else command
+    """A hook's command line runs in a shell, on Windows Git Bash, where an unquoted `\\` escapes the next
+    letter: `C:\\Users\\...` arrived as `C:Users...` and the hook was not found (the owner, 2026-11-24). A
+    path is written with `/` (Windows takes it as well) and always quoted."""
+    path = command.replace("\\", "/")
+    return f'"{path}"' if "/" in path or any(c in path for c in " &()") else path
 
 
 def settings_json(context_command: str) -> str:

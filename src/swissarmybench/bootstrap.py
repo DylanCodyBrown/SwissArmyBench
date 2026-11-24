@@ -105,7 +105,7 @@ from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.extensions import manifest
 from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
-from swissarmybench.server.blade_templates import TEMPLATES
+from swissarmybench.server.blade_templates import OLD_POWERBI_CATALOGS, TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
 from swissarmybench.server.claude_finder import Starter as ClaudeStarter
@@ -343,7 +343,7 @@ def _blade_store(settings: Settings, library_folder: LibraryFolder, on_extension
         # Each extension that is on: its own starters (its module's STARTERS folder).
         more_starters=lambda: [Path(s) for m in on_extensions if (s := manifest(m).STARTERS)],
         # A connection's tables are always listed: one saved with no listing query gets its starter's.
-        listing=lambda b: blade_tables.listing_for(b.kind, b.template, b.dialect, TEMPLATES),
+        listing=lambda b: blade_tables.listing_kept(b, TEMPLATES, OLD_POWERBI_CATALOGS),
     )
 
 
