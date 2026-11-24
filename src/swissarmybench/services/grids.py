@@ -47,7 +47,7 @@ async def view_rows(ws: Workspace, name: str, places: list[int]) -> tuple[list[s
     what a sandbox grid's edit names (services/sandbox.py). A place past the end is None."""
     grid, info = ws.grids.first_for(name), ws.store.get(name)
     if grid is None or info is None:
-        raise LookupError(f"{name} is not open in Grids.")
+        raise LookupError(f"{name} is not open on the Tables page.")
 
     def read(cursor: Any) -> tuple[list[str], list[list[Any] | None]]:
         shown: list[str] = []
@@ -350,7 +350,7 @@ class GridService:
                 found = next((i for i, s in enumerate(steps) if s.id == step_id), None)
                 if found is None:
                     raise LookupError(
-                        f"No step with id {str(step_id)[:40]!r} in this grid; tabs_get lists them."
+                        f"No step with id {str(step_id)[:40]!r} in this table; tabs_get lists them."
                     )
                 return found
             index = whole("index")
@@ -358,7 +358,7 @@ class GridService:
                 raise ValueError("Name the step with its index (from 0) or its id.")
             if not 0 <= index < len(steps):
                 raise ValueError(
-                    f"index {index} is out of range: the grid has {len(steps)} step(s), numbered from 0."
+                    f"index {index} is out of range: the table has {len(steps)} step(s), numbered from 0."
                 )
             return index
 

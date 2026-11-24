@@ -46,7 +46,7 @@ TABS: dict[str, str] = {
 }
 # Each tab's own columns, as the page's headings (the first is always Name).
 COLUMNS: dict[str, tuple[str, ...]] = {
-    "table": ("Name", "Rows by columns", "Columns", "Grids", "Used in", "From"),
+    "table": ("Name", "Rows by columns", "Columns", "Tabs", "Used in", "From"),
     "variable": ("Name", "Type", "Value", "Used in", "From"),
     "structure": ("Name", "Format", "Size", "Paths", "Used in", "File"),
     "setting": ("Name", "Kind", "Value", "Comes from", "Used in"),

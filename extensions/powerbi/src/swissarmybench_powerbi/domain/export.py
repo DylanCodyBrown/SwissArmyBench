@@ -155,7 +155,7 @@ def plan_relationships(
                 gone = r.from_columns[0] if a is None else r.to_columns[0]
                 why = f"{gone} is not a column of the table as it goes"
             elif a != b:
-                why = f"its two columns' types differ ({a} and {b}): make them the same in the grid"
+                why = f"its two columns' types differ ({a} and {b}): make them the same on the Tables page"
         planned.append(Planned(r, left_out=why))
     # The one-active-path rule: strongest first (then as the model has them, an inactive join last).
     order = sorted(

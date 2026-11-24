@@ -31,7 +31,7 @@ which extension it needs.
 - `powerbi_setup_status`: the To finish setting up rows and their fixes (`action`: dataset, not_published,
   registration); passwords and sign-ins are the user's (Set up this computer).
 - `powerbi_source(source=published|local)`: what the project's ONE dataset connection (named after the model)
-  reads: the `_PowerBI` grids, DuckDB SQL `[Sales model].Sales` (`steps_run_sql`, a `%%sql` cell), a
+  reads: the `_PowerBI` tabs, DuckDB SQL `[Sales model].Sales` (`steps_run_sql`, a `%%sql` cell), a
   `%%dax 'Sales model'` cell and the Compares all follow it with no code change; the file is the fallback, said
   (it answers whole tables only: `EVALUATE 'Sales'`).
 - `powerbi_file(name, path)`: a .pbix as a read-only connection (pbixray), "as of" its last refresh.

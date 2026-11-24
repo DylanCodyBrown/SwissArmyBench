@@ -50,7 +50,7 @@ def _quoted(name: str) -> str:
 
 @command(
     "powerbi_import_project",
-    "A .pbix as a Power BI project: its connections, variables, tables as Source and In Power BI grids, "
+    "A .pbix as a Power BI project: its connections, variables, tables as Source and In Power BI tabs, "
     "relationships, data.ipynb, measures (dry_run: the plan only; the real one asks the user)",
     opt("path", "The .pbix on this computer."),
     opt("name", "The project's name (default: the file's)."),

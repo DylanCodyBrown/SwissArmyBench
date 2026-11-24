@@ -47,6 +47,17 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `sandbox_*`, `sab.visualizations`, `sab.sandbox`, their addresses and project.json keys) were removed
   2026-11-21 (the simplicity pass). Files on disk and internal names kept the old word
   (`.sab/visualizations.json`, client/visualizations_client.py).
+- **Renamed (the owner, 2026-11-23): Grids is Tables** ("I have held out but I think grids can just be renamed to
+  tables across the app now"). Every word a person or the agent reads says table: the rail's Tables and its page,
+  Open as table, Open in Tables, the server's refusals, notices, Session entries, context.md, the MCP guide and
+  index, the commands' descriptions ("The open table's id."), README.md and the user guide; a grid as one view of a
+  table is a tab where the words need it ("In 2 tabs"). The page's address is `/blazor/tables` (`?grid=` kept);
+  `/blazor/grids` still lands there and is marked Tables, `/g/<id>` and `?view=grids` answer with it, app_navigate's
+  place is `tables` (`grids` read as it), and the desktop app's pages use the new one. Internal names kept the old
+  word: route paths (`/grids/...`), JSON keys (`grid`, `grids`), command and argument names (`tabs_close_grid`,
+  `grid`), the guide topic `grids`, the rail area's id `grids`, SQL's `grid` view, Python and C# names
+  (`Pages/Grids`, `GridsPage`, `Api/Grids`), CSS classes, data.py's `structures read as grids` marker. AG Grid the
+  library, the Canvas's layout grid and the Analyze board's 12-column grid keep the word.
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection

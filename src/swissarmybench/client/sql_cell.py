@@ -674,7 +674,7 @@ def _open_grid(message: str, registered: list[str]) -> tuple[str, Any] | None:
         table = blades_client.table(name)  # through the adapter (Plans/adapter.plan.md), its view as Arrow
     except (ImportError, ServerNotRunningError, RuntimeError, OSError, ValueError):
         return None
-    print(f"{name}: the open table in Grids, {table.num_rows:,} rows as its grid shows them")
+    print(f"{name}: the open table on the Tables page, {table.num_rows:,} rows as its tab shows them")
     return name, table
 
 

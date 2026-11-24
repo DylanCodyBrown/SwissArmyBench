@@ -456,7 +456,7 @@ def read_blade(text: str) -> dict[str, Any]:
     if header.get("format") != FORMAT:
         raise PortableError(
             f"This blade is in format {header.get('format')!r}; this version reads format {FORMAT}. "
-            "Update the grid server to import it."
+            "Update Swiss Army Bench to import it."
         )
     name, kind = header.get("name"), header.get("kind")
     if not isinstance(name, str) or not name.strip():

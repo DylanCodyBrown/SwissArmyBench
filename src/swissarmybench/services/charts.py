@@ -179,7 +179,7 @@ def check_card(body: Any) -> Card:
         out["body"] = text
         if kind == "plotly" and body.get("sql") is not None:
             if not isinstance(body["sql"], str) or not body["sql"].strip():
-                raise ValueError("A figure's sql is a SELECT over its grid; the result fills the figure.")
+                raise ValueError("A figure's sql is a SELECT over its table; the result fills the figure.")
             out["sql"] = body["sql"]
     elif kind == "table":
         sql = body.get("sql")
@@ -188,7 +188,7 @@ def check_card(body: Any) -> Card:
         elif "rows" in body:
             out |= _fixed_rows(body)
         else:
-            raise ValueError("A table card needs sql (a SELECT over its grid), or columns and rows.")
+            raise ValueError("A table card needs sql (a SELECT over its table), or columns and rows.")
     else:
         out["spec"] = body.get("spec")
     size = body.get("size")
@@ -693,7 +693,7 @@ class Cards:
         card = check_card(body)
         _not_the_agents(card, who)
         if card["kind"] == "chart" or "sql" in card:
-            raise ValueError("A chart or a table's query is drawn on a grid: POST /grids/{id}/cards.")
+            raise ValueError("A chart or a table's query is drawn on an open table: POST /grids/{id}/cards.")
         origin = "python" if isinstance(body, dict) and body.get("origin") == "python" else who
         return await self._keep(card, _key(body), None, None, who, origin)
 

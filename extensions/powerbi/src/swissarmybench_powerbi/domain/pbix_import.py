@@ -580,7 +580,7 @@ def to_finish(
         rows.append(
             {
                 "id": f"unreadable:{item['table']}",
-                "words": f"{item['table']}: {item['why']}. Its Power Query is kept; no Source grid.",
+                "words": f"{item['table']}: {item['why']}. Its Power Query is kept; no Source tab.",
                 "fix": {"label": "Show its Power Query", "action": "show_m", "table": item["table"]},
             }
         )

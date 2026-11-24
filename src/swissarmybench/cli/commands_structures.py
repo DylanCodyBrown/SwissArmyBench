@@ -1,4 +1,4 @@
-"""The agent's structures_* commands: structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save.
+"""The agent's structures_* commands: structures: JSON, YAML, XML and TOML as documents, their steps, Open as table, Save.
 
 Registered into cli/commands.py's REGISTRY when it imports this module (the tool list's order is the areas',
 then each command's place here). Standard library only.
@@ -123,7 +123,7 @@ def structures_edit(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_open_as_grid",
-    "Open the list of records at path as a grid (a table: SQL and Analyze work on it)",
+    "Open the list of records at path on the Tables page (a table: SQL and Analyze work on it)",
     req("structure", "Its id or name."),
     opt("path", "$.orders (default $)."),
     opt("name", "The table's name."),
@@ -163,7 +163,7 @@ def structures_save(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_lineage",
-    "A structure's lineage: the API call (inputs, body, when) or file, its steps, the grids made from it; "
+    "A structure's lineage: the API call (inputs, body, when) or file, its steps, the tables made from it; "
     "run_again=true sends the same call again (the steps kept)",
     req("structure", "Its id or name."),
     opt("run_again", "Send its call again.", "bool"),

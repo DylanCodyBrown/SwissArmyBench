@@ -103,8 +103,8 @@ class TableCells:
         if problem is not None:
             change: tuple[list[str], str] = (
                 [],
-                f"# {variable_name(info.name)}: a step in the grid cannot run ({problem}).\n"
-                "# Fix it in the grid, and this cell follows.",
+                f"# {variable_name(info.name)}: a step on the Tables page cannot run ({problem}).\n"
+                "# Fix it on the Tables page, and this cell follows.",
             )
         else:
             change = rules.transformations_code(info.name, info.source_kind, query)

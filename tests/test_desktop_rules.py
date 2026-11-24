@@ -454,17 +454,19 @@ def test_a_stale_record_never_takes_the_page(tmp_path: Path, monkeypatch: pytest
 
 
 def test_a_table_dropped_on_a_window_shows_in_that_window() -> None:
-    """The owner, 2026-11-23: a file dropped on Grids opened another window. On Grids the table arrives as
-    a tab by itself (nothing loads); on another page that window moves to Grids with it; anything else as
-    before."""
+    """The owner, 2026-11-23: a file dropped on the Tables page opened another window. On the Tables page the
+    table arrives as a tab by itself (nothing loads); on another page that window moves there with
+    it; anything else as before. The Tables page's old address (/blazor/grids) counts as it."""
     table = "/workspace#grid=g7"
+    assert rules.dropped_into(table, "http://127.0.0.1:8123/blazor/tables?grid=g2") is None
     assert rules.dropped_into(table, "http://127.0.0.1:8123/blazor/grids?grid=g2") is None
     assert rules.dropped_into(table, "http://127.0.0.1:8123/workspace") is None
-    assert rules.dropped_into(table, "http://127.0.0.1:8123/blazor/connections") == "/blazor/grids?grid=g7"
-    # The Blazor Grids page's own address for a table (server/desktop.py file_page's), read the same way.
-    grids = "/blazor/grids?grid=g7"
-    assert rules.dropped_into(grids, "http://127.0.0.1:8123/blazor/grids?grid=g2") is None
-    assert rules.dropped_into(grids, "http://127.0.0.1:8123/blazor/") == "/blazor/grids?grid=g7"
-    assert rules.grid_of(grids) == rules.grid_of(table) == "g7" and rules.grid_of("/blazor/") is None
+    assert rules.dropped_into(table, "http://127.0.0.1:8123/blazor/connections") == "/blazor/tables?grid=g7"
+    # The Blazor Tables page's own address for a table (server/desktop.py file_page's), read the same way.
+    tables = "/blazor/tables?grid=g7"
+    assert rules.dropped_into(tables, "http://127.0.0.1:8123/blazor/tables?grid=g2") is None
+    assert rules.dropped_into(tables, "http://127.0.0.1:8123/blazor/") == "/blazor/tables?grid=g7"
+    assert rules.grid_of(tables) == rules.grid_of(table) == rules.grid_of("/blazor/grids?grid=g7") == "g7"
+    assert rules.grid_of("/blazor/") is None
     notebook = "/notebooks?path=%2Fmade-up%2Fdata.ipynb"
-    assert rules.dropped_into(notebook, "http://127.0.0.1:8123/blazor/grids") == notebook
+    assert rules.dropped_into(notebook, "http://127.0.0.1:8123/blazor/tables") == notebook

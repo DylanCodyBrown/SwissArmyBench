@@ -1,4 +1,4 @@
-"""The agent's tabs_* commands: tab bar: grids and the + query tab.
+"""The agent's tabs_* commands: tab bar: the open tables and the + query tab.
 
 Registered into cli/commands.py's REGISTRY when it imports this module (the tool list's order is the areas',
 then each command's place here). Standard library only.
@@ -15,8 +15,8 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "tabs_new_query",
-    "New table from a query (the + tab): one SELECT over the open tables, each read as its grid shows it. "
-    "Opens a grid on the result.",
+    "New table from a query (the + tab): one SELECT over the open tables, each read as its tab shows it. "
+    "Opens the result in a tab.",
     req("name", "Name of the new dataset."),
     req(
         "sql",
@@ -49,12 +49,12 @@ def build_from_connection_query(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/datasets/{_q(a['name'])}/connection-query", body)
 
 
-@command("tabs_list", "Every open grid: id, dataset, step count and URL.")
+@command("tabs_list", "Every open table: id, dataset, step count and URL.")
 def list_grids(a: dict[str, Any]) -> Any:
     return api.call("GET", "/grids")
 
 
-@command("tabs_create_grid", "Open a new grid (a tab) on a dataset.", req("dataset", "Dataset name."))
+@command("tabs_create_grid", "Open a new tab on a dataset.", req("dataset", "Dataset name."))
 def create_grid(a: dict[str, Any]) -> Any:
     result = api.call("POST", "/grids", {"dataset": a["dataset"]})
     return {k: result.get(k) for k in ("grid", "grid_url", "workspace_url", "shown")}
@@ -62,9 +62,9 @@ def create_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_get",
-    "A grid in full: columns and types, every step (with ids), settings, step error, the view's row count "
+    "An open table in full: columns and types, every step (with ids), settings, step error, the view's row count "
     "(view_rows; row_count is the dataset's), how many rows are selected and how many highlight rules it has.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
 )
 def get_grid(a: dict[str, Any]) -> Any:
     described = api.call("GET", f"/grids/{_q(a['grid'])}")
@@ -75,7 +75,11 @@ def get_grid(a: dict[str, Any]) -> Any:
     return described | {"view_rows": view_rows}
 
 
-@command("tabs_close_grid", "Close a grid's tab (the dataset stays open).", req("grid", "Grid id."))
+@command(
+    "tabs_close_grid",
+    "Close an open table's tab (the dataset stays open).",
+    req("grid", "The open table's id."),
+)
 def close_grid(a: dict[str, Any]) -> Any:
     return api.call("DELETE", f"/grids/{_q(a['grid'])}")
 
@@ -100,8 +104,8 @@ def reload_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_cancel",
-    "Stop every query now running for a grid: its rows, counts, profiles, SQL and exports.",
-    req("grid", "Grid id."),
+    "Stop every query now running for an open table: its rows, counts, profiles, SQL and exports.",
+    req("grid", "The open table's id."),
 )
 def cancel(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/grids/{_q(a['grid'])}/cancel")

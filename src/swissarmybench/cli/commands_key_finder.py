@@ -14,8 +14,8 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "key_finder_candidates",
-    "The grids the Key Finder can compare this one against.",
-    req("grid", "Grid id."),
+    "The open tables the Key Finder can compare this one against.",
+    req("grid", "The open table's id."),
 )
 def key_finder_candidates(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/grids/{_q(a['grid'])}/key-finder")
@@ -23,10 +23,10 @@ def key_finder_candidates(a: dict[str, Any]) -> Any:
 
 @command(
     "key_finder_run",
-    "Key Finder: likely join columns between a grid and another (or every other open grid with target='*'), "
-    "plus the grid's likely primary key. Counts only, no cell values.",
-    req("grid", "Grid id."),
-    opt("target", "Another grid id, or * for all (default *)."),
+    "Key Finder: likely join columns between an open table and another (or every other open table with target='*'), "
+    "plus the table's likely primary key. Counts only, no cell values.",
+    req("grid", "The open table's id."),
+    opt("target", "Another open table's id, or * for all (default *)."),
     opt("trim", "Trim text first (default true).", "bool"),
     opt("ignore_case", "Ignore case (default false).", "bool"),
     opt("max_length", "Skip columns with longer values (default 128).", "int"),
@@ -48,10 +48,10 @@ def key_finder_run(a: dict[str, Any]) -> Any:
 @command(
     "key_finder_sample",
     "Values a column pair shares and does not (the Key Finder's sample)",
-    req("grid", "The grid's id."),
-    req("target", "The other grid's id."),
-    req("source_column", "This grid's column."),
-    req("target_column", "The other grid's column."),
+    req("grid", "The open table's id."),
+    req("target", "The other table's id."),
+    req("source_column", "This table's column."),
+    req("target_column", "The other table's column."),
     opt("options", '{"trim", "ignore_case", "max_length"}', "json"),
     values=True,
 )

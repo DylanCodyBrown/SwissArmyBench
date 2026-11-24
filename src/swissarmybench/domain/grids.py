@@ -209,7 +209,7 @@ class GridRegistry:
         self, dataset: str, steps: list[Step] | None = None, settings: ViewSettings | None = None
     ) -> Grid:
         if len(self._grids) >= self._max_grids:
-            raise GridLimitError(f"{len(self._grids)} grids are open, the most allowed. Close one first.")
+            raise GridLimitError(f"{len(self._grids)} tabs are open, the most allowed. Close one first.")
         grid = Grid(
             id=secrets.token_hex(4),
             dataset=dataset,

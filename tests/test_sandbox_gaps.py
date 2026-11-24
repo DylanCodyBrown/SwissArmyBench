@@ -330,7 +330,7 @@ def test_an_edit_on_a_row_that_changed_says_so(tmp_path: Path) -> None:
             json={"table": "notes", "op": "update", "row": 0, "column": "note", "value": "x"},
             headers=AUTH,
         )
-        assert refused.status_code == 404 and "Open notes in Grids first" in refused.text
+        assert refused.status_code == 404 and "Open notes on the Tables page first" in refused.text
         ok(
             client.post(
                 "/sandbox/edit", json={"table": "notes", "op": "insert", "values": {"id": 1}}, headers=AUTH

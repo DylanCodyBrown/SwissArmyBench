@@ -22,7 +22,7 @@ def all_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", "/cards")
 
 
-@command("analyze_list", "The cards drawn on one grid.", req("grid", "Grid id."))
+@command("analyze_list", "The cards drawn on one open table.", req("grid", "The open table's id."))
 def list_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/grids/{_q(a['grid'])}/cards")
 
@@ -52,12 +52,12 @@ _FORMATS: dict[str, Any] = {
         "chart": {
             "needs": "grid",
             "spec": '{"mark": "bar", "x": {"field": "region"}, "y": {"aggregate": "count"}}',
-            "note": "Computed on the grid's view, redrawn when its steps change; clicking filters.",
+            "note": "Computed on the table's view, redrawn when its steps change; clicking filters.",
         },
         "table": {
             "needs": "grid for sql",
             "sql": "SELECT region, sum(amount) FROM t GROUP BY 1",
-            "or": "columns and rows of its own (no grid), first 100 rows",
+            "or": "columns and rows of its own (no open table), first 100 rows",
         },
         "note": {
             "body": "Markdown: headings, lists, tables, code, quotes. An Analyze note is resizable like a text box."
@@ -72,7 +72,7 @@ _FORMATS: dict[str, Any] = {
         "vegalite": {"note": "From the user's own Python (Altair) only; the agent draws with chart."},
     },
     "data": "Read tables with the table tools (columns, profiles, steps_run_sql). A chart card, or a plotly "
-    "card with sql (FROM grid, or its table's name: the grid as shown), computes on the grid "
+    "card with sql (FROM grid, or its table's name: the table as shown), computes on the table "
     "itself (first 5,000 rows), follows its steps, and big "
     "data never passes through you. Use key to replace a card you made before.",
 }
@@ -89,7 +89,7 @@ def card_formats(a: dict[str, Any]) -> Any:
 @command(
     "analyze_add",
     "Add a card to the Analyze board (analyze_formats lists the kinds). Without grid it belongs to no table.",
-    opt("grid", "Grid id: needed for chart and for table sql."),
+    opt("grid", "The open table's id: needed for chart and for table sql."),
     opt("kind", "chart, note, table, diagram, plotly or image."),
     *_CARD_FIELDS,
     opt("file", "A picture, .md or .mmd file on this computer."),
@@ -149,7 +149,7 @@ def dashboards(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_theme",
-    "The Analyze board's themes; set one (theme), or propose your own (file). The grid keeps its own theme.",
+    "The Analyze board's themes; set one (theme), or propose your own (file). The Tables page keeps its own theme.",
     opt("theme", "A theme's id, or app to follow the app."),
     opt("file", '{"name", "dark", "tokens": {"bg": "#rrggbb", ..., "cat": [8 colours]}}', "json"),
 )
@@ -173,7 +173,7 @@ def delete_card(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_select",
-    "Click a chart's bar or point: adds the matching filter step to its grid (cross-filtering).",
+    "Click a chart's bar or point: adds the matching filter step to its table (cross-filtering).",
     req("card", "Chart card id."),
     opt("value", "The x value clicked; omit for the blank bar."),
 )
@@ -190,7 +190,7 @@ def card_code(a: dict[str, Any]) -> Any:
     "analyze_odds",
     "Each value's share and odds; with `outcome` (values, or op and value for a number) each value's "
     "rate of it against the rest and its odds ratio with a 95% range. Numbers are bucketed.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "The column whose values to count."),
     opt(
         "outcome",
@@ -211,7 +211,7 @@ def analyze_odds(a: dict[str, Any]) -> Any:
     "Cramér's V with correlations; identifiers and dates skipped; pairs saying the same thing "
     "flagged."
     "pairs of candidates that say the same thing (give a regression the one to keep).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("target", "A number or a category."),
     opt("candidates", "Only these columns.", "list"),
     opt("buckets", "Ranges for numbers (4).", "int"),
@@ -228,7 +228,7 @@ def analyze_predictors(a: dict[str, Any]) -> Any:
     "with ranges and p, the fit, the verdict, `model` (for analyze_predict) and `steps` (predicted / "
     "miss columns for steps_add)."
     "with steps_add). Use analyze_predictors first to choose the predictors.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("target", "The column to predict."),
     req("predictors", "Column names.", "list"),
     opt("outcome", "For yes/no: as in analyze_odds.", "json"),
@@ -254,7 +254,7 @@ def analyze_predict(a: dict[str, Any]) -> Any:
     "analyze_time_series",
     "A metric per period from a date column: trend, season in words, periods that stand out (with a step "
     "showing their rows), steps in the level, memory, growth.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("date", "The date column."),
     opt("metric", "A number column (omit to count rows)."),
     opt("total", "sum, avg or count."),
@@ -271,7 +271,7 @@ def analyze_time_series(a: dict[str, Any]) -> Any:
     "analyze_forecast",
     "Forecast a metric per period: trend and season continued, 80% and 95% ranges, a held-back check of "
     "its typical miss; predictors each with a future (last, trend or value).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("date", "The date column."),
     opt("metric", "A number column (omit to count rows)."),
     opt("total", "sum, avg or count."),
@@ -322,7 +322,7 @@ def analyze_tables(a: dict[str, Any]) -> Any:
     "Check this table: every analysis ranked for it (fits now, fits after its fixes, or not, with why) "
     "and the three that suit it. With `analysis`: that one's check: per slot what fits and what does not "
     "(and why), what is missing, and `fixes`, each with the steps (for steps_add) that make the table fit.",
-    opt("table", "Grid id or table name (default: the one Analyze last used)."),
+    opt("table", "The open table's id or a table name (default: the one Analyze last used)."),
     opt("analysis", "One analysis's id."),
     opt("columns", "{slot: column} to check instead of the app's picks.", "json"),
     values=True,
@@ -336,7 +336,7 @@ def analyze_check(a: dict[str, Any]) -> Any:
     "An analysis's form for a table, as the page shows it: each slot's pick (and why), the columns that "
     "fit, the options and their defaults, and the sentence of what analyze_run would run.",
     req("analysis", "The analysis's id (analyze_contracts)."),
-    opt("table", "Grid id or table name."),
+    opt("table", "The open table's id or a table name."),
     opt("columns", "{slot: column or [columns]}.", "json"),
     opt("options", "{option: value}.", "json"),
     values=True,
@@ -349,7 +349,7 @@ def analyze_plan(a: dict[str, Any]) -> Any:
     "analyze_column",
     "What can I do with a column? The analyses it fits (each runs with analyze_run); with no column, "
     "every column of the table with its type and what fits it.",
-    opt("table", "Grid id or table name."),
+    opt("table", "The open table's id or a table name."),
     opt("column", "Column name."),
     values=True,
 )
@@ -363,7 +363,7 @@ def analyze_column(a: dict[str, Any]) -> Any:
     "undo them), then the form again. The ids are analyze_check's `fixes`.",
     req("analysis", "The analysis's id."),
     req("fixes", "Fix ids.", "list"),
-    opt("table", "Grid id or table name."),
+    opt("table", "The open table's id or a table name."),
     opt("columns", "{slot: column} already chosen.", "json"),
 )
 def analyze_fix(a: dict[str, Any]) -> Any:
@@ -380,10 +380,13 @@ def analyze_fix(a: dict[str, Any]) -> Any:
     "the Analyze board (as the user's do) and `result` holds the numbers. A table that does not fit is "
     "refused with why and the form (`plan`); apply_fixes adds the steps it needs first.",
     req("analysis", "The analysis's id (analyze_contracts)."),
-    opt("table", "Grid id, table name or [Connection].table (default: the one Analyze last used)."),
+    opt(
+        "table",
+        "The open table's id, a table name or [Connection].table (default: the one Analyze last used).",
+    ),
     opt("columns", "{slot: column or [columns]}.", "json"),
     opt("options", "{option: value}.", "json"),
-    opt("apply_fixes", "Add the fixes the table needs (grid steps) and then run.", "bool"),
+    opt("apply_fixes", "Add the fixes the table needs (its steps) and then run.", "bool"),
     opt("sample", "Run on the contract's made-up sample instead (opened as a table).", "bool"),
     opt("token", "A name for this run, for analyze_cancel."),
     values=True,
@@ -406,7 +409,7 @@ def analyze_cancel(a: dict[str, Any]) -> Any:
 @command(
     "analyze_runs",
     "This session's runs, newest first; with `run` and `show`, a result's actions: inputs (Run again), "
-    "math (Show the math), code (Copy code) or grid (Open as grid: its table in a new tab).",
+    "math (Show the math), code (Copy code) or grid (Open as table: its table in a new tab).",
     opt("run", "A run's id."),
     opt("show", "inputs, math, code or grid."),
     values=True,
@@ -428,7 +431,7 @@ def analyze_runs(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_sample",
-    "Open an analysis's made-up sample as a table (Try it on this sample): its grid and the columns each "
+    "Open an analysis's made-up sample as a table (Try it on this sample): its id (grid) and the columns each "
     "slot takes.",
     req("analysis", "The analysis's id."),
 )
@@ -439,7 +442,7 @@ def analyze_sample(a: dict[str, Any]) -> Any:
 @command(
     "analyze_code",
     "An analysis as Python for the user's notebook (one swissarmybench.stats call): code and imports",
-    req("grid", "The grid's id."),
+    req("grid", "The open table's id."),
     req("analysis", "fit_test, outliers, odds, predictors, regression, time_series or forecast."),
     req("body", "The analysis's own request, as its analyze_ command takes it.", "json"),
 )

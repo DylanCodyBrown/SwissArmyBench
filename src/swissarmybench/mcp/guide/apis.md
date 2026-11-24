@@ -19,7 +19,7 @@ from, when). APIs are not on the Connections page: the APIs page is their home.
 - `apis_call(name, operation, inputs?, body?)`: sent through its web call, after its API blade (the
   sign-in is the blade's, never shown). The answer opens in Structures: you get its status, time,
   headers and `structure` (read it with `structures_show`; `structures_lineage` is the call, its steps,
-  the grids made from it; `run_again=true` sends it again). `suggest_table`: the settings Return as table
+  the tables made from it; `run_again=true` sends it again). `suggest_table`: the settings Return as table
   would start with; never switched on by itself.
 - Making one: `connections_api_add` (an OpenAPI document by address, file or text, or a form).
 
@@ -55,7 +55,7 @@ one refusal shape), `facts` (times and sizes, never a value).
   `structure` (an answer in Structures) and they are found there.
 - DuckDB does the converting: `conversion` is its SQL over `response` (one row per page, the JSON in
   `page`), editable: `apis_save_call(..., conversion="SELECT ...")` (the APIs page's "The DuckDB query").
-  A LIST or STRUCT column it leaves: `column_unnest` on its grid (a SQL step).
+  A LIST or STRUCT column it leaves: `column_unnest` on its table (a SQL step).
 - A required input with no value: the table lists `(needs <name> (<where>))`; give it in the web call.
 
 ## Writing rows
@@ -64,7 +64,7 @@ one refusal shape), `facts` (times and sizes, never a value).
   sent. `dry_run=false` sends: only after the user said to write, in their own words, in this
   conversation. `mapping` `{"body.customer.name": {"column": "name"}, "query.dry": {"value": true}}`,
   `batch=true` (one call, the body an array), `key_columns`, `response_field`. The results: a structure
-  and a grid (status, the answer's field, the error per row); `retry=<results structure>` sends the failed
+  and a table (status, the answer's field, the error per row); `retry=<results structure>` sends the failed
   rows again. `save=true` keeps it as a web call blade (mode "write rows").
 
 ## Managing

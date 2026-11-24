@@ -402,7 +402,7 @@ def test_page_value_commands_wrap_cells_as_data(live: Live, clients: str) -> Non
     assert (
         data_of(execute("table_profile", {"dataset": "clients", "column": "balance"}))["column"] == "balance"
     )
-    with pytest.raises(CommandError, match="Give a grid, or a dataset"):
+    with pytest.raises(CommandError, match=r"Give an open table \(grid\), or a dataset"):
         execute("table_profile", {})
     # rows as CSV, headed by the view's row count:
     as_csv = execute("row_read", {"grid": clients, "end": 2, "format": "csv"})
@@ -640,7 +640,7 @@ def test_the_terminal_command_prints_json_and_reports_errors(
     assert json.loads(capsys.readouterr().out)["row_count"] == 2
     assert main.main(["tabs_get", "nope"]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("sab:") and "No such grid" in err
+    assert err.startswith("sab:") and "No such open table" in err
     assert main.main(["nonsense"]) == 1
     assert "No command 'nonsense'" in capsys.readouterr().err
 
@@ -797,7 +797,7 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     assert added["row_count"] == 1 and added["index"] == 0
     with pytest.raises(Exception, match="grid"):
         asyncio.run(call("steps_add", {"kind": "limit", "params": {"n": 1}}))  # a required argument missing
-    with pytest.raises(Exception, match="No such grid"):
+    with pytest.raises(Exception, match="No such open table"):
         asyncio.run(call("row_read", {"grid": "nope"}))  # refused with the reason, not "Error executing tool"
 
 

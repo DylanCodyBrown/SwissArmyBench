@@ -1,16 +1,16 @@
-# Grids and steps
+# Tables and steps
 
-The grid page: one tab per open grid (Analyze, ERD and Workbench are the rail's, left); + makes a
-table from a query. Over the grid, the Application row (Settings, Connections, Blades), then
+The Tables page: one tab per open table (Analyze, ERD and Workbench are the rail's, left); + makes a
+table from a query. Over the table, the Application row (Settings, Connections, Blades), then
 the ribbon's Table and Column rows. A cell's tools are on its right-click menu. Under the title, the
-steps strip counts the grid's steps; Edit steps opens them in a tab of their own.
+steps strip counts the table's steps; Edit steps opens them in a tab of their own.
 
 ## Data in
 - `datasets_load(name, path)`: CSV, TSV, Parquet, JSON lines, Arrow or an Excel sheet, by full path
   (`datasets_sheets` lists a workbook's sheets). Pass the path, never the contents.
 - `datasets_paste(name, text)`: a copied table. `tabs_new_query(name, sql)`: one SELECT over the open
-  tables as their grids show them; `tabs_new_connection_query(name, connection, sql)`: one on a connection,
-  in its own SQL. The + (and the grid page with no table open) is the New query page: Open tables and the
+  tables as their tabs show them; `tabs_new_connection_query(name, connection, sql)`: one on a connection,
+  in its own SQL. The + (and the Tables page with no table open) is the New query page: Open tables and the
   connections that run SQL; `app_navigate(to="new_query")` shows it, `to="query:<connection>"` opens its
   draft with Query from set, as the user's click does.
 - `datasets_sample`: the made-up sample store (customers, products, orders; free names): the empty pages'
@@ -22,12 +22,12 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 - `tabs_reopen`: the last closed tab again (the user's Ctrl+Shift+T), its steps kept; a closed table is read
   again from its file.
 - A table read from a file is watched: `datasets_list` says `changed_on_disk` when its file changed since.
-  `tabs_reload` reads it again in place (its grids and steps kept); `not_now=true` keeps it as it is. Nothing
+  `tabs_reload` reads it again in place (its tabs and steps kept); `not_now=true` keeps it as it is. Nothing
   reloads by itself.
 
 ## Reading
 - `tabs_get`: columns, every step with its index and id, settings, the view's row count.
-- `table_profile` (`dataset=` for a table with no grid), `column_profile`, `table_header_stats`.
+- `table_profile` (`dataset=` for a table no tab shows), `column_profile`, `table_header_stats`.
 - `column_values`: a column's values with their row counts, most common first (`search`, `limit`, `upto`):
   the Filter form's checklist. Pick from it, then `table_filter` with `op: "in"`.
 - `cell_selection_stats` leaves id-like columns (`order_id`, `CustomerKey`) out of Sum and Average (`id_like`
@@ -36,7 +36,7 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
   starts with `row_count`, so page with start and end. `cell_view` gives one long value.
 - `steps_run_sql`: one DuckDB SELECT; `grid` is the view after its steps, an open table by its name is
   that table as loaded. `CREATE TABLE x AS SELECT ...` (or `steps_save_result`) keeps the result as a
-  new table with its own grid.
+  new table with its own tab.
 
 ## Changing (each change is a step the user can see, switch off or undo)
 - Table row: `table_filter`, `table_sort` (up to three keys), `table_group_by`, `table_distinct`,
@@ -60,7 +60,7 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 - `app_rail(labels)`: the rail's names on or off (kept). `files_list`: a folder's files (`hidden` too); `files_new_folder`: a new folder in one. A system file dialog is the user's click only: pass paths to commands directly.
 - `app_navigate(to, window, new_window)`: move a window as the user does. `home` and `projects` (the mark,
   the rail's first item: the Projects page, every project as a card; `start`, its old name, still works),
-  `back`, `forward`; the rail's areas from any window: `grids` (only the grids), `analyze`, `erd`, `notebooks`,
+  `back`, `forward`; the rail's areas from any window: `tables` (only the open tables; `grids` is its old word), `analyze`, `erd`, `notebooks`,
   `scripts`, `apps` (the Workbench in that kind's mode; `new_window=true`: a Workbench window of its
   own; each lands on its kind's page of documents), `blades`, `connections` (the Connections page),
   `session` (the Session page), `settings` (the Settings page); `connection:<name>` (a connection's detail: where it is used, its
@@ -68,7 +68,7 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
   The Scripts page's Blades pane (`window="scripts"`): `blade:<name>`, `new_blade` (a connection's tables: `connection:<name>`).
   Views are in the page's address, so the user's Back undoes your move too.
 - `app_session(who, limit)`: the Session page's log, newest first: what you made or changed this session
-  (who=agent, the default; user; both), each entry's words, area and object (a grid, a card, a
+  (who=agent, the default; user; both), each entry's words, area and object (an open table, a card, a
   relationship, a connection, a cell), names and counts only. `follow`: whether the user follows you (each
   of your actions brings its area to the front, the object highlighted). It is the user's switch: you
   read it, never set it. Work so it reads well: one change per call, the object named.

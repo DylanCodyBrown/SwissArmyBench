@@ -245,7 +245,7 @@ def _tds_off(seen: Seen) -> Said:
 def _sql_error(seen: Seen) -> Said:
     absent = missing_table(seen.message)
     text = (
-        f"The SQL names a table this query cannot see: {_quote(absent)}. Open it in Grids, read it with "
+        f"The SQL names a table this query cannot see: {_quote(absent)}. Open it in Tables, read it with "
         "a cell, or check the name's spelling."
         if absent
         else "The SQL did not run: the database's own words are above."
@@ -403,10 +403,10 @@ def _offer_open_table(entry: dict[str, Any], open_tables: list[str]) -> None:
     if name is None:
         return
     entry["explanation"] = (
-        f"{_quote(name)} is open in Grids, but this document has no cell for it yet, so the query cannot "
-        "see it. Add its table cell (its steps as one DuckDB query) and run this cell again."
+        f"{_quote(name)} is open on the Tables page, but this document has no cell for it yet, so the "
+        "query cannot see it. Add its table cell (its steps as one DuckDB query) and run this cell again."
     )
-    title = f"{name} is open in Grids: add its table cell"
+    title = f"{name} is open on the Tables page: add its table cell"
     entry["fixes"] = [{"kind": "table", "title": title, "name": name}] + [
         f for f in entry.get("fixes", []) if f.get("kind") != "replace"
     ]

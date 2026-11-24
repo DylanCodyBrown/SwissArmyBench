@@ -20,8 +20,8 @@ An optional extension (`swissarmybench-accounting`). Its tools are there only wh
   combo; `from`: a table's or pivot's block; `category`, `series`, `line_series`).
 - `action="change"` moves (`cell`, `sheet`) and sizes (`w`, `h`); `workbook_sheet` adds, renames, sets
   `freeze` and `print` (orientation, paper, fit_width, header, footer). `workbook_set_design` writes it whole.
-- `workbook_play`: the workbook built from the open tables (each with its grid's steps), each sheet's
-  cells as built. A table it reads must be open (a grid); `missing` names any that is not.
+- `workbook_play`: the workbook built from the open tables (each with its steps), each sheet's
+  cells as built. A table it reads must be open (a tab); `missing` names any that is not.
 - `workbook_save`, then `workbook_export`: workbook.py beside the design builds the same workbook from
   data.py anywhere (`python workbook.py`; openpyxl and duckdb). The builder is the base's `sab_excel`
   (`sab_excel.build(grids, design, template)`, the one way to make a workbook: the canvas is the drawn
@@ -36,4 +36,4 @@ An optional extension (`swissarmybench-accounting`). Its tools are there only wh
 - `statements_build(template, data, lines, group_by, name, number, date)`: a dry run (the files, rows,
   totals; nothing written). Build for real (`dry_run=false`) only after that dry run and only when the
   user said so in their own words; it waits for their Allow too. `statements_register` lists what was
-  built (`open=true`: as a grid).
+  built (`open=true`: on the Tables page).

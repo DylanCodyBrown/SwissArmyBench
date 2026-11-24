@@ -18,11 +18,11 @@ checker, so what you run is what the user would.
    (`columns` by slot key, `options` by option key). Its cards land on the Analyze board, as the user's do,
    and `result` holds the numbers. A table that does not fit is refused with why and the form as it stands
    (`plan`). `analyze_plan` shows the picks and the sentence without running.
-- `analyze_tables`: the toolbar and the open tables; `table` is a grid id, a table's name, or a
+- `analyze_tables`: the toolbar and the open tables; `table` is an open table's id, a table's name, or a
   connection's table by its DuckDB SQL name (`[Warehouse].orders`: read whole into a table of its own,
   refused past the read limit with how to narrow it), and defaults to the one Analyze last used. `analyze_column(table, column)`: the analyses a column fits.
 
-## Make it fit: fixes are grid steps
+## Make it fit: fixes are steps
 - A fix (`analyze_check`'s `fixes`) is one plain sentence with its count and `steps`: text read as numbers
   or dates, a month column, the ten most common values and Other, blanks left out, values above zero, a
   yes/no column, totals per month or per key. `level` needed: the slot has nothing without it; better: it
@@ -43,7 +43,7 @@ checker, so what you run is what the user would.
   rows is rough. An outlier is a question, not proof. Say what goes together, not what causes what.
 - Forecasts: give the range and what it assumes. Regression: use `predictors` first to choose; `whatif`
   takes each predictor's value as the option `value:<column>`.
-- The lower-level tools stay for what the form does not ask: `column_fit_test` (shares, another grid),
+- The lower-level tools stay for what the form does not ask: `column_fit_test` (shares, another open table),
   `column_outliers` (threshold, show or exclude), `analyze_odds`, `analyze_predictors`,
   `analyze_regression`, `analyze_predict`, `analyze_time_series`, `analyze_forecast`, `analyze_code`,
   `analyze_proof`. They answer you only: nothing lands on the board.
@@ -51,9 +51,9 @@ checker, so what you run is what the user would.
 ## The board (cards, dashboards, themes)
 - The chart's code is `analyze_chart_code` (`analyze_code` is an analysis's).
 - `analyze_formats` lists every card kind with an example: read it before drawing.
-- `analyze_add(kind, ...)`: `chart` (a spec on a grid; the server aggregates), `note` (markdown), `table`
-  (sql over a grid, or rows of its own), `diagram` (Mermaid), `plotly`, `image`, or
-  a saved `file`. A plotly card with `grid` and `sql` follows the grid's steps. `key` names a
+- `analyze_add(kind, ...)`: `chart` (a spec on an open table; the server aggregates), `note` (markdown), `table`
+  (sql over an open table, or rows of its own), `diagram` (Mermaid), `plotly`, `image`, or
+  a saved `file`. A plotly card with `grid` and `sql` follows the table's steps. `key` names a
   card: the same key replaces it in place. `size` is {"w": 2-12, "h": 3-30}.
 - `analyze_update`, `analyze_delete`, `analyze_list`, `analyze_all`, `analyze_select` (a click on a chart's
   mark: adds the filter step), `analyze_chart_code` (a chart's Altair Python).

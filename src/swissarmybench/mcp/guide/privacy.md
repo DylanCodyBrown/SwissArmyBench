@@ -6,7 +6,7 @@ audit log and, in beta mode, the beta log. You can do whatever the user can, wit
 password.
 
 ## What waits for the user's Allow
-- `table_export` (a grid to the export folder), `canvas_export` (an app with the tables' rows), and
+- `table_export` (an open table to the export folder), `canvas_export` (an app with the tables' rows), and
   `project_save` when it keeps a table's rows in .sab/data/ (keep_rows), `project_copy` with data.
 - The user sees what, where and which tables; Deny, closing the prompt or no answer in 3 minutes
   writes nothing. `agent_approvals` lists what is waiting; `agent_events` reports approval_resolved.
@@ -32,7 +32,7 @@ password.
 - You see what the page shows: schemas, profiles, steps and rows (up to 1,048,576 a read).
 - `app_snapshot` shows real values and is recorded in the audit log. `app_audit` reads the log (who
   did what, never cell values); Settings shows the user your activity.
-- Keep the data on the machine: open or filter a grid for the user rather than pasting rows into the
+- Keep the data on the machine: open or filter a table for the user rather than pasting rows into the
   chat. Give the table, the filter and the row count behind each number.
 
 ## Beta mode: the beta log and the notes

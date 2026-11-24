@@ -16,10 +16,10 @@ from swissarmybench.cli.command_kit import DATA_NOTE, _csv, _defuse, _insert_ste
 
 @command(
     "row_read",
-    "A window of a grid's rows exactly as the page draws them (what the user sees, after its steps), with "
+    "A window of an open table's rows exactly as the page draws them (what the user sees, after its steps), with "
     "highlight marks. format=csv gives the same rows as CSV, headed by the view's total row_count: the "
     "compact form for reading many rows (up to 1,048,576 in one read; the default form gives 1,000).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     opt("start", "First row (default 0).", "int"),
     opt("end", "End row, exclusive (default start+100).", "int"),
     opt("upto", "Show the table entering this step index instead of the final view (not with csv).", "int"),
@@ -60,7 +60,7 @@ def grid_rows(a: dict[str, Any]) -> Any:
 @command(
     "row_count",
     "The view's row count (and the dataset's total). `upto` counts the table entering that step.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     opt("upto", "Step index.", "int"),
 )
 def grid_count(a: dict[str, Any]) -> Any:
@@ -70,7 +70,7 @@ def grid_count(a: dict[str, Any]) -> Any:
 @command(
     "row_highlight",
     'Mark rows matching conditions. Each is a filter-shaped object plus a "label"; [] clears them.',
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("highlights", 'e.g. [{"column": "balance", "op": "lt", "value": 0, "label": "negative"}]', "json"),
 )
 def set_highlights(a: dict[str, Any]) -> Any:
@@ -79,8 +79,8 @@ def set_highlights(a: dict[str, Any]) -> Any:
 
 @command(
     "row_select",
-    "Tell the grid how many rows are selected (the number the status bar and agent context show).",
-    req("grid", "Grid id."),
+    "Tell the table how many rows are selected (the number the status bar and agent context show).",
+    req("grid", "The open table's id."),
     req("count", "Selected row count.", "int"),
 )
 def set_selection(a: dict[str, Any]) -> Any:
@@ -90,7 +90,7 @@ def set_selection(a: dict[str, Any]) -> Any:
 @command(
     "row_limit",
     "Keep only the first n rows (a limit step).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("n", "How many rows to keep.", "int"),
     opt("index", "Insert at this step position.", "int"),
 )

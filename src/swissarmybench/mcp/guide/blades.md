@@ -31,8 +31,8 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
   shows at once; an open IDE with unsaved changes asks Reload or Keep mine.
 - `blades_run(name, code=)`: the IDE's Run (a child process, as Test): `output` (stdout and stderr),
   `result` (a table's columns, first rows and `total`, or a value's `text`), on a failure `error` and
-  `error_detail` (the error panel's: frames, line), and `problems`. `open=true` opens a table result as a
-  grid; `cancel=<run id>` stops a run. `blades_problems(name, code=)`: the lint alone.
+  `error_detail` (the error panel's: frames, line), and `problems`. `open=true` opens a table result on the
+  Tables page; `cancel=<run id>` stops a run. `blades_problems(name, code=)`: the lint alone.
 - A table blade (a function or code that makes a DataFrame) has a table name of its own (`table` in its
   header; none: the name its code makes). `blades_table_name_check(name, blade)` says `available` or why
   not (already a table, a connection, another blade's table, not a valid name); `blades_header_set(fields={"table": ...})`
@@ -46,7 +46,7 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
 - `blades_pin`, `blades_delete`, `blades_folders` (folders searched for `.blade.py` files),
   `blades_export` (portable text, no secrets), `blades_import` (without apply: a review; nothing runs).
 - Analysis blades: `def analyze(df, columns): ...` returning markdown, a DataFrame or a figure; they
-  show on the Analyze toolbar (Yours). `blades_analyses` lists them, `blades_run_analysis` runs one on a grid.
+  show on the Analyze toolbar (Yours). `blades_analyses` lists them, `blades_run_analysis` runs one on an open table.
 
 ## Starters (read-only, shipped with the app)
 - `blades_starters`: the pack by family: Power BI (refresh a dataset, its status, parameters...), Excel

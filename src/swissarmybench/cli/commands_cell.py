@@ -15,7 +15,7 @@ from swissarmybench.cli.command_kit import _insert_step, _q, command, opt, req
 @command(
     "cell_view",
     "One cell's full value (the page's View value).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("row", "Row position in the view.", "int"),
     req("column", "Column name."),
     values=True,
@@ -28,7 +28,7 @@ def grid_cell(a: dict[str, Any]) -> Any:
     "cell_selection_stats",
     "Count, sum and average for a selection, like Excel's status bar. selection: "
     '{"rows": [[first, last], ...] | null, "columns": [name, ...] | null}.',
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("selection", "The selection.", "json"),
     values=True,
 )
@@ -39,7 +39,7 @@ def selection_stats(a: dict[str, Any]) -> Any:
 @command(
     "cell_keep",
     "Keep only rows with these values in a column (the cell's right-click Keep these).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "Column name."),
     req("values", 'The values to keep, e.g. ["east", "west"].', "json"),
     opt("index", "Insert at this step position.", "int"),
@@ -52,7 +52,7 @@ def cell_keep(a: dict[str, Any]) -> Any:
 @command(
     "cell_exclude",
     "Drop rows with these values in a column (the cell's right-click Exclude these).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "Column name."),
     req("values", "The values to drop.", "json"),
     opt("index", "Insert at this step position.", "int"),

@@ -589,7 +589,10 @@ _RECORDS: tuple[Kind, ...] = (
         reads="the table whole, from the sandbox (following every write)",
         reads_with="own",
         naming="single",
-        read_only="the sandbox is written by its local sandbox API and its grid's edits, not a Write starter",
+        read_only=(
+            "the sandbox is written by its local sandbox API and its edits on the Tables page, "
+            "not a Write starter"
+        ),
     ),
     Kind(
         "sharepoint_docs",

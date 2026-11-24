@@ -1,6 +1,6 @@
 """Every Swiss Army Bench action an agent can take, as one registry of named commands.
 
-The grid page has buttons; this has commands. Each command is named for the part of the app it
+The Tables page has buttons; this has commands. Each command is named for the part of the app it
 works on, then the action: `tabs_new_query` (the + tab), `table_filter` (the ribbon's Table row),
 `column_keep` (the Column row), `cell_exclude` (a cell's right-click menu), `steps_add` (the Table
 Transformations panel), `compare_create`, `analyze_add`. The prefix is the area, so a flat tool
@@ -105,12 +105,12 @@ from swissarmybench.cli.command_kit import (
 # The agent's guide: a short index (mcp/index.md, read first) and one page per topic (mcp/guide/<topic>.md).
 # The MCP server also serves each as a resource: swissarmybench://index, swissarmybench://guide/<topic>.
 GUIDE_TOPICS: dict[str, str] = {
-    "grids": "Grids and steps: data in, reading, the ribbon, steps, SQL, the page",
+    "grids": "Tables and steps: data in, reading, the ribbon, steps, SQL, the page",
     "analyze": "The Analyze page: the analyses, their cards on the board, dashboards, themes",
     "relationships": "Keys and relationships: the finder, saved sets, the ERD, compare and tie-out",
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python; key vaults, variables",
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
-    "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
+    "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, tables, saving",
     "environment": "The Environment: tables, variables, structures, settings and secrets, libraries; Used in",
     "sandbox": "Local sandbox APIs: the project's sandbox, API.py, mock clients, Run, Try it, Export",
     "blades": "Blades and starters: saved code, the starter pack",
@@ -210,7 +210,7 @@ from swissarmybench.cli.commands_environment import _ENVIRONMENT as _ENVIRONMENT
 
 AREAS: tuple[tuple[str, str], ...] = (
     ("help", "Help"),
-    ("tabs", "Tab bar: grids and the + query tab"),
+    ("tabs", "Tab bar: the open tables and the + query tab"),
     ("datasets", "Datasets: loading, closing, Python sessions"),
     ("table", "Ribbon, Table row"),
     ("column", "Ribbon, Column row"),
@@ -235,14 +235,14 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("sandbox", "The project's sandbox: the tables a local sandbox API reads and writes, Reset, checkpoints"),
     ("environment", "The Environment: everything the project holds, where each is used, its libraries"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
-    ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
+    ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as table, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("project", "Projects: a folder (its files, and .sab/: tables, steps, Analyze, relationships)"),
     ("projects", "The Project Explorer: every project as a card, sorted; the project types explained"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
-    ("compare", "Compare (two grids side by side)"),
+    ("compare", "Compare (two tables side by side)"),
     ("stats", "Every call's statistics: times, sizes and outcomes per table, connection and endpoint; hints"),
     ("changes", "The open project's change log: the last change to an object, its history, since a time"),
     ("app", "The page itself: snapshots"),
@@ -401,7 +401,7 @@ def execute_result(name: str, raw: dict[str, Any] | None = None) -> str | ImageR
         raise CommandError(
             f"{name}: unknown argument(s) {', '.join(unknown)}. It takes: {', '.join(known) or 'none'}."
         )
-    # An empty id would address the collection instead (/grids/ for a grid): as good as missing.
+    # An empty id would address the collection instead (/grids/ for an open table): as good as missing.
     missing = [x.name for x in cmd.args if x.required and given.get(x.name) in (None, "")]
     if missing:
         raise CommandError(f"{name}: missing {', '.join(missing)}.")

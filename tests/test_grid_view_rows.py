@@ -50,5 +50,5 @@ def test_the_rows_at_each_place_and_the_columns_shown() -> None:
 
 
 def test_a_table_not_open_is_said() -> None:
-    with pytest.raises(LookupError, match="orders is not open in Grids"):
+    with pytest.raises(LookupError, match="orders is not open on the Tables page"):
         asyncio.run(view_rows(_ws(open_=False), "orders", [0]))

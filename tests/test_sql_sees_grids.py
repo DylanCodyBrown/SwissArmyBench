@@ -91,7 +91,7 @@ def test_sab_sql_with_no_connection_names_an_open_grid(
         {"region": "North", "n": 2},
         {"region": "South", "n": 2},
     ]
-    assert "orders: the open table in Grids" in capsys.readouterr().out
+    assert "orders: the open table on the Tables page" in capsys.readouterr().out
     # Never a copy kept: the next query reads the grid again, its new steps with it.
     live.user("POST", f"/grids/{grid_id}/steps", {"steps": []})
     assert int(sql_cell.duck("SELECT count(*) AS n FROM orders", {})["n"][0]) == 6

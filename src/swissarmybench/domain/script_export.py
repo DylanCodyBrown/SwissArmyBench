@@ -68,7 +68,7 @@ _SHOWING_METHODS: frozenset[str] = frozenset(
 _SHOWING_CALLS: frozenset[str] = frozenset({"display"})
 _PASTED = re.compile(r"\bFROM \(VALUES\b[\s\S]*?\) AS pasted\(")
 _NO_LOAD = re.compile(
-    r"^# (?P<table>.+?) was (?:made outside this file|dropped on the page|pasted into the grid|opened from) ",
+    r"^# (?P<table>.+?) was (?:made outside this file|dropped on the page|pasted into the (?:app|grid)|opened from) ",
     re.M,
 )
 _MAGIC = re.compile(r"^(?P<indent>\s*)(?P<mark>%%|%|!|\?)(?P<rest>.*)$")
@@ -482,7 +482,7 @@ def _table_stub(cell: ExportCell, source: str) -> tuple[str, str] | None:
         line = source[found.start() :].split("\n", 1)[0]
         why = f"{table} was " + line[2:].split(" was ", 1)[1].strip()
     else:
-        why = f"{table} was pasted into the grid"
+        why = f"{table} was pasted into the app"
     kept: list[str] = []
     try:
         tree = ast.parse(source)
@@ -762,7 +762,7 @@ class _Planning:
             else f"cell {index + 1}"
         )
         if cell.role == "transformations" and cell.table:
-            label += f": {cell.table}, its load and then the grid's steps as one DuckDB query"
+            label += f": {cell.table}, its load and then the table's steps as one DuckDB query"
         elif cell.name:
             label += f" ({cell.name})"
         return label
@@ -1017,7 +1017,7 @@ def shared_parts(made: Plan) -> _Shared:
         words.append("the API clients it imports (" + ", ".join(f"{m}.py" for m, _ in made.clients) + ")")
     if has_vault:
         words.append("the key vault lookups")
-    words.append("the grid's steps (as DuckDB SQL)")
+    words.append("the table's steps (as DuckDB SQL)")
     words.append(
         "the notebook's cells, in order" if made.source.lower().endswith(".ipynb") else "its code, in order"
     )

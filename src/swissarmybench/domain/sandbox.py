@@ -564,11 +564,13 @@ def editable_type(column: str, duck_type: str) -> str:
     """A column's type as an edit's CAST names it (DuckDB's own words for a plain type), or SandboxError."""
     if is_nested(duck_type):
         if not _NESTED_CHARS.match(duck_type.strip()):
-            raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
+            raise SandboxError(
+                f"{column} is a {duck_type}: change it through the API, not on the Tables page."
+            )
         return duck_type.strip()
     upper = duck_type.upper().strip()
     if not _EDITABLE_TYPE.match(upper):
-        raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
+        raise SandboxError(f"{column} is a {duck_type}: change it through the API, not on the Tables page.")
     return upper
 
 

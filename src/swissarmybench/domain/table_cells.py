@@ -1113,7 +1113,7 @@ def load_code(
         if pasted is not None:
             return [duck], f"{var} = {module}.sql({python_string(pasted)}).df()"
         return [], _comment(
-            f"{dataset} was pasted into the grid ({rows:,} rows): too large to write here.\n"
+            f"{dataset} was pasted into the app ({rows:,} rows): too large to write here.\n"
             "Export it to a file and open that file, and this cell will load it."
         )
     if origin.kind == "dropped":
@@ -1134,7 +1134,7 @@ def transformations_code(dataset: str, source_kind: str, query: str | None) -> t
     steps: a comment, and nothing to run."""
     var = variable_name(dataset)
     if query is None:
-        return [], f"# {var}: no transformations yet. Steps made in the grid appear here."
+        return [], f"# {var}: no transformations yet. Steps made on the Tables page appear here."
     module = "duckdb" if var != "duckdb" else "ddb"
     duck = "import duckdb" if module == "duckdb" else "import duckdb as ddb"
     return [duck], f"{var} = {module}.sql({python_string(query)}){output_call(source_kind)}"

@@ -1,6 +1,6 @@
 # Swiss Army Bench user guide
 
-Swiss Army Bench is a local data grid that runs on your own machine. You push a pandas DataFrame from Python, and it opens as a tab in a browser page where you can filter, sort, compare and profile the table without changing the source data. Every change you make is a step you can see, turn off or export as Python.
+Swiss Army Bench is a local data workbench that runs on your own machine. You push a pandas DataFrame from Python, and it opens as a tab in a browser page where you can filter, sort, compare and profile the table without changing the source data. Every change you make is a step you can see, turn off or export as Python.
 
 ## Getting data in
 
@@ -12,7 +12,7 @@ import swissarmybench as sab
 sab.push(orders)
 ```
 
-The grid is named after the variable, here `orders`. To choose the name yourself, pass `name=`. Names can be 1 to 64 letters, digits, `_` or `-`.
+The table is named after the variable, here `orders`. To choose the name yourself, pass `name=`. Names can be 1 to 64 letters, digits, `_` or `-`.
 
 ```python
 sab.push(orders, name="orders", new_grid=True)
@@ -51,7 +51,7 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 - **Open with:** the installers offer Swiss Army Bench for .csv, .parquet, .xlsx and .ipynb files (and
   .blade.py; on Windows that is every .py file), without making it their default; on Linux and macOS it is the
   default for a blade (.blade.py). `swissarmybench open orders.csv` does the same from a terminal. The file
-  goes to the app that is open (never a second one): a table opens as a grid (read by its path, so a project
+  goes to the app that is open (never a second one): a table opens on the Tables page (read by its path, so a project
   reads it again), a notebook in the Workbench, a blade of your library on its page, a folder as a project.
 - **Drop a file on a window** from your file explorer: it opens the same way, by its real path. (In a browser a
   dropped file is uploaded, as before.)
@@ -66,7 +66,7 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
   version did (Qt WebEngine, Chromium inside).
 - **Upgrading from a version with the tray:** its icon and its start-at-sign-in entry are removed the first time
   the new version starts, and the page says so once.
-- **An update:** when a newer version is out, the status bars of the grid page and the Workbench show **Update available**, with **Update to 0.0.2** and **What's new**.
+- **An update:** when a newer version is out, the status bars of the Tables page and the Workbench show **Update available**, with **Update to 0.0.2** and **What's new**.
 - **Update to X** asks first only if a notebook has unsaved changes or a kernel is running (nothing is saved for you). The app closes, installs the new version and opens again (its windows close and the new version's home window opens). If that fails, the old version opens again and the status bar says **Update failed**, with the reason.
 - **Settings, Updates, Check for updates** turns the check off. The check asks PyPI (then GitHub) which version is the latest; it is the only thing that leaves your computer, and it sends nothing about you or your data.
 
@@ -84,7 +84,7 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 
 ## Launch Claude
 
-**Launch Claude** (the sparkle at the right of the status bar, on the grids' page and in the Workbench; also in the command palette) starts Claude with what it needs to know about Swiss Army Bench.
+**Launch Claude** (the sparkle at the right of the status bar, on the open tables' page and in the Workbench; also in the command palette) starts Claude with what it needs to know about Swiss Army Bench.
 
 - **Claude Code** opens in your own terminal (Windows Terminal or a new console, Terminal on a Mac, your Linux terminal), in a folder of its own (`~/.swissarmybench/claude/<your project>`). Its CLAUDE.md says what Swiss Army Bench is and brings in **context.md**, the app's live picture: your connections (and how to name their tables in DuckDB SQL, `[Finance Captive].model_Report`), the open tables with their rows, columns and steps, the ERD's relationships, your variables (names and where each comes from), the project's documents, what each window shows, and the agent's tool guide. Swiss Army Bench keeps context.md current while it runs (a few seconds after any change), and tells Claude at your next prompt which parts changed, so it reads the file again instead of asking the app. No row, cell value, secret or password is written there, and the names in it are marked as data. Your project's working folder is added, so Claude can read its notebooks and scripts.
 - **Claude Desktop** takes no folder, so Swiss Army Bench adds itself to Desktop's MCP settings (asked once; everything else in that file stays, and a copy is kept first), then starts it; the same context.md text reaches it through the app's tools. If Desktop was already open, quit it and start it again.
@@ -94,16 +94,16 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 
 ## The workspace
 
-![The workspace: the tab bar (with +, the folder and the ≡ Tables list), the title with its steps strip, the Application, Table and Column rows, the grid and the status bar.](images/01-workspace.png)
+![The workspace: the tab bar (with +, the folder and the ≡ Tables list), the title with its steps strip, the Application, Table and Column rows, the table and the status bar.](images/01-workspace.png)
 
 The page has these parts:
 
-- **Tab bar.** Each open grid has its own tab (Analyze, ERD and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
-- **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
+- **Tab bar.** Each open table has its own tab (Analyze, ERD and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
+- **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the table has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: the project's group (its name, Save, Save as…, Close, **Autosave**) and **Zoom**. The **Tour** (a guided walk down the rail: it opens each place in turn and lights up the control it is talking about, with two small made-up tables it opens to show things on and closes again at the end; Escape stops it and brings you back) is on the **Projects** page (**Home** at the top of the rail); on your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
-- **Grid.** The rows, with the column headers above them.
-- **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
+- **Table.** The rows, with the column headers above them.
+- **The table has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
 - **Status bar.** The row count and the selection summary. The memory meter shows only once the data is past 80% of its budget (click it for the Tables list, which always has the numbers), and "not live: push again" only when the page has lost the server.
 - **Every action by name.** Ctrl+Shift+P opens the command palette: type a few letters of any button, menu entry or tab, and press Enter. The table's commands come first, and the ones you used lately before all of them. A command that cannot run now is greyed, and says why in its row.
 - **Keyboard shortcuts.** Press **?** (or Ctrl+/) anywhere outside a text box: every command that has keys, by group, with a box to find one. In the Workbench too (outside an editor, where Ctrl+/ comments a line).
@@ -115,13 +115,13 @@ The page has these parts:
 
 ### Getting around
 
-- **The rail** down the left of every page and window has an icon for each area, in the order you work: first **Home** (a house: the Projects page), then where the data comes from (**Connections**, **APIs**, **Environment**: everything the project holds, **Catalog**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), tools and building (**Blades**, **Scripts**, **Notebooks**, **Apps**: the Streamlit canvas), presenting (**Analyze**), then the log (**Session**), and **Settings** at the bottom. **Notebooks** and **Scripts** are two pages, each a window of its own: a notebook opens only on the Notebooks page, a .py only on the Scripts page. The Scripts page is a Python IDE: the project's code by module on the left (with each module's outline, the library's connections and APIs, and what the app generates), the Blades below it, the files as tabs; F12 goes to a definition (into an installed library: its file opens in a tab of its own marked **read-only**), Shift+F12 lists the references, F2 renames across the project, Ctrl+Shift+F searches every script, F11 is full screen (in the desktop app the window goes full screen too) and Ctrl+B folds the explorer. **Debug a script:** click the gutter beside a line (or F9) for a breakpoint; right-click there for a conditional breakpoint (it stops only when a condition holds) or a log point (it prints a message with `{values}` instead of stopping). The bug button (Ctrl+Shift+D) starts debugging: the script runs in its kernel and pauses at a breakpoint, its line highlighted, with the panel below: Call stack, Variables (unfold a value), Watch (expressions shown at each stop), Output, and the Debug console (type an expression to evaluate it where it stopped). F5 continues, F10 steps over, F11 into, Shift+F11 out, Shift+F5 stops. Right-click a module in the explorer (or F2, Delete on it) to **Rename…** it (every import of it in the project follows, shown first), **Duplicate** it or **Delete** it (to the trash); an `__init__.py` also renames, deletes or adds to its package, and **New package** is at the explorer's head. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - **Every icon lands on a page**, in the tab you are in: Grids, Analyze and the ERD on the grids' page; **Notebooks** and **Scripts** on their own pages, **Canvas** on its page and **Widgets** in a window of its own (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the Scripts page's Blades pane; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards.
+- **The rail** down the left of every page and window has an icon for each area, in the order you work: first **Home** (a house: the Projects page), then where the data comes from (**Connections**, **APIs**, **Environment**: everything the project holds, **Catalog**: the one place to browse tables), getting and shaping it (**Tables**, **ERD**), tools and building (**Blades**, **Scripts**, **Notebooks**, **Apps**: the Streamlit canvas), presenting (**Analyze**), then the log (**Session**), and **Settings** at the bottom. **Notebooks** and **Scripts** are two pages, each a window of its own: a notebook opens only on the Notebooks page, a .py only on the Scripts page. The Scripts page is a Python IDE: the project's code by module on the left (with each module's outline, the library's connections and APIs, and what the app generates), the Blades below it, the files as tabs; F12 goes to a definition (into an installed library: its file opens in a tab of its own marked **read-only**), Shift+F12 lists the references, F2 renames across the project, Ctrl+Shift+F searches every script, F11 is full screen (in the desktop app the window goes full screen too) and Ctrl+B folds the explorer. **Debug a script:** click the gutter beside a line (or F9) for a breakpoint; right-click there for a conditional breakpoint (it stops only when a condition holds) or a log point (it prints a message with `{values}` instead of stopping). The bug button (Ctrl+Shift+D) starts debugging: the script runs in its kernel and pauses at a breakpoint, its line highlighted, with the panel below: Call stack, Variables (unfold a value), Watch (expressions shown at each stop), Output, and the Debug console (type an expression to evaluate it where it stopped). F5 continues, F10 steps over, F11 into, Shift+F11 out, Shift+F5 stops. Right-click a module in the explorer (or F2, Delete on it) to **Rename…** it (every import of it in the project follows, shown first), **Duplicate** it or **Delete** it (to the trash); an `__init__.py` also renames, deletes or adds to its package, and **New package** is at the explorer's head. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+  - **Every icon lands on a page**, in the tab you are in: Tables, Analyze and the ERD on the open tables' page; **Notebooks** and **Scripts** on their own pages, **Canvas** on its page and **Widgets** in a window of its own (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the Scripts page's Blades pane; **Connections** and **Settings** on pages of their own over whatever you were doing (your open tables and kernels stay as they were). A card opens its document, and Back comes back to the cards.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
-  - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Analyze, ERD, the Workbench, Settings, Connections and Blades are the rail's.
-- **The mark** (the red square at the top of the rail, on every page and window) takes you home: the **Projects** page, every project as a card (see Projects: a folder, below), with New project, Open project… and the Tour. It is a page of its own: the grids' page is only your grids, and with no table open it is the **New query** page (the same page the tab row's **+** opens, Ctrl+T): **Open tables (DuckDB)** while a grid is open, then each connection that runs SQL, with its kind and colour; click one (or arrow to it and press Enter) and a new query opens with **Query from** already set to it, the editor ready. Open a file is the folder button beside the **+**, and Ctrl+V pastes a table. From the Workbench, the blades page or the Key Finder window the mark brings the grids' window to the front showing Projects (and opens it if you closed it). **Alt+Home** does the same. The app opens on Projects when no table and no project is open.
+  - The rail is always there. The tabs along the top are only your open tables, and the Application row keeps the Tour and Zoom: Analyze, ERD, the Workbench, Settings, Connections and Blades are the rail's.
+- **The mark** (the red square at the top of the rail, on every page and window) takes you home: the **Projects** page, every project as a card (see Projects: a folder, below), with New project, Open project… and the Tour. It is a page of its own: the open tables' page is only your open tables, and with no table open it is the **New query** page (the same page the tab row's **+** opens, Ctrl+T): **Open tables (DuckDB)** while a table is open, then each connection that runs SQL, with its kind and colour; click one (or arrow to it and press Enter) and a new query opens with **Query from** already set to it, the editor ready. Open a file is the folder button beside the **+**, and Ctrl+V pastes a table. From the Workbench, the blades page or the Key Finder window the mark brings the open tables' window to the front showing Projects (and opens it if you closed it). **Alt+Home** does the same. The app opens on Projects when no table and no project is open.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the Settings and Connections pages, a connection's detail and its forms, a kind's page of documents, a blade's screen. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
-- **Reload** (F5 on the grid page) keeps what you were looking at, Analyze, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
+- **Reload** (F5 on the Tables page) keeps what you were looking at, Analyze, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**.
 - **The browser tab** names the place: the table's name, "Analyze", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
 
@@ -186,7 +186,7 @@ terminal (it starts the app when it is not running).
   again: the first Save asks **Keep its rows** for each one (off unless you tick it). Kept rows go into
   `.sab/data/`, which the project's `.gitignore` leaves out: data is sensitive. Remove that line to
   commit them on purpose. No password, token or secret is ever written.
-- **The project's own:** its documents, tables and grids, Structures, Analyze and its saved
+- **The project's own:** its documents, tables and their tabs, Structures, Analyze and its saved
   dashboards. Your connections, APIs, key vaults, blades and variables are your **library** (below), and
   every project has them. In the Workbench, **In this project…** lists its documents, and **Import…**
   copies notebooks, scripts or apps in from another project (its folder) or a single file.
@@ -251,7 +251,7 @@ Each kind of Workbench document has its colour: app pages violet, notebooks blue
 
 ![The Settings window: the theme, the setup prompt with its copy button.](images/02-preferences.png)
 
-Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, Analyze included.
+Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the table's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, Analyze included.
 
 The "Connect an agent" box holds a prompt you can copy into Claude Code or another agent that has a shell. It tells that agent how to add the Swiss Army Bench MCP server.
 
@@ -267,7 +267,7 @@ Selection works the way it does in a spreadsheet.
 
 ![A block of cells selected across three columns, with the status bar showing the count, average and sum.](images/03-select-cells.png)
 
-Ctrl+A selects everything, and Ctrl+C copies the selection. Click anywhere outside the grid, or press Escape, to clear the selection. The ribbon's buttons, menus and dialogs don't clear it, because they act on it.
+Ctrl+A selects everything, and Ctrl+C copies the selection. Click anywhere outside the table, or press Escape, to clear the selection. The ribbon's buttons, menus and dialogs don't clear it, because they act on it.
 
 Scrolling sideways is free: the view stops wherever you leave it, even in the middle of a column that is wider than the screen.
 
@@ -287,23 +287,23 @@ The Column row acts on the selected column. It has Sort A to Z and Z to A, Filte
 
 ![Table Transformations, in its own tab, with one filter step that keeps rows where region equals North (40 rows to 10).](images/05-filter-step.png)
 
-Each step there has a checkbox to switch it off, a pencil to edit it and a trash icon to delete it; the grid follows at once. Turning a step off shows the grid without it, which is the quickest way to check what a step changed. **Undo** on the strip, or Ctrl+Z, takes back the last change to the steps, whatever it was: a step added, removed or edited, the steps cleared, a header sort. **Redo**, Ctrl+Y or Ctrl+Shift+Z makes it again. The keys work while a grid is in front and the cursor is not in a text box.
+Each step there has a checkbox to switch it off, a pencil to edit it and a trash icon to delete it; the table follows at once. Turning a step off shows the table without it, which is the quickest way to check what a step changed. **Undo** on the strip, or Ctrl+Z, takes back the last change to the steps, whatever it was: a step added, removed or edited, the steps cleared, a header sort. **Redo**, Ctrl+Y or Ctrl+Shift+Z makes it again. The keys work while an open table is in front and the cursor is not in a text box.
 
 ### SQL: in the notebook
 
-SQL is written where your Python is: the Workbench, Jupyter, or Python in the terminal. A grid's steps are there too: every table has a read-only cell in its Workbench notebook or script that holds the steps as one DuckDB query over your table by its own name (`orders = duckdb.sql("""SELECT ... FROM orders WHERE ...""").df()`). The cell follows the grid by itself; see The Workbench.
+SQL is written where your Python is: the Workbench, Jupyter, or Python in the terminal. A table's steps are there too: every table has a read-only cell in its Workbench notebook or script that holds the steps as one DuckDB query over your table by its own name (`orders = duckdb.sql("""SELECT ... FROM orders WHERE ...""").df()`). The cell follows the table by itself; see The Workbench.
 
-A DuckDB SQL cell (no connection) also sees every table open in Grids by its name: `SELECT region, count(*) FROM orders GROUP BY ALL` reads the grid as it shows it, its steps applied, each time the cell runs, with a line saying so. A table of the same name in your Python wins. When code names a table open in Grids that it cannot see (`duckdb.sql(...)` in a Python cell), the error offers **orders is open in Grids: add its table cell**.
+A DuckDB SQL cell (no connection) also sees every table open on the Tables page by its name: `SELECT region, count(*) FROM orders GROUP BY ALL` reads the table as it shows it, its steps applied, each time the cell runs, with a line saying so. A table of the same name in your Python wins. When code names a table open on the Tables page that it cannot see (`duckdb.sql(...)` in a Python cell), the error offers **orders is open on the Tables page: add its table cell**.
 
-In Python, `sab.table("orders")` reads a table open in Grids the same way, as an Arrow table (`.to_pandas()` for a DataFrame); add `columns=`, `filters=[("amount", ">", 100)]`, `sort=[("amount", "desc")]` or `limit=` and the app does that work before it sends the rows. It reads again each time; the table itself stays in the app.
+In Python, `sab.table("orders")` reads a table open on the Tables page the same way, as an Arrow table (`.to_pandas()` for a DataFrame); add `columns=`, `filters=[("amount", ">", 100)]`, `sort=[("amount", "desc")]` or `limit=` and the app does that work before it sends the rows. It reads again each time; the table itself stays in the app.
 
-For any other Python, the steps window (**Edit steps**) still has a Code tab: **Copy as SQL** and **Copy as Python** there give the same one query, run on a copy of your table and matched with the grid before they're copied.
+For any other Python, the steps window (**Edit steps**) still has a Code tab: **Copy as SQL** and **Copy as Python** there give the same one query, run on a copy of your table and matched with the table before they're copied.
 
 A SQL step is still one step among the others: in Edit steps, **Add a SQL step** takes one SELECT over the table entering it, read as `grid` or by the table's name. Anything else is refused, and the strip names the broken step.
 
 ### A new table from a query
 
-The + after the last tab opens a new tab with a query tray over a blank grid. Use it to build a table of your own from the tables you have open, such as a join of two of them.
+The + after the last tab opens a new tab with a query tray over a blank table. Use it to build a table of your own from the tables you have open, such as a join of two of them.
 
 1. Click + after the last tab. The new tab is named query_1, or the next free number. Type another name in the tray if you want one.
 2. Write one SELECT. A table name reads that table as its tab shows it, after its steps, so a filter you added there applies here too. If a table is open in two tabs, its name reads the first one.
@@ -323,7 +323,7 @@ Profile in the Table row profiles every column at once, with the type, blank cou
 
 ### The analyses are on the Analyze page
 
-The grid page has no analysis on it any more (the fit test, outliers, odds, find predictors, regression, time series, forecast and tie-out moved): see **Analyze** below. A column's quick **Profile** stays here, and so do **Profile to Analyze** and **Distinct values to Analyze** on a column header's right-click menu.
+The Tables page has no analysis on it any more (the fit test, outliers, odds, find predictors, regression, time series, forecast and tie-out moved): see **Analyze** below. A column's quick **Profile** stays here, and so do **Profile to Analyze** and **Distinct values to Analyze** on a column header's right-click menu.
 
 ### Auto width
 
@@ -341,15 +341,15 @@ Double-click a cell that holds a long text or a JSON value, or press Enter or F2
 
 ### Export and zoom
 
-Export in the Table row writes the grid as CSV, text, Excel or Parquet. The file is built from the grid's steps, so it matches what you see. Choose a download or the export folder.
+Export in the Table row writes the table as CSV, text, Excel or Parquet. The file is built from the table's steps, so it matches what you see. Choose a download or the export folder.
 
-The zoom control in the Application row changes the text and row size of the whole page: the grid, the ribbon and Analyze. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
+The zoom control in the Application row changes the text and row size of the whole page: the table, the ribbon and Analyze. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
 
 ## Comparing two tables
 
-Two grids can sit side by side, and they can be lined up row for row on a key.
+Two tables can sit side by side, and they can be lined up row for row on a key.
 
-1. Right-click a table's tab and choose **Compare with…** (with more than two tables open, pick the other one), or drag one tab onto the middle of another. The two grids show side by side, and the key picker opens.
+1. Right-click a table's tab and choose **Compare with…** (with more than two tables open, pick the other one), or drag one tab onto the middle of another. The two tables show side by side, and the key picker opens.
 2. The picker lists the column pairs that share values, best first. Tick the pair that identifies the same row in both tables. To use a key made of two columns, tick both pairs.
 3. If no pair fits, choose the columns in the "Or pick a pair yourself" row and press Add.
 4. Press Compare.
@@ -358,17 +358,17 @@ Two grids can sit side by side, and they can be lined up row for row on a key.
 
 The Key Finder runs when the picker opens. It ranks the pairs by the share of values that match on each side. The pair that starts ticked is the best one that is unique on both sides (one row lines up with one row), so a column whose few values all match, such as a quantity, does not win over the identifier. Read the list all the same, and tick the key you mean. When the two tables have a known relationship (see Relationships below), its columns come first with a crown, already ticked.
 
-The Key Finder also runs on its own from the Table row. It opens in a window of its own, titled "Possible Join Keys for" your table, so you can keep it beside the grids. Choose the table to compare with and press Find keys. Each row shows your column, the other table and its column, the relationship it looks like, the share of each table's values found in the other (headed by the table names) and the shared values as fractions. Click a row to see sample values that match and values that do not. Known relationships carry a crown. Each row has two buttons: **Compare on these** puts the two tables side by side in the grid window, lined up on that pair, and **Add as relationship** makes the pair a known relationship.
+The Key Finder also runs on its own from the Table row. It opens in a window of its own, titled "Possible Join Keys for" your table, so you can keep it beside the open tables. Choose the table to compare with and press Find keys. Each row shows your column, the other table and its column, the relationship it looks like, the share of each table's values found in the other (headed by the table names) and the shared values as fractions. Click a row to see sample values that match and values that do not. Known relationships carry a crown. Each row has two buttons: **Compare on these** puts the two tables side by side on the Tables page, lined up on that pair, and **Add as relationship** makes the pair a known relationship.
 
-Above the pairs, every run also shows the most distinct column combination in your table: the fewest columns that together tell every row apart, which is usually the table's primary key. It reads the first 400,000 rows of the grid as it stands after its steps. The search starts with the column that has the most distinct values, then adds whichever column tells the most remaining rows apart, one at a time. Each of those rows shows the share of rows the combination tells apart. The last row, marked with an accent edge, is the answer. Any other combination just as small that is also unique per row is listed under it. If no combination tells every row apart, the table repeats whole rows, and the answer says how many. The search adds one column at a time, so it finds a small key quickly, but a different key of the same size can exist. Check one you mean with a count in the notebook.
+Above the pairs, every run also shows the most distinct column combination in your table: the fewest columns that together tell every row apart, which is usually the table's primary key. It reads the first 400,000 rows of the table as it stands after its steps. The search starts with the column that has the most distinct values, then adds whichever column tells the most remaining rows apart, one at a time. Each of those rows shows the share of rows the combination tells apart. The last row, marked with an accent edge, is the answer. Any other combination just as small that is also unique per row is listed under it. If no combination tells every row apart, the table repeats whole rows, and the answer says how many. The search adds one column at a time, so it finds a small key quickly, but a different key of the same size can exist. Check one you mean with a count in the notebook.
 
 ![The Key Finder window comparing orders with orders_v2, with the column pairs ranked by the share found on each side.](images/12-key-finder.png)
 
 ### Reading the aligned view
 
-Once compared, the two grids always line up. Row N on the left and row N on the right share a key. When a side has no row for a key, a striped blank row sits opposite the row that has it. The two grids scroll together through one scrollbar in the centre.
+Once compared, the two tables always line up. Row N on the left and row N on the right share a key. When a side has no row for a key, a striped blank row sits opposite the row that has it. The two tables scroll together through one scrollbar in the centre.
 
-![The two grids aligned on order_id. The striped row on orders_v2 is order 1005, which exists only in orders. The ribbon reports 38 matched, 2 only in orders and 2 only in orders_v2.](images/14-compare-aligned.png)
+![The two tables aligned on order_id. The striped row on orders_v2 is order 1005, which exists only in orders. The ribbon reports 38 matched, 2 only in orders and 2 only in orders_v2.](images/14-compare-aligned.png)
 
 Cells that differ between the two sides are marked with a coloured bar. Click any row to highlight every row with the same key on both sides, so you can see the same order on the left and the right at once.
 
@@ -380,17 +380,17 @@ The Compare row in the ribbon switches the mode.
 
 - **Outer join** shows every key from both tables, as above.
 - **Anti join** shows only the keys with no match on the other side. Choose both sides, only the left table or only the right table.
-- **Cross compare** keeps each grid on its own rows. Click a row on one side to filter the other side to that key.
-- **Diff** lines the two grids up as Outer join does and keeps only the rows that differ: a changed cell in a column both tables have (names matched ignoring letter case, the keys left out), or a key on one side only. Changed cells are marked on both sides. The Compare row says how many matched rows differ and has a button per changed column with its count ("price 280"): click one to see only the rows where that column changed, and again to go back. **How values compare…** sets a tolerance for numbers (an amount, or a percentage of the left value), whether text ignores spaces at either end (on) and letter case (off), and which columns are compared; a blank equals a blank, and an empty text is a blank. **Every row** goes back to Outer join.
+- **Cross compare** keeps each table on its own rows. Click a row on one side to filter the other side to that key.
+- **Diff** lines the two tables up as Outer join does and keeps only the rows that differ: a changed cell in a column both tables have (names matched ignoring letter case, the keys left out), or a key on one side only. Changed cells are marked on both sides. The Compare row says how many matched rows differ and has a button per changed column with its count ("price 280"): click one to see only the rows where that column changed, and again to go back. **How values compare…** sets a tolerance for numbers (an amount, or a percentage of the left value), whether text ignores spaces at either end (on) and letter case (off), and which columns are compared; a blank equals a blank, and an empty text is a blank. **Every row** goes back to Outer join.
 - **Tie-out** (do these two tables add up the same?) is an analysis now: **Do two tables add up the same?** on the Analyze page.
-- The ribbon's counts (matched, only on one side) follow each grid's steps.
+- The ribbon's counts (matched, only on one side) follow each table's steps.
 - In **Diff**, each side shows only its key and the columns that differ, so the changes are in front of you; **Only differing columns** in the Compare row (on to start) switches every column back on. Both halves scroll sideways together and start at the first column that differs; a column's own button takes both halves to it.
-- A compare survives a reload of the page: the two grids come back side by side, in the same mode.
-- **Stop compare** returns to two independent grids. The side-by-side view stays, with no keys.
+- A compare survives a reload of the page: the two tables come back side by side, in the same mode.
+- **Stop compare** returns to two independent tables. The side-by-side view stays, with no keys.
 
 ## Analyze
 
-Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, Mermaid diagrams, Plotly and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when grids close.
+Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, Mermaid diagrams, Plotly and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when tables close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
@@ -398,7 +398,7 @@ To add a chart, press Add chart. Choose the table, the chart type, the column fo
 
 ![The Analyze board with a bar chart of summed quantity by product and a note with a title and a short list.](images/16-analysis-sandbox.png)
 
-Clicking a bar in a chart filters the grid to that value. Each card has a pin, a zoom button for a larger view, and a remove button.
+Clicking a bar in a chart filters the table to that value. Each card has a pin, a zoom button for a larger view, and a remove button.
 
 ### Running an analysis
 
@@ -425,7 +425,7 @@ The toolbar has a button for every analysis, by group, each with its everyday qu
 
 A button opens its form in a panel **beside** the board, so the board stays in view. The form asks as little as it can:
 
-- **The table is already picked**: the grid you came from, else the one Analyze last used, on one line with its steps and rows ("orders, with 2 steps · 12,400 rows"). **Change** picks another open table, or **Find data…** for a connection's.
+- **The table is already picked**: the table you came from, else the one Analyze last used, on one line with its steps and rows ("orders, with 2 steps · 12,400 rows"). **Change** picks another open table, or **Find data…** for a connection's.
 - **The columns are picked for you** and shown as chips, each saying why ("the only date column", "the likeliest, by its name"). Open a chip to pick another: it lists only the columns that fit, each with its type and a few of its values, and under **Does not fit** every other column with the reason ("region: is a text column: amounts needs a number column"). An identifier (a name ending in id or key, or a different value on every row) is never offered as a measure.
 - **One sentence says what will run**: "Test whether amount follows Benford's first-digit law, on 12,400 rows of orders."
 - **Run.** The form is covered while it runs, with **Cancel**; an error stays in the form, in the same shape as everywhere else.
@@ -437,8 +437,8 @@ A button opens its form in a panel **beside** the board, so the board stays in v
 **Every result lands on the board by itself**: its note (the verdict in words, the key rows as a table, the cautions) and its chart appear at the top, come into view and are briefly outlined. There is no Send step. Under the result's note:
 
 - **Show the math**: every number worked out step by step, as a note beside it.
-- **Open as grid**: the result's table in a tab of its own.
-- **Copy code**: the analysis as Python for a notebook (the grid's steps as DuckDB SQL, then one `swissarmybench.stats` call), on the clipboard.
+- **Open as table**: the result's table in a tab of its own.
+- **Copy code**: the analysis as Python for a notebook (the table's steps as DuckDB SQL, then one `swissarmybench.stats` call), on the clipboard.
 - **The next tool**: "Predict it from these", "Test the two together", "What comes next?", "Show these rows".
 - **Run again…**: the form reopens filled with what it ran with; change something and run.
 
@@ -472,7 +472,7 @@ Each says how many rows it touches and has **Apply**. Nothing is applied by itse
 
 ### Analyze's theme
 
-Analyze can wear a theme of its own, apart from the grid's: pick one from the theme menu in its toolbar. Its cards, charts, Page view, the PDF and the markdown export's pictures all take it; the grid keeps the app's theme. There are twenty: **high contrast light and dark** and **colourblind-safe light and dark** (Okabe and Ito's eight colours) first, then Steel light and dark (the app's own), Paper (made to print), Ink, Arctic, Sand, Meadow, Rose, Mint, Sunrise, Graphite, Midnight, Forest, Slate, Plum and Carbon. **Theme: follow the app** goes back to the app's theme (and prints on light paper as before).
+Analyze can wear a theme of its own, apart from the table's: pick one from the theme menu in its toolbar. Its cards, charts, Page view, the PDF and the markdown export's pictures all take it; the table keeps the app's theme. There are twenty: **high contrast light and dark** and **colourblind-safe light and dark** (Okabe and Ito's eight colours) first, then Steel light and dark (the app's own), Paper (made to print), Ink, Arctic, Sand, Meadow, Rose, Mint, Sunrise, Graphite, Midnight, Forest, Slate, Plum and Carbon. **Theme: follow the app** goes back to the app's theme (and prints on light paper as before).
 
 Every theme is readable: text stands at least 7:1 against its background, quieter text 4.5:1, and chart colours and lines 3:1. **Import theme** takes a theme file of your own (`{"name": "Harbour", "dark": false, "tokens": {"bg": "#f4f8fb", "fg": "#14202b", "accent": "#0b6e99", "cat": ["#0b6e99", "#c2410c"]}}`): colours left out come from the light or dark base, and any colour too faint for its place is darkened (or lightened) just enough. Imported themes are kept until you remove one (**Remove this theme**, beside the picker while an imported theme is chosen; the 20 built-in themes stay); **Export theme** saves the one in use as a file to share or start from. An agent can propose a theme too: it shows marked as proposed, and **Keep this theme** keeps it. A saved dashboard remembers its theme.
 
@@ -520,9 +520,9 @@ sab.analyze.sample("benford")  # its made-up sample, as a DataFrame
 
 On a DataFrame the analysis runs in your own Python (the function `swissarmybench.stats` has, so the numbers are the page's) and returns a plain dictionary; when the app is running its cards land on the board too (`board=False` keeps them off). A table that does not fit raises `ValueError` with what is missing and how to make it fit.
 
-### How an agent sees the grids
+### How an agent sees the open tables
 
-An agent works on your tables through the Swiss Army Bench MCP server, which has one tool for each thing the grid can do (anything you can do with a button, the agent can do with a command, named for the part of the app it belongs to (`table_`, `column_`, `cell_`, `steps_`, `compare_`...), except the controls that are yours alone, such as approving an export). The plugin provides it, the setup prompt in Settings installs it in other agents, and the agent workspace has it already. The agent sees which table you have in front of you without asking: the page tells the grid server which tab is active, and each prompt carries a short summary of that table (its name, row count, columns and steps, never its values). An agent can also ask for it with the `agent_context` tool. Before anything else the agent reads the server's short index (`swissarmybench://index`): what the app is, its tools by area and the rules.
+An agent works on your tables through the Swiss Army Bench MCP server, which has one tool for each thing the table can do (anything you can do with a button, the agent can do with a command, named for the part of the app it belongs to (`table_`, `column_`, `cell_`, `steps_`, `compare_`...), except the controls that are yours alone, such as approving an export). The plugin provides it, the setup prompt in Settings installs it in other agents, and the agent workspace has it already. The agent sees which table you have in front of you without asking: the page tells the table server which tab is active, and each prompt carries a short summary of that table (its name, row count, columns and steps, never its values). An agent can also ask for it with the `agent_context` tool. Before anything else the agent reads the server's short index (`swissarmybench://index`): what the app is, its tools by area and the rules.
 
 ## Relationships
 
@@ -582,7 +582,7 @@ The diagram is fitted to the window as it is drawn, and follows the window's siz
 
 ## The Workbench
 
-The grid page's **Workbench** tab opens notebooks (`.ipynb`) and Python scripts (`.py`) in a window of
+The Tables page's **Workbench** tab opens notebooks (`.ipynb`) and Python scripts (`.py`) in a window of
 their own, run in an IPython kernel on this computer.
 
 - **One row on top:** the document in front (a dot while it has unsaved changes), **Save**, **Save
@@ -600,14 +600,14 @@ their own, run in an IPython kernel on this computer.
   you open it, then beside every document, the data notebook and scripts too; drag its right edge to
   size it). One search box finds data by name as you type: your **connections**, their **tables** and
   **columns** (from each connection's catalog; a table shows its name for DuckDB SQL,
-  `[Shop].customers`), the **tables open in the grid** and their columns, your **Structures** (each key by
+  `[Shop].customers`), the **tables open in the table** and their columns, your **Structures** (each key by
   its path, `$.orders[].customer.id`: **Open at this node**, **Copy path**), your **APIs'** web calls that
   return a table (by their SQL names) and their columns, **variables** (by name and
   source, never a value) and **blades**. Any case, any part: `cust` finds `customer_id` and
   `CustomerKey`. The results come grouped and counted; the chips keep one kind or a few, the picker one
   connection, and your recent searches wait under the box. A connection whose catalog is not loaded yet
   says so, with **Load its catalog**. On a result (its buttons, a right-click, or Enter for the first):
-  a table: **Open as grid**, **Preview** (its first rows under it, nothing kept), **Copy SQL name**,
+  a table: **Open as table**, **Preview** (its first rows under it, nothing kept), **Copy SQL name**,
   **Insert** (into the selected cell, as that cell writes it: `SELECT * FROM [Shop].customers` in a
   SQL cell, `sab.sql("SELECT * FROM [Shop].customers")` in a Python cell) and **Query in a notebook**;
   a column: **Copy name**, **Insert** and **Show tables with this column** (every table that has it,
@@ -616,7 +616,7 @@ their own, run in an IPython kernel on this computer.
   searches the catalog or adds a connection; **+ Blade** shows your saved blades and connections.
   **Pop out** opens the **Data** page (below, under "Data: browse and find tables") in a window of its
   own (on another screen, say) with your search, and closes the pane here; its Insert still goes into the
-  Workbench's selected cell, and a drag from it drops into a cell there. On the grid page, **Ctrl+K**
+  Workbench's selected cell, and a drag from it drops into a cell there. On the Tables page, **Ctrl+K**
   (Find data…) opens the same search in a dialog, with **Open the Data page** to take it there.
 - **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
@@ -643,7 +643,7 @@ their own, run in an IPython kernel on this computer.
   and adds a line to an unfinished one; Shift+Enter adds a line; Up goes back through what ran.
   `input()` asks in place. Colours, progress bars and long output show as they would in a terminal.
 - **Notebooks:** a new notebook has the cursor in its first cell: type at once. A result that is a
-  table (a DataFrame as a cell's last line) has **Open as grid** under it: a cell ending in a variable
+  table (a DataFrame as a cell's last line) has **Open as table** under it: a cell ending in a variable
   (`orders`) opens as that name, anything else (`orders.head()`) as `out_` and its number, so the
   table itself is never replaced. Shift+Enter runs a cell and moves on. Escape leaves the editor for Jupyter's command
   mode: A and B insert, D D deletes, Z brings it back, Y, M, S, X and H make a cell Python, Markdown, SQL,
@@ -717,14 +717,14 @@ source or a file on this disk keep the amber "Only works on your machine". For y
 
 Click a card for its **detail**:
 
-- **Used in:** every notebook and script cell that uses it (a SQL cell `%%sql Warehouse`, a DAX cell, `sab.sql("Warehouse", …)`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection`; a table's read-only cell is marked **Table cell**), every Streamlit app block on such a cell, and every open grid read from it. Click one to open that cell in the Workbench (or the grid). A name in a comment, or inside some other text, is not a use. The documents looked in are your recent ones, the ones open in the Workbench and the open project's.
+- **Used in:** every notebook and script cell that uses it (a SQL cell `%%sql Warehouse`, a DAX cell, `sab.sql("Warehouse", …)`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection`; a table's read-only cell is marked **Table cell**), every Streamlit app block on such a cell, and every open table read from it. Click one to open that cell in the Workbench (or the table). A name in a comment, or inside some other text, is not a use. The documents looked in are your recent ones, the ones open in the Workbench and the open project's.
 - **Configuration:** its type, how it signs in, its settings (server, database and so on), and where each password comes from (the system keyring, a key vault's entry, an environment variable, or nowhere yet). Never a password itself.
 - **Calls this session:** catalog loads, queries, table reads, tests and connects, and when it was last used. Calls made through the app and from Workbench notebooks and scripts count; code you run in your own Jupyter does not.
 - **How long its calls take:** a card's calls line adds "usually 140 ms" once the open project has calls on it (rest on it to see every figure: the slow ones, the wait for a slot, the typical rows, the failures), and its Calls section lists them. The figures are kept with the project (`.sab/stats.json`, not shared in Git), so today can be compared with last week: names, times and sizes only, never a value. Your agent reads the same with `stats`, with hints such as "filter at the source" or "keep it as a table".
-- **Open as grid** (a file), **Edit**, **Test**, **Refresh catalog**, **Copy for Python** and **Remove**. Edit's Back returns to the detail, and Save shows it again.
+- **Open as table** (a file), **Edit**, **Test**, **Refresh catalog**, **Copy for Python** and **Remove**. Edit's Back returns to the detail, and Save shows it again.
 
 - **Every database form reads in the same order:** the server, the port and the catalog or database; then the user and the password, each under its own label; then the certificate file and **Trust server certificate** together.
-- **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows. **Open as grid** reads a CSV, Parquet or JSON file as DuckDB reads it (its types; the delimiter found by itself, a semicolon too): a file with a stray value far down a column, or saved in an older Windows encoding, says so in one line; **Open file** (the grid page's) still reads such a file, a stray value as text.
+- **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows. **Open as table** reads a CSV, Parquet or JSON file as DuckDB reads it (its types; the delimiter found by itself, a semicolon too): a file with a stray value far down a column, or saved in an older Windows encoding, says so in one line; **Open file** (the Tables page's) still reads such a file, a stray value as text.
 - **A package that is not installed** is asked for at once, in a window of its own: "Key Vault connections needs azure-identity", **Install now** or **Not now**. Install now puts it into Swiss Army Bench's own Python with uv, shows it working, says done or what went wrong, and then carries on with what you were doing. Not now leaves a small **Install azure-identity** button on the form, with the command for your own Python beside it, and does not ask again until you reopen the app. The same window comes up wherever a package is missing: a connection's form or test, a blade, an analysis blade, a YAML API document, a Streamlit app, Test this page, and a notebook cell that stops on an import.
 - **A password from a key vault:** choose the vault, and **Entry in the vault** lists the vault's secrets by name (never a value). Picking one applies it. A secret the vault does not list can be named by hand (**A secret by name…**).
 
@@ -748,7 +748,7 @@ Click a card for its **detail**:
   - **Browser sign-in, as yourself:** Microsoft's sign-in window, for trying a workspace by hand. It needs `azure-identity` (the form's **Install** button), and its catalog waits for first use.
   - **Test connection** signs in and lists the workspace's datasets: "It works: signed in and found 3 datasets."
   - Its catalog shows the workspace's datasets, and under each one its tables, with their columns and, marked **measure**, their measures. Datasets are read one after another: the first 25, for at most 200 seconds. A dataset that could not be read has a circled **!** on it (point at it, or click the dataset, for the reason); the others are not affected.
-  - **Open as grid** opens a table's first rows (Rows to open) from its own dataset and says how many the table holds; **Copy the EVALUATE** gives the DAX. The grid is named after the table. When two datasets have a table of the same name, the grid is named after the dataset too: `Sales_model_Date`.
+  - **Open as table** opens a table's first rows (Rows to open) from its own dataset and says how many the table holds; **Copy the EVALUATE** gives the DAX. The table is named after the table. When two datasets have a table of the same name, the table is named after the dataset too: `Sales_model_Date`.
   - **Import its relationships** is on a dataset: on its page (click the dataset in the catalog), in its right-click menu, and offered in the message when one of its tables opens. It brings that dataset's own relationships into the ERD and the Key Finder's known joins. An inactive relationship stays inactive (a dashed line).
   - **DAX goes in a DAX cell** (the Workbench, below): `EVALUATE TOPN(10, 'Sales')` on the dataset picked in the cell's head. In Python: `sab.dax("Finance/Sales model", "EVALUATE ...")`. A dataset is named after its connection: the connection, a slash, the dataset.
   - In Python the connection is the workspace: `conn = sab.connection("Finance")`, then `conn.datasets()` (each dataset's name and id) and `conn.dataset("Sales model").cursor()` (one dataset, used as a database's cursor is; a dataset is found by its name or its id).
@@ -803,7 +803,7 @@ Click a card for its **detail**:
     signed in and found 812 tables."
   - Its tables are listed and read on the environment's read-only **SQL endpoint** (TDS, port 5558):
     its catalog has one schema, **dbo**, and every table by its logical name (`account`); **Open as
-    grid**, the first rows and `SELECT * FROM [Sales CRM].account` read through it with T-SQL. It needs
+    table**, the first rows and `SELECT * FROM [Sales CRM].account` read through it with T-SQL. It needs
     `python-tds` (pure Python, with `pyOpenSSL` and `certifi` for its encryption: no ODBC driver), and the
     endpoint turned on: when it is off, the environment's administrator turns on **Enable TDS endpoint** in
     the Power Platform admin center.
@@ -811,7 +811,7 @@ Click a card for its **detail**:
     (switch to the SQL endpoint)**, one click. Through the Web API (`sab.read("Sales CRM", "account")`
     too) no admin setting is needed. A choice column reads as its labels (**Won**, not 1), a Yes/No
     column as true or false, a lookup as its id with its name in the column beside it
-    (`primarycontactid`, `primarycontactidname`), money and dates as numbers and dates. The grid says
+    (`primarycontactid`, `primarycontactidname`), money and dates as numbers and dates. The table says
     how many rows the table holds.
   - In Python: `conn = sab.connection("Sales CRM")`, then `conn.read("opportunity",
     columns=["name", "estimatedvalue"], filter="statecode eq 1", order_by="estimatedvalue desc",
@@ -826,10 +826,10 @@ Click a card for its **detail**:
 - **Python (your own code)**, under **Your own code**: a connection to anything Python can reach (an internal web service, a vendor's library, your own files). Its form has three code boxes:
   - **Connect** makes `conn`, any object.
   - **List the tables** returns the catalog for `conn`: a list of dicts or a DataFrame with `table` and `column`, and optionally `schema`, `type` and `description` (one row per column). Leave it empty for no catalog.
-  - **Read a table** returns a table's rows, given `conn`, `schema`, `table` and `limit` (`None` means all): a DataFrame, an Arrow table or a list of dicts. Return `(rows, total)` and the grid can say "First 10,000 of 250,000 rows" and offer **Load all rows**.
+  - **Read a table** returns a table's rows, given `conn`, `schema`, `table` and `limit` (`None` means all): a DataFrame, an Arrow table or a list of dicts. Return `(rows, total)` and the table can say "First 10,000 of 250,000 rows" and offer **Load all rows**.
   - **Environment variables** lists every variable the boxes read (`os.environ["ORDERS_API_KEY"]`, `os.environ.get(...)`, `os.getenv(...)`, `secret(...)`), found as you type. Choose where each comes from: **This computer's environment**, **Saved on this computer**, **A key vault** (pick the vault and its entry) or **A plain value (not a secret)**. Your code is not changed: the values are set as environment variables before it runs, so the same code runs where those names are set some other way, such as an Azure Function's settings. A variable the code needs that has no value says **Not set on this computer**.
   - **Test connection** runs Connect, then List the tables, then reads the first table's first 20 rows and shows them. A saved connection's **Test** shows them under its row.
-  - Its catalog, **Open as grid**, the first-rows preview and **Rows to open** work as for a database. In a notebook, `conn = sab.connection("Orders API")` gives what Connect made, and `sab.read("Orders API", "orders")` reads a table with your Read a table box.
+  - Its catalog, **Open as table**, the first-rows preview and **Rows to open** work as for a database. In a notebook, `conn = sab.connection("Orders API")` gives what Connect made, and `sab.read("Orders API", "orders")` reads a table with your Read a table box.
 - **Add API** (the APIs page's heading row): a web API made into blades in this computer's library (see **APIs**, below).
   - First choose how to start: **I have an OpenAPI document** (2.0 or 3.x, JSON; YAML too when your Python has PyYAML: its address and **Read**, **File…**, or **Paste it instead**) or **I'll list the endpoints myself**. Then the form goes in the order you think in: **Name**, **Hosted on** and **Base address**, **Sign in**, **Endpoints**, **Save the file in**.
   - **Endpoints** (when you list them yourself): one card each, with **Method**, **Path** (`/orders/{order_id}`: a word in braces is a path parameter), **Parameters** (`status, limit`), a **Needed** tick per parameter (a path's word is always needed), **Read as a table**, and **Columns to keep** (empty: all). **Try it** reads that endpoint's first few rows before anything is written (a GET read as a table that needs no value); a document's tables each have their own Try button in the list.
@@ -855,7 +855,7 @@ A connection's catalog (its tables and columns, for the Workbench's catalog tree
 ### Connection colours
 
 Every connection has a colour, and everything tied to it wears that colour as a stripe or a dot (never a
-background, so text stays readable): its card on the Connections page, the grid tabs of the tables read
+background, so text stays readable): its card on the Connections page, the tabs of the tables read
 from it, the notebook and script cells that use it (`%%sql Warehouse`, `%%dax`, `sab.sql`, `sab.read`,
 `sab.dax`, `sab.blade`, `sab.connection`; a cell that uses two connections wears two stripes), a table's
 read-only cell, the Streamlit canvas blocks whose cells use it, the Data Explorer's results and the Session
@@ -899,7 +899,7 @@ own read-only cell follows its table by itself.
 
 ### How many queries at once
 
-Each connection runs at most 8 queries at once, at most 4 of them the agent's, whoever asks: your grids and new
+Each connection runs at most 8 queries at once, at most 4 of them the agent's, whoever asks: your open tables and new
 queries, notebooks and scripts, background catalog loads and the agent. Past that a query waits in line: its
 loading cover says "Waiting: 2nd in line for Warehouse (8 queries running)" with Cancel, a notebook cell says
 "Waiting for a slot on Warehouse (2nd in line)", and after 2 minutes it gives up with Try again. The card shows
@@ -916,13 +916,13 @@ The rail's **APIs** icon (after the ERD) is every API you added, from this compu
 - **Cards**: each API's title, base address, how it signs in (never a secret), its operations, its tables, its calls this session, and where it was read from and when. **Refresh** reads its document again and shows what changed (operations added, removed and changed, with their parameters and fields) before **Apply** writes it. **Check for changes** reads it each time the page opens (only an address you gave). **Rename**, **Copy folder**, **Delete** (the code that uses it is listed first).
 - **Search every API**: one box across every operation's name, method, path, text, tags, parameters and fields; the words are marked where they matched.
 - **The explorer**: an API's operations down the left, grouped by tag, each with its method and path, then its **Schemas**. The right side shows the chosen operation: its description, **Inputs** (each parameter's place, type, whether it is required, its default), its body's schema as a tree beside an example made from it, and **Outputs** (each status: its schema and an example). A table's SQL name has **Copy name for SQL**.
-- **Author a call**: a screen of its own. The inputs come filled with defaults and examples; the body is a tree and its JSON side by side, checked against the schema as you edit (double-click a value or a key in the tree to change it). The sign-in is the API blade's, never shown. **Send** runs the call and opens the answer in **Structures**, with its status, time and headers. **Save as web call** keeps the inputs and body in its web call blade; tick **Return as table** (and where its rows are, `$.items`) to make it one of the API's tables. DuckDB turns the answer into the table: a list of records, an envelope (`data`, `value`, `items`...), or header and rows (`columns` and `rows`, Trino's `columns` with types, a header row first); a list inside a record stays a list column. **The DuckDB query** (under the call, and on its page once it is a table) is the conversion itself: change it and **Save the query**, or **Make it again** from the rows path. A list or struct column it leaves opens up with **Unnest this column** on the column's right-click menu in its grid (a SQL step you can read).
+- **Author a call**: a screen of its own. The inputs come filled with defaults and examples; the body is a tree and its JSON side by side, checked against the schema as you edit (double-click a value or a key in the tree to change it). The sign-in is the API blade's, never shown. **Send** runs the call and opens the answer in **Structures**, with its status, time and headers. **Save as web call** keeps the inputs and body in its web call blade; tick **Return as table** (and where its rows are, `$.items`) to make it one of the API's tables. DuckDB turns the answer into the table: a list of records, an envelope (`data`, `value`, `items`...), or header and rows (`columns` and `rows`, Trino's `columns` with types, a header row first); a list inside a record stays a list column. **The DuckDB query** (under the call, and on its page once it is a table) is the conversion itself: change it and **Save the query**, or **Make it again** from the rows path. A list or struct column it leaves opens up with **Unnest this column** on the column's right-click menu on its table (a SQL step you can read).
 
 - **Older API connections** (added before APIs were blades) keep working and are listed under the cards; **Make into blades** makes one into this computer's library from the document it was made from (if Add API did not keep it, you pick the file). Nothing changes until you click it.
 
-- **Write rows with this call** (on a POST, PUT, PATCH or DELETE): pick an open table; each request field (the body's, nested ones too, and the parameters) takes a column (matched by name to start with) or a value; a required field left out is named and stops the run. **Dry run** shows the first three requests exactly as they will be sent, the rows and the calls, and sends nothing. **Send** writes them one at a time (or **One call for many rows**, where the API takes a list), slowing down when the API says so. The results open as a grid and in Structures: each row's status, the new id, the error; Retry the failed rows sends only those. **Save as web call** keeps the mapping in a blade.
+- **Write rows with this call** (on a POST, PUT, PATCH or DELETE): pick an open table; each request field (the body's, nested ones too, and the parameters) takes a column (matched by name to start with) or a value; a required field left out is named and stops the run. **Dry run** shows the first three requests exactly as they will be sent, the rows and the calls, and sends nothing. **Send** writes them one at a time (or **One call for many rows**, where the API takes a list), slowing down when the API says so. The results open on the Tables page and in Structures: each row's status, the new id, the error; Retry the failed rows sends only those. **Save as web call** keeps the mapping in a blade.
 
-- **What it answers** (each operation, under its inputs): what the app has learned the operation answers, read from its real answers, not only its document: its kind (a list of records, one record, a value, a file), what it maps to (a table or a grid, a detail card or a form, a metric, a download), and each field with its type. Until it has been called it shows what the document declares, marked so. **Discover** (at the foot of an API) learns every read operation at once: it asks you first, then calls each one once at its smallest page, never one that changes anything; what was learned shows on each operation. Only the shape is kept (field names and types, beside the API in your library), never a value. Once it has been called in the open project, its line adds how its calls went ("12 calls · usually 140 ms"; rest on it for the rest).
+- **What it answers** (each operation, under its inputs): what the app has learned the operation answers, read from its real answers, not only its document: its kind (a list of records, one record, a value, a file), what it maps to (a table or an open table, a detail card or a form, a metric, a download), and each field with its type. Until it has been called it shows what the document declares, marked so. **Discover** (at the foot of an API) learns every read operation at once: it asks you first, then calls each one once at its smallest page, never one that changes anything; what was learned shows on each operation. Only the shape is kept (field names and types, beside the API in your library), never a value. Once it has been called in the open project, its line adds how its calls went ("12 calls · usually 140 ms"; rest on it for the rest).
 - **When an API changes**: a field it stopped sending is empty (and marked **missing**), a new one appears (**new**), a number that now comes as text still reads as a number (**retyped**), and the line above says what changed and since when, once. A field that looks renamed (`customerNo` for `customer_id`) is offered: **Use it** or **No**, remembered. Nothing breaks unless code said a field is required.
 - **Run** calls it with its saved inputs and says what came back. **Build** puts it where it is used: a **Notebook cell** goes at the end of the open project's `data.ipynb` and the Notebooks page opens on it (`sab.run("Shop", "list_orders", {...})`, its records as a table with `sab.records(answer)`); a **Script function** asks which script (one of the project's, or a new one: `api_functions.py`) and the Scripts page opens on the function; a **Widget on a canvas** puts a table (a list of records), an API metric (one value or record) or an API form (a call that writes) on the project's canvas. With no project open the code is shown to copy. Nothing is built until you pick it.
 - **Discover** (at the API's foot) calls each read endpoint once to learn what it answers. It asks first; your **Allow** is remembered for that API (it is kept with the API in the library, so a team's library shares it) and said beside the button: **Discover allowed since <day>**, with **Take it back** (the next Discover asks again). Your agent's discovery uses the same Allow.
@@ -930,13 +930,13 @@ The rail's **APIs** icon (after the ERD) is every API you added, from this compu
 
 ## Structures
 
-The rail's **Structures** icon (after APIs) is for nested data, as Grids are for tables: JSON, YAML, XML and TOML files, pasted text, an API's answer, or a dict or list from a Workbench kernel (the Variables pane's **Open in Structures**, or `sab.show_structure(x)`).
+The rail's **Structures** icon (after APIs) is for nested data, as the Tables page is for tables: JSON, YAML, XML and TOML files, pasted text, an API's answer, or a dict or list from a Workbench kernel (the Variables pane's **Open in Structures**, or `sab.show_structure(x)`).
 
 - Each open structure is a tab. Its **tree** and its **text** sit side by side (or one of them). Click a node to see its path (`$.orders[3].lines`; **Copy path**). **Search** marks the words and unfolds the way to them.
-- **Steps**, as a grid's: **Pick** (the tree becomes that branch), **Filter…** a list on a field, **Sort…**, **Flatten** a list of records (dotted keys), **Add key…**, **Rename key…**, **Set value…**, **Remove**; a double click in the tree sets a value or renames a key. Each step is in the strip (× removes it); **Undo** and **Redo**. The original is never changed until **Save**; while there are steps the text shows their result and is read-only.
-- **Open as grid**: a list of records at any path becomes a table (SQL and the Analyze page work on it).
+- **Steps**, on the Tables page's: **Pick** (the tree becomes that branch), **Filter…** a list on a field, **Sort…**, **Flatten** a list of records (dotted keys), **Add key…**, **Rename key…**, **Set value…**, **Remove**; a double click in the tree sets a value or renames a key. Each step is in the strip (× removes it); **Undo** and **Redo**. The original is never changed until **Save**; while there are steps the text shows their result and is read-only.
+- **Open as table**: a list of records at any path becomes a table (SQL and the Analyze page work on it).
 - **Save** writes its file; **Save as** picks JSON, YAML, XML or TOML (TOML has no null: it says so) and goes in the project's `structures/` folder, which is the project's own and opens again with it. YAML needs PyYAML (the app offers to install it). XML with a DOCTYPE or an entity is refused.
-- An API's answer has **Run again** (the same call, your steps kept), **Return as table…** on a list, and **Lineage**: the call (what was sent, and when), the structure, each step, each grid made from it, and the notebook and script cells that read it.
+- An API's answer has **Run again** (the same call, your steps kept), **Return as table…** on a list, and **Lineage**: the call (what was sent, and when), the structure, each step, each table made from it, and the notebook and script cells that read it.
 - In code: `sab.structure("gates")` is a saved structure's value, `sab.structure_table("payload", "$.orders")` its records as a DataFrame.
 
 ## Your library
@@ -981,7 +981,7 @@ connections reach, and the ones you have open, on one page.
   `customer_id` and `CustomerKey`). The tree narrows to what matches: a table under its connection and
   schema, a matching column under its table. The chips keep one kind or a few, the picker one connection,
   and your recent searches wait under the box.
-- **A table's actions** (its buttons, a right-click, or Enter): **Open as grid**, **Preview** (its first
+- **A table's actions** (its buttons, a right-click, or Enter): **Open as table**, **Preview** (its first
   rows, nothing kept), **Copy SQL name** (`[Shop].customers`, how DuckDB SQL names it anywhere),
   **Insert** (into the Workbench's selected cell, shown while a notebook or script is in front there) and
   **Query in a notebook** (a new `%%sql` cell). A Power BI dataset and a SQL Server schema also have
@@ -989,7 +989,7 @@ connections reach, and the ones you have open, on one page.
 - **The detail side**: click a table to see its columns (type, whether it may be empty), where it comes
   from, its SQL name, and the code that reads it in a SQL cell and in a Python cell, each with Copy.
 - **Drag** a table or a column into a Workbench cell: it arrives as that cell's language writes it.
-- **Keys**: the arrows move through the tree (Right opens, Left closes), Enter opens a table as a grid,
+- **Keys**: the arrows move through the tree (Right opens, Left closes), Enter opens a table on the Tables page,
   and **/** jumps to the search.
 - The Workbench's Data Explorer pane is the same search beside your code; its **Pop out** opens this page
   in a window of its own. For an agent: `explorer_browse`, `explorer_search`, `explorer_table`.
@@ -999,8 +999,8 @@ connections reach, and the ones you have open, on one page.
 The rail's **Environment** page (it took the Structures and Variables places) is one page for everything the open
 project holds, with a tab for each kind:
 
-- **Tables**: the data. A grid is only a view of a table, never a copy: the row says "In 2 grids", and closing a
-  grid leaves the table. Rows by columns, the first columns, where it came from (a connection, a file, pasted, a
+- **Tables**: the data. A tab is only a view of a table, never a copy: the row says "In 2 tabs", and closing a
+  tab leaves the table. Rows by columns, the first columns, where it came from (a connection, a file, pasted, a
   query, your code). A table your Python holds that is not open yet is marked **In Python**.
 - **Variables**: what your code makes (numbers, text, lists, dictionaries), with a short look at the value.
 - **Structures**: JSON, YAML, XML and TOML documents (they open in the Structures viewer; **New, open or paste…**).
@@ -1024,7 +1024,7 @@ ready (**Restart** the session to use it). If it could not be made, the Librarie
 again**. A notebook that had an environment of its own says so once when it opens, and offers its libraries to
 the project (**Add them**, **Not now**).
 
-**Every table by its name.** Any table on the Tables tab can be read in code by its name, whether or not a grid
+**Every table by its name.** Any table on the Tables tab can be read in code by its name, whether or not an open table
 shows it: `sab.table("orders")`, or a DuckDB SQL cell that names it.
 
 What you can do there:
@@ -1034,11 +1034,11 @@ What you can do there:
 - **Unfold a row** (the arrow, or Right): a table's columns with their type, range and blanks; a structure's
   paths; a list's items; a setting's source and what uses it. Left closes.
 - **The viewer** beside the list (Ctrl+B folds it): **Used in** lists every place that uses the row, each a link
-  that goes there: grids, notebook and script cells by number, canvas widgets, API.py endpoints, analyses, the ERD,
+  that goes there: tabs, notebook and script cells by number, canvas widgets, API.py endpoints, analyses, the ERD,
   tables made from it.
 - **Open** (Enter or a double click), **Insert into code**, **Copy name**, **Rename…** (F2), **Keep with the
   project** (a table's rows saved in the project's `.sab/data/`, never shared in Git), **Make a sandbox variant…**,
-  **Send to the agent**, **Remove…** (Delete). Removing a table closes it and its grids; tick **Also delete it in
+  **Send to the agent**, **Remove…** (Delete). Removing a table closes it and its tabs; tick **Also delete it in
   Python** to delete its variable too. **Clear…** takes what you tick; kept tables, settings and libraries stay.
 - **Libraries**: **Pin** keeps a library at its version (`name==version` in requirements.txt); **→ x.y** updates
   one to the newer version (looked up when the tab opens, never in the background); **Update all not pinned**
@@ -1132,8 +1132,8 @@ GROUP BY ALL
   output say how many rows were read, when, and the filters sent; the **+** tab's toast has **Refresh**.
 - **Getting the tables.** A connection's detail on the Connections page lists its datasets (or schemas)
   and tables with a search: each table has **Open**, **Preview** and **Copy name**
-  (`[Finance Captive].Sales`, ready for SQL); a dataset has **Open all** (each its own grid), **Import its
-  relationships** (Power BI) and **Query in a notebook** (a new `%%sql` cell). The Grids page's
+  (`[Finance Captive].Sales`, ready for SQL); a dataset has **Open all** (each its own tab), **Import its
+  relationships** (Power BI) and **Query in a notebook** (a new `%%sql` cell). The Tables page's
   connections open the same list.
 - **In a notebook.** A `%%sql` cell whose connection is **DuckDB** shows the connections its query names
   in its head; typing `[` offers your connections, `[Finance Captive].` its datasets and tables. The
@@ -1141,11 +1141,11 @@ GROUP BY ALL
 
 ## Session: what the agent made
 
-The rail's **Session** icon (after Connections) is this session's log of what the agent made or changed: a grid opened, a step added or removed, a card on Analyze, a relationship on the ERD, a connection or blade saved, a notebook's cell, an export (and your Allow), a project saved. Each line says when, what in plain words, and where (the area); click it to go to that thing (the grid, the card, the relationship, the connection, the notebook at its cell). It fills in live as the agent works, newest first.
+The rail's **Session** icon (after Connections) is this session's log of what the agent made or changed: an open table opened, a step added or removed, a card on Analyze, a relationship on the ERD, a connection or blade saved, a notebook's cell, an export (and your Allow), a project saved. Each line says when, what in plain words, and where (the area); click it to go to that thing (the table, the card, the relationship, the connection, the notebook at its cell). It fills in live as the agent works, newest first.
 
 - **The agent / Me / Both**: whose actions are listed (the agent's by default). Your choice is remembered in this browser.
 - **Changes**: only the lines that changed something, each with what changed under it in words ("orders: columns added segment; steps added 2 sort"): a table's steps, columns or source, a connection's settings, an API's answer, a widget, a canvas page, a notebook's cells, a variable. The same changes are kept with the project (`.sab/changes.jsonl`, not shared in Git, everything kept) for your agent to ask what changed last on anything (`changes`). Names and types only, never a value.
-- **Follow the agent** (a switch here and in Settings, on unless you turn it off; kept across restarts): each thing the agent does comes to the front in the grids' window: a relationship it adds opens the ERD with the new line highlighted, a card opens Analyze scrolled to the card, a step brings its grid back with the steps count pulsing. A cell it adds in the Workbench is scrolled to and highlighted there. The highlight is a soft pulse in the theme's accent (a still outline if your system asks for reduced motion).
+- **Follow the agent** (a switch here and in Settings, on unless you turn it off; kept across restarts): each thing the agent does comes to the front in the open tables' window: a relationship it adds opens the ERD with the new line highlighted, a card opens Analyze scrolled to the card, a step brings its table back with the steps count pulsing. A cell it adds in the Workbench is scrolled to and highlighted there. The highlight is a soft pulse in the theme's accent (a still outline if your system asks for reduced motion).
 - **Never while you type**: if you are typing in a box, have a dialog open, or are reading Session, Settings or Connections, nothing moves; the move waits until you leave the box, and the Session icon shows a count of what arrived.
 - **Follow off**: nothing moves at all; the entries arrive on the Session page and the icon counts them until you open it.
 - Only names and counts are in the log (tables, columns, files, connections): never a cell value, a query's text or a password. It is kept in memory for this session; the audit log on disk is the full record. The agent can read the log (`app_session`) but cannot turn Follow on or off.
@@ -1176,12 +1176,12 @@ columns appear as `table#1`, `col#3`.
 **Blades** on the rail opens the Scripts page's **Blades** pane, below its files; a blade opens there as a tab. The old blades page's address (`/catalog`, `/catalog?blade=<name>`) goes there too. The pane's **…** holds **Import blades…** (you review each first), **Import from a project…**, **Export every blade** and **Blade folders…**. A connection's tables are on the **Connections** page (its tree) and in the **Data Explorer**; the blades page has no catalog panel.
 
 - **A blade** is any Python that reaches outside Python to load something: a table, an API, a vault, an analysis. Each blade is a `.blade.py` file in your library (or a blade folder), and its screen is an IDE where you write it. Press **New blade** and pick what it starts as (**A table (a DataFrame)**, **Any code**, **Secret blade**, **Snippet**, or an analysis): the file is made in the library's `blades/` folder and opens in the IDE. If you edit the file in your own editor instead, the IDE takes the change at once; with unsaved changes of yours it asks **Reload** or **Keep mine**. Connections are added on the Connections page. Then in any Python: `conn = sab.blade("Warehouse")`.
-- **The blade's IDE:** one slim bar at the top: **Back**, the name (a dot while something is unsaved), **Save** (Ctrl+S), **Save as…** (a new name, checked as you type), **Cancel** (back to the file; it asks first if you changed anything), **▶ Run** (F5 or Ctrl+Enter; **Stop** while it runs), **Properties**, and **…** (**Show its file**, **Export**, **Remove**). The editor completes names, shows signatures and help on hover, and underlines problems as you type (the Workbench's own, with Copilot's suggestions when that extension is on). **Run** runs the blade as Test does (its own Python, its passwords and vaults) with what is in the editor, saved or not: the panel at the bottom opens on **Output** (what it prints), then **Result** (a table with its row count and **Open as grid**, or a value's text; a failure shows the error panel and marks the line). **Problems** lists what the checker found; click one to go to its line. **Properties** (closed until you open it) holds the **Name**, **Description**, **Tags** and **Its table is called**, written into the file's header. Save writes the file only when it changed. A starter is read-only: Save says so, with **Copy as your own**.
+- **The blade's IDE:** one slim bar at the top: **Back**, the name (a dot while something is unsaved), **Save** (Ctrl+S), **Save as…** (a new name, checked as you type), **Cancel** (back to the file; it asks first if you changed anything), **▶ Run** (F5 or Ctrl+Enter; **Stop** while it runs), **Properties**, and **…** (**Show its file**, **Export**, **Remove**). The editor completes names, shows signatures and help on hover, and underlines problems as you type (the Workbench's own, with Copilot's suggestions when that extension is on). **Run** runs the blade as Test does (its own Python, its passwords and vaults) with what is in the editor, saved or not: the panel at the bottom opens on **Output** (what it prints), then **Result** (a table with its row count and **Open as table**, or a value's text; a failure shows the error panel and marks the line). **Problems** lists what the checker found; click one to go to its line. **Properties** (closed until you open it) holds the **Name**, **Description**, **Tags** and **Its table is called**, written into the file's header. Save writes the file only when it changed. A starter is read-only: Save says so, with **Copy as your own**.
 - **Its table is called:** a blade whose result is a table (a function or code that makes a DataFrame) has a table name of its own, kept in its file (`table = "monthly_sales"`), so it travels with the library's Git repository. As you type, the line under it says **available**, or why not: **orders is already a table**, **Warehouse is a connection**, **monthly_sales is Monthly sales's table**, or **not a valid name** (1 to 64 letters, digits, `_` or `-`; not a word DuckDB's SQL keeps for itself). Save refuses a taken name with the same words. Left empty, the table is called what its code makes. In a notebook, `sab.blade(...)` makes its result (a function's, each time it is called) the variable of that name, so `%%sql SELECT * FROM monthly_sales` works, and the Variables panel and the Open list show it by that name; the Data Explorer lists it under that name too.
 - **Passwords** go in the code as `secret("password")`. Type the value on the blade's screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
-- **Analysis blades** are your own analyses: the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Analyze**.
+- **Analysis blades** are your own analyses: the code is a function of the table's rows, `def analyze(df, columns): ...`, where `df` is the rows as the table shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the table server's own Python, in a process of its own, and its result shows in a window with **Send to Analyze**.
 - **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable (key vaults are added on the Environment's Settings and secrets tab). **Secret blades** keep only variable names: you type the values once per session.
-- **Packages:** the blade's screen lists the packages the code needs that are missing. A missing one is asked for as the blade opens (**Install now**, **Not now**), and **Install <package>** asks again; they go into the grid server's Python.
+- **Packages:** the blade's screen lists the packages the code needs that are missing. A missing one is asked for as the blade opens (**Install now**, **Not now**), and **Install <package>** asks again; they go into the table server's Python.
 - **A connection's tables are always listed.** On a connection's screen, **How its tables are listed** in Properties is the query that lists them; a connection saved before without one uses its starter's. Drag a blade into a script or a cell for its `sab.blade` line (on a line of its own, after the line you drop it on).
 - **Find a blade:** the search box above the blades matches names, descriptions and tags, and the tag chips under it narrow the list. The star pins a favourite to the top.
 - **Share a blade:** **Export** on its screen downloads it as one `.blade.py` file (its code under a short header; passwords never go in it). The download arrow above the blades exports them all as a zip. To bring blades in, press the up arrow or drop the files on the blades: you see each blade's code first, and choose what happens when a name is taken. Importing runs nothing. **Fill in your values** on an import offers the values your other blades use for its server, database, user and path.
@@ -1214,7 +1214,7 @@ version never touches your copy.
   `choice_options("opportunity", "salesstage")`).
 - **Excel** (three, each a few lines over the one Excel module): **read a workbook** (a sheet or a named
   table as a table, a range of cells or another header row on request: the same reader as a workbook
-  opened as a grid), **make a workbook** (tables as a workbook: a sheet each as they are, or laid out by a
+  opened on the Tables page), **make a workbook** (tables as a workbook: a sheet each as they are, or laid out by a
   design: a title, a table with number formats, widths, a total row and colour rules, a pivot, Excel's own
   charts, freeze panes and print setup) and **fill a template** (a copy of an existing workbook with its
   places filled; its table grows with its rows). Text from your data is always text in the workbook, never
@@ -1252,7 +1252,7 @@ version never touches your copy.
 
 One line writes rows to any connection that takes writes, from a Python cell:
 `sab.write("Shop", "orders", orders, "merge", key="order_id")`. The rows are a DataFrame, an Arrow table, a
-list of dicts, or an open table's name (its grid's rows); the mode is **insert**, **update**, **merge**
+list of dicts, or an open table's name (its rows); the mode is **insert**, **update**, **merge**
 (update where the key is there, insert the rest), **delete** (by the key) or **truncate** (the table
 emptied, then the rows: with none, only emptied). `dry_run=True` only says what it would do. It is the same
 write an exported API's `connection(name).write(...)` makes, so it works the same once deployed.
@@ -1298,8 +1298,8 @@ in your own words.
 
 ### Every table has its own cell
 
-A table open in the grid has a read-only cell in the notebook or script it belongs to: the one whose
-kernel sent it to the grid. A table no Python made (a file, a paste, a connection, a "+" tab's query)
+A table open in the table has a read-only cell in the notebook or script it belongs to: the one whose
+kernel sent it to the table. A table no Python made (a file, a paste, a connection, a "+" tab's query)
 goes to the document in front, and its cell starts with its load (the file read again, the
 connection's query, a small paste written out; a paste over 200 rows or a file dropped on the page
 gets a note instead). A table sent from a Python outside the Workbench (Jupyter, VS Code) has no cell
@@ -1308,14 +1308,14 @@ here: its code lives there.
 - **Only the transformations are in it,** as one DuckDB query whose result is the table's own name:
   `orders = duckdb.sql("""SELECT ... FROM orders ...""").df()`, in the form the table had (a pandas
   DataFrame, a Polars one, an Arrow table). Your own cell that made the table stays yours.
-- **You change it in the grid, never by typing.** A step added, changed or removed in the grid
+- **You change it in the table, never by typing.** A step added, changed or removed in the table
   rewrites the cell at once. A sort made by clicking a header is a way of looking and stays out.
 - **It shows its table.** A table's cell opens unfolded, and one the app wrote whole (its load and
   its transformations: no cell of yours makes the table, as in a project's data.ipynb) runs by itself
   when the notebook opens, starting the kernel, and shows the table as its output. That output is not
   saved in the file: it is drawn again each time. A table your own cell makes waits for your Run.
 - **Nothing else runs by itself.** A rewritten cell turns yellow: **Out of date · last run 10:42**, with
-  **Run**. Run it and the variable holds the table as the grid shows it. Undo the change in the grid
+  **Run**. Run it and the variable holds the table as the table shows it. Undo the change in the table
   and the yellow clears by itself. Before its first run it says **Not run yet**; after a reload,
   **Not run since opening**. A cell that is current says nothing: only a state that needs you to act
   is shown. The group row's **Run tables** appears when a cell needs a run, and runs each one.
@@ -1359,7 +1359,7 @@ with **+ Cell** › **DAX**, the kind picker in a cell's head, the palette (**Ad
   DAX's functions and keywords, and that dataset's tables (`'Sales'`), columns (`'Sales'[Amount]`;
   after `'Sales'[`, that table's columns) and measures (`[Total Sales]`). It never offers SQL's words
   or another dataset's names.
-- **The result is a DataFrame,** as a SQL cell's: shown under the cell with **Open as grid**, kept
+- **The result is a DataFrame,** as a SQL cell's: shown under the cell with **Open as table**, kept
   under a name with `-> name` on the cell's first line in Jupyter.
 - **In the file** it is a code cell that starts `%%dax Finance/Sales model`, so Jupyter and VS Code
   run it too, with the Swiss Army Bench client installed.
@@ -1379,7 +1379,7 @@ with **+ Cell** › **DAX**, the kind picker in a cell's head, the palette (**Ad
   several it is refused, and the message names them.
 - **Cells saved earlier:** a SQL cell on a Power BI connection, or a `%%sql Finance/Sales model` cell,
   opens as a DAX cell.
-- **No uses line:** a DAX cell names its dataset's tables, not the tables open in the grid.
+- **No uses line:** a DAX cell names its dataset's tables, not the tables open in the table.
 - **The agent** lists a workspace's datasets (`connections_datasets`), adds a DAX cell
   (`workbench_dax_add`) and runs DAX (`workbench_run` with kind `dax` and the dataset as its
   connection).
@@ -1466,13 +1466,13 @@ its code) or a line of a script, and choose **Lineage**. An overlay shows how th
 made, all the way back to the data:
 
 - **On the right, the flow** as a chart, top to bottom: the file or connection a table came from, each
-  of its grid steps, its read-only cell, the cells that read it (a filter is a six-sided shape), and the
+  of its steps, its read-only cell, the cells that read it (a filter is a six-sided shape), and the
   cell you asked about last. A link written as `# @cell7` is a dotted line. In a project, a name your
   notebook imports from `data` goes back into data.ipynb.
 - **On the left, one card per step**, beside its place in the flow: a table's rows and columns, its
   first rows, and how many rows it gained or lost from the step before; a value as it is; a chart as a
   small picture; an error in red where the flow broke. A block on the page is marked **page**.
-- The values come from the notebook's kernel (run the cells first), from the grid, and, while the app
+- The values come from the notebook's kernel (run the cells first), from the table, and, while the app
   plays, from the page itself: choose another region on the page and the cards follow.
 - Click a card or a node to mark both; double-click (or Enter) to go to that cell. Escape closes it.
 
@@ -1752,14 +1752,14 @@ own). The status bar shows the document in front's panels as toggles.
 
 - **Notebook:** a cell you changed since it ran says **edited**; one that reads a name made again since
   it ran says **out of date**. **Outline** lists the headings and named cells, the stale ones marked.
-  The selected cell offers **Run up to here**. A DataFrame's output has **Open as grid**. **Present**
+  The selected cell offers **Run up to here**. A DataFrame's output has **Open as table**. **Present**
   shows the notebook as a document: its text and outputs, no code.
 - **Script:** **Run settings** holds the arguments and each environment variable the script needs (the
   ones it reads, by line; each connection's password) with where it comes from: **This computer**, a
   **Plain value**, or a **Key vault**'s secret. Values are never shown but a plain one's. **Run file**
   runs the script with those arguments.
 - **Data** (`data.ipynb`): **Cells | Lineage | Dictionary**. The **Dictionary** lists each table's
-  columns with their types in plain words and where each comes from (the file, or the grid's step that
+  columns with their types in plain words and where each comes from (the file, or the table's step that
   made it). Type a description: it is kept in data.ipynb and written into data.py as comments.
   **Lineage** draws the selected cell's lineage (else the last cell's) in place: the same flow and
   values as the Lineage overlay; a double-click on a step goes back to Cells, at that cell.
@@ -1767,7 +1767,7 @@ own). The status bar shows the document in front's panels as toggles.
 ### Projects: start with the data
 
 A project is a folder that starts with the data. **data.ipynb** is where you work on it: each table's
-read-only cell (its load and its grid steps as DuckDB SQL), and your own code cells that shape
+read-only cell (its load and its steps as DuckDB SQL), and your own code cells that shape
 variables. **data.py** is its export, never edited by hand. Your other notebooks, and the app's pages,
 start with `from data import orders, ...`.
 
@@ -1781,7 +1781,7 @@ start with `from data import orders, ...`.
 - Add as many notebooks and scripts to the folder as you like (analysis, mock-ups of pages).
 
 - **The agent** works projects (`project_new`, `project_files`, `project_export_data`, `workbench_project_open`)
-  and the app's canvas (`canvas_*`, `widgets_*`); its `canvas_export` waits for your Allow, as a grid's export
+  and the app's canvas (`canvas_*`, `widgets_*`); its `canvas_export` waits for your Allow, on the Tables page's export
   does.
 
 ### Export as one Python script (or one notebook)
@@ -1795,7 +1795,7 @@ linear `.ipynb`, for a scheduler that runs notebooks. The name starts as the doc
 - **Everything is written out in it:** each connection the document uses (its own Connect code, a
   file's path, a Power BI workspace's sign-in and DAX, your own Python's Connect and Read a table, a
   blade such as the Excel starters' `make_workbook`), each key vault a password comes from, each table's
-  load and its grid steps as one DuckDB query, then your cells in order. `%%sql` and `%%dax` cells,
+  load and its steps as one DuckDB query, then your cells in order. `%%sql` and `%%dax` cells,
   and `sab.sql`, `sab.dax`, `sab.read`, `sab.blade` and `sab.connection`, call those. It needs no
   Swiss Army Bench.
 - **No password and no row is ever in it.** SETTINGS at the top names every environment variable it
@@ -1850,10 +1850,10 @@ linear `.ipynb`, for a scheduler that runs notebooks. The name starts as the doc
 **Accounting** is an optional extension (`swissarmybench-accounting`): a project whose deliverable is an Excel workbook, built by a Python automation you can run anywhere. The workflow is connection, data, then the workbook.
 
 - **New Accounting project…** (the Workbench's project menu) makes `data.ipynb`, `workbook.design.json` (the workbook's design: sheets and blocks, never data) and `workbook.py` (the automation). While it is open, **New Excel workbook** is offered, and the Blades page and Insert a snippet… show the Excel, Write and Files families first (**Show all** for the rest).
-- **The Excel canvas** shows a sheet as a grid of cells. **+ Block** adds a title, text, a **table** (an open table, or a DuckDB query; its columns, number formats such as currency, percent or date, widths, a total row, a colour rule), a **pivot** (rows, columns, sums, counts or averages: a summary DuckDB computes, written as a formatted table, never an Excel pivot table) or a **chart** (Excel's own: column, bar, line, pie, or a combo of columns and lines, drawn from a table or a pivot). Drag a block to move it, drag its corner to size it; Properties edits the selected block, or the sheet's freeze panes and print setup when none is selected. Sheets are tabs.
-- **Play** builds the workbook from your open tables (each with its grid's steps) and shows each sheet as Excel will; **Download** gives the .xlsx. **Export workbook.py** writes the automation beside the design: `python workbook.py` builds the same workbook from `data.py`, with only openpyxl and duckdb.
+- **The Excel canvas** shows a sheet on the Tables page of cells. **+ Block** adds a title, text, a **table** (an open table, or a DuckDB query; its columns, number formats such as currency, percent or date, widths, a total row, a colour rule), a **pivot** (rows, columns, sums, counts or averages: a summary DuckDB computes, written as a formatted table, never an Excel pivot table) or a **chart** (Excel's own: column, bar, line, pie, or a combo of columns and lines, drawn from a table or a pivot). Drag a block to move it, drag its corner to size it; Properties edits the selected block, or the sheet's freeze panes and print setup when none is selected. Sheets are tabs.
+- **Play** builds the workbook from your open tables (each with its steps) and shows each sheet as Excel will; **Download** gives the .xlsx. **Export workbook.py** writes the automation beside the design: `python workbook.py` builds the same workbook from `data.py`, with only openpyxl and duckdb.
 - **Templates…** imports a workbook you already have (a cession statement, an invoice): its layout, formats, merged cells and named ranges are kept. Click a cell to bind it: to a column of the data, to text, to the statement's number or date, or to a table of lines that grows (the totals under it follow).
-- **Statements and invoices…**: the template, a table with one row per party or period, a table of lines, the columns to group by, the file name (`{cedant} {period}.xlsx`), the numbering (`INV-{n:05d}`) and the date. **Dry run** lists every file with its rows and totals and writes nothing; **Build** writes them, and **Register** opens what was built as a grid. In workbook.py, `build_statements(...)` does the same.
+- **Statements and invoices…**: the template, a table with one row per party or period, a table of lines, the columns to group by, the file name (`{cedant} {period}.xlsx`), the numbering (`INV-{n:05d}`) and the date. **Dry run** lists every file with its rows and totals and writes nothing; **Build** writes them, and **Register** opens what was built on the Tables page. In workbook.py, `build_statements(...)` does the same.
 
 ## Power Apps (an extension)
 
@@ -1868,10 +1868,10 @@ With the Power Apps extension installed, the rail has a **Code App** page: Power
 - **Run live:** the app's dev server, shown in the page and reloading as you save. **Local Play** opens it inside Power Apps in your browser, where its connectors answer (they do not answer in the page's pane). **Stop** ends it; it ends with the app too.
 - **Push:** what it will run (`npm run build`, then `pa app push`), **Push**, and the app's link. **Versions** lists the environment's code apps and this session's pushes.
 - **Custom connector:** pick an API from the APIs page; **Show its files** shows the connector's two files (its sign-in mapped, never a secret: a key, a password or an OAuth client's secret is typed in Power Platform); **Make the connector** writes them in the app's `connectors` folder and runs `pac connector create`.
-- **Data notebook:** **Open data notebook** opens the code app's `data.ipynb` in the Workbench (made the first time, with a SQL cell and a TypeScript cell). Its SQL and TypeScript cells run in one Deno kernel and share one DuckDB: a SQL cell's query and ``await sab.sql`SELECT ...` `` in a TypeScript cell see the same tables, and every open table (a tab in the grid, after its steps) is a view by its name. `sab.table("name", rows)` makes a table of an array of objects; a query naming a connection's table (`[Finance].orders`) reads it first. A table result is drawn with its first rows; **Open as grid** opens all of it as a grid. Errors show in the usual error panel. A SQL cell with a connection of its own runs in that database, as anywhere else.
+- **Data notebook:** **Open data notebook** opens the code app's `data.ipynb` in the Workbench (made the first time, with a SQL cell and a TypeScript cell). Its SQL and TypeScript cells run in one Deno kernel and share one DuckDB: a SQL cell's query and ``await sab.sql`SELECT ...` `` in a TypeScript cell see the same tables, and every open table (a tab in the table, after its steps) is a view by its name. `sab.table("name", rows)` makes a table of an array of objects; a query naming a connection's table (`[Finance].orders`) reads it first. A table result is drawn with its first rows; **Open as table** opens all of it on the Tables page. Errors show in the usual error panel. A SQL cell with a connection of its own runs in that database, as anywhere else.
 - **TSX cells:** a component (its `export default`) drawn under its code with the code app's own React, in the same walled-off frame as an HTML cell. Its first line can give its props from the notebook: `// props: { rows: byRegion, title: "Sales" }`.
 - **Use in app:** writes `src/shared/data.ts`: the notebook's TypeScript cells as a module a page imports (`import { grandTotal } from "../../shared/data"`), each table result's row type (`ByRegionRow`) when the notebook has run, where each result comes from (`SOURCES`: the tables its query read, your Dataverse sources marked), small results (50 rows at most) as constants, and the cells that need the notebook's own kernel (`sab`, DuckDB) left out. DuckDB stays in the notebook: a code app cannot run it (its security policy), so nothing in data.ts imports it. It reads the notebook as saved.
-- **Dataverse tables as grids:** a Dataverse source's **Open as grid** reads it through your Dataverse connection for the app's environment (Connections); with none, it says which one to add.
+- **Dataverse tables on the Tables page:** a Dataverse source's **Open as table** reads it through your Dataverse connection for the app's environment (Connections); with none, it says which one to add.
 - **Runs:** every `pa`, `pac` and `npm` run this session, with its output as it came. The Session page lists them too.
 - **Code apps switched off:** an environment's administrator turns them on (Power Platform admin center: the environment's Settings, Product, Features, Power Apps code apps); the app says so when a command is refused for it.
 - **The agent** does all of this with its `powerapps_` tools; its Push, its custom connector and its installs wait for your Allow.
@@ -1904,7 +1904,7 @@ With the Git extension installed (GitHub sync: Join a team… installs it), the 
 **Copy code** (on any analysis result) copies the analysis as Python to the clipboard, its imports first. Paste it into Jupyter or any Python; nothing runs until you run it.
 
 - **Drag from the blades page** into a cell or an editor: a blade gives its `sab.blade(...)` line, a table a first SELECT, a column its quoted name.
-- **Your tables are grids:** importing `swissarmybench` in Jupyter or IPython lists the tables you make in the grid page's Open list. Open one and it's a grid; run the cell again and the grid refreshes.
+- **Your tables open on the Tables page:** importing `swissarmybench` in Jupyter or IPython lists the tables you make in the Tables page's Open list. Open one and it's an open table; run the cell again and the table refreshes.
 
 ### SQL completion
 
@@ -1914,14 +1914,14 @@ With the Git extension installed (GitHub sync: Join a team… installs it), the 
 
 - All open tables together can hold 3 GB (never more than half of your computer's memory), and one table up to 1 GB, enough for a full Excel sheet of 1,048,576 rows on most tables.
 - A query in the + tab shows up to 1,048,576 rows.
-- Up to 50 tables and 50 grid tabs can be open at once.
+- Up to 50 tables and 50 tabs can be open at once.
 
 ## Tips
 
 - Press Filter or Keep these first, then compare or chart. The step list keeps each change visible.
 - Turn a step off with its checkbox to check what it did, then turn it back on.
 - Read the Key Finder list before you pick a key. The top row is the best match, not always the column you mean.
-- Use Pin as new grid for a SQL result you want to keep as its own table.
+- Use Pin as a new table for a SQL result you want to keep as its own table.
 - The status bar shows the sum and average of the selected numbers, so a quick total needs no step.
 
 ## Local sandbox APIs
@@ -1929,9 +1929,9 @@ With the Git extension installed (GitHub sync: Join a team… installs it), the 
 Every project has `API.py` at its top: its own API, run here against the project's **sandbox**, never against live
 data.
 
-1. **Fill the sandbox.** On a grid's Table row, **Make a sandbox variant** copies the table as you see it (after
+1. **Fill the sandbox.** On an open table's Table row, **Make a sandbox variant** copies the table as you see it (after
    its steps) into the project's sandbox (`sandbox/` at the project's top, kept out of Git) as a *variant*: its own name ("orders ·
-   sandbox", "orders · sandbox 2", or yours), its origin kept and shown (its tab, the bar over its grid, the
+   sandbox", "orders · sandbox 2", or yours), its origin kept and shown (its tab, the bar over it, the
    lists), a branch mark. It never writes back to the table it came from. The Structures page makes one from a
    list of records the same way. The APIs page's Sandbox panel adds a file, an empty table by its columns, or an
    open table, and shows each table's rows, where it came from and the client its rows answer as ("Mock of
@@ -1939,8 +1939,8 @@ data.
    **Mocked as** one of your connections (the picker on its row): an endpoint's `connection("Warehouse")` then reads
    it as one of Warehouse's tables, its SQL in Warehouse's own dialect. Click a column heading (Table, Rows, From, Created, Last changed) to sort; again, the other way. The
    Catalog's Sandbox section sorts the same way (its Sort button).
-   - **Edit in its grid.** Open a sandbox table in Grids: double-click a cell (or Enter, F2), type, Enter. A value
-     its column cannot hold is said under the box. **Add row** and **Delete rows** are on the bar over the grid.
+   - **Edit it on the Tables page.** Open a sandbox table on the Tables page: double-click a cell (or Enter, F2), type, Enter. A value
+     its column cannot hold is said under the box. **Add row** and **Delete rows** are on the bar over the table.
      Every edit is counted in the change log, and Reset undoes it.
    - **The Sandbox is a connection.** The Connections page shows the project's Sandbox (local test data, never
      live) in its own indigo, with its tables, the change log and Reset. DuckDB SQL names its tables

@@ -10,7 +10,7 @@ Azure Functions or AWS Lambda project that uses the real connections.
 
 connection("<name>") is the adapter's calls on that connection: read(table, columns=, filters=,
 sort=, limit=), query(sql, params) in its own SQL, write(table, rows, key, mode), tables(). Here
-they read and write the sandbox's tables read from it (Add to sandbox first: a grid's Table row),
+they read and write the sandbox's tables read from it (Add to sandbox first: the Tables page's Table row),
 never the real connection; an export runs the same code against the real one.
 """
 

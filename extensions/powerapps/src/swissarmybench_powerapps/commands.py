@@ -321,9 +321,9 @@ def powerapps_ts_run(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_ts_grid",
-    "Open a TypeScript or SQL cell's table result as a grid (every row), by its id (r and a number)",
+    "Open a TypeScript or SQL cell's table result on the Tables page (every row), by its id (r and a number)",
     req("id", "The result's id (its output says it)."),
-    opt("name", "The grid's name."),
+    opt("name", "The open table's name."),
     opt("path", "The notebook (default: the code app's data.ipynb)."),
 )
 def powerapps_ts_grid(a: dict[str, Any]) -> Any:
@@ -358,8 +358,8 @@ def powerapps_tsx_preview(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_dataverse_grid",
-    "Open one of the code app's Dataverse sources as a grid through the library's Dataverse connection for "
-    "its environment; with none, which connection to add",
+    "Open one of the code app's Dataverse sources on the Tables page through the library's Dataverse "
+    "connection for its environment; with none, which connection to add",
     req("source", "The source's name (powerapps_project lists them)."),
 )
 def powerapps_dataverse_grid(a: dict[str, Any]) -> Any:

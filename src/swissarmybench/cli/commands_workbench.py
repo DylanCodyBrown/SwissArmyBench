@@ -192,7 +192,7 @@ def workbench_save(a: dict[str, Any]) -> Any:
 @command(
     "workbench_export_script",
     "Export a notebook or script as ONE .py that runs with plain python anywhere (an Azure Function too), "
-    "or as one linear .ipynb: its connections, vault lookups and grid steps written out, no passwords, no rows",
+    "or as one linear .ipynb: its connections, vault lookups and table steps written out, no passwords, no rows",
     req("path", "The notebook (.ipynb) or script (.py)."),
     opt("format", "script (one .py, the default) or notebook (one self-contained .ipynb)."),
     opt("to", "Where it goes (default: beside it, <name>_automation.py or .ipynb)."),
@@ -428,7 +428,7 @@ def workbench_window(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_table_cells",
-    "Every open table's read-only Workbench cell: its steps as one DuckDB query, its grid and kernel",
+    "Every open table's read-only Workbench cell: its steps as one DuckDB query, its tab and kernel",
 )
 def workbench_table_cells(a: dict[str, Any]) -> Any:
     return api.call("GET", "/workbench/tables")
@@ -729,7 +729,7 @@ def workbench_variables(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_to_grid",
-    "Open a table from a kernel as a grid: a variable, or a cell's result (an output's Open as grid); "
+    "Open a table from a kernel on the Tables page: a variable, or a cell's result (an output's Open as table); "
     "structure=true: a dict or list variable on the Structures page",
     req("kernel", "The kernel's id."),
     opt("name", "The variable; with output, the new table's name (else out_<n>)."),

@@ -647,9 +647,9 @@ def claude_md(version: str) -> str:
     return f"""# Swiss Army Bench {version}: your context
 
 You were started from Swiss Army Bench's **Launch Claude**. Swiss Army Bench is running on this computer
-(127.0.0.1 only): the user's tables in live grids, notebooks and scripts in its Workbench, Streamlit apps on
-a canvas, a project as a folder (its files, the app's state in .sab/). You work it through the
-`swissarmybench` MCP server: its tools are every action the user has. The app writes this folder; keep
+(127.0.0.1 only): the user's tables live on its Tables page, notebooks and scripts in its Workbench,
+Streamlit apps on a canvas, a project as a folder (its files, the app's state in .sab/). You work it through
+the `swissarmybench` MCP server: its tools are every action the user has. The app writes this folder; keep
 nothing here.
 
 - **context.md** (below) is the app's live picture: its connections and how to name their tables in DuckDB

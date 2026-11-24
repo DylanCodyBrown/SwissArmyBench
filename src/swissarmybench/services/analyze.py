@@ -388,7 +388,9 @@ class Analyze:
     async def plan(self, body: Any, who: str) -> dict[str, Any]:
         """{"analysis", "table"?, "front"?, "columns"?, "options"?}: the form, planned."""
         if not isinstance(body, dict):
-            raise ValueError('Send {"analysis": "benford", "table": a grid id or a table name}.')
+            raise ValueError(
+                'Send {"analysis": "benford", "table": the id of an open table or a table name}.'
+            )
         c = self._contract(body.get("analysis"))
         grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who)
@@ -416,7 +418,9 @@ class Analyze:
         """Check this table ({"table"?}): every analysis ranked for it and the three that suit it best;
         with "analysis", that one analysis's check: each slot's fit, what is missing, the fixes."""
         if not isinstance(body, dict):
-            raise ValueError('Send {"table": a grid id or a table name}, with "analysis" for one analysis.')
+            raise ValueError(
+                'Send {"table": the id of an open table or a table name}, with "analysis" for one analysis.'
+            )
         if body.get("analysis") not in (None, ""):
             return await self.plan(body | {"remember": False}, who)
         grid, info = await self._open(body, who)
@@ -436,7 +440,7 @@ class Analyze:
         """What can I do with a column? {"table"?, "column"}: the analyses it fits, each one click; with
         no column, every column of the table with what fits it."""
         if not isinstance(body, dict):
-            raise ValueError('Send {"table": a grid id or a table name, "column": name}.')
+            raise ValueError('Send {"table": the id of an open table or a table name, "column": name}.')
         grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who)
         base = {"grid": grid.id, "dataset": info.name, "table_label": self._label(grid), "rows": rows}
@@ -539,7 +543,9 @@ class Analyze:
         run one analysis and land its cards on the board. `apply_fixes` first adds the fixes the table
         needs (grid steps); `sample` runs it on the contract's made-up sample (opened as a table)."""
         if not isinstance(body, dict):
-            raise ValueError('Send {"analysis": "benford", "table": a grid id or a table name}.')
+            raise ValueError(
+                'Send {"analysis": "benford", "table": the id of an open table or a table name}.'
+            )
         c = self._contract(body.get("analysis"))
         token = str(body.get("token") or "")[:60]
         if token:

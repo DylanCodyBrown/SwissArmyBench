@@ -244,7 +244,7 @@ def test_refusals_reach_the_agent_with_their_reason(
                 "analyze_add", {"grid": "nope", "kind": "chart", "spec": {"mark": "pie"}}
             )
         )
-    assert "No such grid" in str(bad_chart.value)
+    assert "No such open table" in str(bad_chart.value)
 
 
 # ===== the token never reaches an agent =====

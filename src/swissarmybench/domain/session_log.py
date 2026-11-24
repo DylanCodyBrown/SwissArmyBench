@@ -238,7 +238,7 @@ def _approval(d: str, x: dict[str, Any]) -> Said:
 
 RULES: dict[str, Rule] = {
     # Grids: tables arriving, their steps, their highlights; a compare; an export (with its Allow).
-    "open_grid": lambda d, x: (f"Opened {d} in a grid", "grids", _grid(x, d)),
+    "open_grid": lambda d, x: (f"Opened {d} in a tab", "grids", _grid(x, d)),
     "push": lambda d, x: (f"Opened {d}", "grids", _dataset(d)),
     "load_file": lambda d, x: (
         f"Opened {_file(x.get('file'))} as {d}" if x.get("file") else f"Opened {d}",

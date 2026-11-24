@@ -46,7 +46,7 @@ def short(context: dict[str, Any]) -> str:
     shown = view_rows if view_rows is not None else "?"
     selected = f", {active['selected_rows']:,} selected" if active.get("selected_rows") else ""
     return (
-        f"Swiss Army Bench: in front of the user: grid {active['grid']} on `{active['dataset']}`, "
+        f"Swiss Army Bench: in front of the user: `{active['dataset']}` (grid {active['grid']}), "
         f"{shown} rows in the view of {active['dataset_rows']}{selected}; "
         "its columns and steps are in context.md (`agent_context` reads them again). No cell values here."
     )
@@ -65,7 +65,7 @@ def summary(context: dict[str, Any]) -> str:
     lines = [
         "Swiss Army Bench: the table the user has in front of them (no cell values; read rows with "
         "the swissarmybench MCP tools, e.g. row_read).",
-        f"- grid {active['grid']} on dataset {active['dataset']}: "
+        f"- table {active['dataset']} (grid {active['grid']}): "
         f"{view_rows if view_rows is not None else '?'} rows in the view of {active['dataset_rows']}",
         f"- columns: {shown}",
     ]

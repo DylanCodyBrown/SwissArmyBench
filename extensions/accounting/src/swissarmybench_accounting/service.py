@@ -248,7 +248,7 @@ class Accounting:
         if missing:
             listed = ", ".join(sorted(i.name for i in ws.store.all())) or "none"
             raise NotFound(
-                f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} not open: open it as a grid (or run data.ipynb). Open: {listed}."
+                f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} not open: open it on the Tables page (or run data.ipynb). Open: {listed}."
             )
 
         def job(cursor: Any) -> dict[str, Any]:

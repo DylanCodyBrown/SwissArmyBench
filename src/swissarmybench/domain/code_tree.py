@@ -243,7 +243,7 @@ def generated_group(tables: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "name": str(t["name"]),
             "folder": "",
             "module": str(t["name"]),
-            "made_from": "its grid's steps",
+            "made_from": "its steps on the Tables page",
             "edited": False,
             "read_only": True,
             "item": f"table:{t['name']}",

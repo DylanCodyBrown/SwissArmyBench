@@ -1,4 +1,4 @@
-"""The CLI's one door to the grid server: HTTP calls as the agent, and the live event socket.
+"""The CLI's one door to the app's server: HTTP calls as the agent, and the live event socket.
 
 Everything the agent does goes through `call`, which finds the running server through the
 connection file and sends `X-Actor: agent`. The server keeps every rule (approvals, the SQL guard,
@@ -118,7 +118,7 @@ def call(
     params: dict[str, Any] | None = None,
     timeout: float = 240.0,
 ) -> Any:
-    """One request to the grid server, as the agent. Returns the parsed JSON (None when empty).
+    """One request to the app's server, as the agent. Returns the parsed JSON (None when empty).
     A string body goes as plain text (the Paste button's route reads raw text); anything else as JSON."""
     info = _info()
     clean = {k: _query_value(v) for k, v in (params or {}).items() if v is not None}
@@ -172,7 +172,7 @@ def fetch_bytes(
 
 # ===== the live event socket =====
 #
-# The grid page and this client hear the same broadcasts (`/ws`): a grid changed (and by whom), a
+# The grid page and this client hear the same broadcasts (`/ws`): an open table changed (and by whom), a
 # table opened or closed, a card added, an approval asked for. A WebSocket is an HTTP upgrade
 # followed by length-prefixed frames, small enough to speak by hand, which keeps this stdlib-only.
 

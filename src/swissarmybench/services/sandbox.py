@@ -137,7 +137,7 @@ async def _no_structure(structure: str, path: str) -> tuple[Any, str, str]:
 
 
 async def _no_rows(name: str, rows: list[int]) -> tuple[list[str], list[list[Any] | None]]:
-    raise LookupError("That table is not open in Grids.")
+    raise LookupError("That table is not open on the Tables page.")
 
 
 @dataclass
@@ -935,25 +935,27 @@ class Sandbox:
         """The rows at these places in the table's open grid's view, each in the table's column order."""
         grid = rules.grid_name(table)
         if self.ws.grids.first_for(grid) is None:
-            raise NotFound(f"Open {table} in Grids first (Open in Grids), or say which rows with where.")
+            raise NotFound(
+                f"Open {table} on the Tables page first (Open in Tables), or say which rows with where."
+            )
         places: list[int] = []
         for w in wanted[:500]:
             if isinstance(w, bool) or not isinstance(w, int) or w < 0:
-                raise SandboxError("A row is its place in the grid: 0 for the first.")
+                raise SandboxError("A row is its place in the table as shown: 0 for the first.")
             places.append(w)
         if not places:
             raise SandboxError("Say which rows.")
         shown, rows = await self._sources.view_rows(grid, places)
         if sorted(c.casefold() for c in shown) != sorted(c.casefold() for c in columns):
             raise SandboxError(
-                f"{table}'s grid has steps that change its columns: turn them off to edit it there, or say "
+                f"{table}'s tab has steps that change its columns: turn them off to edit it there, or say "
                 "which rows with where."
             )
         at = {c.casefold(): i for i, c in enumerate(shown)}
         out = []
         for place, row in zip(places, rows, strict=True):
             if row is None:
-                raise NotFound(f"{table}'s grid has no row {place + 1}.")
+                raise NotFound(f"{table}'s tab has no row {place + 1}.")
             out.append([row[at[c.casefold()]] for c in columns])
         return out
 
@@ -1013,7 +1015,7 @@ class Sandbox:
         if not mine:
             raise NotFound(
                 f"The sandbox has no table read from {name}: Add to sandbox one of its tables first "
-                "(its grid's Add to sandbox, or the sandbox's Add table…)."
+                "(its Table row's Add to sandbox, or the sandbox's Add table…)."
             )
         client = dict(meta.tables[mine[0]].get("client") or {})
         return client | {"tables": mine, "dialect": client.get("dialect") or "duckdb"}

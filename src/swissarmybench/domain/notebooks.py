@@ -341,7 +341,7 @@ def read_cells(sent: Any) -> list[Cell]:
             raise NotebookError("A cell's role is one of the Tables group's, and its table a table's name.")
         steps = raw.get("steps")
         if steps is not None and (not isinstance(steps, list) or len(json.dumps(steps)) > MAX_STEPS_CHARS):
-            raise NotebookError("A table cell's steps are a list of the grid's steps.")
+            raise NotebookError("A table cell's steps are a list of the table's steps.")
         cells.append(
             Cell(
                 str(raw["kind"]),

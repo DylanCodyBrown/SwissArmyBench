@@ -394,7 +394,7 @@ class DatasetService:
         loaded as a table, token and all), the audit log: the state folder, except the
         export folder inside it (an export loaded back is a table)."""
         if self._own_file(path):
-            raise Refused("That is one of the grid server's own files, not a table.")
+            raise Refused("That is one of Swiss Army Bench's own files, not a table.")
 
     async def load_file(
         self,

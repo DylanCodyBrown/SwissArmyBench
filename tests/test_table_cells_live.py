@@ -97,7 +97,7 @@ def test_a_tables_cell_is_the_grids_steps_and_running_it_twice_changes_nothing(l
     sab.push(ORDERS, name="orders")
     listed = table(live, "orders")
     assert listed["steps"] == 0 and listed["origin"] == "python" and listed["kernel"] is None
-    assert listed["code"] == "# orders: no transformations yet. Steps made in the grid appear here."
+    assert listed["code"] == "# orders: no transformations yet. Steps made on the Tables page appear here."
     grid = listed["grid"]
     live.user("POST", f"/grids/{grid}/steps", {"steps": STEPS})
     listed = table(live, "orders")
@@ -123,7 +123,7 @@ def test_a_tables_cell_is_the_grids_steps_and_running_it_twice_changes_nothing(l
         "POST", f"/grids/{grid}/steps", {"steps": [*STEPS, {"kind": "columns", "params": {"keep": ["x"]}}]}
     )
     broken = table(live, "orders")
-    assert broken["problem"].startswith("Step 3") and "a step in the grid cannot run" in broken["code"]
+    assert broken["problem"].startswith("Step 3") and "a step on the Tables page cannot run" in broken["code"]
 
 
 def test_a_table_no_code_made_starts_with_its_load(live: Live, tmp_path: Path) -> None:

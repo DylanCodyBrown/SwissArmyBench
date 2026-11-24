@@ -1,4 +1,4 @@
-"""The agent's compare_* commands: compare (two grids side by side).
+"""The agent's compare_* commands: compare (two tables side by side).
 
 Registered into cli/commands.py's REGISTRY when it imports this module (the tool list's order is the areas',
 then each command's place here). Standard library only.
@@ -14,15 +14,15 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "compare_create",
-    "Line two grids up on key columns (the page's split compare). Counts only.",
-    req("left", "Left grid id."),
-    req("right", "Right grid id."),
+    "Line two tables up on key columns (the page's split compare). Counts only.",
+    req("left", "The left table's id."),
+    req("right", "The right table's id."),
     req("keys", "[[left column, right column], ...]", "json"),
     opt("mode", "outer (default), anti, cross or diff."),
     opt("anti_side", "For anti: left or right."),
     opt(
         "show",
-        "true: the user's grid page puts the two grids side by side, lined up (the Key Finder's Compare on these).",
+        "true: the user's Tables page puts the two tables side by side, lined up (the Key Finder's Compare on these).",
         "bool",
     ),
 )
@@ -42,8 +42,8 @@ def compare_create(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_list",
-    "The compares that are running (the user's too: the two grids side by side), each with its id, its "
-    "two grids and tables, keys, mode and counts.",
+    "The compares that are running (the user's too: the two tables side by side), each with its id, its "
+    "two tables (ids and names), keys, mode and counts.",
 )
 def compare_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/compares")
@@ -75,7 +75,7 @@ def compare_change(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_tie_out",
-    "Do both grids add up the same per group? Without group or measures: the choices.",
+    "Do both tables add up the same per group? Without group or measures: the choices.",
     req("compare", "Compare id."),
     opt("group", "Shared columns to group by.", "json"),
     opt("measures", "Shared number columns to total.", "json"),
@@ -140,9 +140,9 @@ def compare_clear_focus(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_grids",
-    "One-shot compare of two grids on key columns: matched, left-only and right-only counts. No cell values.",
-    req("left", "Left grid id."),
-    req("right", "Right grid id."),
+    "One-shot compare of two tables on key columns: matched, left-only and right-only counts. No cell values.",
+    req("left", "The left table's id."),
+    req("right", "The right table's id."),
     req("keys", "[[left column, right column], ...]", "json"),
 )
 def compare_grids(a: dict[str, Any]) -> Any:
@@ -157,7 +157,7 @@ def compare_grids(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_tie_out_show",
-    "Filter both grids of a compare to one tie-out group (as clicking its row)",
+    "Filter both tables of a compare to one tie-out group (as clicking its row)",
     req("compare", "The compare's id."),
     req("group", "The grouping columns, as the tie-out gave them.", "list"),
     req("keys", "The group's keys, as the tie-out gave them.", "list"),

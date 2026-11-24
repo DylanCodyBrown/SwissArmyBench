@@ -419,7 +419,7 @@ def pasted_for(dataset: str, source_kind: str, code: str, sql: str) -> Pasted:
         library = "pandas" if call == ".df()" else "Polars"
         fallback = Pasted(python_code(sql, dataset, source_kind, with_output=False), var, "arrow", result)
         note = (
-            f"{library} is not installed beside the grid server, so the same query was checked over an "
+            f"{library} is not installed beside the app's server, so the same query was checked over an "
             f"Arrow table and the final {call} was not run."
         )
     return Pasted(code, var, value, result, fallback, note)

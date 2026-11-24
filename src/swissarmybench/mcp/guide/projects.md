@@ -60,7 +60,7 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
   `needs_password` with its fix, and its tables wait in `problems` with "Set the password".
 
 ## Tables come back from where they came from
-- Each table keeps its source and its grids' steps: a connection (by name) with its table, a file
+- Each table keeps its source and its steps: a connection (by name) with its table, a file
   (relative to the project when it is inside it), the project notebook that makes it, or a "+" tab's query.
 - A pasted or pushed table has no source: its rows are kept only when ticked
   (`project_save(keep_rows={"pasted_1": true})`). Your save then waits for the user's Allow.

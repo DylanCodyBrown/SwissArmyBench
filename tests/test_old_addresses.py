@@ -66,9 +66,11 @@ def test_each_old_address_has_its_blazor_page() -> None:
         ("/workspace", (("open", "environment"), ("at", "libraries"))): "/blazor/environment?at=libraries",
         ("/workspace", (("open", "stockroom"),)): "/blazor/stockroom",  # an extension's area: its own page
         ("/workspace", (("view", "erd"),)): "/blazor/erd",
+        ("/workspace", (("view", "grids"),)): "/blazor/tables",  # the Tables page's old word
+        ("/workspace", (("view", "new"),)): "/blazor/tables",
         ("/workspace", (("view", "analyze"), ("table", "orders"))): "/blazor/analyze?table=orders",
         ("/workspace", (("classic", "1"),)): "/blazor/",  # an older bookmark's word, dropped
-        ("/g/g7", ()): "/blazor/grids?grid=g7",
+        ("/g/g7", ()): "/blazor/tables?grid=g7",
         ("/g/g7", (("panel", "steps"),)): "/blazor/panel?grid=g7&panel=steps",
         ("/notebooks", (("kind", "notebook"), ("view", "list"))): "/blazor/notebooks",
         ("/scripts", (("path", "etl/load.py"),)): "/blazor/scripts?path=etl%2Fload.py",
@@ -89,7 +91,7 @@ def test_an_old_page_answers_with_its_blazor_page(tmp_path: Path) -> None:
         moved = client.get("/workspace?open=connections", headers=AUTH, follow_redirects=False)
         assert moved.status_code == 302 and moved.headers["location"] == "/blazor/connections"
         assert client.get("/notebooks", follow_redirects=False).headers["location"] == "/blazor/notebooks"
-        assert client.get("/g/g1", follow_redirects=False).headers["location"] == "/blazor/grids?grid=g1"
+        assert client.get("/g/g1", follow_redirects=False).headers["location"] == "/blazor/tables?grid=g1"
         assert client.get("/workspace?classic=1", follow_redirects=False).headers["location"] == "/blazor/"
         # The older addresses before those: /catalog and /workbench, then their Blazor pages.
         assert client.get("/catalog", follow_redirects=True).url.path == "/blazor/scripts"

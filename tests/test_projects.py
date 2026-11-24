@@ -127,7 +127,7 @@ def test_a_table_the_app_cannot_read_again_is_a_stub_and_no_rows_are_written(tmp
     )
     assert "Acme" not in own.text and "VALUES" not in own.text and "customers = None" not in own.text
     assert "customers = load_customers()" in own.text and own.fill_in == ()
-    assert own.skipped == ("cell 1: customers's cell holds the rows pasted into the grid.",)
+    assert own.skipped == ("cell 1: customers's cell holds the rows pasted into the app.",)
     # A notebook for a zip: the pasted rows are taken out of the cell.
     zipped = rules.without_rows(cells)
     assert "Acme" not in zipped[0].source and "FILL IN: customers" in zipped[0].source

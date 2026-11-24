@@ -154,7 +154,7 @@ def test_an_open_table_no_document_holds_is_the_grid_itself() -> None:
         ("table", "customers"),
         ("cell", "n = len(customers)"),
     ]
-    assert graph.nodes[1].where == "the grid"
+    assert graph.nodes[1].where == "the Tables page"
 
 
 def test_a_sql_cell_reads_its_connection_and_makes_its_name() -> None:

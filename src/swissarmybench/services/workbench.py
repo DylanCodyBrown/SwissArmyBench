@@ -909,7 +909,7 @@ class Workbench:
             expression = name
         url = await self._kernel(kernel_id).grid(expression, name)
         if url is None:
-            raise Conflict("The kernel is running code: open it as a grid when the run is done.")
+            raise Conflict("The kernel is running code: open it on the Tables page when the run is done.")
         self.ws.audit.write("user", "variable_to_grid", name, output=output)
         return {"url": url, "dataset": name}
 

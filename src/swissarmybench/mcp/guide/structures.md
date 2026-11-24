@@ -1,6 +1,6 @@
 # Structures
 
-Nested data (JSON, YAML, XML, TOML) as documents, as grids are tables. A structure is a tab of the
+Nested data (JSON, YAML, XML, TOML) as documents, as the Tables page holds tables. A structure is a tab of the
 Structures page: a tree and its text, steps replayed on the original (never changed until Save).
 
 ## Beside the code (2026-11-22)
@@ -9,7 +9,7 @@ Structures page: a tree and its text, steps replayed on the original (never chan
   code: the page it was opened from, else Scripts. The Files pane lists them under Structures.
 - It is an IDE: the file's text editable at all times (kept as typed; a parse error is its `text_error` with
   its line, squiggled), the tree and the text in step both ways, Format, Save (the text, only changed bytes),
-  Save as, Cancel. The steps are a separate view for making grids (Transform): they never lock the text.
+  Save as, Cancel. The steps are a separate view for making tables (Transform): they never lock the text.
 - In the window (`workbench_window`): "structure.open" {path, at?}, "structure.search" {words},
   "structure.next" {back?}, "structure.select" {at}, "structure.view" {view: tree|text|both},
   "structure.format", "structure.state" (its view, selection and its code, search, matches, problems);
@@ -38,12 +38,12 @@ Structures page: a tree and its text, steps replayed on the original (never chan
 - `structures_edit(structure, text)` replaces the text (kept as typed, steps or not); `format`, `name`.
 
 ## Making things of it
-- `structures_open_as_grid(structure, path)`: the list of records there as a grid (a table: SQL and the
+- `structures_open_as_grid(structure, path)`: the list of records there on the Tables page (a table: SQL and the
   the Analyze page work on it); its origin is the structure, and through it the API call.
 - `structures_save(structure)` to its file; with `name`, `format`, `folder` or `path`: Save as (the
   project's `structures/` folder by default). TOML cannot hold a null: it says so.
 - `structures_lineage(structure)`: the call (inputs and body as sent, when; a sign-in input hidden) or
-  file, each step, each grid made from it, the cells that read it (sab.structure, sab.structure_table), as
+  file, each step, each table made from it, the cells that read it (sab.structure, sab.structure_table), as
   Mermaid too.
 - In code: `sab.structure("gates")` is the saved file's value; `sab.structure_table("payload",
   "$.orders")` its records as a table. `structures_close(name, references=true)` lists where code uses it.

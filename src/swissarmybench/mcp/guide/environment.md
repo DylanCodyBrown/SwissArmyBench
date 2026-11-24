@@ -5,7 +5,7 @@ tool, `environment(action, args)`. Five kinds, a tab each:
 
 | Kind | What it is | Where it comes from |
 |---|---|---|
-| `table` | the data: a named table (a grid is only a view of it, never a copy) | a connection, a file, a paste, a query, code |
+| `table` | the data: a named table (a tab is only a view of it, never a copy) | a connection, a file, a paste, a query, code |
 | `variable` | what the code makes: numbers, text, lists, dictionaries | the project's Python |
 | `structure` | JSON, YAML, XML, TOML documents | `structures/` in the project, or open and not saved |
 | `setting` | `${NAME}` settings and secrets (a secret's value never comes back) | the library's variables, the keyring, a key vault |
@@ -27,10 +27,10 @@ tool, `environment(action, args)`. Five kinds, a tab each:
 ## Doing
 | Action | Args | Notes |
 |---|---|---|
-| `open` | `kind`, `name` | a table opens in Grids (a view is made when it has none); the app goes there |
+| `open` | `kind`, `name` | a table opens on the Tables page (a view is made when it has none); the app goes there |
 | `insert` | `kind`, `name` | the code a row is written as (`python`, `sql`, a setting's `${NAME}` as `text`) |
-| `rename` | `kind`, `name`, `to` | a table (its grids follow), a variable (the same object), an open structure, a setting |
-| `remove` | `kind`, `name`, `python`? | a table closes with its grids; `python: true` also deletes it in Python; a saved structure's file waits for Allow |
+| `rename` | `kind`, `name`, `to` | a table (its tabs follow), a variable (the same object), an open structure, a setting |
+| `remove` | `kind`, `name`, `python`? | a table closes with its tabs; `python: true` also deletes it in Python; a saved structure's file waits for Allow |
 | `keep` | `name`, `keep` | Keep with the project: its rows into `.sab/data/` (Git-ignored); waits for Allow |
 | `clear` | `tables`, `variables`, `structures`, `dry_run`? | what is ticked; kept tables, settings and libraries stay; waits for Allow |
 
@@ -45,8 +45,8 @@ by code; there is no add here. Interrupt and Restart are the Notebooks and Scrip
 - `workbench_kernel` `interrupt` and `restart` act on the session for every document (Restart clears every
   variable, and each window is told); `stop` leaves it running for the user's documents; `stop_session` stops it
   (the next run starts a new one). `workbench_run` takes `document`: the document the code is for.
-- Every table here is read by name from that session without opening it as a grid first: `sab.table("orders")`,
-  or a DuckDB SQL cell naming it. One a grid shows is read as the grid shows it (its steps applied).
+- Every table here is read by name from that session without opening it on the Tables page first: `sab.table("orders")`,
+  or a DuckDB SQL cell naming it. One a tab shows is read as its tab shows it (its steps applied).
 - `environment(action="python")`: the project's own Python: `status` (`making`, `ready`, `missing`, `failed`,
   or `none` with no project), `words`, `python`, `own`, `problem`, the session's `kernel` while it runs, and
   `offers` (a notebook that had its own environment: the libraries it chose that the project lacks).

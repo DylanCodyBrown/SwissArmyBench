@@ -271,7 +271,7 @@ def dates(column):
 class Dataset:
     """One dataset (semantic model) of the workspace, read with DAX through Power BI's Execute
     Queries request. Shaped like a database connection (cursor, execute, description, fetchall), so
-    a DAX cell, Open as grid and the catalog use it as they use a database."""
+    a DAX cell, Open as table and the catalog use it as they use a database."""
 
     # Power BI's limits for one query: 100,000 rows or 1,000,000 values (rows times columns),
     # whichever comes first, and 15 MB of data; one query in a request; 120 requests a minute for
@@ -1164,7 +1164,7 @@ def analyze(df: pd.DataFrame) -> list:
     note = f"## {len(df):,} rows, {len(df.columns)} columns\\n\\nCounts, means and spreads of each column."
     return [note, summary]""",
         "analyze",
-        note="Runs on the grid's rows as it shows them; its result can go to the Analyze board.",
+        note="Runs on the table's rows as its tab shows them; its result can go to the Analyze board.",
     ),
     Template(
         "pareto",

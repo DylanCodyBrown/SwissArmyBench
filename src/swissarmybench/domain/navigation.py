@@ -24,10 +24,10 @@ CODE_WINDOWS: tuple[str, ...] = ("notebooks", "scripts")
 # The rail's areas (the owner, 2026-11-16: "this app needs a navigation pane somehow"; a slim icon
 # rail down the left of every page and window), in its order: each is a place from every window, as a
 # rail click goes there (Layout/Rail.razor). A window that does not show the area brings forward the one
-# that does (the home window for the grids, Analyze and the ERD; the Workbench for notebooks,
-# scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids, only the
-# grids; projects (the mark, the rail's first item: the owner, 2026-11-18) is the Projects page over the
-# home page (the Project Explorer and the tour), and home goes there too.
+# that does (the home window for the Tables page, Analyze and the ERD; the Workbench for notebooks,
+# scripts and apps, each its kind's mode; the blades page). Tables (Grids until 2026-11-23) is the open
+# tables as tabs, only the tables; projects (the mark, the rail's first item: the owner, 2026-11-18) is the
+# Projects page over the home page (the Project Explorer and the tour), and home goes there too.
 AREAS: tuple[str, ...] = (
     "projects",
     # In the order of the work (the owner, 2026-11-17): where data comes from, getting and shaping it, web
@@ -38,7 +38,7 @@ AREAS: tuple[str, ...] = (
     # Variables places (Structures stays a place: the viewer its rows open into; variables goes here).
     "environment",
     "data",  # the one place to browse tables (the owner, 2026-11-17: "a standalone DATA rail icon")
-    "grids",
+    "tables",  # 2026-11-23: Grids is Tables ("grids" read as it)
     "erd",
     "scripts",  # Blades are its pane on the right (the owner, 2026-11-22: "remove blades rail icon")
     "notebooks",
@@ -55,6 +55,7 @@ SAME: dict[str, str] = {
     "apps": "canvas",  # 2026-11-21: Apps is the Canvas
     "catalog": "data",  # 2026-11-21: the Data Catalog is the Catalog
     "variables": "environment",  # 2026-11-22: the settings are the Environment's Settings and secrets tab
+    "grids": "tables",  # 2026-11-23: the Grids page is the Tables page
 }
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
 CODE: tuple[str, ...] = ("notebooks", "scripts")
@@ -71,9 +72,9 @@ EVERYWHERE: tuple[str, ...] = (
     "add_connection",
     "add_api",
 )
-# Each window's own views. `grid:<id>` and `blade:<name>` name one. The home page's New query page (the "+",
-# the grids with none open: the owner, 2026-11-20) is new_query; query is its draft, query:<connection> the
-# draft with Query from set to that connection (a click on the page).
+# Each window's own views. `grid:<id>` (a table's tab) and `blade:<name>` name one. The home page's New query
+# page (the "+", the Tables page with none open: the owner, 2026-11-20) is new_query; query is its draft,
+# query:<connection> the draft with Query from set to that connection (a click on the page).
 OWN: dict[str, tuple[str, ...]] = {
     "home": ("new_query", "query", "query:<connection>", "grid:<id>"),
     "workbench": (),
@@ -160,7 +161,7 @@ def rail_change(sent: Any) -> bool:
 HOME: str = "/blazor/"
 
 # An old page's address (the classic pages', gone 2026-11-23), and the Blazor page that shows the same thing:
-# every way in that names one, a bookmark, the desktop app, a pushed grid, an agent's window, lands on the
+# every way in that names one, a bookmark, the desktop app, a pushed table, an agent's window, lands on the
 # Blazor page. The address's own words go with it: the Blazor pages read the same ones (?path=, ?grid=...).
 OLD_PAGES: dict[str, str] = {
     "/workspace": "",
@@ -176,8 +177,9 @@ OPEN_PAGES: dict[str, str] = {"projects": "", "data": "catalog", "variables": "e
 VIEW_PAGES: dict[str, str] = {
     "erd": "erd",
     "analyze": "analyze",
-    "grids": "grids",
-    "new": "grids",
+    "grids": "tables",
+    "tables": "tables",
+    "new": "tables",
     "start": "",
 }
 # The words an old page read and the Blazor page does not (said by the path now).
@@ -191,13 +193,13 @@ def is_old_page(path: str) -> bool:
 
 def blazor_page(path: str, query: dict[str, str]) -> tuple[str, dict[str, str]]:
     """The Blazor page for an old page's address and the words that go with it: /workspace?open=connections
-    is ("connections", {}), /g/<id> is ("grids", {"grid": <id>}), /notebooks?path=x is ("notebooks",
-    {"path": "x"}). The rest of the address's words kept; ?panel= (a grid's pop-out panel): the panel page."""
+    is ("connections", {}), /g/<id> is ("tables", {"grid": <id>}), /notebooks?path=x is ("notebooks",
+    {"path": "x"}). The rest of the address's words kept; ?panel= (a pop-out panel): the panel page."""
     words = {k: v for k, v in query.items() if k not in OLD_WORDS}
     if path in ("/notebooks", "/scripts") and "file" in words and "path" not in words:
         words["path"] = words.pop("file")  # the old pages' ?file= is the Blazor pages' ?path=
     if path.startswith("/g/"):
-        page, words = "grids", {"grid": path[3:]} | words
+        page, words = "tables", {"grid": path[3:]} | words
     elif path == "/workspace":
         opened, view = query.get("open", ""), query.get("view", "")
         page = OPEN_PAGES.get(opened, opened) if opened else VIEW_PAGES.get(view, "")

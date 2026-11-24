@@ -18,7 +18,7 @@ The first row is the column names (header_row: another row). A formula gives its
 that mixes kinds (a number column with an "n/a" in it) is read as text, every value kept. With no sheet
 named, a workbook of one sheet gives it; one of several says their names.
 
-The reading is the adapter's (adapter.Excel): the same rules as a workbook opened as a grid.
+The reading is the adapter's (adapter.Excel): the same rules as a workbook opened on the Tables page.
 
 Laid out top to bottom: the imports, then `read_workbook`, the one function, which you call.
 """

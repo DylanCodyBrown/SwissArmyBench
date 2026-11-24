@@ -158,7 +158,7 @@ def blades_refresh(a: dict[str, Any]) -> Any:
     req("name", "The blade."),
     opt("code", "Code to run instead (nothing saved)."),
     opt("env", '{"VAR": "value"}: values a secret blade asks for, for this run only.', "json"),
-    opt("open", "Then open its table result as a grid.", "bool"),
+    opt("open", "Then open its table result on the Tables page.", "bool"),
     opt("cancel", "A run id going now: stop it."),
 )
 def blades_run(a: dict[str, Any]) -> Any:
@@ -276,8 +276,8 @@ def blades_analyses(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_run_analysis",
-    "Run an analysis blade on a grid's rows as shown; its result as Analyze cards",
-    req("grid", "The grid's id."),
+    "Run an analysis blade on an open table's rows as shown; its result as Analyze cards",
+    req("grid", "The open table's id."),
     req("name", "The analysis blade."),
     opt("columns", "The selected columns it gets.", "list"),
     values=True,

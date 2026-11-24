@@ -16,7 +16,7 @@ from swissarmybench.cli.command_kit import _insert_step, _q, command, opt, req
 @command(
     "column_sort",
     "Sort by columns like clicking their headers (Sort A to Z / Z to A). It stays the last word over other sorts.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("columns", "Columns to sort by, in order. An empty list clears the header sort.", "list"),
     opt("direction", "asc (default) or desc."),
 )
@@ -36,7 +36,7 @@ def column_sort(a: dict[str, Any]) -> Any:
 @command(
     "column_keep",
     "Keep only these columns (the Column row's Keep only).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("columns", "Columns to keep, in the order to show them.", "list"),
     opt("index", "Insert at this step position.", "int"),
 )
@@ -47,7 +47,7 @@ def column_keep(a: dict[str, Any]) -> Any:
 @command(
     "column_remove",
     "Remove these columns from the view (the Column row's Remove).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("columns", "Columns to remove.", "list"),
     opt("index", "Insert at this step position.", "int"),
 )
@@ -65,7 +65,7 @@ def column_remove(a: dict[str, Any]) -> Any:
 @command(
     "column_unnest",
     "Unnest a LIST column (a row per item) or a STRUCT column (its fields as columns): a SQL step.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "The list or struct column."),
     opt("index", "Insert at this step position.", "int"),
 )
@@ -77,7 +77,7 @@ def column_unnest(a: dict[str, Any]) -> Any:
 @command(
     "column_rename",
     "Rename columns (a rename step).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("mapping", 'e.g. {"old name": "new name"}', "json"),
     opt("index", "Insert at this step position.", "int"),
 )
@@ -89,7 +89,7 @@ def column_rename(a: dict[str, Any]) -> Any:
     "column_bucket",
     "Add a column that sorts a number or date column into buckets (the Column row's Bucket). Give `unit` for "
     "dates, `edges` or width+low+high for numbers.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "The number or date column."),
     req("new_column", "Name of the new column."),
     opt("unit", "Date buckets: day, week, month, quarter or year."),
@@ -120,7 +120,7 @@ def column_bucket(a: dict[str, Any]) -> Any:
 @command(
     "column_categorize",
     "Add a column of labels from rules (the Column row's Categorize).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "The column the rules read."),
     req("new_column", "Name of the new column."),
     req(
@@ -140,8 +140,8 @@ def column_categorize(a: dict[str, Any]) -> Any:
 
 @command(
     "column_profile",
-    "Profile one column of the grid's view (the Column row's Profile).",
-    req("grid", "Grid id."),
+    "Profile one column of the table's view (the Column row's Profile).",
+    req("grid", "The open table's id."),
     req("column", "Column name."),
     opt("upto", "Profile the table entering this step index.", "int"),
     values=True,
@@ -154,7 +154,7 @@ def column_profile(a: dict[str, Any]) -> Any:
 @command(
     "column_values",
     "A column's values and row counts, most common first (Filter's checklist).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "Column name."),
     opt("search", "Only values holding this text."),
     opt("limit", "At most (200).", "int"),
@@ -168,11 +168,11 @@ def column_values(a: dict[str, Any]) -> Any:
 
 @command(
     "column_fit_test",
-    "Chi-square fit test on columns of the grid's view. expected: even (default), benford / benford2 "
-    "(first digits of amounts), grid (another grid: reference), shares, together (two columns "
+    "Chi-square fit test on columns of the table's view. expected: even (default), benford / benford2 "
+    "(first digits of amounts), grid (another open table: reference), shares, together (two columns "
     "related?). Gives p, an effect size in words, the values furthest off."
     "values furthest from expected.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("columns", "Column names.", "list"),
     opt("expected", "even, benford, benford2, grid, shares or together."),
     opt(
@@ -199,7 +199,7 @@ def column_fit_test(a: dict[str, Any]) -> Any:
     "group) or look=frequency (values seen too often or too rarely). show / exclude add the step "
     "keeping or dropping them."
     "typos, copied amounts). show=true also adds the step that keeps just those rows.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "Column name."),
     opt("look", "amount or frequency."),
     opt("method", "robust, iqr or zscore."),

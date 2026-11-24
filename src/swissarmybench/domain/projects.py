@@ -58,7 +58,8 @@ _FOLDER = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]+$")
 # A table's cell that cannot read the table again: the notes domain/table_cells.py writes for a table
 # no code made and no file or connection gives, and a small paste's rows written out.
 _NO_LOAD = re.compile(
-    r"^# .+ was (?:made outside this file|dropped on the page|pasted into the grid|opened from) ", re.M
+    r"^# .+ was (?:made outside this file|dropped on the page|pasted into the (?:app|grid)|opened from) ",
+    re.M,
 )
 _PASTED = re.compile(r"\bFROM \(VALUES\b[\s\S]*\) AS pasted\(")
 _IPYTHON = re.compile(r"^\s*[%!?]")
@@ -222,7 +223,7 @@ def data_module(
             found = _NO_LOAD.search(source)
             pasted = _PASTED.search(source) is not None
             if found or pasted:
-                why = "It was pasted into the grid." if not found else found.group(0)[2:].strip() + "..."
+                why = "It was pasted into the app." if not found else found.group(0)[2:].strip() + "..."
                 why = f"{cell.table} cannot be read again by the app. {why}".replace("...", ".")
                 # Without a cell of the user's that makes it, there is nothing to transform yet.
                 made_above = any(
@@ -232,7 +233,7 @@ def data_module(
                 )
                 if pasted and made_above:
                     # Its cell holds the pasted rows: left out (no rows leave), the user's cell stays.
-                    skipped.append(f"{label}: {cell.table}'s cell holds the rows pasted into the grid.")
+                    skipped.append(f"{label}: {cell.table}'s cell holds the rows pasted into the app.")
                     continue
                 if not made_above:
                     parts.append(_stub(cell.table, variable, why.split("\n")[0]))
@@ -309,7 +310,7 @@ def without_rows(cells: Sequence[DataCell]) -> list[DataCell]:
     for cell in cells:
         if cell.table and _holds_rows(cell):
             variable = variable_name(cell.table)
-            stub = _stub(cell.table, variable, f"{cell.table} was pasted into the grid.")
+            stub = _stub(cell.table, variable, f"{cell.table} was pasted into the app.")
             out.append(DataCell(cell.kind, stub, cell.role, cell.table, cell.number))
         else:
             out.append(cell)

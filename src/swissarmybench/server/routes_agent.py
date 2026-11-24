@@ -86,7 +86,7 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
 
     async def set_active(request: Request) -> Response:
         if actor(request) == "agent":
-            return Response("Only the page reports which grid is in front.", status_code=403)
+            return Response("Only the page reports which table is in front.", status_code=403)
         body = await read_json(request)
         return json_response(agent.set_active(body.get("grid") if isinstance(body, dict) else None))
 

@@ -37,7 +37,7 @@ NO_TABLES: dict[str, str] = {
     "vault": "not a connection: a source of secrets for variables",
     "api": "blades, not a connection: an API is one only through its web calls that return a table",
     "snippet": "not a connection: text for a cell",
-    "analysis": "not a connection: an analysis run on a grid",
+    "analysis": "not a connection: an analysis run on an open table",
     "secret": "not a connection: a password",
     "other": "not a connection: code that makes a value (a function blade that returns a table could "
     "later be named in SQL too)",

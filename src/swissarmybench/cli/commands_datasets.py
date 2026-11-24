@@ -19,7 +19,7 @@ def list_datasets(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_close",
-    "Close a dataset and every grid on it (the Datasets popover's Close).",
+    "Close a dataset and every tab on it (the Datasets popover's Close).",
     req("name", "Dataset name."),
 )
 def delete_dataset(a: dict[str, Any]) -> Any:
@@ -28,7 +28,7 @@ def delete_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_rename",
-    "Call a table by another name everywhere: its tabs, its grids (steps kept), the relationship model "
+    "Call a table by another name everywhere: its tabs, its views (steps kept), the relationship model "
     "(a double-click on the tab, or the Pasted toast's name box).",
     req("name", "The table's name now."),
     req("to", "Its new name: 1 to 64 letters, digits, '_' or '-'."),
@@ -39,11 +39,11 @@ def rename_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_load",
-    "Load a CSV, TSV, Parquet, JSON-lines, Arrow or Excel file from a full path into a dataset and open a grid.",
+    "Load a CSV, TSV, Parquet, JSON-lines, Arrow or Excel file from a full path into a dataset and open it in a tab.",
     req("name", "New dataset name."),
     req("path", "Full path to the file. Pass the path, never the contents."),
     opt("sheet", "Sheet name for a workbook with several sheets (the error lists them)."),
-    opt("new_grid", "Open a new grid even when the dataset already has one.", "bool"),
+    opt("new_grid", "Open a new tab even when the dataset already has one.", "bool"),
 )
 def load(a: dict[str, Any]) -> Any:
     body: dict[str, Any] = {"path": a["path"]}
@@ -82,7 +82,7 @@ def datasets_sample(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_python_sessions",
-    "Python sessions (notebooks, scripts) reporting tables to the grid, and their tables.",
+    "Python sessions (notebooks, scripts) reporting tables to the Tables page, and their tables.",
 )
 def list_processes(a: dict[str, Any]) -> Any:
     return api.call("GET", "/processes")

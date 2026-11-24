@@ -424,7 +424,7 @@ class _Walk:
         for index, words in enumerate(facts_.steps if facts_ else (), start=1):
             step = self.add(
                 f"t:{variable}:{index}",
-                Node("", "step", words, f"grid step {index}", table=variable, step=index),
+                Node("", "step", words, f"step {index}", table=variable, step=index),
             )
             if before:
                 self.link(before, step, "", "step")
@@ -440,7 +440,7 @@ class _Walk:
         if ident in self.nodes:
             return ident
         facts_ = self.tables[variable]
-        self.add(ident, Node("", "table", facts_.name, "the grid", table=variable))
+        self.add(ident, Node("", "table", facts_.name, "the Tables page", table=variable))
         self.table_chain(variable, ident, None)
         return ident
 

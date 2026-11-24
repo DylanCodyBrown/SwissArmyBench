@@ -830,7 +830,7 @@ def _key_expressions(columns: tuple[Column, ...], names: list[str], side: str) -
     for name in names:
         column = by_name.get(name)
         if column is None:
-            raise ValueError(f"{name!r} is not a column of the {side} grid's view.")
+            raise ValueError(f"{name!r} is not a column of the {side} table's view.")
         sql = normalized(column, KeyOptions())
         if sql is None:
             raise ValueError(f"{name!r} ({column.type}) can't be a key.")

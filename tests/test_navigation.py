@@ -67,7 +67,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "apis",
         "environment",  # everything the project holds, in the Structures and Variables places (2026-11-22)
         "data",  # the one place to browse tables (2026-11-17)
-        "grids",
+        "tables",
         "erd",
         "scripts",  # its Blades pane on the right: no Blades icon (2026-11-22)
         "notebooks",
@@ -85,7 +85,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
             # Grids is the home page's tabbed grids, only the grids; projects (the mark) and home are
             # the Projects page (2026-11-18).
             assert rules.place(window, area) == {"window": window, "to": area}
-        assert rules.place(window, " grids ") == {"window": window, "to": "grids"}
+        assert rules.place(window, " grids ") == {"window": window, "to": "tables"}
         assert rules.place(window, "home") == {"window": window, "to": "home"}
         # Notebooks and Scripts open in a Workbench window of their own too (the "external tab").
         for code in ("notebooks", "scripts"):
@@ -157,3 +157,10 @@ def test_the_agent_moves_the_window(live: Live) -> None:  # noqa: F811
         command("app_navigate", to="home")
     with pytest.raises(Exception, match="cannot go to 'kitchen'"):
         command("app_navigate", to="kitchen")
+
+
+def test_grids_is_the_tables_pages_old_word() -> None:
+    """The owner, 2026-11-23: Grids is Tables. app_navigate's place is `tables`; `grids` is read as it."""
+    assert rules.place("home", "tables") == {"window": "home", "to": "tables"}
+    assert rules.place("home", "grids") == {"window": "home", "to": "tables"}
+    assert rules.blazor_page("/g/g7", {}) == ("tables", {"grid": "g7"})

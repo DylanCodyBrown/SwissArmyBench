@@ -2,16 +2,16 @@
 
 (Installed and run as `swissarmybench`, alias `sab`.)
 
-A desktop app for any tabular data: live grids, notebooks, SQL and analysis, in windows of its own
+A desktop app for any tabular data: live tables, notebooks, SQL and analysis, in windows of its own
 (PySide6, the pages drawn by Qt WebEngine) over a local Python server that runs while the app is open. You
-push a DataFrame from Python and its grid opens; the same pages open in a browser too, if you want a tab.
+push a DataFrame from Python and its table opens; the same pages open in a browser too, if you want a tab.
 Everything stays on your machine: 127.0.0.1 only, a token on every data request, data in memory, nothing
 sent anywhere.
 
-What a grid page does:
-- **Grid:** scroll millions of rows (the server sends only the rows on screen). A header can
+What the Tables page does:
+- **Tables:** scroll millions of rows (the server sends only the rows on screen). A header can
   show its column's distinct count, blank percentage and a small histogram (the switch is in the
-  grid's top-left corner, above the row numbers); its arrow button sorts on the server. Enter or
+  table's top-left corner, above the row numbers); its arrow button sorts on the server. Enter or
   F2 on a cell opens its whole value. The horizontal scrollbar is always on screen.
 - **Excel-style selection:** click or drag the row numbers to select rows, a header to select its
   column, drag across cells for a block, the corner (or Ctrl+A) for everything; Shift extends,
@@ -23,7 +23,7 @@ What a grid page does:
   cell's tools (keep or exclude rows with its value, view, copy) are on its right-click menu.
   **Ctrl+Shift+P** lists every action of the page by name.
 - **Steps** (like Power Query's applied steps): filter, sort, choose and rename columns, group
-  by, distinct, keep first rows, clean text, bucket, categorize and SQL. The grid has the whole
+  by, distinct, keep first rows, clean text, bucket, categorize and SQL. The table has the whole
   page: a strip under its title counts the steps (a header sort among them), lists them on
   hover with a remove button each, and offers Undo, Redo (Ctrl+Z, Ctrl+Y) and Clear; **Edit steps** opens
   Table Transformations in a tab of its own, where each step can be edited, turned off or reordered, with row counts as it goes.
@@ -34,9 +34,9 @@ What a grid page does:
 - **Column profile:** a popup from the Column row's Profile: statistics and value counts; click a
   value to filter on it. **Auto width** fits every column (Table row) or the selected ones.
 - **SQL lives in your Python** (DuckDB SQL does the transforming): **every table has a read-only cell**
-  in the Workbench notebook or script it belongs to, holding the grid's steps as one DuckDB query
+  in the Workbench notebook or script it belongs to, holding the table's steps as one DuckDB query
   whose result is the table's own name (`orders = duckdb.sql("""...""").df()`). The cell follows the
-  grid by itself and turns yellow (Out of date · Run) when the steps change; nothing runs by itself,
+  Tables page by itself and turns yellow (Out of date · Run) when the steps change; nothing runs by itself,
   and running it twice never transforms a table twice. All tables sit at the top of the file in a
   Tables group that folds to one line. Every cell has a number that never changes, `@cell7` in a
   comment links to it, and a cell that names a table starts with `# uses orders @cell3`. A SQL step
@@ -61,12 +61,12 @@ What a grid page does:
   orders`). The app's canvas exports `pages/*.py` the same way.
 - **Export as one Python script… / as one notebook…** (a document's **…** menu): any notebook or
   script as ONE self-contained file for a scheduler or an Azure Function: its connections, key vault
-  lookups and grid steps (as DuckDB SQL) written out, no Swiss Army Bench, no passwords, no rows.
+  lookups and steps (as DuckDB SQL) written out, no Swiss Army Bench, no passwords, no rows.
   `python orders_report_automation.py` checks its packages first (`--install` pips them), names every
   setting it reads and where it came from, and has a `main()` for a timer trigger; an Azure Key Vault
   is read by the function app's managed identity with the standard library. The notebook runs top to
   bottom with nbconvert or papermill.
-- **New table from a query:** the **+** after the last tab opens a SQL tray over a blank grid.
+- **New table from a query:** the **+** after the last tab opens a SQL tray over a blank table.
   A table name reads that table as its tab shows it (after its steps); Run turns the result into a
   table of its own, with every tool a pushed table has. The tray stays on the tab, so Run again
   rebuilds the table in place, and its own steps apply to the new rows.
@@ -75,7 +75,7 @@ What a grid page does:
   query over your own table by its variable name. **Copy as SQL** gives the query; **Copy as
   Python** gives `import duckdb` and one line, `orders_view = duckdb.sql("""...""").df()` (`.pl()`
   for Polars, `.to_arrow_table()` for Arrow). The copy is run exactly as copied, in a fresh namespace holding only your table,
-  and compared with the grid before it's offered; only verified code gets the Copy buttons.
+  and compared with the table before it's offered; only verified code gets the Copy buttons.
 - **Relationships:** **Find relationships** works out how every open table joins, from
   the data: each join with its kind, the share of values that match, the orphans and why (names that
   don't match, a text column of numbers, two-column keys and second paths are handled; small number
@@ -102,7 +102,7 @@ What a grid page does:
   tested against a target by chi-square, ranked by strength, with the pairs that say the same thing.
   **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof on the Analyze board:
   each formula with the result's own numbers, worked to the values shown. Every result can go to
-  Analyze, open as a grid, or go to the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
+  Analyze, open on the Tables page, or go to the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
   logistic (odds ratios), effects in words with ranges, what-if predictions, predicted and miss columns,
   and the miss column for outliers of what the model cannot explain.
   **Time series**: a metric per period from a date column, its trend, its season in words ("December
@@ -115,27 +115,27 @@ What a grid page does:
   cell or a header to send a value, a row, a profile or distinct values; every details window has
   Send to Analyze.
 - **Fit test and outliers** (on the Analyze page): ask whether a column's values spread as expected (chi-square
-  against even shares, Benford's law on the first one or two digits, another grid's spread, or two
+  against even shares, Benford's law on the first one or two digits, another open table's spread, or two
   columns together), with the verdict in words and an effect size; or find the outliers in a column, by
   amount (robust median fences, Tukey's quartiles or z-scores, within each vendor or month if you like)
   or by frequency (a typo seen once, an amount copied forty times). **Show these rows** adds a step
   that keeps just them; **Exclude these**, one that leaves them out.
-- **Key Finder:** pick another grid (or every other grid) and get the likely join columns:
+- **Key Finder:** pick another open table (or every other one) and get the likely join columns:
   each column pair that shares values, with the percent of each side's distinct values found in
   the other, whether each side is unique (so which one looks like the key), and a score. Columns
   whose longest value is over 128 characters are left out. Click a pair for sample shared values
   and the values an inner join would drop.
 - **Export:** CSV, delimited text, Excel or Parquet, with provenance and formula neutralization.
-- **Tabs, split and compare:** every grid is a tab in one window (they wrap onto more rows, up
+- **Tabs, split and compare:** every open table is a tab in one window (they wrap onto more rows, up
   to 50). Right-click a tab for **Compare with…** (or drag a tab onto another) to see two side
   by side; the key picker opens with the Key Finder already run and the key that is unique on both
-  sides ticked, and compare keeps both grids aligned row by row (outer, anti, cross, or diff: only
+  sides ticked, and compare keeps both tables aligned row by row (outer, anti, cross, or diff: only
   the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
   lists every table: open, closed (each with Open) and in your Python sessions.
 - **Analyze** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
   result tables, Mermaid diagrams, Plotly figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
-  wheel zoom, and clicking a bar filters the grid. The page loads nothing from the internet: figures
+  wheel zoom, and clicking a bar filters the table. The page loads nothing from the internet: figures
   that need outside maps or pictures say so instead.
 - **Agent door (MCP):** the agent sees what the page shows; its exports wait for the user's
   Allow. Settings lists its activity and has a copyable prompt that installs the MCP in any agent.
@@ -163,7 +163,7 @@ The design is [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-pl
 been checked against real versions is in [docs/verified.md](docs/verified.md); decisions and
 open notes are in [docs/ideas.md](docs/ideas.md).
 
-New here? The **Tour** button (the question mark in the Application row) explains every word, grid to
+New here? The **Tour** button (the question mark in the Application row) explains every word, table to
 pack, by lighting up each one on the page.
 
 ## Renamed from SwissArmyGrid
@@ -185,7 +185,7 @@ The installers remove the old `swissarmygrid` uv tool before installing the new 
 
 **Visualizations is now Analyze, and the analyses live there** (the owner, 2026-11-19): the rail's Analyze page has a
 toolbar of every analysis and one guided form beside the board; every result lands on the board by itself, and
-the grid page has no analysis on it. Each analysis has a data contract the form, the agent (`analyze_contracts`,
+the Tables page has no analysis on it. Each analysis has a data contract the form, the agent (`analyze_contracts`,
 `analyze_check`, `analyze_run`) and Python (`sab.analyze.benford(df)`) share. The old names
 (`?view=visualizations`, `visualizations_*` and `sandbox_*` tools, `sab.visualizations`) went in 0.0.32.
 
@@ -250,20 +250,20 @@ project's environment without touching that project's own packages:
 ```python
 import swissarmybench as sab
 
-sab.push(orders)  # a grid named "orders" opens; push again to refresh it in place
+sab.push(orders)  # a table named "orders" opens; push again to refresh it in place
 ```
 
 Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
 saved workspaces, a relationships view): [Plans/standalone-workspaces.plan.md](Plans/standalone-workspaces.plan.md).
 
-Grids open as tabs in one window, the Grids page (`/blazor/grids`): the first push opens it, and
-every later push adds its grid as a tab there (or brings its tab forward) instead of opening a new
+Tables open as tabs in one window, the Tables page (`/blazor/tables`; `/blazor/grids` still lands there): the first push opens it, and
+every later push adds its table as a tab there (or brings its tab forward) instead of opening a new
 window. That holds for pushes made while the window is still loading, too: they wait for it (up to
 15 seconds) rather than each opening one. Close a tab with its ×, middle-click, or Delete; drag
 tabs to reorder them.
 
 With pyarrow present, pushes keep their column types. A push opens the browser only when no page
-already shows that grid.
+already shows that table.
 
 ## One-time setup for working on Swiss Army Bench itself
 
@@ -296,8 +296,8 @@ From a notebook or script (the client starts a server if none is running):
 import swissarmybench as sab
 
 orders = load_orders()  # a pandas or Polars frame, Arrow table, DuckDB relation, or list of dicts
-sab.push(orders)  # the dataset (and the browser tab) is named "orders"; the grid opens
-sab.push(orders)  # again: every open grid on it refreshes in place, keeping its sort
+sab.push(orders)  # the dataset (and the browser tab) is named "orders"; the table opens
+sab.push(orders)  # again: every open table on it refreshes in place, keeping its sort
 sab.push(orders, name="q3", new_grid=True)
 url = sab.push(orders, open=False)  # no browser, just the link
 ```
@@ -358,7 +358,7 @@ one line, and the installers take away an earlier `.sab` file registration.
 
 ## The Workbench
 
-Notebooks and Python scripts, in a window of their own: the grid page's **Workbench** tab opens it (or
+Notebooks and Python scripts, in a window of their own: the Tables page's **Workbench** tab opens it (or
 brings it forward). On the left, your connections and blades (drag one into a cell or the script for
 its line) and the data explorer (drag a table or column for its name).
 
@@ -421,9 +421,9 @@ app registration's way needs no package).
 
 The catalog shows the workspace's datasets, each with its tables, their columns and, marked, their
 measures. Datasets are read one after another (the first 25, for at most 200 seconds); one that cannot
-be read is marked on itself and the rest still load. **Open as grid** runs
-`EVALUATE TOPN(<rows to open>, 'Table')` on the table's dataset and counts the table, so the grid says
-"first N of M rows". A grid is named after its table; when two datasets have a table of that name,
+be read is marked on itself and the rest still load. **Open as table** runs
+`EVALUATE TOPN(<rows to open>, 'Table')` on the table's dataset and counts the table, so the table says
+"first N of M rows". A tab is named after its table; when two datasets have a table of that name,
 after the dataset too (`Sales_model_Date`).
 
 In a notebook, DAX has **a cell kind of its own**: pick DAX in a cell's kind picker (or the toolbar's
@@ -466,7 +466,7 @@ A **Dataverse** environment is a connection too: its form asks for the environme
 else a browser window, through Microsoft's `azure-identity`), a **managed identity** (for an Azure
 Function; no package) or an **app registration** whose client secret is a key vault's entry, never
 typed into the app. Its catalog is the Web API's metadata: one schema (dbo), every table with its display
-name, every column with its type. **Open as grid**, the preview and `sab.read("Sales CRM", "account")`
+name, every column with its type. **Open as table**, the preview and `sab.read("Sales CRM", "account")`
 read a table through the Web API (OData `$select`, `$filter`, `$top`, paging by `@odata.nextLink`), so
 they work in every environment with no admin setting; a choice column reads as its labels. SQL cells
 (`%%sql Sales CRM`, `sab.sql`) run T-SQL on the environment's read-only SQL endpoint (TDS, port 5558)
@@ -487,14 +487,14 @@ anything Python can: an internal web service, a vendor's library, your own files
 code boxes. **Connect** makes `conn`, any object. **List the tables** returns its catalog: a list of
 dicts or a DataFrame with `table` and `column`, and optionally `schema`, `type` and `description`.
 **Read a table** returns a table's rows given `conn`, `schema`, `table` and `limit` (`None` means
-all): a DataFrame, an Arrow table or a list of dicts, or `(rows, total)` so the grid can say how many
+all): a DataFrame, an Arrow table or a list of dicts, or `(rows, total)` so the table can say how many
 rows the source holds. The form finds every environment variable the boxes read
 (`os.environ["X"]`, `os.environ.get("X")`, `os.getenv("X")`, `secret("X")`) and asks where each comes
 from: this computer's environment, saved on this computer, a key vault's entry, or a plain value that
 is no secret. The code is not changed: the values are set as environment variables before it runs, so
 the same code runs unchanged where those names are set some other way (an Azure Function's settings).
 **Test connection** runs the three boxes and shows the first table's first rows. The catalog, Open as
-grid, the preview and Load all rows then work as for a database. In a notebook:
+table, the preview and Load all rows then work as for a database. In a notebook:
 
 ```python
 api = sab.connection("Orders API")  # what Connect made
@@ -530,7 +530,7 @@ SELECT * FROM sales.orders WHERE shipped > due
 ```
 
 - `%sql_connect Warehouse` makes it the default (a bare `%%sql` uses it); `%sql_connections` lists them.
-- `-> name` keeps the result as a variable; `--grid` opens it as a grid.
+- `-> name` keeps the result as a variable; `--grid` opens it on the Tables page.
 - **A database** runs the cell in its own SQL: any DB-API connection, DuckDB, BigQuery, ClickHouse,
   Spark and SQLAlchemy engines. A statement with no rows (UPDATE, INSERT) is committed and says how
   many rows changed.
@@ -557,7 +557,7 @@ sab.blades(search="orders-function-app")  # by name, description or tag
 sab.blades(tag="sales")
 ```
 
-Analyze can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
+Analyze can wear its own theme (the table keeps the app's): twenty built in, high contrast and
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
@@ -568,7 +568,7 @@ replaces the card in place when the cell runs again.
 - **Kinds:** SQL connection (with its dialect), other (any code), vault (Azure Key Vault, AWS,
   Google, HashiCorp, 1Password, a `.env` file, the operating system's vault: each secret mapped to an
   environment variable), secret (variable names only; the values are typed each session) and
-  **analysis**: your own analysis, `def analyze(df, columns): ...` over the grid's rows as a pandas
+  **analysis**: your own analysis, `def analyze(df, columns): ...` over the table's rows as a pandas
   DataFrame, returning markdown, a table or a figure. It shows under **Your analyses** in the Analyze
   menu, runs in a child process like Refresh, and its result can go to the Analyze board. Three starters.
 - **Secrets:** `secret("password")` in a blade's code. Its value is kept in the operating system's
@@ -672,10 +672,10 @@ it your blades' names, descriptions and tags (so it can reuse one), `blades_get`
 ## Code to your Python
 
 **Copy code** (on an analysis result) copies the analysis as Python to the clipboard, its imports
-first: the grid's steps as checked DuckDB SQL over your table by its own name, then one
+first: the table's steps as checked DuckDB SQL over your table by its own name, then one
 `swissarmybench.stats` call, the same code the window ran. Paste it into Jupyter or any Python.
 
-Tables your Python makes still show in the grid page's Open list: importing `swissarmybench` in Jupyter
+Tables your Python makes still show in the Tables page's Open list: importing `swissarmybench` in Jupyter
 or IPython starts the watcher (`sab.watch()` in a plain script).
 
 **SQL completion.** In Jupyter and IPython, Tab inside SQL (a string with a SELECT, FROM or JOIN, or a
@@ -685,7 +685,7 @@ It asks the running server and never starts one (`SWISSARMYBENCH_COMPLETE=0` tur
 ## The agent commands: `sab` and the MCP server
 
 **The golden rule: everything you can do, the agent can do too** (215 commands, each an MCP tool):
-grids and steps, analyses, Analyze and dashboards, connections and blades (made, changed, tested,
+tables and steps, analyses, Analyze and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and relationship sets, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
 with two exceptions: its exports still wait for your Allow (and it cannot answer an approval), and no
@@ -714,10 +714,10 @@ run it:
   `sab agent_events --seconds 60`. `@file` reads a file and `-` reads standard input. `sab --help`
   prints the catalog.
 
-`agent_events` listens to the server's live broadcasts (a grid changed and who changed it, a table
+`agent_events` listens to the server's live broadcasts (an open table changed and who changed it, a table
 opened, an export approval asked for), so an agent can work alongside the user instead of polling.
 
-`app_snapshot` returns a PNG of the page as the user sees it (the whole window, or the ribbon, grid,
+`app_snapshot` returns a PNG of the page as the user sees it (the whole window, or the ribbon, grid (the table),
 steps strip or Analyze). The server draws nothing: it asks the open page, which draws itself with
 html-to-image and uploads the picture, and the server hands it to the agent without writing it to disk.
 The MCP returns it as image content; `sab app_snapshot` saves it and prints the path. It shows real
@@ -726,7 +726,7 @@ cell values, and each one is written to the audit log.
 The ribbon's Column buttons and a cell's right-click menu act on the selected columns or cells, which only the browser
 knows, so their commands take the column names or values as arguments.
 
-`row_read` with `format=csv` returns the grid's view as CSV. The agent picks `start` and `end` (up to
+`row_read` with `format=csv` returns the table's view as CSV. The agent picks `start` and `end` (up to
 1,048,576 rows, an Excel sheet, per read), and every read starts with the view's total `row_count`,
 which the step commands report too. An agent export always waits for the user's click: the export
 route writes an agent's file only against the one-time ticket that click gives.
@@ -739,14 +739,14 @@ a Python session. Zoom, column widths and the theme live in the browser, so no c
 The plugin's `UserPromptSubmit` hook (`plugin/hooks/hooks.json`) runs `swissarmybench-context`, which
 adds to each prompt what you sent your agent from the Workbench (right-click an error or selected code,
 Send to the agent: once, then it is marked read; the `agent_inbox` tool reads it too) and a short
-summary of the table in front (grid, row count, columns and types, steps; never cell values), the way an
+summary of the table in front (its id, row count, columns and types, steps; never cell values), the way an
 IDE hands Claude the open file. It prints nothing when no server is running.
 Build the one wheel (the page inside it) with `python build.py`. (The optional VS Code extension went
 2026-11-21, the owner's simplicity pass: the agent's tools come from the swissarmybench MCP server.)
 
 ## Launch Claude
 
-The status bar's **Launch Claude** (the grids' page and the Workbench) starts Claude Code in the user's own
+The status bar's **Launch Claude** (the open tables' page and the Workbench) starts Claude Code in the user's own
 terminal, in `~/.swissarmybench/claude/<project>/` (CLAUDE.md with the app's index and what is open,
 metadata only; `.mcp.json`; the prompt hook; `--add-dir` the project's working folder), or Claude Desktop
 with the `swissarmybench` server added to its claude_desktop_config.json (asked once, a backup first, the
@@ -792,7 +792,7 @@ start of this version removes an older version's sign-in entry and ends its tray
 **Updates:** the server asks PyPI (`https://pypi.org/pypi/swissarmybench/json`, then GitHub's latest
 release if PyPI cannot be read) at start and every 30 minutes. That one request is the only thing that
 leaves the computer, and it carries nothing but itself. A pre-release is offered only to someone on one.
-When a newer version exists, the grid page's and the Workbench's status bars say **Update available** (with
+When a newer version exists, the Tables page's and the Workbench's status bars say **Update available** (with
 **Update to X** and **What's new**). Update to
 X asks first only when notebooks have unsaved changes or kernels are running, and saves nothing for you;
 the app stops, a small helper installs the version with `uv tool install --force

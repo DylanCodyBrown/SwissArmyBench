@@ -362,7 +362,7 @@ class KeyFinder:
         if target == "*":
             return [g for g in self.ws.grids.all() if g.id != source.id]
         if not isinstance(target, str):
-            raise ValueError('Send {"target": "<grid id>"} or {"target": "*"} for every other grid.')
+            raise ValueError('Send {"target": "<grid id>"} or {"target": "*"} for every other open table.')
         found = self.ws.grids.get(target)
         if found is None:
             raise LookupError(f"No grid {target!r}; open one on the dataset first.")
@@ -470,7 +470,7 @@ class KeyFinder:
         except ws.interrupted:
             raise TimedOut(
                 f"The Key Finder stopped after {settings.key_finder_timeout_seconds:.0f} seconds. "
-                "Filter the grids first, or pick one target grid."
+                "Filter the tables first, or pick one target table."
             ) from None
         ws.audit.write(who, "key_finder", source.dataset, targets=len(chosen), pairs=result["pair_count"])
         return result
@@ -488,7 +488,7 @@ class KeyFinder:
                 a = next((c for c in src_cols if c.name == body.get("source_column")), None)
                 b = next((c for c in tgt_cols if c.name == body.get("target_column")), None)
                 if a is None or b is None:
-                    raise ValueError("Name a column of each grid.")
+                    raise ValueError("Name a column of each table.")
                 sampled: dict[str, Any] = self._timed(
                     cur, lambda: sample_values(cur, src_sql, a, tgt_sql, b, options)
                 )
@@ -688,9 +688,11 @@ class Compares:
 
     async def create(self, body: Any, who: str) -> dict[str, Any]:
         if not isinstance(body, dict) or not all(isinstance(body.get(k), str) for k in ("left", "right")):
-            raise ValueError('Send {"left": grid id, "right": grid id, "keys": [[left col, right col]]}.')
+            raise ValueError(
+                'Send {"left": an open table id, "right": another, "keys": [[left col, right col]]}.'
+            )
         if body["left"] == body["right"]:
-            raise ValueError("Compare two different grids.")
+            raise ValueError("Compare two different tables.")
         show = body.get("show", False)
         if not isinstance(show, bool):
             raise ValueError("show must be true or false.")

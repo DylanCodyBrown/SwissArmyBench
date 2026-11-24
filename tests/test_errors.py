@@ -264,10 +264,10 @@ def test_a_table_open_in_grids_offers_its_table_cell() -> None:
     entry = told["chain"][-1]
     assert entry["fixes"][0] == {
         "kind": "table",
-        "title": "Orders is open in Grids: add its table cell",
+        "title": "Orders is open on the Tables page: add its table cell",
         "name": "Orders",
     }
-    assert "open in Grids" in entry["explanation"]
+    assert "open on the Tables page" in entry["explanation"]
     plain = errors.explain_detail(detail, open_tables=["regions"])["chain"][-1]
     assert not any(f["kind"] == "table" for f in plain["fixes"])
     # A Python error never offers a table cell.

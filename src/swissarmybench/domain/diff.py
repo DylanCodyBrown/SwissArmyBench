@@ -170,7 +170,7 @@ def kept_sql(diffed: str, keys: int, compared: list[Pair], options: DiffOptions,
             (i for i, p in enumerate(compared) if p.left.name.casefold() == options.column.casefold()), None
         )
         if at is None:
-            raise ValueError(f"{options.column!r} is not a column both grids have (and not a key).")
+            raise ValueError(f"{options.column!r} is not a column both tables have (and not a key).")
         where = f"d{at}"
     else:
         changed = "".join(f" OR d{i}" for i in range(len(compared)))

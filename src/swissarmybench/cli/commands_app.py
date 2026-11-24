@@ -227,9 +227,9 @@ def app_audit(a: dict[str, Any]) -> Any:
     "Move a window as the user does: home (the mark: the Projects page), back, forward, or a view",
     req(
         "to",
-        "the rail: projects (the mark), data (browse tables), grids, analyze, erd, notebooks, scripts, "
-        "apps, blades, connections, environment, structures, session, settings; back, forward, add_connection, "
-        "add_api; home: "
+        "the rail: projects (the mark), data (browse tables), tables (or grids), analyze, erd, notebooks, "
+        "scripts, apps, blades, connections, environment, structures, session, settings; back, forward, "
+        "add_connection, add_api; home: "
         "new_query (the New query page), query, query:<connection> (its draft, Query from set), grid:<id>; "
         "scripts (its Blades pane): blade:<name>, new_blade",
     ),
@@ -252,6 +252,6 @@ def app_rail(a: dict[str, Any]) -> Any:
     return api.call("GET", "/rail")
 
 
-@command("app_shutdown", "Stop the server (the grids close; this MCP stops answering until it starts again)")
+@command("app_shutdown", "Stop the server (the tables close; this MCP stops answering until it starts again)")
 def app_shutdown(a: dict[str, Any]) -> Any:
     return api.call("POST", "/shutdown")

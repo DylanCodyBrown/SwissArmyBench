@@ -10,13 +10,13 @@ a variable by its name.
   its catalog failed), its calls this session. A cheap check: nothing runs.
 - `connections_usage(name)`: a card's detail. `references`: every notebook or script cell (`%%sql`,
   `%%dax`, `sab.sql`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection`; marked as a table's
-  read-only cell), every canvas block on such a cell, every open grid read from it; `configuration`:
+  read-only cell), every canvas block on such a cell, every open table read from it; `configuration`:
   type, settings, sign-in, each password's source (keyring, vault, environment, missing) by name, never
   a value; `calls`: by kind (catalog, query, read, test, connect), the last one. Calls count what runs
   through the app and Workbench kernels, not the user's own Jupyter.
 - `connections_colours`: each connection's colour (this computer's: the same in every project) and the
   palette; `connections_colours(name, colour)` sets one (`#rrggbb`; null: the next free one). The rail's
-  colours (the kind colours, the red accent) and amber are refused. Its grid tabs, cells, canvas blocks
+  colours (the kind colours, the red accent) and amber are refused. Its tabs, cells, canvas blocks
   and Session entries wear it as a stripe; the home page's tabs are grouped by connection.
 - `app_navigate(to="connection:<name>")` shows that detail to the user; `workbench_window
   file.openCell` opens a reference's cell.
@@ -44,7 +44,7 @@ a variable by its name.
   `{"<id>": {"text": "${WAREHOUSE_HOST}"}}`. A connection string's part cannot hold one (said).
 - A password field is a variable: `secret("WAREHOUSE_PASSWORD")` reads it from its source here. At the
   first start each connection's own saved password became a keyring variable (`SALES_DB_PASSWORD`).
-- SQL (a grid's SQL, the "+" tab's query, `%%sql`, `sab.sql`): a `${NAME}` outside strings and comments is
+- SQL (an open table's SQL, the "+" tab's query, `%%sql`, `sab.sql`): a `${NAME}` outside strings and comments is
   sent as a bound parameter; where a table's or a column's name goes it is refused (a name is never
   pasted in).
 - `variables_resolve(text)`: what a box reads here (a secret masked, never its value), `missing`, and the
@@ -103,7 +103,7 @@ a variable by its name.
 - Writes are Write starters (dry run first); SharePoint documents' files are the SharePoint starters.
 
 ## Reading one
-- `connections_open_table(name, table)`: a table as a grid (a database's first rows, 10,000 unless
+- `connections_open_table(name, table)`: a table on the Tables page (a database's first rows, 10,000 unless
   the connection says otherwise; `all=true` for every row). `connections_preview_table`: 50 rows, kept
   nowhere.
 - In code: `workbench_run(kind="sql", connection=name)` runs a SQL cell in the source's own SQL; files
@@ -121,14 +121,14 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   (5,000,000) it is refused: add a WHERE. Each answer's `connection_reads`: rows, `read_at`, `sent`.
 - Reads are kept for the session: `connections_sql_reads`; `connections_sql_refresh` reads again.
 - `connections_tables(name)`: the tree (datasets or schemas, each table's `sql` name).
-  `connections_open_dataset(name, dataset)`: every table of one as its own grid.
+  `connections_open_dataset(name, dataset)`: every table of one in its own tab.
 - Dataverse lists and reads its tables on its SQL endpoint; one saved for the Web API:
   `connections_dataverse_sql_endpoint`.
 
 ## Swapping a table's connection (the Table row's Connection…)
 - `table_connection(table)`: its connection (`exists` false: deleted, or not on this computer), how it
   is read (`table`: a catalog table, its `place`; `query`: its `sql`), the `others`, `undo`.
-- `table_swap_connection(table, to)`: read again from `to`, the grid's steps kept (the tab stays). A
+- `table_swap_connection(table, to)`: read again from `to`, the table's steps kept (the tab stays). A
   catalog table is matched by name in any case (schema, then database, breaks a tie; an ODBC database
   may be Trino's catalog). Answers `swapped` (its steps problems: a step that no longer works), or `pick`
   (`candidates`, `schemas`, a suggested `sql`: send `place` or `sql`), or `review` (a query: look it
@@ -213,7 +213,7 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
 - `catalog_search` first (`sales.orders` is schema.table or table.column), then `catalog_list`,
   `catalog_schemas`, `catalog_tables`, `catalog_columns` (a first SELECT quoted for the source's dialect).
   `catalog_load` and `catalog_remove` for one you make yourself.
-- A source's tables are not in the grid's DuckDB: `steps_run_sql` cannot read them. Open one as a grid,
+- A source's tables are not in the app's DuckDB: `steps_run_sql` cannot read them. Open one on the Tables page,
   or run SQL on the source in a kernel.
 
 ## Finding data (the Data Explorer)
@@ -230,16 +230,16 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   APIs' table-returning calls and the blades whose result is a table. `explorer_table(connection, schema,
   table)` is a table's detail: columns (type, nulls), its SQL name, the code that reads it, and whether
   `connections_import_relationships` works for it (Power BI, SQL Server).
-- The page's actions are tools you have: Open as grid `connections_open_table`, Preview
+- The page's actions are tools you have: Open as table `connections_open_table`, Preview
   `connections_preview_table`, Load `connections_load_catalog`, Import its relationships
   `connections_import_relationships`, Query in a notebook `workbench_window("cell.insertBelow",
   {kind: "sql", source})`, Insert `workbench_window("explorer.insert")`. The same search is the Workbench's
   pane (Ctrl+Shift+E; "explorer.popOut" opens the Data page in a window of its own) and Ctrl+K on the
-  grid page.
+  Tables page.
 
 ## How many queries at once (each connection's slots)
 - Every connection runs at most 8 queries at once by default, and at most 4 of them are yours (the agent's
-  share), whoever asks: the user's grids and "+" queries, notebooks and scripts in Workbench kernels, the
+  share), whoever asks: the user's open tables and "+" queries, notebooks and scripts in Workbench kernels, the
   background catalog loads and you. Past that a query waits in line, first come first served (the user's
   work goes ahead of background loads), and gives up after its wait limit (2 minutes by default) with a
   refusal whose fix is Try again. Your code in a Workbench kernel counts as your share too.

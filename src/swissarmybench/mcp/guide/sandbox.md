@@ -14,7 +14,7 @@ reads and writes. A real connection is never reached from one ("No never run aga
 - `key` `{"table": "stock", "key": "sku"}`: a table's primary key, as the real database has it: a write that
   repeats or blanks it is refused in one sentence ("Duplicate key: a row with sku: A-1 is there already").
   Reset and Restore keep it. New endpoint (a pattern that writes by a key) sets its key when the table has none.
-- `remove` `{"table"}`, `open` `{"table"}` (in Grids as `sandbox_<table>`, following every write).
+- `remove` `{"table"}`, `open` `{"table"}` (on the Tables page as `sandbox_<table>`, following every write).
 - `reset`: every table back to the baseline (waits for the user's Allow). `baseline`: the sandbox now is the
   baseline. `checkpoint` `{"name", "action": "save"|"delete"}`, `restore` `{"name"}`.
 - DuckDB SQL names a sandbox table `[Sandbox].orders` (`steps_run_sql`); the Catalog has a Sandbox section,
@@ -27,11 +27,11 @@ reads and writes. A real connection is never reached from one ("No never run aga
   "path": "$.orders"}`, `"name"?`: a sandbox variant: a copy with its own designation ("orders · sandbox" as
   `orders_sandbox`, then "orders · sandbox 2"; or the name given), its origin kept (which table, connection or
   structure, when copied). It never writes back to its origin.
-- `mock` `{"table": "notes", "connection": "Warehouse"}`: a table from a file, its columns or a grid of no
+- `mock` `{"table": "notes", "connection": "Warehouse"}`: a table from a file, its columns or an open table of no
   connection's answers as Warehouse (its kind and dialect); `"connection": null` back to plain DuckDB.
-- `edit`: its grid's edits, sandbox writes counted in the change log (Reset undoes them), each value checked
+- `edit`: its edits on the Tables page, sandbox writes counted in the change log (Reset undoes them), each value checked
   against its column's type first: `{"table", "op": "update", "row": 0, "column": "amount", "value": "9.5"}` (the
-  row's place in its open grid's view, its steps applied), `{"op": "update", "where": {...}, "values": {...}}`,
+  row's place in its open table's view, its steps applied), `{"op": "update", "where": {...}, "values": {...}}`,
   `{"op": "insert", "values": {...}}`, `{"op": "delete", "rows": [0, 3]}` or `{"where": {...}}`. A LIST, STRUCT
   or MAP column takes JSON (`["a", "b"]`, `{"x": 1}`, as text or as the value), checked against its type.
 - A saved connection may not be called `Sandbox` (any case): it is the project's sandbox's name.

@@ -16,13 +16,13 @@ from swissarmybench.cli.command_kit import _insert_step, _post_steps, _q, comman
 
 @command(
     "table_profile",
-    "Profile of the grid's view (every column, or one with `column`): the page's Profile button. For a "
-    "table with no grid, give `dataset` instead: its schema, row count, duplicate rows and a line a column "
+    "Profile of the table's view (every column, or one with `column`): the page's Profile button. For a "
+    "table no tab shows, give `dataset` instead: its schema, row count, duplicate rows and a line a column "
     "(or one column's full profile with `column`), over the rows as loaded.",
-    opt("grid", "Grid id (this, or dataset)."),
+    opt("grid", "The open table's id (this, or dataset)."),
     opt("column", "One column; omit for the whole table."),
     opt("upto", "Profile the table entering this step index.", "int"),
-    opt("dataset", "A dataset's name, for a table with no grid."),
+    opt("dataset", "A dataset's name, for a table no tab shows."),
     values=True,
 )
 def grid_profile(a: dict[str, Any]) -> Any:
@@ -31,7 +31,7 @@ def grid_profile(a: dict[str, Any]) -> Any:
             "GET", f"/grids/{_q(a['grid'])}/profile", params={k: a.get(k) for k in ("column", "upto")}
         )
     if not a.get("dataset"):
-        raise CommandError("Give a grid, or a dataset for a table with no grid.")
+        raise CommandError("Give an open table (grid), or a dataset for a table no tab shows.")
     if a.get("column"):
         return api.call("GET", f"/agent/profile/{_q(a['dataset'])}", params={"column": a["column"]})
     return api.call("GET", f"/agent/describe/{_q(a['dataset'])}")
@@ -40,7 +40,7 @@ def grid_profile(a: dict[str, Any]) -> Any:
 @command(
     "table_header_stats",
     "The column-header statistics the page shows (min, max, blanks...) for every column.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     values=True,
 )
 def grid_stats(a: dict[str, Any]) -> Any:
@@ -49,8 +49,8 @@ def grid_stats(a: dict[str, Any]) -> Any:
 
 @command(
     "table_export",
-    "Export the grid to the user's export folder. Waits for the user's approval click. Returns the saved path.",
-    req("grid", "Grid id."),
+    "Export the table to the user's export folder. Waits for the user's approval click. Returns the saved path.",
+    req("grid", "The open table's id."),
     opt("format", "csv (default), txt, xlsx or parquet."),
     opt("file", "File name stem (letters, digits, _ and -)."),
     opt("scope", "view (default), rows, columns, selection, source or profile."),
@@ -89,7 +89,7 @@ def grid_export(a: dict[str, Any]) -> Any:
 @command(
     "table_matching",
     "The ribbon's Matching: how filters and rules compare text. Omitted switches keep their value.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     opt("case_sensitive", "Match case.", "bool"),
     opt("wildcards", "Treat % and _ as wildcards.", "bool"),
     opt("trim_spaces", "Ignore leading and trailing spaces.", "bool"),
@@ -110,7 +110,7 @@ def set_matching(a: dict[str, Any]) -> Any:
     "table_filter",
     "Keep rows that match a condition (the ribbon's Filter). ops: eq ne in not_in blank not_blank contains "
     "starts_with ends_with lt gt between before after date_between true false.",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("column", "Column name."),
     req("op", "The filter operation."),
     opt("value", "The value for eq, ne, contains, lt, gt, before, after...", "any"),
@@ -127,7 +127,7 @@ def table_filter(a: dict[str, Any]) -> Any:
 @command(
     "table_sort",
     "Sort by up to three columns with their own directions (the ribbon's Sort, a sort step).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("keys", 'e.g. [["region", "asc"], ["amount", "desc"]]', "json"),
     opt("index", "Insert at this step position.", "int"),
 )
@@ -138,7 +138,7 @@ def table_sort(a: dict[str, Any]) -> Any:
 @command(
     "table_group_by",
     "Group rows and add totals, counts or averages (the ribbon's Group by).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("keys", "Columns to group by; [] gives one total row.", "list"),
     req("aggregates", 'e.g. [{"fn": "sum", "column": "amount", "as": "total"}]; fns in steps_kinds.', "json"),
     opt("index", "Insert at this step position.", "int"),
@@ -152,7 +152,7 @@ def table_group_by(a: dict[str, Any]) -> Any:
 @command(
     "table_distinct",
     "Drop duplicate rows, the first one stays (the ribbon's Distinct rows).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     opt("index", "Insert at this step position.", "int"),
 )
 def table_distinct(a: dict[str, Any]) -> Any:
@@ -162,7 +162,7 @@ def table_distinct(a: dict[str, Any]) -> Any:
 @command(
     "table_clean_text",
     "Trim or change the case of text columns (the ribbon's Clean text).",
-    req("grid", "Grid id."),
+    req("grid", "The open table's id."),
     req("fn", "trim_left, trim_right, trim_both, upper or lower."),
     opt("columns", "Text columns; every text column when omitted.", "list"),
     opt("index", "Insert at this step position.", "int"),

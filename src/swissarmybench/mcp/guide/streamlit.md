@@ -77,9 +77,9 @@ says so in one line.
   `canvas_delete`, `canvas_set` (columns: a guide that re-flows, the row height, gap, snap, step 1, 2, 4, 8 or
   grid; both layouts), `canvas_page` (add, rename, move, remove), `canvas_undo` (redo=true redoes).
 - `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
-  stop=play stops it. Play follows live data: a table it reads (an open table after its grid's steps, a
+  stop=play stops it. Play follows live data: a table it reads (an open table after its steps, a
   `[Sandbox].x`, data.ipynb's data.py) is written again into the run when it changes (a sandbox write, an
-  API's or an Event's, a grid edit, a step, a reload, data.py exported) and the open pages run again by
+  API's or an Event's, an edit on the Tables page, a step, a reload, data.py exported) and the open pages run again by
   themselves; another connection's `[Conn].table` is the session's read (Refresh on its card reads it again).
   Launch follows the same way (a shared launch shows a change on its next interaction); an export is unchanged
   (its open and sandbox tables as Parquet copies, a connection's read through adapter.py and connections.py).

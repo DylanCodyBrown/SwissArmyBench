@@ -133,7 +133,7 @@ def test_one_list_holds_every_kind_with_where_each_is_used(client: TestClient, p
         "Settings and secrets",
         "Libraries",
     ]
-    assert listing["tabs"][0]["columns"] == ["Name", "Rows by columns", "Columns", "Grids", "Used in", "From"]
+    assert listing["tabs"][0]["columns"] == ["Name", "Rows by columns", "Columns", "Tabs", "Used in", "From"]
     assert listing["counts"]["table"] == 2 and listing["counts"]["structure"] == 1
     assert listing["project"]["name"] == "month_end"
     found = {r["id"]: r for r in listing["items"]}

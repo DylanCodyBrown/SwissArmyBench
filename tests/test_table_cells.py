@@ -437,7 +437,7 @@ def test_the_transformations_are_one_statement_whose_result_is_the_tables_own_na
     # No steps: nothing to run.
     assert tc.transformations_code("orders", "pandas", None) == (
         [],
-        "# orders: no transformations yet. Steps made in the grid appear here.",
+        "# orders: no transformations yet. Steps made on the Tables page appear here.",
     )
 
 
@@ -470,7 +470,7 @@ def test_a_table_no_code_made_starts_with_its_load() -> None:
     dropped = load(tc.Origin("dropped", filename="sales.csv"), "csv_file")
     assert dropped.startswith("import duckdb\n\n# sales was dropped on the page (sales.csv): the browser")
     big = load(tc.Origin("paste"), "clipboard", None, 5000)
-    assert "# sales was pasted into the grid (5,000 rows): too large to write here." in big
+    assert "# sales was pasted into the app (5,000 rows): too large to write here." in big
     outside = load(tc.Origin("python"), "pandas")
     assert "# sales was made outside this file" in outside and outside.endswith('""").df()')
 

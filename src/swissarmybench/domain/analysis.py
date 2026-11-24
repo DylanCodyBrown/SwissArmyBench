@@ -719,7 +719,7 @@ def analysis_code(
         given = body.get("reference")
         ref: dict[str, Any] = given if isinstance(given, dict) else {}
         if not reference:
-            raise AnalysisError("Testing against another grid needs that grid.")
+            raise AnalysisError("Testing against another table needs that table open.")
         parts.append(f"reference={reference}")
         if ref.get("column"):
             parts.append(f"reference_column={ref['column']!r}")

@@ -1,7 +1,7 @@
 # The Workbench
 
 Notebooks (`.ipynb`) and scripts (`.py`) on IPython kernels on this computer, in a browser window of
-their own (the rail's Notebooks and Scripts open it; code never opens in the grid page).
+their own (the rail's Notebooks and Scripts open it; code never opens in the Tables page).
 
 ## Files and kernels (no window needed)
 - `workbench_home` (default folder, recent files), `workbench_open`, `workbench_save` (refused if the
@@ -24,7 +24,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   module's name with its import), `workbench_signature` (parameter info: the active parameter and its
   words; `hover` for the name's docs and type), `workbench_problems` (what the editors show now, each
   document's; `path` checks a file now: syntax, undefined names, unused imports, Ruff's rules).
-- `workbench_to_grid(kernel, name)`: a DataFrame in the kernel opens as a grid.
+- `workbench_to_grid(kernel, name)`: a DataFrame in the kernel opens on the Tables page.
 - Environments: `workbench_environment_offer`, `workbench_environment_create` (uv, else venv),
   `workbench_environment_choose` (the Python a document runs in).
 
@@ -46,16 +46,16 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data Explorer).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;
   `workbench_move_back` brings it back.
-- Getting around: "nav.home" brings the home window (the grids) forward; "nav.back" and "nav.forward"
+- Getting around: "nav.home" brings the home window (the Tables page) forward; "nav.back" and "nav.forward"
   are the browser's Back and Forward inside this window (its dialogs, Connections' forms).
 
 ## Cells
 - A cell's number never changes and is never reused: `#7` in a notebook, `# %% [7]` in a script.
   `@cell7` in a comment links to it; `workbench_cell_goto` goes there. `workbench_cell_name` names one.
 - SQL cell: `%%sql <connection>` (the source's own SQL; files and DataFrames through DuckDB).
-  With no connection (DuckDB) it also reads a table open in Grids by its name (its view, steps applied).
+  With no connection (DuckDB) it also reads a table open on the Tables page by its name (its view, steps applied).
 - `sab.table("orders", columns=[...], filters=[("amount", ">", 100)], sort=[("amount", "desc")], limit=50)`:
-  an open table as its grid shows it, an Arrow table, read through the adapter (the plan done by the app's
+  an open table as its tab shows it, an Arrow table, read through the adapter (the plan done by the app's
   DuckDB); read again each time, the table stays the app's one copy.
 - A connection through the adapter in a kernel, as an exported API.py reads it: `from swissarmybench.adapters
   import adapter`, `db = adapter.Connection(adapter.source_from(sab.connection("Warehouse"),
@@ -70,7 +70,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
 
 ## Lineage and approved outputs
 - `workbench_lineage(document, cell)` or `(app, page, block)`: back through every cell to the data
-  (makes and reads, `@cell` links, a table's grid steps and origin, data.ipynb, controllers): nodes in
+  (makes and reads, `@cell` links, a table's steps and origin, data.ipynb, controllers): nodes in
   flow order, edges, Mermaid text, and each node's value summarised (a table's shape, first rows and
   row change; a value; an error). Values are the user's data. `workbench_lineage_show` opens the
   overlay on the user's screen.
@@ -78,9 +78,9 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   failed cell).
 
 ## Every table has a read-only cell
-- Each open table has a cell holding its grid steps as one DuckDB query over the table by its own name,
+- Each open table has a cell holding its steps as one DuckDB query over the table by its own name,
   in the Tables group at the top of the document whose kernel made it (in a project: data.ipynb). It
-  changes only with the grid (never by typing). It opens unfolded; one the app wrote whole (no user's
+  changes only with the table (never by typing). It opens unfolded; one the app wrote whole (no user's
   cell makes the table) runs by itself once on opening and shows the table as its output (not saved).
   A changed cell is out of date until run; a user's cell never runs by itself.
 - `workbench_window("tables.transformations", {"table": "orders"})`: brings that table's cell into
@@ -99,7 +99,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   `<name>_automation.py` (or .ipynb). The window's palette: `file.exportScript`, `file.exportNotebook`
   (the front document as it stands, saved or not).
 - Written out: each connection's own code, the key vaults a password comes from (an Azure Key Vault by
-  its managed identity, standard library), each table's load and grid steps as DuckDB SQL, the cells.
+  its managed identity, standard library), each table's load and steps as DuckDB SQL, the cells.
   SETTINGS names every variable it reads and where it came from; no password value, no row.
 - What cannot be exported (`!ls`, `%run`, `import *`, sab.stats) comes back in `problems` with `ask`:
   nothing is written. `stub: true` writes the rest, each such cell a stub that raises FILL IN. A pasted

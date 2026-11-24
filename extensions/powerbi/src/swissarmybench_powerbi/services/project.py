@@ -366,7 +366,7 @@ class PowerBIProject:
         names = rules.grid_names(table)
         found = [f for f in (self.base.ws.store.get(n) for n in names) if f is not None]
         if len(found) != len(names):
-            raise NotFound(f"{table}'s two grids are not both open.")
+            raise NotFound(f"{table}'s two tabs are not both open.")
         left = [c.name for c in found[0].columns]
         right = {c.name.casefold(): c.name for c in found[1].columns}
         shared = [c for c in left if c.casefold() in right]
@@ -378,7 +378,7 @@ class PowerBIProject:
         }
         keys = [c for c in shared if c in joined] or shared[:1]
         if not keys:
-            raise NotFound(f"{table}'s two grids share no column to compare by.")
+            raise NotFound(f"{table}'s two tables share no column to compare by.")
         return [[keys[0], right[keys[0].casefold()]]]
 
     # ===== E: Read Power BI from =====

@@ -669,7 +669,7 @@ def records(node: Any, path: str = "$") -> list[dict[str, Any]]:
     """A list of records as a grid's rows: nested objects' keys dotted, a list or an object left inside
     as its JSON text (one column of text)."""
     if not isinstance(node, list) or not node:
-        raise StructureError(f"{path} is not a list of records: Open as grid takes a list.")
+        raise StructureError(f"{path} is not a list of records: Open as table takes a list.")
     if not any(isinstance(item, dict) for item in node):
         return [{"value": _cell(item)} for item in node]
     rows = []
@@ -940,12 +940,12 @@ def lineage(
         before = ident
     for g, (table, path, grid_steps) in enumerate(grids, start=1):
         ident = f"g{g}"
-        nodes.append(Node(ident, "table", table, f"grid of {path}", table=table, target=g == len(grids)))
+        nodes.append(Node(ident, "table", table, f"table of {path}", table=table, target=g == len(grids)))
         edges.append(Edge(before, ident, path, "table"))
         last = ident
         for n, words in enumerate(grid_steps, start=1):
             step = f"g{g}s{n}"
-            nodes.append(Node(step, "step", words, f"grid step {n}", table=table, step=n))
+            nodes.append(Node(step, "step", words, f"step {n}", table=table, step=n))
             edges.append(Edge(last, step, "", "step"))
             last = step
     tail = before

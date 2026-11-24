@@ -67,7 +67,7 @@ class AnalysisBlades:
             raise BladeError(f"{blade.name} is not an analysis blade.")
         columns = body.get("columns") or []
         if not isinstance(columns, list) or not all(isinstance(c, str) for c in columns):
-            raise BladeError("columns is a list of the grid's column names.")
+            raise BladeError("columns is a list of the table's column names.")
         ws = self.ws
         limit = ws.settings.max_analysis_rows
 
@@ -78,7 +78,7 @@ class AnalysisBlades:
                 if counted and int(counted[0]) > limit:
                     raise BladeError(
                         f"{counted[0]:,} rows is more than an analysis blade takes ({limit:,}): "
-                        "filter the grid first."
+                        "filter the table first."
                     )
                 return cur.execute(every).to_arrow_table()
 

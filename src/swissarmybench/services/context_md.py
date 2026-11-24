@@ -365,7 +365,7 @@ class ContextMd:
                 + (
                     f"grid {rules.code(grid.id)} on {rules.code(grid.dataset)} in front"
                     if grid
-                    else "no grid in front"
+                    else "no table in front"
                 )
             )
         if w.get("workbench"):

@@ -86,7 +86,7 @@ def routes(
     async def close_grid(request: Request) -> Response:
         closed = await grids.close(request.path_params["grid_id"])
         if closed is None:
-            return Response("No such grid.", status_code=404)
+            return Response("No such open table.", status_code=404)
         return json_response(closed)
 
     # ===== reading rows =====

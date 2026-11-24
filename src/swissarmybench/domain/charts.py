@@ -311,7 +311,7 @@ def vega_lite(spec: dict[str, Any], data: dict[str, Any], columns: tuple[Column,
 
 
 def altair_code(spec: dict[str, Any], columns: tuple[Column, ...], dataset: str, max_points: int) -> str:
-    """The same chart as Altair code over the grid's output DataFrame (no data embedded).
+    """The same chart as Altair code over the table's output DataFrame (no data embedded).
 
     DuckDB turns the frame into the chart's points first, with the query the grid uses, so the
     chart holds at most `max_points` rows (Altair refuses a frame over 5,000 rows) and Altair
@@ -364,8 +364,8 @@ def altair_code(spec: dict[str, Any], columns: tuple[Column, ...], dataset: str,
     chart = f"alt.Chart(data{f', title={title!r}' if title else ''})"
     lines = [
         f"# The chart over dataset {dataset!r}.",
-        f"# chart({variable}_view) draws it from the grid's output (Copy as Python gives {variable}_view).",
-        "# DuckDB aggregates the rows first, as the grid does, so the chart holds at most "
+        f"# chart({variable}_view) draws it from the table's output (Copy as Python gives {variable}_view).",
+        "# DuckDB aggregates the rows first, as the Tables page does, so the chart holds at most "
         f"{max_points:,} points.",
         "import altair as alt",
         "import duckdb",

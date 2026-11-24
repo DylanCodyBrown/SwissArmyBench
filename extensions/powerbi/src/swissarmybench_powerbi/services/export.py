@@ -291,7 +291,7 @@ class PowerBIExport:
         if compiled is not None and compiled.error is not None:
             compiled = None
             on = []
-            plan.notes.append("a step in its grid cannot run: it goes without its steps")
+            plan.notes.append("a step of it cannot run: it goes without its steps")
         source, plan.source, why, plan.local = self._source(info, origin)
         plan.row_count = info.row_count
         columns = info.columns
@@ -431,7 +431,7 @@ class PowerBIExport:
             plan = TablePlan(t.name, source=target, columns=columns, m=t.m)
             plan.notes.append(t.words())
             if not columns:
-                plan.goes, plan.why = False, "its columns are not known: open its Source grid"
+                plan.goes, plan.why = False, "its columns are not known: open its Source tab"
             made.append(plan)
         rest = [p for p in plans if p.name not in mine]
         measures = [rules.Measure(**m) for m in import_rules.kept_measures(state)]

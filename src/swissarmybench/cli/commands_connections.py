@@ -157,7 +157,7 @@ _CONNECTION_ARGS = (
     opt("secrets", '{"password": "value"}: saved in the system keyring, never shown back.', "json"),
     opt(
         "row_limit",
-        "A database: how many rows a table opens with as a grid (10,000 unless set; 0: every row).",
+        "A database: how many rows a table opens with on the Tables page (10,000 unless set; 0: every row).",
         "int",
     ),
     opt(
@@ -277,7 +277,7 @@ _PYTHON_ARGS = (
     ),
     opt("secrets", '{"NAME": "value"} for keyring variables; never shown back.', "json"),
     opt("description", "What it is for."),
-    opt("row_limit", "Rows a table opens with as a grid (default 10,000; 0: every row).", "int"),
+    opt("row_limit", "Rows a table opens with on the Tables page (default 10,000; 0: every row).", "int"),
 )
 
 
@@ -397,8 +397,8 @@ _TABLE_ARGS = (
 
 @command(
     "connections_open_table",
-    "Open a connection's table as a grid: a database table's first rows (the connection's Rows to open, "
-    "10,000 unless set; all=true for every row), the grid told how many the source holds; a file "
+    "Open a connection's table on the Tables page: a database table's first rows (the connection's Rows to open, "
+    "10,000 unless set; all=true for every row), the table told how many the source holds; a file "
     "connection's file whole; a Python connection's by its Read a table. A workbook with several sheets "
     "and no table named answers its sheets.",
     *_TABLE_ARGS,
@@ -417,7 +417,7 @@ def connections_open_table(a: dict[str, Any]) -> Any:
     req("name", "The connection's name."),
     req("table", "The table to write (schema.table; a file connection's file, orders.parquet)."),
     opt("rows", "The rows: a list of records.", "json"),
-    opt("from_table", "Or an open table's name: its grid's rows."),
+    opt("from_table", "Or an open table's name: its rows as shown."),
     opt("mode", "insert (default), update, merge, delete or truncate."),
     opt("key", "The key column(s) a row is matched by (update, merge, delete).", "list"),
     opt("dry_run", "Count only; nothing written.", "bool"),
@@ -440,7 +440,7 @@ def connections_tables(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_open_dataset",
-    "Open every table of one dataset (Power BI) or schema of a connection, each as its own grid",
+    "Open every table of one dataset (Power BI) or schema of a connection, each in its own tab",
     req("name", "The connection's name."),
     req("dataset", "The dataset or schema."),
 )
@@ -511,7 +511,7 @@ def connections_datasets(a: dict[str, Any]) -> Any:
     "connections_import_relationships",
     "Import one Power BI dataset's own relationships, or a SQL Server / Azure SQL database's foreign keys "
     "(composite keys whole), into the current relationship model (merged: the source's wins for a join "
-    "both name). Tables are named as they open as grids; an inactive relationship (a disabled foreign key) "
+    "both name). Tables are named as they open on the Tables page; an inactive relationship (a disabled foreign key) "
     "stays inactive. Answers the model, what the merge changed, and what was imported.",
     req("name", "The Power BI workspace's or SQL Server connection's name."),
     opt(

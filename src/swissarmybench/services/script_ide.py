@@ -149,7 +149,7 @@ class ScriptIde:
         listed = (await self._tables()).get("tables", [])
         found = next((t for t in listed if str(t.get("name")).casefold() == table.casefold()), None)
         if found is None:
-            raise Refused(f"{table} is not open in Grids.")
+            raise Refused(f"{table} is not open on the Tables page.")
         said = self._tree()
         folder = said.get("folder")
         if not folder:
@@ -157,7 +157,7 @@ class ScriptIde:
         taken = [f["path"] for g in said.get("groups", []) for f in g.get("files", [])]
         relative = code_tree.fine_tune_name(str(found["name"]), taken)
         full = f"{str(folder).rstrip('/')}/{relative}"
-        head = f"# {found['name']}: its transformations as a script to fine-tune (from its grid's steps).\n"
+        head = f"# {found['name']}: its transformations as a script to fine-tune (from its steps).\n"
         self._code.write(full, head + str(found.get("loaded") or found.get("code") or ""))
         await self._touched(full, who)
         self.ws.audit.write(who, "script_fine_tune", full, table=str(found["name"]))

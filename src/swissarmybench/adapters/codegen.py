@@ -179,14 +179,16 @@ def compare(
     names: list[str], rows: list[list[Any]], expected_names: list[str], expected: list[list[Any]]
 ) -> Outcome:
     if names != expected_names and (rows or names):
-        return Outcome(False, f"Columns differ: generated {names}, grid {expected_names}.")
+        return Outcome(False, f"Columns differ: generated {names}, table {expected_names}.")
     if len(rows) != len(expected):
-        return Outcome(False, f"Row counts differ: generated {len(rows):,}, grid {len(expected):,}.")
+        return Outcome(False, f"Row counts differ: generated {len(rows):,}, table {len(expected):,}.")
     for index, (got, want) in enumerate(zip(rows, expected, strict=True)):
         if got == want:  # equal as they stand, which every rule of same() also calls equal
             continue
         if len(got) != len(want) or not all(same(g, w) for g, w in zip(got, want, strict=False)):
-            return Outcome(False, f"First difference at row {index + 1:,}: generated {got!r}, grid {want!r}.")
+            return Outcome(
+                False, f"First difference at row {index + 1:,}: generated {got!r}, table {want!r}."
+            )
     return Outcome(True, None)
 
 

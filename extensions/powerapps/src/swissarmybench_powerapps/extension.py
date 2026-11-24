@@ -26,7 +26,7 @@ ADDS = [
     "Run live in a pane, and Push a new version",
     "Custom connectors from an API's OpenAPI document",
     "A data notebook with TypeScript and SQL cells on one DuckDB (Deno's kernel), its data.ts for the app",
-    "TSX cells drawn as React components; Dataverse tables as grids",
+    "TSX cells drawn as React components; Dataverse tables on the Tables page",
 ]
 PROJECT_TYPE = "codeapp"
 # The front-end plug-in it names (in the shared web/: codeAppPage.ts, the rail's Code App page).
@@ -119,13 +119,13 @@ SESSION_RULES: dict[str, Any] = {
         + (f" [{x.get('cell')}]" if x.get("cell") is not None else "")
         + ("" if x.get("ok") else " (failed)")
     ),
-    "powerapps_ts_grid": lambda d, x: _area(f"Opened the result {_name(d)} as a grid"),
+    "powerapps_ts_grid": lambda d, x: _area(f"Opened the result {_name(d)} on the Tables page"),
     "powerapps_ts_restart": lambda d, x: _area("Restarted the data notebook's kernel"),
     "powerapps_data_notebook": lambda d, x: _area("Made the code app's data notebook"),
     "powerapps_use_in_app": lambda d, x: _area("Wrote data.ts into the code app (Use in app)"),
     "powerapps_tsx_preview": lambda d, x: _area("Drew a TSX cell"),
     "powerapps_dataverse_grid": lambda d, x: _area(
-        f"Opened the Dataverse source {_name(x.get('source'))} as a grid"
+        f"Opened the Dataverse source {_name(x.get('source'))} on the Tables page"
     ),
 }
 

@@ -141,7 +141,7 @@ class Projects:
                 [
                     "A new project folder:",
                     f"  {approved}",
-                    "Its data.ipynb holds the rows pasted into the grid of:",
+                    "Its data.ipynb holds the rows pasted into the app of:",
                     *(f"  {i.name} ({i.row_count:,} rows)" for i in infos),
                     "(and data.py, requirements.txt, the notebooks asked for: code only)",
                 ]

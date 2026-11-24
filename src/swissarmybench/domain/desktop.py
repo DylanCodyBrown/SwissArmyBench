@@ -28,8 +28,9 @@ OUTSIDE_SCHEMES: tuple[str, ...] = ("http", "https", "mailto")
 # by this name.
 HOME_WINDOW = "sab-home"
 HOME_PAGE = "/blazor/"
-# A table's grid on the Grids page (the grid's id after it).
-GRID_PAGE = "/blazor/grids?grid="
+# A table's tab on the Tables page (its grid's id after it; the Grids page until 2026-11-23, its old
+# address /blazor/grids still lands there).
+GRID_PAGE = "/blazor/tables?grid="
 # A page of the app the agent opens by a word (desktop_open).
 PAGES: dict[str, str] = {
     "home": HOME_PAGE,
@@ -38,8 +39,15 @@ PAGES: dict[str, str] = {
     "scripts": "/blazor/scripts",
     "blades": "/blazor/scripts?pane=blades",  # the old blades page went (2026-11-21): the Scripts page's
 }
-# The pages the home window shows (the old /workspace and /g/<grid>, the front end's /blazor/ and its Grids).
-_HOME_KINDS: dict[str, str] = {"": "home", "workspace": "home", "g": "home", "grids": "home"}
+# The pages the home window shows (the old /workspace and /g/<grid>, the front end's /blazor/ and its Tables
+# page, /blazor/grids its old address).
+_HOME_KINDS: dict[str, str] = {
+    "": "home",
+    "workspace": "home",
+    "g": "home",
+    "tables": "home",
+    "grids": "home",
+}
 # Window sizes when nothing is remembered and the page asked for none.
 DEFAULT_SIZES: dict[str, tuple[int, int]] = {
     "home": (1360, 860),
@@ -223,14 +231,16 @@ def _extra(url: str) -> bool:
     return any(k != "token" for k, _ in parse_qsl(urlsplit(url).fragment, keep_blank_values=True))
 
 
-GRIDS_PAGE = "/blazor/grids"
+GRIDS_PAGE = "/blazor/tables"
+# The Tables page's old address (the Grids page until 2026-11-23): it still lands there.
+OLD_GRIDS_PAGE = "/blazor/grids"
 
 
 def grid_of(page: str) -> str | None:
-    """The grid a page shows a table of: the Grids page's ?grid= (server/desktop.py file_page's), or an old
-    address's /workspace#grid=; None for any other page."""
+    """The grid a page shows a table of: the Tables page's ?grid= (server/desktop.py file_page's; its old
+    /blazor/grids too), or an old address's /workspace#grid=; None for any other page."""
     parts = urlsplit(page)
-    if parts.path == GRIDS_PAGE:
+    if parts.path in (GRIDS_PAGE, OLD_GRIDS_PAGE):
         return dict(parse_qsl(parts.query)).get("grid") or None
     if parts.path == "/workspace":
         return dict(parse_qsl(parts.fragment)).get("grid") or None
@@ -240,14 +250,14 @@ def grid_of(page: str) -> str | None:
 def dropped_into(page: str, window_url: str) -> str | None:
     """A file dropped on a window goes into that window (the owner, 2026-11-23: "it opens another instance
     of the grid instead of using the current one"). `page` is what the server said shows the file; a table's
-    is the Grids page with its grid (an old address's /workspace#grid=<id> read the same). Answers the page
-    that window loads, or None when it only comes forward: it already shows Grids, where the new table
+    is the Tables page with its grid (an old address's /workspace#grid=<id> read the same). Answers the page
+    that window loads, or None when it only comes forward: it already shows Tables, where the new table
     arrives as a tab by itself (the server's grid_shown notice). Anything that is not a table (a notebook, a
     blade, a project) answers `page` itself, as before."""
     grid = grid_of(page)
     if grid is None:
         return page
-    if urlsplit(window_url).path.rstrip("/") in (GRIDS_PAGE, "/workspace"):  # Grids, or the old home's tabs
+    if urlsplit(window_url).path.rstrip("/") in (GRIDS_PAGE, OLD_GRIDS_PAGE, "/workspace"):  # Tables, or old
         return None
     return f"{GRIDS_PAGE}?{urlencode([('grid', grid)])}"
 

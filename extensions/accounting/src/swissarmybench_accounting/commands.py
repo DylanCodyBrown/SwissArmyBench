@@ -123,7 +123,7 @@ def workbook_block(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_play",
-    "Build the workbook from the open tables (each with its grid's steps) and show it: each sheet's cells as built",
+    "Build the workbook from the open tables (each with its steps) and show it: each sheet's cells as built",
     WORKBOOK,
     opt("rows", "Rows of each sheet to return (default 30).", "int"),
     values=True,
@@ -243,9 +243,9 @@ def statements_build(a: dict[str, Any]) -> Any:
 
 @command(
     "statements_register",
-    "What was built in a folder (its register.csv: file, group, number, rows, totals, when); open: as a grid",
+    "What was built in a folder (its register.csv: file, group, number, rows, totals, when); open: on the Tables page",
     opt("out_folder", "The folder (default: the project's statements/)."),
-    opt("open", "true: open the register as a grid.", "bool"),
+    opt("open", "true: open the register on the Tables page.", "bool"),
     values=True,
 )
 def statements_register(a: dict[str, Any]) -> Any:

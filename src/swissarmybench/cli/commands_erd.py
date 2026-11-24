@@ -25,7 +25,7 @@ def erd(a: dict[str, Any]) -> Any:
 @command(
     "erd_draw",
     "Draw the relationship model as a diagram card in Analyze.",
-    req("grid", "Grid the card is filed with."),
+    req("grid", "The open table the card is filed with (its id)."),
     opt("tables", "Comma-separated dataset names."),
     opt("title", "Card title (default Relationships)."),
     SCOPE,

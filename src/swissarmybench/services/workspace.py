@@ -86,7 +86,7 @@ class Workspace:
         grid = self.grids.get(grid_id)
         info = self.store.get(grid.dataset) if grid else None
         if grid is None or info is None:
-            raise LookupError("No such grid; it may have been closed or the server restarted.")
+            raise LookupError("No such open table; it may have been closed or the server restarted.")
         return grid, info
 
     async def grid_query(

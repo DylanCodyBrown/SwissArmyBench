@@ -305,8 +305,8 @@ class Analysis:
             made = await self.ws.grid_query(grid, None, BACKGROUND, make)
             if not made["verified"]:
                 raise Conflict(
-                    "This grid's steps could not be checked as SQL, so the analysis was not written: "
-                    f"{made.get('difference') or made.get('note') or 'the copy did not match the grid'}"
+                    "This table's steps could not be checked as SQL, so the analysis was not written: "
+                    f"{made.get('difference') or made.get('note') or 'the copy did not match the table'}"
                 )
             view_sql = str(made["sql"])
         reference = None

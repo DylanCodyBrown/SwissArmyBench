@@ -93,7 +93,7 @@ def test_the_options_decide_what_counts_as_a_change(client: TestClient, compare:
     focused = change(client, compare, column="region")
     assert focused["row_count"] == 1 and rows(client, compare, "right")["rows"][0][0] == "A3"
     bad = client.patch(f"/compares/{compare['compare']}", json={"diff": {"column": "sku"}}, headers=AUTH)
-    assert bad.status_code == 400 and "not a column both grids have" in bad.text
+    assert bad.status_code == 400 and "not a column both tables have" in bad.text
     assert (
         client.patch(
             f"/compares/{compare['compare']}", json={"diff": {"tolerance": -1}}, headers=AUTH
