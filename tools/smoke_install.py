@@ -76,7 +76,7 @@ def pages_load_whole(info: dict[str, Any]) -> None:
     if "_framework/blazor.webassembly" not in html:
         sys.exit("The front end's page is missing from the install (/blazor/).")
     linked |= {"/blazor/" + p for p in re.findall(r'(?:href|src)="([^"/.][^"]*)"', html)}
-    for old, new in (("/notebooks", "/blazor/notebooks"), ("/g/smoke", "/blazor/grids?grid=smoke")):
+    for old, new in (("/notebooks", "/blazor/notebooks"), ("/g/smoke", "/blazor/tables?grid=smoke")):
         try:
             urllib.request.urlopen(urllib.request.Request(base + old, headers=headers), timeout=30).close()  # noqa: S310
         except urllib.error.HTTPError as error:
