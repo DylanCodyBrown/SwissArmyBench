@@ -68,7 +68,7 @@ def test_with_no_app_running_its_server_is_started_first(
     states = iter([None, None, INFO])
     monkeypatch.setattr(launcher, "running_server", lambda path: next(states))
     monkeypatch.setattr(launcher, "detached", lambda command: started.append(command))
-    monkeypatch.setattr(launcher.time, "sleep", lambda s: None)
+    monkeypatch.setattr("swissarmybench.server.__main__.time.sleep", lambda s: None)
     monkeypatch.setattr(launcher, "post_json", lambda info, route, body, timeout=120.0: {"available": False})
     assert launcher.update(tmp_path / "server.json") == 0
     assert len(started) == 1 and "--no-window" in started[0]
