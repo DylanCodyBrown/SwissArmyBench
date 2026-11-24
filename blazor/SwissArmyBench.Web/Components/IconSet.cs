@@ -122,7 +122,9 @@ public static class IconSet
         ["variables"] = "<path d=\"M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 1 3 3 3\"/><path d=\"M16 4c2 0 3 1 3 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2-1 3-3 3\"/><path d=\"M9.5 9.5l5 5M14.5 9.5l-5 5\"/>",
         ["extensions"] = "<path d=\"M4 8h4a2 2 0 114 0h4v4a2 2 0 110 4v4h-4a2 2 0 10-4 0H4v-4a2 2 0 100-4z\"/>",
         ["session"] = "<path d=\"M5 3.5v17\"/><circle cx=\"5\" cy=\"6.5\" r=\"1.7\"/><circle cx=\"5\" cy=\"12\" r=\"1.7\"/><circle cx=\"5\" cy=\"17.5\" r=\"1.7\"/><path d=\"M10 6.5h11M10 12h8M10 17.5h10\"/>",
-        ["grids"] = "<path d=\"M3 8V5.5A1.5 1.5 0 014.5 4H10l1.5 4\"/><rect x=\"3\" y=\"8\" width=\"18\" height=\"12\" rx=\"1.5\"/><path d=\"M3 12h18M3 16h18M9 12v8M15 12v8\"/>",
+        // The Tables page (Grids renamed, 2026-11-23; redrawn 2026-11-24): a table, its header row shaded over
+        // columns and rows, simpler than the folder-and-grid it replaced.
+        ["grids"] = "<path d=\"M5 4h14a2 2 0 012 2v3.5H3V6a2 2 0 012-2z\" fill=\"currentColor\" fill-opacity=\".28\"/><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 9.5h18M3 14.75h18M9 9.5V20M15 9.5V20\"/>",
         ["sqlserver"] = "<ellipse cx=\"8.5\" cy=\"5.5\" rx=\"5.5\" ry=\"2.2\"/><path d=\"M3 5.5v12.5c0 1.2 2.5 2.2 5.5 2.2M14 5.5V10M3 12c0 1.2 2.5 2.2 5.5 2.2\"/><rect x=\"13\" y=\"12\" width=\"9\" height=\"4\" rx=\"1\"/><rect x=\"13\" y=\"17.5\" width=\"9\" height=\"4\" rx=\"1\"/><path d=\"M15.5 14h.01M15.5 19.5h.01\"/>",
         ["azuresql"] = "<ellipse cx=\"8.5\" cy=\"5.5\" rx=\"5.5\" ry=\"2.2\"/><path d=\"M3 5.5v12.5c0 1.2 2.5 2.2 5.5 2.2M14 5.5V10M3 12c0 1.2 2.5 2.2 5.5 2.2\"/><path d=\"M14.5 21.5h6a2.6 2.6 0 00.4-5.2 3.6 3.6 0 00-7 .9 2.2 2.2 0 00.6 4.3z\"/>",
         ["postgres"] = "<ellipse cx=\"8.5\" cy=\"5.5\" rx=\"5.5\" ry=\"2.2\"/><path d=\"M3 5.5v12.5c0 1.2 2.5 2.2 5.5 2.2M14 5.5V10M3 12c0 1.2 2.5 2.2 5.5 2.2\"/><path d=\"M13 13h5.5a3.5 3.5 0 013.5 3.5V19a2.5 2.5 0 01-2.5 2.5M17 13v6.5a2 2 0 01-2 2\"/>",
