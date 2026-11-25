@@ -125,6 +125,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "powerbi": "Power BI (an extension): the model exported as a Power BI Project from the ERD",
     "git": "Git (an extension): GitHub sync of the team library and shared projects, Source Control, the graph",
     "extensions": "Making an extension: the manifest, commands, routes, the rules, tests; folders planned",
+    "collaboration": "Collaboration: the team's notes, threads, @ references, reactions and activity in a project",
 }
 
 
@@ -179,6 +180,7 @@ from swissarmybench.cli import (  # noqa: E402, F401 (each registers its command
     commands_catalog,
     commands_cell,
     commands_changes,
+    commands_collaboration,
     commands_column,
     commands_compare,
     commands_connections,
@@ -224,10 +226,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("blades", "Blades: the user's saved code that loads from outside Python"),
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
     ("variables", "Settings and secrets (the Environment's tab): this computer's variables, sources, uses"),
-    (
-        "library",
-        "The library: the folder of connections, APIs, vaults, blades and variables (a Git repository)",
-    ),
+    ("library", "The library: the folder of connections, APIs, vaults, blades, variables (a Git repository)"),
     ("team", "Settings' Team box: join, start or leave a team (one GitHub repository, its projects/)"),
     ("sharing", "Share a running app with your organization (Microsoft Dev Tunnels)"),
     ("api", "The project's local sandbox API (API.py): run it, call it, export it for its target"),
@@ -245,6 +244,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("compare", "Compare (two tables side by side)"),
     ("stats", "Every call's statistics: times, sizes and outcomes per table, connection and endpoint; hints"),
     ("changes", "The open project's change log: the last change to an object, its history, since a time"),
+    ("collaboration", "Collaboration: the team's notes, threads, reactions and activity in the project"),
     ("app", "The page itself: snapshots"),
     ("desktop", "The desktop app: its windows, a page opened in one"),
     ("extensions", "Extensions: what plugs into the base (Streamlit, Accounting, Power Apps)"),

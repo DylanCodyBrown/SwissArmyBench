@@ -44,6 +44,7 @@ from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.changes import ChangeFiles
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
+from swissarmybench.adapters.collaboration import CollaborationFiles, ProjectObjects, system_name
 from swissarmybench.adapters.connection_colours import ColoursFile
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, grammar_later, open_database
 from swissarmybench.adapters.datasets import DatasetStore, file_stamp
@@ -136,6 +137,7 @@ from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.codegen import CodeService
+from swissarmybench.services.collaboration import Collaboration
 from swissarmybench.services.connection_colours import ConnectionColours
 from swissarmybench.services.connection_slots import ConnectionSlots
 from swissarmybench.services.connection_swap import ConnectionSwap
@@ -238,6 +240,7 @@ class Services:
     connection_slots: ConnectionSlots
     call_stats: CallStats
     changes: ChangeLog
+    collaboration: Collaboration
     apis: Apis
     structures: Structures
     api_explorer: ApiExplorer
@@ -552,33 +555,22 @@ def _explorer(
         out = []
         for info in store.all():
             grids = ws.grids.for_dataset(info.name)
-            out.append(
-                OpenTable(
-                    info.name,
-                    info.row_count,
-                    [(c.name, c.type) for c in info.columns],
-                    grids[0].id if grids else None,
-                    datasets.origins.get(info.name),
-                )
-            )
+            first, columns = (grids[0].id if grids else None), [(c.name, c.type) for c in info.columns]
+            out.append(OpenTable(info.name, info.row_count, columns, first, datasets.origins.get(info.name)))
         return out
 
-    explorer.register("grids", explorer_providers.grids_provider(open_tables))
-    explorer.register(
-        "shared",
-        explorer_providers.shared_catalog_provider(
-            lambda: list(shared_catalog.tables()), catalogs.loaded_names, shared_catalog.here_names
-        ),
+    p = explorer_providers
+    explorer.register("grids", p.grids_provider(open_tables))
+    shared = p.shared_catalog_provider(
+        lambda: list(shared_catalog.tables()), catalogs.loaded_names, shared_catalog.here_names
     )
+    explorer.register("shared", shared)
+    explorer.register("variables", p.variables_provider(lambda: variables.listing()["variables"]))
+    explorer.register("blades", p.blades_provider(lambda: blades.listing()["blades"]))
     explorer.register(
-        "variables", explorer_providers.variables_provider(lambda: variables.listing()["variables"])
+        "structures", p.structures_provider(structures.listing, lambda sid: structures.node(sid))
     )
-    explorer.register("blades", explorer_providers.blades_provider(lambda: blades.listing()["blades"]))
-    explorer.register(
-        "structures",
-        explorer_providers.structures_provider(structures.listing, lambda sid: structures.node(sid)),
-    )
-    explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
+    explorer.register("apis", p.apis_provider(lambda: blades.listing()["blades"]))
     return explorer
 
 
@@ -718,6 +710,7 @@ class Built:
     update_helper: UpdateHelper
     extensions: Extensions
     team: Team
+    collaboration: Collaboration
     sharing: Sharing
     updates: Updates
     claude_files: ClaudeFiles
@@ -1942,6 +1935,13 @@ def _doors(b: Built) -> None:
     b.desktop = Desktop(SystemShell(info_file_path()), ws.audit, qt_version())
     b.extension = {}  # each extension's own services, by its id (server/app.py mounts them)
     b.seams = _seams(b)
+    objects = ProjectObjects(b.store.all, b.connections.listing)  # the Collaboration panel's `@`
+    b.collaboration = Collaboration(
+        ws, CollaborationFiles(), objects, b.sab_projects.open_folder,
+        JsonFile(b.state_file("profile.json")), JsonFile(b.state_file("collaboration_read.json")),
+        system_name=system_name(), hooks=b.hooks, team=b.team, explorer=b.project_explorer,
+    )  # fmt: skip
+    b.changes.listeners.append(b.collaboration.changed)
     b.lineage = Lineage(
         ws,
         b.hooks,

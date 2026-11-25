@@ -76,6 +76,8 @@ class ChangeLog:
         self._session: list[rules.Change] = []  # with no project open (memory only)
         self._known_for: str | None = None  # the project whose log _known_of was read from
         self._known_of: dict[tuple[str, str], str] = {}  # (kind, name): its fingerprint as last logged
+        # Told of each change as it is kept (Collaboration's activity: services/collaboration.py changed).
+        self.listeners: list[Callable[[rules.Change], None]] = []
 
     def _known(self, project: str) -> dict[tuple[str, str], str]:
         """Each object's fingerprint as the open project's log last has it (read once a project, then
@@ -125,6 +127,8 @@ class ChangeLog:
                 self._files.append(f"{project}/{CHANGES_FILE}", rules.line(event))
             else:
                 self._session.append(event)
+        for listener in self.listeners:
+            listener(event)
 
     def events(self) -> list[rules.Change]:
         project = self._project()

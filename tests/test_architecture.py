@@ -271,7 +271,7 @@ def test_no_function_of_a_one_file_module_is_over_80_lines(name: str) -> None:
 # The composition root and the command registry (craft review 2026-11-22, review B2): ceilings at their size
 # after their use cases went to the services and the commands to cli/commands_<area>.py. They only shrink:
 # lower one when a file gets shorter, and put new code in a service or an area's module, never here.
-SHRINKING = {"bootstrap.py": 2013, "cli/commands.py": 473}
+SHRINKING = {"bootstrap.py": 2013, "cli/commands.py": 472}
 
 
 @pytest.mark.parametrize("name", sorted(SHRINKING))

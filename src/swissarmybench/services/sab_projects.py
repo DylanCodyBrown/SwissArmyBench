@@ -275,6 +275,10 @@ class SabProjects:
             return True
         return self._key() != current.saved_key
 
+    def open_folder(self) -> str | None:
+        """The open project's folder (None: none is open)."""
+        return self.current.folder if self.current else None
+
     def state(self) -> dict[str, Any]:
         """The open project (None), whether it has unsaved changes, its tables that need a fix, and the
         recent projects."""

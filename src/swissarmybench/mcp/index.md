@@ -22,7 +22,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `steps_` | an open table's steps, SQL, code | `steps_add`, `steps_kinds`, `steps_python` |
 | `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
-| `compare_`, `stats_`, `changes_` | open tables; call stats; changes | `compare_create` |
+| `compare_`, `stats_`, `changes_`, `collaboration_` | compare; stats; changes; notes | `collaboration_post` |
 | `connections_`, `variables_` | connections; variables | `connections_list`, `variables_resolve` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
 | `apis_`, `actions_`; `sandbox_`, `api_` | APIs, any API call; local APIs | `actions`, `apis_call`; `sandbox`, `api` |
@@ -53,7 +53,7 @@ No prefix: `guide`, `commands`, `health`.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, environment, blades,
-  workbench, streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, extensions, writing, privacy. Or
+  workbench, streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, extensions, writing, privacy, collaboration. Or
   swissarmybench://guide/<topic>.
 - swissarmybench://analyze/contracts: each analysis's contract; then `analyze_run`.
 - `commands(match="word")`: each tool's arguments.

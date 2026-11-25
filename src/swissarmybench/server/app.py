@@ -53,6 +53,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
   routes_call_stats.py     every call's statistics: the agent's views, the pages' figures
   routes_changes.py        the open project's change log: last, history, since, search
+  routes_collaboration.py     the team's notes, threads and activity in the project's .sab/collaboration/
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_environment.py    the Environment: everything the project holds, where each is used, its libraries
   routes_project_python.py what the open project needs, found as it opens and installed at once
@@ -110,6 +111,7 @@ from swissarmybench.server import (
     routes_catalog,
     routes_changes,
     routes_claude,
+    routes_collaboration,
     routes_connection_colours,
     routes_connection_slots,
     routes_connection_swap,
@@ -366,6 +368,8 @@ def create_app(
         shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
         watch = asyncio.create_task(ctx.file_watch.run_forever())  # a table's file changed on disk
         code_watch = asyncio.create_task(ctx.code_files.run_forever())  # a code file changed anywhere
+        # The project's collaboration: files a Pull or another window brought (looked at every few seconds).
+        collaboration = asyncio.create_task(ctx.collaboration.run_forever())
         # The server's life follows the app's windows (services/lifecycle.py): only a server that can stop.
         life = asyncio.create_task(ctx.lifecycle.run_forever()) if on_shutdown is not None else None
         yield
@@ -376,6 +380,7 @@ def create_app(
         vault_names.cancel()
         watch.cancel()
         code_watch.cancel()
+        collaboration.cancel()
         context_md.cancel()
         autosave.cancel()
         pruner.cancel()
@@ -468,6 +473,7 @@ def create_app(
                 *routes_session_log.routes(ctx.session_log),
                 *routes_call_stats.routes(ctx.call_stats),
                 *routes_changes.routes(ctx.changes),
+                *routes_collaboration.routes(ctx.collaboration),
                 *routes_variables.routes(ctx.variables),
                 *routes_environment.routes(ctx.environment),
                 *(routes_project_python.routes(i) if (i := ctx.project_python.installs) else []),
