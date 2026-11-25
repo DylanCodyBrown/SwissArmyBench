@@ -1,51 +1,35 @@
 @* The Collaboration panel's timeline: the threads (each its place, first message, replies, unread, resolved and
-   pinned) mixed with the activity (each person's changes in words, each with Reply), oldest first. *@
+   pinned), oldest first. Only what people write (the owner, 2026-11-25: the change log stays out). *@
 
 <ol class="collab-timeline" aria-label="Timeline">
     @foreach (var item in Items)
     {
-        if (item.IsThread)
-        {
-            <li class="collab-item thread @(item.Unread > 0 ? "unread" : null) @(item.Resolved is null ? null : "resolved")" data-thread="@item.Id">
-                <button type="button" class="collab-thread-open" aria-label="@($"Open the thread {item.Title}")" @onclick="() => OnOpen.InvokeAsync(item.Id)">
-                    <span class="collab-item-head">
-                        @if (item.Pinned)
-                        {
-                            <span class="collab-pinned" title="Pinned"><Icon Name="pin" /></span>
-                        }
-                        <span class="collab-place">@CollabWords.Place(item)</span>
-                        @if (item.Resolved is not null)
-                        {
-                            <span class="collab-resolved-mark" title="Resolved"><Icon Name="check" /> Resolved</span>
-                        }
-                        @if (item.Unread > 0)
-                        {
-                            <span class="collab-unread" aria-label="@($"{item.Unread} unread")">@item.Unread</span>
-                        }
-                    </span>
-                </button>
-                @if (item.First is { } first)
-                {
-                    <CollabMessageView Message="first" Now="Now" Compact="true" />
-                }
-                <button type="button" class="collab-replies" @onclick="() => OnOpen.InvokeAsync(item.Id)">
-                    @(item.Replies switch { 0 => "Reply", 1 => "1 reply", var n => $"{n} replies" })
-                </button>
-            </li>
-        }
-        else
-        {
-            <li class="collab-item activity" data-activity="@item.Id">
-                <span class="collab-activity-mark" aria-hidden="true"><Icon Name="history" /></span>
-                <span class="collab-activity-words">
-                    <strong>@item.Author?.Name</strong> @CollabWords.Activity(item)
-                    <time class="collab-time" datetime="@item.Time">@CollabWords.When(item.Time ?? string.Empty, Now)</time>
+        <li class="collab-item thread @(item.Unread > 0 ? "unread" : null) @(item.Resolved is null ? null : "resolved")" data-thread="@item.Id">
+            <button type="button" class="collab-thread-open" aria-label="@($"Open the thread {item.Title}")" @onclick="() => OnOpen.InvokeAsync(item.Id)">
+                <span class="collab-item-head">
+                    @if (item.Pinned)
+                    {
+                        <span class="collab-pinned" title="Pinned"><Icon Name="pin" /></span>
+                    }
+                    <span class="collab-place">@CollabWords.Place(item)</span>
+                    @if (item.Resolved is not null)
+                    {
+                        <span class="collab-resolved-mark" title="Resolved"><Icon Name="check" /> Resolved</span>
+                    }
+                    @if (item.Unread > 0)
+                    {
+                        <span class="collab-unread" aria-label="@($"{item.Unread} unread")">@item.Unread</span>
+                    }
                 </span>
-                <button type="button" class="btn small ghost collab-activity-reply" aria-label="@($"Reply to: {CollabWords.Activity(item)}")" @onclick="() => OnReply.InvokeAsync(item)">
-                    @(item.Replies switch { 0 => "Reply", 1 => "1 reply", var n => $"{n} replies" })
-                </button>
-            </li>
-        }
+            </button>
+            @if (item.First is { } first)
+            {
+                <CollabMessageView Message="first" Now="Now" Compact="true" />
+            }
+            <button type="button" class="collab-replies" @onclick="() => OnOpen.InvokeAsync(item.Id)">
+                @(item.Replies switch { 0 => "Reply", 1 => "1 reply", var n => $"{n} replies" })
+            </button>
+        </li>
     }
 </ol>
 
@@ -59,8 +43,4 @@
     /// <summary>A thread opened (its id).</summary>
     [Parameter]
     public EventCallback<string> OnOpen { get; set; }
-
-    /// <summary>Reply to an activity line (its thread opens, or is made by the first reply).</summary>
-    [Parameter]
-    public EventCallback<CollabItem> OnReply { get; set; }
 }

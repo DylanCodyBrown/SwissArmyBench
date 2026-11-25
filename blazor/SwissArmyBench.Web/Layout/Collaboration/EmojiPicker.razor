@@ -1,0 +1,86 @@
+@* The full emoji grid (the owner, 2026-11-25: "add emojis"): Unicode's every emoji by group, a search by name
+   across all of them (skin tones too), and your recent ones first. Picking one says it and remembers it. *@
+@inject EmojiCatalog Catalog
+
+<div class="emoji-picker" role="dialog" aria-label="Pick an emoji">
+    <input type="search" class="emoji-search" aria-label="Search emoji by name" placeholder="Search emoji" @bind="_words" @bind:event="oninput" @bind:after="SearchAsync" />
+    @if (_found is { } found)
+    {
+        <div class="emoji-grid" role="listbox" aria-label="Found">
+            @foreach (var entry in found)
+            {
+                <button type="button" role="option" class="emoji-cell" title="@entry.Name" aria-label="@entry.Name" @onclick="() => PickAsync(entry.Emoji)">@entry.Emoji</button>
+            }
+            @if (found.Count == 0)
+            {
+                <span class="emoji-none">No emoji is called that.</span>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="emoji-groups" role="tablist" aria-label="Groups">
+            @if (_recent.Count > 0)
+            {
+                <button type="button" role="tab" class="emoji-tab @(_group is null ? "on" : null)" aria-selected="@(_group is null ? "true" : "false")" title="Recent" @onclick="() => ShowAsync(null)">🕘</button>
+            }
+            @foreach (var group in Catalog.Groups)
+            {
+                <button type="button" role="tab" class="emoji-tab @(_group == group ? "on" : null)" aria-selected="@(_group == group ? "true" : "false")" title="@group" aria-label="@group" @onclick="() => ShowAsync(group)">@(_firsts.GetValueOrDefault(group) ?? group[..1])</button>
+            }
+        </div>
+        <div class="emoji-grid" role="listbox" aria-label="@(_group ?? "Recent")">
+            @foreach (var entry in _shown)
+            {
+                <button type="button" role="option" class="emoji-cell" title="@entry.Name" aria-label="@entry.Name" @onclick="() => PickAsync(entry.Emoji)">@entry.Emoji</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const int MostFound = 120;
+
+    private readonly Dictionary<string, string> _firsts = [];
+    private IReadOnlyList<EmojiEntry> _shown = [];
+    private IReadOnlyList<EmojiEntry>? _found;
+    private IReadOnlyList<string> _recent = [];
+    private string? _group;
+    private string _words = string.Empty;
+
+    /// <summary>The emoji picked.</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<string> OnPick { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await Catalog.AllAsync();
+        foreach (var group in Catalog.Groups)
+        {
+            _firsts[group] = all.First(e => e.Group == group).Emoji;
+        }
+        _recent = await Catalog.RecentAsync();
+        await ShowAsync(_recent.Count > 0 ? null : Catalog.Groups.FirstOrDefault());
+    }
+
+    private async Task ShowAsync(string? group)
+    {
+        _group = group;
+        if (group is null)
+        {
+            var all = await Catalog.AllAsync();
+            _shown = _recent.Select(r => all.FirstOrDefault(e => e.Emoji == r) ?? new EmojiEntry(r, r, string.Empty)).ToList();
+            return;
+        }
+        _shown = await Catalog.GroupAsync(group);
+    }
+
+    private async Task SearchAsync() =>
+        _found = string.IsNullOrWhiteSpace(_words) ? null : await Catalog.MatchingAsync(_words, MostFound);
+
+    private async Task PickAsync(string emoji)
+    {
+        await Catalog.UsedAsync(emoji);
+        await OnPick.InvokeAsync(emoji);
+    }
+}

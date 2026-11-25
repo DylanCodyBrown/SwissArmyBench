@@ -1,16 +1,16 @@
 @* The Collaboration panel: one floating card over the page (it never takes the page's space), moved by its title
    bar and resized by its corner. Slack's shape in a narrow card: the channel and object switcher with search, the
-   filters, the timeline (notes and activity), a thread opened in place with a back arrow, the composer at the foot. *@
+   filters, the timeline of threads, a thread opened in place with a back arrow, the composer at the foot. *@
 @implements IAsyncDisposable
 
 <section @ref="_panel" class="collab-panel" role="dialog" aria-modal="false" aria-label="Collaboration">
     <header @ref="_handle" class="collab-head">
-        @if (_thread is not null || _replyTo is not null)
+        @if (_thread is not null)
         {
             <button type="button" class="btn ghost icon small" aria-label="Back to the timeline" title="Back" @onclick="BackAsync"><Icon Name="back" /></button>
         }
         <Icon Name="chat" />
-        <h2 class="collab-title">@(_thread?.Title ?? (_replyTo is null ? "Collaboration" : "Reply to a change"))</h2>
+        <h2 class="collab-title">@(_thread?.Title ?? "Collaboration")</h2>
         <span class="status-spacer"></span>
         <button type="button" class="btn ghost icon small" aria-label="Hide the Collaboration panel" title="Hide (Ctrl+Shift+M)" @onclick="OnClose"><Icon Name="close" /></button>
     </header>
@@ -28,13 +28,6 @@
             <CollabThreadView Thread="thread" Now="_now" OnChanged="TookThread" OnError="Failed" OnResolve="ResolveAsync" OnPin="PinAsync" />
         </div>
         <CollabComposer @key="@($"reply-{thread.Id}")" Label="Reply" Placeholder="Reply in the thread" OnSend="ReplyAsync" />
-    }
-    else if (_replyTo is { } change)
-    {
-        <div class="collab-scroll">
-            <p class="collab-reply-to"><Icon Name="history" /> <strong>@change.Author?.Name</strong> @CollabWords.Activity(change)</p>
-        </div>
-        <CollabComposer @key="@($"change-{change.Id}")" Label="Reply to the change" Placeholder="Ask about this change" OnSend="ReplyToChangeAsync" />
     }
     else
     {
@@ -55,7 +48,7 @@
                 }
             </select>
             <button type="button" class="btn ghost icon small" aria-label="New channel…" title="New channel…" @onclick="NewChannelAsync"><Icon Name="plus" /></button>
-            <input type="search" class="collab-search" aria-label="Search notes and activity" placeholder="Search" @bind="_words" @bind:event="oninput" @bind:after="SearchAsync" />
+            <input type="search" class="collab-search" aria-label="Search the notes" placeholder="Search" @bind="_words" @bind:event="oninput" @bind:after="SearchAsync" />
         </div>
         <div class="collab-filters" role="group" aria-label="Show">
             @foreach (var (filter, label) in CollabWords.Filters)
@@ -96,11 +89,11 @@
                 }
                 else if (_timeline is { } timeline)
                 {
-                    <CollabTimelineView Items="timeline.Items" Now="_now" OnOpen="OpenAsync" OnReply="ReplyToAsync" />
+                    <CollabTimelineView Items="timeline.Items" Now="_now" OnOpen="OpenAsync" />
                 }
             </Busy>
         </div>
-        @if (_timeline is { Project: not null } && _filter != "activity")
+        @if (_timeline is { Project: not null })
         {
             <CollabComposer @key="@($"post-{State.Where}")" Label="New note" Placeholder="@PostPlaceholder" OnSend="PostAsync" />
         }

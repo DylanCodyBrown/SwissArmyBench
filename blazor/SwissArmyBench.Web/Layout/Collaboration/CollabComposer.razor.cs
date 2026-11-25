@@ -5,12 +5,13 @@ using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Collaboration;
+using SwissArmyBench.Web.Components;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Layout.Collaboration;
 
 public partial class CollabComposer
 {
-    private const int MostPicks = 10;
     private const string TooBigWords = "A picture is 5 MB at most.";
 
     /// <summary>The formatting bar: the composer's kind (collaboration.js FORMATS), its words, its mark, its keys.</summary>
@@ -47,6 +48,12 @@ public partial class CollabComposer
 
     [Inject]
     private CollaborationClient Client { get; set; } = default!;
+
+    [Inject]
+    private CollaborationState State { get; set; } = default!;
+
+    [Inject]
+    private EmojiCatalog Emoji { get; set; } = default!;
 
     [Parameter]
     public string Label { get; set; } = "Message";
@@ -104,22 +111,20 @@ public partial class CollabComposer
         _index = 0;
         if (popup == ':')
         {
-            _picks = CollabEmoji.Matching(typed).Select(e => new CollabPick($"{e.Emoji} :{e.Name}:", string.Empty, e.Emoji, "star")).ToList();
+            var found = await Emoji.MatchingAsync(typed);
+            _picks = found.Select(e => new CollabPick($"{e.Emoji} {e.Name}", string.Empty, e.Emoji, "star")).ToList();
         }
         else
         {
             var asked = ++_asked;
             try
             {
-                var found = await Client.ObjectsAsync(typed);
+                var found = await Client.ObjectsAsync(typed, State.Page);
                 if (asked != _asked)
                 {
                     return; // typed on since
                 }
-                _picks = found.People.Select(p => new CollabPick(p.Name, $"@{p.Login}", $"@{p.Login} ", "user"))
-                    .Concat(found.Objects.Select(o => new CollabPick(o.Text, o.Kind, $"{o.Link} ", IconOf(o.Kind))))
-                    .Take(MostPicks)
-                    .ToList();
+                _picks = CollabPicking.Of(State.PageObjects, found, typed).ToList();
             }
             catch (ApiException error)
             {
@@ -223,20 +228,6 @@ public partial class CollabComposer
         _said = $"{name}: {TooBigWords}";
         StateHasChanged();
     }
-
-    private static string IconOf(string kind) => kind switch
-    {
-        "cell" or "notebook" => "notebook",
-        "script" or "function" => "code",
-        "sql" => "sql",
-        "table" => "table",
-        "column" => "columns",
-        "connection" => "plug",
-        "endpoint" => "apis",
-        "widget" => "page",
-        "analysis" => "chart",
-        _ => "link",
-    };
 
     public async ValueTask DisposeAsync()
     {

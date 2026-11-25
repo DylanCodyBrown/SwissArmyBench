@@ -25,8 +25,6 @@ public sealed class CollaborationTests : AppTestContext
          "objects": [], "people": [{"name": "Sam Ortiz", "login": "sam-ortiz"}],
          "unread": {"total": 1, "mentions": 1, "places": {"#general": 1}},
          "items": [
-           {"type": "activity", "id": "a1", "time": "2026-11-25T09:00:00Z", "author": {"name": "Sam Ortiz", "login": "sam-ortiz"},
-            "object": {"kind": "table", "name": "orders"}, "words": "Added the step 1 filter", "threads": [], "replies": 0},
            {"type": "thread", "id": "t-1", "title": "Returns", "where": "#general", "created": "2026-11-25T09:05:00Z",
             "created_by": {"name": "Sam Ortiz", "login": "sam-ortiz"}, "replies": 0, "last": "2026-11-25T09:05:00Z", "unread": 1,
             "first": {"id": "m1", "thread": "t-1", "kind": "note", "author": {"name": "Sam Ortiz", "login": "sam-ortiz"},
@@ -50,7 +48,8 @@ public sealed class CollaborationTests : AppTestContext
         .Answer("POST /collaboration/resolve", Thread.Replace("\"pinned\": false", "\"pinned\": false, \"resolved\": {\"by\": \"avery-lin\", \"time\": \"2026-11-25T09:10:00Z\"}"))
         .Answer("GET /collaboration/unread", """{"total": 1, "mentions": 1}""")
         .Answer("GET /collaboration/objects", """
-            {"people": [{"name": "Sam Ortiz", "login": "sam-ortiz"}],
+            {"page": [{"kind": "table", "path": "orders", "id": "", "text": "orders", "link": "[@orders](sab:table/orders)"}],
+             "people": [{"name": "Sam Ortiz", "login": "sam-ortiz"}],
              "objects": [{"kind": "cell", "path": "returns.ipynb", "id": "2", "text": "returns.ipynb cell 2", "link": "[@returns.ipynb cell 2](sab:cell/returns.ipynb#2)"}]}
             """);
 
@@ -58,6 +57,7 @@ public sealed class CollaborationTests : AppTestContext
     {
         Services.AddScoped(_ => new HttpClient(_server) { BaseAddress = new Uri("http://127.0.0.1:9/") });
         Services.AddScoped<CollaborationClient>();
+        Services.AddScoped<EmojiCatalog>();
     }
 
     private static CollabMessage Message(string body, IReadOnlyList<CollabReference>? references = null, IReadOnlyList<string>? mentions = null) =>
@@ -116,16 +116,34 @@ public sealed class CollaborationTests : AppTestContext
     }
 
     [Fact]
-    public void TheStatusBarButtonShowsTheUnreadCountAndToggles()
+    public void TheTopIconShowsTheUnreadCountWigglesAsMessagesArriveAndToggles()
     {
         var state = Get<CollaborationState>();
         var button = Render<CollaborationButton>();
         Assert.Empty(button.FindAll(".collab-badge"));
+        Assert.Empty(button.FindAll(".wiggle"));
         state.TakeCounts(new CollabUnread(4, 2));
         button.WaitForAssertion(() => Assert.Equal("4", button.Find(".collab-badge").TextContent));
+        Assert.NotNull(button.Find(".collab-buddy-face.wiggle"));
         Assert.Contains("2 mentioning you", button.Find("button").GetAttribute("aria-label"));
+        Assert.Equal("buddy", button.Find("svg").GetAttribute("data-icon"));
+        state.TakeCounts(new CollabUnread(150, 0));
+        button.WaitForAssertion(() => Assert.Equal("99+", button.Find(".collab-badge").TextContent));
         button.Find("button").Click();
         Assert.True(state.Open);
+    }
+
+    [Fact]
+    public void NewsIsSaidOnceInTheCornerAndOpenGoesToTheNewestThread()
+    {
+        var state = Get<CollaborationState>();
+        Get<LiveUpdates>().Notice("""{"type": "collaboration_news", "count": 3, "words": "3 new messages from Sam Ortiz and Avery Lin", "thread": "t-9"}""");
+        var note = Assert.Single(Get<Notes>().Shown);
+        Assert.Equal("3 new messages from Sam Ortiz and Avery Lin", note.Words);
+        Assert.Equal("Open", note.ActionLabel);
+        note.Action!();
+        Assert.True(state.Open);
+        Assert.Equal("t-9", state.OpenThread);
     }
 
     [Fact]
@@ -139,8 +157,13 @@ public sealed class CollaborationTests : AppTestContext
         };
         var composer = Render<CollabComposer>(p => p.Add(c => c.OnSend, send));
         await composer.InvokeAsync(() => composer.Instance.TypedAsync("check @ret", 10));
-        composer.WaitForAssertion(() => Assert.Equal(2, composer.FindAll(".collab-popup li").Count));
-        Assert.Contains("returns.ipynb cell 2", composer.Find(".collab-popup").TextContent);
+        composer.WaitForAssertion(() => Assert.Equal(3, composer.FindAll(".collab-popup li[role=option]").Count));
+        var sections = composer.FindAll(".collab-pick-section").Select(s => s.TextContent).ToList();
+        Assert.Equal([CollabPicking.OnThisPage, CollabPicking.People, CollabPicking.InTheProject], sections);
+        var options = composer.FindAll(".collab-popup li[role=option]").Select(o => o.TextContent).ToList();
+        Assert.Contains("orders", options[0]);
+        Assert.Contains("Sam Ortiz", options[1]);
+        Assert.Contains("returns.ipynb cell 2", options[2]);
         await composer.InvokeAsync(() => composer.Instance.PopupKeyAsync("Escape"));
         Assert.Empty(composer.FindAll(".collab-popup"));
         await composer.InvokeAsync(() => composer.Instance.TypedAsync("All **good**", 12));
@@ -152,8 +175,8 @@ public sealed class CollaborationTests : AppTestContext
     public void ThePanelDrawsTheTimelineTheTeamWordsAndOpensAThread()
     {
         var panel = Render<CollaborationPanel>(p => p.Add(c => c.Kind, "tables"));
-        panel.WaitForAssertion(() => Assert.Equal(2, panel.FindAll(".collab-timeline > li").Count));
-        Assert.Contains("Added the step 1 filter", panel.Find(".collab-item.activity").TextContent);
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll(".collab-timeline > li")));
+        Assert.Equal(["All", "Mentions", "This page", "Unresolved"], panel.FindAll(".collab-chip").Select(c => c.TextContent).ToList());
         Assert.Contains("@avery-lin", panel.Find(".collab-mention").TextContent);
         Assert.Contains("not shared with your team", panel.Find(".collab-line").TextContent);
         Assert.Contains("Pull to see the team's latest", panel.Find(".collab-line.team").TextContent);
@@ -183,5 +206,52 @@ public sealed class CollaborationTests : AppTestContext
         button.Find("button").Click();
         Assert.Equal("connection:Finance", state.Where);
         _ = Get<NavigationManager>();
+    }
+
+    [Fact]
+    public void ThePagesObjectsComeFirstInTheAtListAndFilterThisPage()
+    {
+        var page = Get<PageObjects>();
+        var state = Get<CollaborationState>();
+        var raised = 0;
+        state.Changed += Count;
+        page.Set([new CollabReference("notebook", "/home/avery/Returns/returns.ipynb", string.Empty, "returns.ipynb"),
+            new CollabReference("cell", "/home/avery/Returns/returns.ipynb", "2", "returns.ipynb cell 2")]);
+        page.Set([new CollabReference("notebook", "/home/avery/Returns/returns.ipynb", string.Empty, "returns.ipynb"),
+            new CollabReference("cell", "/home/avery/Returns/returns.ipynb", "2", "returns.ipynb cell 2")]);
+        Assert.Equal(1, raised); // the same list again changes nothing
+        Assert.Equal("[\"/home/avery/Returns/returns.ipynb\"]", state.Page);
+        var found = new CollabPicks([new CollabPerson("Sam Ortiz", "sam-ortiz")],
+            [new CollabReference("cell", "returns.ipynb", "2", "returns.ipynb cell 2", Link: "[@returns.ipynb cell 2](sab:cell/returns.ipynb#2)"),
+             new CollabReference("table", "orders", string.Empty, "orders", Link: "[@orders](sab:table/orders)")]);
+        var picks = CollabPicking.Of(page.Objects, found, "cell");
+        Assert.Equal(["returns.ipynb cell 2", "Sam Ortiz", "orders"], picks.Select(p => p.Label).ToList());
+        Assert.Equal("[@returns.ipynb cell 2](sab:cell//home/avery/Returns/returns.ipynb#2) ", picks[0].Insert);
+        page.Clear();
+        Assert.Null(state.Page);
+        state.Changed -= Count;
+
+        void Count() => raised++;
+    }
+
+    [Fact]
+    public async Task TheEmojiPickerSearchesEveryEmojiAndRemembersRecentOnesAsync()
+    {
+        _server.Answer("GET /data/emoji.json", """
+            {"format": 1, "unicode": "18.0", "groups": ["Smileys & Emotion", "Activities"], "emoji": [
+            ["😀", "grinning face", 0], ["👍", "thumbs up", 0], ["👍🏽", "thumbs up: medium skin tone", 0], ["🎉", "party popper", 1]]}
+            """);
+        var catalog = Get<EmojiCatalog>();
+        Assert.Equal(["🎉"], (await catalog.MatchingAsync("party")).Select(e => e.Emoji).ToList());
+        Assert.Equal(["👍", "👍🏽"], (await catalog.MatchingAsync("thumbs")).Select(e => e.Emoji).ToList());
+        string? picked = null;
+        var picker = Render<EmojiPicker>(p => p.Add(c => c.OnPick, (string e) => picked = e));
+        picker.WaitForAssertion(() => Assert.Equal(2, picker.FindAll(".emoji-tab").Count));
+        Assert.Equal(["😀", "👍"], picker.FindAll(".emoji-cell").Select(c => c.TextContent).ToList()); // no skin tones in the grid
+        picker.Find(".emoji-search").Input("thumbs");
+        picker.WaitForAssertion(() => Assert.Equal(2, picker.FindAll(".emoji-cell").Count));
+        picker.FindAll(".emoji-cell")[1].Click();
+        Assert.Equal("👍🏽", picked);
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "sab.remember" && i.Arguments[0] as string == "collab.recentEmoji");
     }
 }

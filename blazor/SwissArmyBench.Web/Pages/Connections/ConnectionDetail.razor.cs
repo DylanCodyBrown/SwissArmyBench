@@ -9,7 +9,7 @@ using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Connections;
 
-public partial class ConnectionDetail
+public partial class ConnectionDetail : IDisposable
 {
     private ConnectionUsage? _usage;
     private ListedConnection? _listed;
@@ -34,6 +34,9 @@ public partial class ConnectionDetail
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
+    [Inject]
+    private PageObjects Shown { get; set; } = default!;
+
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
 
@@ -46,6 +49,7 @@ public partial class ConnectionDetail
 
     protected override async Task OnParametersSetAsync()
     {
+        Shown.Set([new("connection", Name, string.Empty, Name)]);
         _usage = null;
         _testRows = null;
         _testError = null;
@@ -293,5 +297,11 @@ public partial class ConnectionDetail
             _error = error;
         }
         _busyWords = null;
+    }
+
+    public void Dispose()
+    {
+        Shown.Clear(Name);
+        GC.SuppressFinalize(this);
     }
 }

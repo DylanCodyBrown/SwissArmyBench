@@ -21,6 +21,10 @@
             {
                 var at = i;
                 var pick = _picks[i];
+                if (pick.Section.Length > 0 && (at == 0 || _picks[at - 1].Section != pick.Section))
+                {
+                    <li role="presentation" class="collab-pick-section">@pick.Section</li>
+                }
                 <li role="option" aria-selected="@(at == _index ? "true" : "false")" class="@(at == _index ? "on" : null)" @onmousedown="() => PickAsync(at)" @onmousedown:preventDefault="true">
                     <Icon Name="@pick.Icon" /> <span class="collab-pick-label">@pick.Label</span> <span class="collab-pick-hint">@pick.Hint</span>
                 </li>

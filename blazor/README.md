@@ -80,13 +80,20 @@ blazor/
                              small services shared by the pages, each raising one Changed event
     Navigation/              the rail's areas in their order (Areas.cs) and their addresses
     Layout/Collaboration/    the Collaboration panel (the owner, 2026-11-25): CollaborationHost in MainLayout and
-                             WindowLayout (one floating card over every page, never in its layout), the status bar's
-                             CollaborationButton (the unread count), the panel (switcher, search, filters, timeline,
-                             a thread in place), CollabComposer (formatting bar, `@` and `:` lists, pictures),
-                             CollabWords (a message through MarkdownText with MarkdownLinks: references, pictures,
-                             mentions); State/CollaborationState (open, the place, unread, the page's object; the
-                             collaboration_changed, _unread and _show notices); Components/CollaborateButton and
-                             CollaborationState.Entry: Collaborate on a cell's menu, a tab's menu, a connection
+                             WindowLayout (one floating card over every page, never in its layout), CollaborationButton
+                             (the buddy: a speech-bubble face fixed in every window's top right corner, its unread count
+                             and a wiggle that respects reduced motion; each page's top bar keeps the corner free:
+                             collaboration.css, --collab-buddy-room), the panel (switcher, search, filters, threads, a
+                             thread in place), CollabComposer (formatting bar; `@`: CollabPicking, this page's objects
+                             first, then people, then the project; `:` any emoji by name; pictures), EmojiPicker (every
+                             emoji by group, search, recent ones), CollabWords (a message through MarkdownText with
+                             MarkdownLinks: references, pictures, mentions); State/CollaborationState (open, the place,
+                             unread, the collaboration_changed, _unread, _show and _news notices: the news one line in the
+                             corner with Open); State/PageObjects (what the page in front shows: the Tables page's table
+                             and columns, the open notebook's cells, the open script's functions, a connection), set by
+                             each page; Components/EmojiCatalog (wwwroot/data/emoji.json, from tools/emoji_data.py);
+                             Components/CollaborateButton and CollaborationState.Entry: Collaborate on a cell's menu, a
+                             tab's menu, a connection
     Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost, ProjectSetupBar
                              (the setup bar under every page's top: what the open project needs, installed at once
                              as it opens; ProjectSetup its state service, from the project_installs notice; Hide keeps

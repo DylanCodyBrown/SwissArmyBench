@@ -3,6 +3,7 @@
    Compact (the timeline's first message): no actions. *@
 @inject CollaborationClient Client
 @inject Dialogs Dialogs
+@inject EmojiCatalog Catalog
 
 <article class="collab-message @(Message.Author.Agent ? "agent" : null) @(Message.Deleted ? "deleted" : null)" data-message="@Message.Id" aria-label="@($"{Message.Author.Name}, {CollabWords.When(Message.Time, Now)}")">
     <span class="collab-mark" aria-hidden="true">@CollabWords.Initials(Message.Author.Name)</span>
@@ -35,6 +36,10 @@
         {
             <div class="collab-body">@((MarkupString)CollabWords.Body(Message))</div>
         }
+        @if (_picking && _more)
+        {
+            <EmojiPicker OnPick="ReactAsync" />
+        }
         @if (!Message.Deleted && (Message.Reactions.Count > 0 || !Compact))
         {
             <div class="collab-reactions" role="group" aria-label="Reactions">
@@ -46,14 +51,15 @@
                 }
                 @if (!Compact)
                 {
-                    <button type="button" class="collab-reaction add" aria-label="Add a reaction" aria-expanded="@(_picking ? "true" : "false")" @onclick="() => _picking = !_picking">+ 🙂</button>
+                    <button type="button" class="collab-reaction add" aria-label="Add a reaction" aria-expanded="@(_picking ? "true" : "false")" @onclick="OpenQuickAsync">+ 🙂</button>
                     @if (_picking)
                     {
                         <span class="collab-quick" role="menu" aria-label="Reactions">
-                            @foreach (var emoji in CollabWords.QuickReactions)
+                            @foreach (var emoji in _quick)
                             {
                                 <button type="button" role="menuitem" class="collab-reaction" aria-label="@($"React {emoji}")" @onclick="() => ReactAsync(emoji)">@emoji</button>
                             }
+                            <button type="button" role="menuitem" class="collab-reaction more" aria-label="More emoji" aria-expanded="@(_more ? "true" : "false")" @onclick="() => _more = !_more">More…</button>
                         </span>
                     }
                     @if (Message.Mine)
@@ -72,6 +78,8 @@
 @code {
     private bool _editing;
     private bool _picking;
+    private bool _more;
+    private IReadOnlyList<string> _quick = CollabWords.QuickReactions;
     private string _draft = string.Empty;
 
     [Parameter, EditorRequired]
@@ -96,10 +104,24 @@
         _editing = true;
     }
 
-    private Task ReactAsync(string emoji)
+    /// <summary>The quick reactions: your recent ones first, then the frequent ones, eight in all; More… the grid.</summary>
+    private async Task OpenQuickAsync()
+    {
+        _picking = !_picking;
+        _more = false;
+        if (_picking)
+        {
+            var recent = await Catalog.RecentAsync();
+            _quick = recent.Concat(CollabWords.QuickReactions).Distinct().Take(CollabWords.QuickReactions.Count).ToList();
+        }
+    }
+
+    private async Task ReactAsync(string emoji)
     {
         _picking = false;
-        return RunAsync(() => Client.ReactAsync(Message.Thread, Message.Id, emoji));
+        _more = false;
+        await Catalog.UsedAsync(emoji);
+        await RunAsync(() => Client.ReactAsync(Message.Thread, Message.Id, emoji));
     }
 
     private async Task SaveAsync()

@@ -51,6 +51,9 @@ public partial class GridsPage : IDisposable
     private CollaborationState Collaboration { get; set; } = default!;
 
     [Inject]
+    private PageObjects OnPage { get; set; } = default!;
+
+    [Inject]
     private ApiClient Api { get; set; } = default!;
 
     /// <summary>The tab shown (a grid's id); none: the first.</summary>
@@ -172,8 +175,8 @@ public partial class GridsPage : IDisposable
             Status.Set(null);
         }
         _active = wanted;
-        Collaboration.SetPage(_tabs.FirstOrDefault(t => t.Grid == wanted)?.Dataset);
         await ReloadInfoAsync();
+        OnPage.Set(TableObjects.Of(_infos.GetValueOrDefault(wanted)));
         await ShowSplitAsync(ReadSplit(open));
         if (changedTable)
         {
@@ -274,7 +277,7 @@ public partial class GridsPage : IDisposable
         WithdrawCommands();
         Status.Set(null);
         Status.SetRows(null);
-        Collaboration.SetPage(null);
+        OnPage.Clear();
         _scrollLock?.InvokeVoidAsync("release");
         _drop?.Dispose();
         _pasteListener?.InvokeVoidAsync("stop");

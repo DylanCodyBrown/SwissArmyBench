@@ -20,7 +20,6 @@ public partial class CollaborationPanel
     private IJSObjectReference? _placed;
     private CollabTimeline? _timeline;
     private CollabItem? _thread;
-    private CollabItem? _replyTo;
     private CollabSearch? _found;
     private Exception? _error;
     private string _filter = AllFilter;
@@ -133,7 +132,6 @@ public partial class CollaborationPanel
             if (State.Where != _seenWhere)
             {
                 _thread = null;
-                _replyTo = null;
             }
             _ = InvokeAsync(async () =>
             {
@@ -147,7 +145,6 @@ public partial class CollaborationPanel
     {
         try
         {
-            _replyTo = null;
             await ShowThreadAsync(await Client.ThreadAsync(thread));
         }
         catch (ApiException error)
@@ -172,7 +169,6 @@ public partial class CollaborationPanel
     private Task BackAsync()
     {
         _thread = null;
-        _replyTo = null;
         _shownKey = null;
         _scrollDown = true;
         return LoadAsync();
@@ -206,17 +202,6 @@ public partial class CollaborationPanel
         }
     }
 
-    private async Task ReplyToAsync(CollabItem change)
-    {
-        if (change.Threads is [var first, ..])
-        {
-            await OpenAsync(first);
-            return;
-        }
-        _thread = null;
-        _replyTo = change;
-    }
-
     private Task<bool> PostAsync(string body, IReadOnlyList<CollabImage> images) => SentAsync(async () =>
     {
         var channel = State.Anchor is null ? State.Where?.TrimStart('#') : null;
@@ -228,9 +213,6 @@ public partial class CollaborationPanel
     private Task<bool> ReplyAsync(string body, IReadOnlyList<CollabImage> images) =>
         SentAsync(() => Client.ReplyAsync(_thread!.Id, body, images), show: true);
 
-    private Task<bool> ReplyToChangeAsync(string body, IReadOnlyList<CollabImage> images) =>
-        SentAsync(() => Client.ReplyToChangeAsync(_replyTo!.Id, body), show: true);
-
     private async Task<bool> SentAsync(Func<Task<CollabItem>> send, bool show = false)
     {
         try
@@ -238,7 +220,6 @@ public partial class CollaborationPanel
             var thread = await send();
             if (show)
             {
-                _replyTo = null;
                 await ShowThreadAsync(thread);
             }
             _scrollDown = true;

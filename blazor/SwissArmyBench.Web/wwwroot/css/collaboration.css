@@ -103,8 +103,57 @@ a.collab-ref:hover { text-decoration: underline; }
   position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;
   background: linear-gradient(135deg, transparent 50%, var(--border-strong) 50%, var(--border-strong) 60%, transparent 60%, transparent 75%, var(--border-strong) 75%, var(--border-strong) 85%, transparent 85%);
 }
-/* The status bar's button and its unread count. */
-.status-collab { display: inline-flex; align-items: center; gap: 4px; }
-.status-collab.on { color: var(--fg); border-color: var(--border); }
-.collab-badge { min-width: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 11px; line-height: 16px; text-align: center; }
-.status-collab.mentioned .collab-badge { outline: 2px solid var(--accent-soft); }
+/* The buddy: the panel's way in, a small speech-bubble face in every window's top right corner. Its place
+   (--collab-buddy-*) is a token, so a page that needs the corner can say so in one rule. */
+:root { --collab-buddy-top: 6px; --collab-buddy-right: 10px; --collab-buddy-size: 28px; --collab-buddy-room: 44px; }
+.collab-buddy {
+  position: fixed; top: var(--collab-buddy-top); right: var(--collab-buddy-right); z-index: 57;
+  display: grid; place-items: center; width: var(--collab-buddy-size); height: var(--collab-buddy-size); padding: 0;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--raised); color: var(--muted);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); cursor: pointer; opacity: 0.85;
+  transition: color 120ms, border-color 120ms, opacity 120ms, transform 120ms;
+}
+.collab-buddy:hover, .collab-buddy:focus-visible { opacity: 1; color: var(--fg); border-color: var(--border-strong); transform: translateY(1px); }
+.collab-buddy.on { opacity: 1; color: var(--accent); border-color: var(--accent); }
+.collab-buddy.has-unread { opacity: 1; color: var(--fg); }
+.collab-buddy .icon-svg { width: 18px; height: 18px; }
+.collab-buddy-face { display: grid; place-items: center; }
+.collab-buddy-face.wiggle { animation: collab-wiggle 0.9s ease-in-out 1; }
+@keyframes collab-wiggle {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-12deg); }
+  40% { transform: rotate(10deg); }
+  60% { transform: rotate(-6deg); }
+  80% { transform: rotate(3deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .collab-buddy, .collab-buddy-face.wiggle { animation: none; transition: none; }
+}
+.collab-badge {
+  position: absolute; top: -5px; right: -7px; min-width: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-fg); font-size: 10.5px; font-weight: 600; line-height: 16px; text-align: center;
+}
+.collab-buddy.mentioned .collab-badge { box-shadow: 0 0 0 2px var(--accent-soft); }
+/* Every page's top bar keeps the corner free for the buddy (checked page by page: tests/e2e/blazor/test_collaboration.py
+   looks under it on each page), so the buddy never covers a page's own buttons. */
+.page-main > .area-page > .area-page-head { padding-right: calc(24px + var(--collab-buddy-room)); }
+.page-main > .area-page > .wb-doc-bar { padding-right: calc(16px + var(--collab-buddy-room)); }
+.dock-zone.dock-right .dock-pane:first-of-type > .dock-pane-head { padding-right: var(--collab-buddy-room); }
+.wg-page .wg-main > .code-ide > .ide-bar { padding-right: var(--collab-buddy-room); }
+.cvs > .cvs-top { padding-right: var(--collab-buddy-room); }
+/* The `@` list's parts and the emoji picker. */
+.collab-pick-section { padding: 4px 6px 2px; color: var(--muted); font-size: 11px; font-weight: 600; cursor: default; }
+.collab-pick-section:hover { background: none; }
+.collab-reaction.more { color: var(--muted); }
+.emoji-picker {
+  display: grid; gap: 4px; margin: 4px 0; padding: 6px; border: 1px solid var(--border-strong); border-radius: 8px;
+  background: var(--raised); box-shadow: var(--shadow);
+}
+.emoji-search { box-sizing: border-box; width: 100%; }
+.emoji-groups { display: flex; flex-wrap: wrap; gap: 2px; }
+.emoji-tab { width: 28px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; font-size: 15px; cursor: pointer; }
+.emoji-tab.on { border-color: var(--accent); background: var(--accent-soft); }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 2px; max-height: 200px; overflow: auto; }
+.emoji-cell { height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; font-size: 18px; cursor: pointer; }
+.emoji-cell:hover, .emoji-cell:focus-visible { background: var(--selected); }
+.emoji-none { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }

@@ -43,10 +43,6 @@ public sealed class CollaborationClient
     public Task<CollabItem> ReplyAsync(string thread, string body, IReadOnlyList<CollabImage> images) =>
         _api.PostAsync<CollabItem>("/collaboration/reply", new { thread, body, images });
 
-    /// <summary>A reply to an activity line (a change): its thread is made the first time.</summary>
-    public Task<CollabItem> ReplyToChangeAsync(string activity, string body) =>
-        _api.PostAsync<CollabItem>("/collaboration/reply", new { activity, body });
-
     public Task<CollabItem> EditAsync(string thread, string message, string body) =>
         _api.PostAsync<CollabItem>("/collaboration/edit", new { thread, message, body });
 
@@ -71,7 +67,8 @@ public sealed class CollaborationClient
 
     public Task<CollabSearch> SearchAsync(string words) => _api.GetAsync<CollabSearch>($"/collaboration/search?words={ApiClient.Part(words)}");
 
-    public Task<CollabPicks> ObjectsAsync(string words) => _api.GetAsync<CollabPicks>($"/collaboration/objects?words={ApiClient.Part(words)}");
+    public Task<CollabPicks> ObjectsAsync(string words, string? page) =>
+        _api.GetAsync<CollabPicks>($"/collaboration/objects?words={ApiClient.Part(words)}" + (page is null ? string.Empty : $"&page={ApiClient.Part(page)}"));
 
     public Task<CollabProfile> ProfileAsync() => _api.GetAsync<CollabProfile>("/collaboration/profile");
 

@@ -1,8 +1,9 @@
-"""The Collaboration panel in the browser (Layout/Collaboration): shown and hidden on two pages (Ctrl+Shift+M
-and the status bar's button) floating over the page without moving it; a note posted with an `@cell`
-reference picked from the `@` list, its link clicked through to the notebook's cell; a reply, a reaction and
-a resolve; a second author's files written on disk (as a Pull brings them) showing up live with the unread
-count; Collaborate on a table's tab. Made-up people and data only."""
+"""The Collaboration panel in the browser (Layout/Collaboration): the buddy icon in every window's top right
+corner (never over a page's own buttons) and Ctrl+Shift+M show and hide the panel, floating over the page
+without moving it; a note posted with an `@cell` reference, its link clicked through to the cell; the `@` list
+with this page's objects first; a reply, a reaction from the full emoji grid and a resolve; a second author's
+files showing up live; a project opened with another author's notes: the count and the one-line news with
+Open; Collaborate on a table's tab; your name in Settings. Made-up people and data only."""
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from tests.e2e.blazor.conftest import call, open_page, unnamed_controls
@@ -61,7 +63,9 @@ def test_shown_and_hidden_on_two_pages_over_the_page(browser: Browser, server: d
 
     page.goto(page.url.replace("/blazor/tables", "/blazor/notebooks"))
     page.wait_for_selector(".nav-rail")
-    button = page.locator(".status-collab")
+    button = page.locator(".collab-buddy")
+    corner = button.bounding_box()
+    assert corner is not None and corner["y"] < 20 and corner["x"] > 1360 - 60  # the top right corner
     button.click()
     expect(_panel(page)).to_be_visible()
     expect(button).to_have_attribute("aria-pressed", "true")
@@ -98,6 +102,12 @@ def test_a_note_with_a_cell_reference_reply_react_resolve(browser: Browser, serv
     first.get_by_role("button", name="Add a reaction").click()
     first.get_by_role("menuitem", name="React 👍").click()
     expect(first.locator(".collab-reaction.mine")).to_contain_text("1")
+    # More… opens every emoji, by group and by name.
+    first.get_by_role("button", name="Add a reaction").click()
+    first.get_by_role("menuitem", name="More emoji").click()
+    first.get_by_label("Search emoji by name").fill("party popper")
+    first.get_by_role("option", name="party popper").click()
+    expect(first.locator(".collab-reaction.mine", has_text="🎉")).to_be_visible()
     panel.get_by_role("button", name="Resolve").click()
     expect(panel.locator(".collab-resolved-line")).to_contain_text("Resolved by avery-lin")
     assert list((folder / ".sab" / "collaboration").glob("t-*/_events/*.toml"))
@@ -132,8 +142,99 @@ def test_a_second_authors_files_show_up_live(browser: Browser, server: dict[str,
     item = _panel(page).locator(".collab-item.thread", has_text="Sam Ortiz")
     expect(item).to_be_visible(timeout=20_000)
     expect(item).to_contain_text("returns look high")
-    expect(page.locator(".status-collab .collab-badge")).to_have_text("1")
+    expect(page.locator(".collab-buddy .collab-badge")).to_have_text("1")
     page.close()
+
+
+def _sams_note(folder: Path, ident: str, words: str) -> None:
+    """A note as Sam's computer wrote it (a Pull brings these files)."""
+    thread = folder / ".sab" / "collaboration" / f"t-{ident}"
+    thread.mkdir(parents=True)
+    (thread / "thread.toml").write_text(
+        f'id = "t-{ident}"\ntitle = "{words}"\nchannel = "general"\n'
+        'created = "2026-11-25T09:00:00.000000Z"\npinned = false\n\n'
+        '[created_by]\nname = "Sam Ortiz"\nlogin = "sam-ortiz"\n',
+        encoding="utf-8",
+    )
+    (thread / f"20261125T090000.000000Z-sam-ortiz-{ident}.md").write_text(
+        f'+++\nid = "{ident}"\nthread = "t-{ident}"\nkind = "note"\ntime = "2026-11-25T09:00:00.000000Z"\n'
+        'edited = ""\ndeleted = false\nmentions = []\n\n[author]\nname = "Sam Ortiz"\n'
+        f'login = "sam-ortiz"\n+++\n\n{words}\n',
+        encoding="utf-8",
+    )
+
+
+def test_opening_a_project_says_its_new_messages(browser: Browser, server: dict[str, Any]) -> None:
+    folder = _project(server, "Panel news")
+    call(server, "POST", "/project/close", {"discard": True})
+    _sams_note(folder, "5a7e0011", "Returns look high")
+    _sams_note(folder, "5a7e0012", "Month end is Friday")
+    page = open_page(browser, server, "tables")
+    call(server, "POST", "/project/open", {"path": str(folder)})
+    expect(page.locator(".collab-buddy .collab-badge")).to_have_text("2")
+    news = page.locator(".note-corner .toast", has_text="2 new messages")
+    expect(news).to_be_visible()  # this computer's first look: a count alone
+    news.get_by_role("button", name="Open").click()
+    expect(_panel(page).locator(".collab-thread")).to_be_visible()
+    expect(_panel(page).locator(".collab-title")).to_have_text(
+        re.compile("Returns look high|Month end is Friday")
+    )
+    page.close()
+
+
+def test_the_at_list_offers_this_pages_objects_first(browser: Browser, server: dict[str, Any]) -> None:
+    _project(server, "Panel at")
+    call(server, "POST", "/samples/store", {})
+    page = open_page(browser, server, "tables")
+    expect(page.locator(".grid-tab.tab-item").first).to_be_visible()
+    page.keyboard.press("Control+Shift+M")
+    _write_note(page, "@")
+    popup = _panel(page).locator(".collab-popup")
+    expect(popup.locator(".collab-pick-section").first).to_have_text("On this page")
+    first = popup.get_by_role("option").first
+    expect(first).to_contain_text("customers")  # the table in front, then its columns
+    expect(popup.locator(".collab-pick-section")).to_have_text(["On this page", "People", "In the project"])
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "",
+        "connections",
+        "apis",
+        "environment",
+        "tables",
+        "scripts",
+        "notebooks",
+        "analyze",
+        "extensions",
+        "widgets",
+    ],
+)
+def test_the_buddy_never_covers_a_pages_own_buttons(
+    browser: Browser, server: dict[str, Any], address: str
+) -> None:
+    page = open_page(browser, server, address)
+    expect(page.locator(".collab-buddy")).to_be_visible()
+    page.wait_for_timeout(500)
+    assert page.evaluate(UNDER_THE_BUDDY) == [], address
+    page.close()
+
+
+# The controls found at the buddy's edges with the buddy out of the way: none on any page.
+UNDER_THE_BUDDY = """() => {
+  const b = document.querySelector('.collab-buddy');
+  const r = b.getBoundingClientRect();
+  b.style.visibility = 'hidden';
+  const points = [[r.left - 2, r.top + r.height / 2], [r.left + r.width / 2, r.top + r.height / 2],
+    [r.right + 2, r.top + r.height / 2], [r.left + r.width / 2, r.bottom + 3]];
+  const found = points.map(([x, y]) => document.elementFromPoint(x, y))
+    .map((el) => el && el.closest('button, a[href], input, select, textarea, [role=tab]'))
+    .filter(Boolean).map((el) => el.outerHTML.slice(0, 80));
+  b.style.visibility = '';
+  return found;
+}"""
 
 
 def test_collaborate_on_a_tables_tab(browser: Browser, server: dict[str, Any]) -> None:

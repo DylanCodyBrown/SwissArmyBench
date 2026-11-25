@@ -1,19 +1,25 @@
-@* The status bar's Collaboration button: shows and hides the panel (Ctrl+Shift+M), with the unread count, marked
-   when someone mentioned you. *@
+@* The Collaboration panel's way in (the owner, 2026-11-25: "one discreet app level icon that is fun and hangs out
+   in the top of the app all the time"): a small speech-bubble buddy in the top right corner of every window, over
+   the page but out of its way; its unread count (marked when someone mentioned you), a gentle wiggle as new
+   messages arrive (none with reduced motion). A click (or Ctrl+Shift+M) shows and hides the floating panel. *@
 @implements IDisposable
 @inject CollaborationState State
 
-<button type="button" class="btn small ghost status-collab @(State.Open ? "on" : null) @(State.Mentions > 0 ? "mentioned" : null)"
+<button type="button" class="collab-buddy @(State.Open ? "on" : null) @(State.Mentions > 0 ? "mentioned" : null) @(State.Unread > 0 ? "has-unread" : null)"
         aria-pressed="@(State.Open ? "true" : "false")" title="@Title" aria-label="@Label" @onclick="State.Toggle">
-    <Icon Name="chat" /> Collaboration
+    <span class="collab-buddy-face @(State.Arrivals > 0 ? "wiggle" : null)" @key="State.Arrivals"><Icon Name="buddy" /></span>
     @if (State.Unread > 0)
     {
-        <span class="collab-badge" aria-hidden="true">@State.Unread</span>
+        <span class="collab-badge" aria-hidden="true">@(State.Unread > MostShown ? $"{MostShown}+" : $"{State.Unread}")</span>
     }
 </button>
 
 @code {
-    private string Title => $"{(State.Open ? "Hide" : "Show")} the Collaboration panel: the team's notes and activity (Ctrl+Shift+M)";
+    private const int MostShown = 99;
+
+    private string Title => State.Unread > 0
+        ? $"{State.Unread} unread in the Collaboration panel (Ctrl+Shift+M)"
+        : $"{(State.Open ? "Hide" : "Show")} the Collaboration panel: the team's notes (Ctrl+Shift+M)";
 
     private string Label => State.Unread switch
     {

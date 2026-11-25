@@ -83,6 +83,9 @@ public partial class WorkbenchPage
     [Inject]
     private CollaborationState Collaboration { get; set; } = default!;
 
+    [Inject]
+    private PageObjects Shown { get; set; } = default!;
+
     /// <summary>notebooks or scripts: the two pages share this component.</summary>
     [Parameter, EditorRequired]
     public string Page { get; set; } = "notebooks";
@@ -154,6 +157,7 @@ public partial class WorkbenchPage
             await ReadWindowAsync();
         }
         await RevealPendingAsync();
+        Shown.Set(DocumentObjects.Of(Front));
     }
 
     /// <summary>What an address asks for, as one key: the one the page last acted on is not acted on again.</summary>
@@ -364,6 +368,7 @@ public partial class WorkbenchPage
     public async ValueTask DisposeAsync()
     {
         Palette.WithdrawPageCommands(PageCommands);
+        Shown.Clear();
         Session.Changed -= Redraw;
         Project.Changed -= Redraw;
         Live.NoticeArrived -= OnInlineNotice;

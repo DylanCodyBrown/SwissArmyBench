@@ -1,8 +1,8 @@
 namespace SwissArmyBench.Web.Api.Collaboration;
 
 /// <summary>
-/// One line of the timeline: a thread (its title, where it is, its first message, replies, unread, resolved, pinned;
-/// with its messages when it is opened) or an activity line (a person's change in words, the threads replying to it).
+/// One thread of the timeline: its title, where it is, its first message, replies, unread, resolved and pinned; with
+/// its messages when it is opened. Only what people write (the owner, 2026-11-25: the change log stays out).
 /// </summary>
 public sealed record CollabItem(
     string Type,
@@ -18,18 +18,8 @@ public sealed record CollabItem(
     string? Last = null,
     int Unread = 0,
     CollabMessage? First = null,
-    IReadOnlyList<CollabMessage>? Messages = null,
-    string? Time = null,
-    CollabPerson? Author = null,
-    CollabChange? Object = null,
-    string? Words = null,
-    IReadOnlyList<string>? Threads = null)
+    IReadOnlyList<CollabMessage>? Messages = null)
 {
-    public const string ThreadType = "thread";
-    public const string ActivityType = "activity";
-
-    public bool IsThread => Type == ThreadType;
-
-    /// <summary>When it happened: a thread's last message, an activity line's time.</summary>
-    public string When => (IsThread ? Last ?? Created : Time) ?? string.Empty;
+    /// <summary>When it last moved: its last message.</summary>
+    public string When => Last ?? Created ?? string.Empty;
 }

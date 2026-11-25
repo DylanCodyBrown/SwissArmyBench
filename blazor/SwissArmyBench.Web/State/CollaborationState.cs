@@ -1,8 +1,5 @@
 using System.Text.Json;
 
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Routing;
-
 using SwissArmyBench.Web.Api;
 using SwissArmyBench.Web.Api.Collaboration;
 using SwissArmyBench.Web.Components;
@@ -11,36 +8,37 @@ namespace SwissArmyBench.Web.State;
 
 /// <summary>
 /// The Collaboration panel's state on this page (the owner, 2026-11-25): whether the panel is open, the place it shows
-/// (a channel or an object's threads), the unread counts for the status bar's button, and the object of the page in
-/// front (the filter "This page"). It follows the collaboration_changed, collaboration_unread and collaboration_show
-/// notices (the last the agent's collaboration_show) and a project opened or closed. Its value raises one Changed.
+/// (a channel or an object's threads), the unread counts for the top corner's icon, and the page in front's objects
+/// (PageObjects: the `@` list's first lines and the filter "This page"). It follows the collaboration_changed,
+/// collaboration_unread and collaboration_show notices, and collaboration_news (a project opened, a Pull's files:
+/// "3 new messages from Sam and Avery", said once in the corner with Open). Its value raises one Changed.
 /// </summary>
 public sealed class CollaborationState : IDisposable
 {
     public const string ChangedNotice = "collaboration_changed";
     public const string UnreadNotice = "collaboration_unread";
     public const string ShowNotice = "collaboration_show";
+    public const string NewsNotice = "collaboration_news";
     public const string CollaborateWords = "Collaborate";
     public const string CellKind = "cell";
-
-    private static readonly string[] _pageKeys = ["path", "table", "name"];
 
     private readonly CollaborationClient _client;
     private readonly LiveUpdates _live;
     private readonly ProjectState _project;
-    private readonly NavigationManager _navigation;
-    private string? _setPage;
+    private readonly PageObjects _shown;
+    private readonly Notes _notes;
     private string? _projectPath;
 
-    public CollaborationState(CollaborationClient client, LiveUpdates live, ProjectState project, NavigationManager navigation)
+    public CollaborationState(CollaborationClient client, LiveUpdates live, ProjectState project, PageObjects shown, Notes notes)
     {
         _client = client;
         _live = live;
         _project = project;
-        _navigation = navigation;
+        _shown = shown;
+        _notes = notes;
         _live.NoticeArrived += OnNotice;
         _project.Changed += OnProject;
-        _navigation.LocationChanged += OnLocation;
+        _shown.Changed += OnShown;
     }
 
     public event Action? Changed;
@@ -63,8 +61,14 @@ public sealed class CollaborationState : IDisposable
     /// <summary>The thread to open when the panel next draws (a click on a search result, a notice), or null.</summary>
     public string? OpenThread { get; private set; }
 
-    /// <summary>The object of the page in front: the Tables page's table, else the address's path, table or name.</summary>
-    public string? Page => _setPage ?? FromAddress(_navigation.Uri);
+    /// <summary>The page in front's objects' paths and names as the server reads them (a JSON list), or null.</summary>
+    public string? Page => _shown.Paths is { Count: > 0 } paths ? JsonSerializer.Serialize(paths) : null;
+
+    /// <summary>The page in front's objects (the `@` list's first lines).</summary>
+    public IReadOnlyList<CollabReference> PageObjects => _shown.Objects;
+
+    /// <summary>Counts each unread count that went up (the icon's small wiggle).</summary>
+    public int Arrivals { get; private set; }
 
     public async Task StartAsync()
     {
@@ -138,19 +142,9 @@ public sealed class CollaborationState : IDisposable
     /// <summary>The thread asked for was opened.</summary>
     public void TookThread() => OpenThread = null;
 
-    /// <summary>The Tables page names its table (null as it leaves).</summary>
-    public void SetPage(string? page)
-    {
-        if (page == _setPage)
-        {
-            return;
-        }
-        _setPage = page;
-        Changed?.Invoke();
-    }
-
     public void TakeCounts(CollabUnread counts)
     {
+        Arrivals += counts.Total > Unread ? 1 : 0;
         Unread = counts.Total;
         Mentions = counts.Mentions;
         Changed?.Invoke();
@@ -159,16 +153,6 @@ public sealed class CollaborationState : IDisposable
     /// <summary>A reference's key, as the server makes it: kind:path#id.</summary>
     public static string KeyOf(CollabReference reference) =>
         $"{reference.Kind}:{reference.Path}" + (string.IsNullOrEmpty(reference.Id) ? string.Empty : $"#{reference.Id}");
-
-    private static string? FromAddress(string address)
-    {
-        var query = new Uri(address).Query.TrimStart('?');
-        var pairs = query.Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => p.Split('=', 2))
-            .Where(p => p.Length == 2)
-            .ToDictionary(p => p[0], p => Uri.UnescapeDataString(p[1].Replace('+', ' ')));
-        return _pageKeys.Select(k => pairs.GetValueOrDefault(k)).FirstOrDefault(v => !string.IsNullOrEmpty(v));
-    }
 
     private void OnNotice(Notice notice)
     {
@@ -179,9 +163,15 @@ public sealed class CollaborationState : IDisposable
                 Changed?.Invoke();
                 break;
             case UnreadNotice:
-                Unread = (int)(notice.Number("total") ?? 0);
-                Mentions = (int)(notice.Number("mentions") ?? 0);
-                Changed?.Invoke();
+                TakeCounts(new CollabUnread((int)(notice.Number("total") ?? 0), (int)(notice.Number("mentions") ?? 0)));
+                break;
+            case NewsNotice when notice.Text("words") is { Length: > 0 } words:
+                _ = _notes.SayAsync(words, "Open", () =>
+                {
+                    Go(null);
+                    OpenThreadOnce(notice.Text("thread") is { Length: > 0 } thread ? thread : null);
+                    return Task.CompletedTask;
+                });
                 break;
             case ShowNotice:
                 Where = notice.Text("where") is { Length: > 0 } where ? where : null;
@@ -208,18 +198,12 @@ public sealed class CollaborationState : IDisposable
         _ = StartAsync();
     }
 
-    private void OnLocation(object? sender, LocationChangedEventArgs e)
-    {
-        if (_setPage is null)
-        {
-            Changed?.Invoke();
-        }
-    }
+    private void OnShown() => Changed?.Invoke();
 
     public void Dispose()
     {
         _live.NoticeArrived -= OnNotice;
         _project.Changed -= OnProject;
-        _navigation.LocationChanged -= OnLocation;
+        _shown.Changed -= OnShown;
     }
 }

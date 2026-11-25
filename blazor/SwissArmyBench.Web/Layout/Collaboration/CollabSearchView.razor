@@ -1,5 +1,5 @@
-@* The Collaboration panel's search results: messages (their thread's title and the words found) and activity lines,
-   newest first; a message opens its thread. *@
+@* The Collaboration panel's search results: the messages found (their thread's title and the words), newest first;
+   each opens its thread. *@
 
 @if (Found.Found.Count == 0)
 {
@@ -11,17 +11,10 @@ else
         @foreach (var found in Found.Found)
         {
             <li class="collab-item">
-                @if (found.Thread is { } thread)
-                {
-                    <button type="button" class="collab-thread-open" @onclick="() => OnOpen.InvokeAsync(thread)">
-                        <span class="collab-place">@found.Title</span>
-                        <span class="collab-snippet"><strong>@found.Author?.Name</strong> @found.Snippet</span>
-                    </button>
-                }
-                else
-                {
-                    <span class="collab-snippet"><Icon Name="history" /> <strong>@found.Author?.Name</strong> @found.Snippet</span>
-                }
+                <button type="button" class="collab-thread-open" @onclick="() => OnOpen.InvokeAsync(found.Thread)">
+                    <span class="collab-place">@found.Title</span>
+                    <span class="collab-snippet"><strong>@found.Author?.Name</strong> @found.Snippet</span>
+                </button>
                 <time class="collab-time" datetime="@found.Time">@CollabWords.When(found.Time, Now)</time>
             </li>
         }

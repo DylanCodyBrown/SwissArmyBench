@@ -8,7 +8,7 @@ using SwissArmyBench.Web.Components;
 namespace SwissArmyBench.Web.Layout.Collaboration;
 
 /// <summary>The Collaboration panel's words: when, who, a message's Markdown with its references and pictures, an
-/// activity line, the filters and the quick reactions.</summary>
+/// the filters and the quick reactions.</summary>
 public static partial class CollabWords
 {
     public const string GoneWords = "no longer in the project";
@@ -23,8 +23,6 @@ public static partial class CollabWords
         ("mentions", "Mentions"),
         ("page", "This page"),
         ("unresolved", "Unresolved"),
-        ("activity", "Activity"),
-        ("notes", "Notes"),
     ];
 
     /// <summary>The quick reactions (the composer's `:` finds the rest by name).</summary>
@@ -114,12 +112,6 @@ public static partial class CollabWords
         }
         return $"<span class=\"collab-ref\">{words}</span>";
     }
-
-    /// <summary>An activity line in words: "Avery Lin · orders: Added the step 1 filter".</summary>
-    public static string Activity(CollabItem item) =>
-        item.Object is { } changed && changed.Name.Length > 0 && !(item.Words ?? string.Empty).Contains(changed.Name, StringComparison.Ordinal)
-            ? $"{changed.Name}: {item.Words}"
-            : item.Words ?? string.Empty;
 
     /// <summary>Where a thread is, for its line: "#general", or the object it is on.</summary>
     public static string Place(CollabItem item) => item.Anchor is { } anchor ? $"@{anchor.Text}" : item.Where ?? string.Empty;

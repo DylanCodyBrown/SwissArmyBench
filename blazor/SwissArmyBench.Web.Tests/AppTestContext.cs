@@ -46,6 +46,7 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<Api.Environment.EnvironmentClient>();
         Services.AddScoped<Api.Variables.VariablesClient>();
         Services.AddScoped<Api.Collaboration.CollaborationClient>();
+        Services.AddScoped<PageObjects>();
         Services.AddScoped<CollaborationState>();
     }
 
