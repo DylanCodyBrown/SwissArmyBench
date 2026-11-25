@@ -9491,3 +9491,27 @@ preserved in the app. It needs rich text and slack like functionality", then nam
   the same page count only while their file is the address's.
 - Open, for the owner: a reaction picker of eight emojis plus the composer's `:` list of thirty-two names (no full
   emoji catalogue without a package); the tool list's ceiling went from 99,500 to 101,000 characters for the fifteen `collaboration_*` commands.
+
+### The owner's review of the Collaboration panel, 2026-11-25
+
+"Add emojis, the agent can post but only with a specific tool. And no the change log stays out. We need on descret
+app level icon that is fun and hangs out in the top of the app all the time and it should recognize the objects on
+page and suggest auto completion for them when @ is typed or @to mention somebody else. They get a new unread
+message when they open the project."
+
+- Emoji: every fully-qualified emoji of Unicode's emoji-test.txt (Unicode 18.0, 3,963) in
+  blazor/SwissArmyBench.Web/wwwroot/data/emoji.json, rebuilt by `python tools/emoji_data.py` (fetched from
+  unicode.org, or `--from` a copy; `--check`); tests/test_emoji_data.py holds it well formed and as the tool writes
+  it. The grid leaves skin tone variants to search. The newest emoji draw as boxes where the system's font is
+  older than Unicode 18 (a font matter, not the list's).
+- The agent writes only with `collaboration_post` (a reply is a post with `thread`); reply, edit, delete, react,
+  resolve, pin, channel, show and the name answer 403 to the agent (tests/test_cli.py NOT_COMMANDS says why).
+  The agent's name in Settings is also the user's: the owner's list named every other write.
+- The change log stays out: the activity, its files, its filters and replies to a change went; an `_activity/`
+  folder a build wrote is never read and left alone.
+- The buddy replaces the status bar's button: fixed in the top right corner of every window, each page's top bar
+  padded by `--collab-buddy-room` so it never covers a page's own buttons (checked page by page in the browser
+  tests at 1,360 and 1,000 pixels wide).
+- News: a project opened (and a look that finds more than was last said, as after a Pull) says once "3 new messages
+  from Sam Ortiz and Avery Lin" with Open (the newest thread); a computer that never read the project says the count
+  alone ("12 new messages", past 99 "99+"). Your own messages never count; the agent's do.

@@ -217,9 +217,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `.sab/stats.json` (the calls' running figures: names, times, sizes) and `.sab/changes.jsonl` (the change log: names,
   types, fingerprints), both Git-ignored and never a value (Plans/stats.plan.md, Plans/changes.plan.md, 2026-11-22),
   `.sab/collaboration/` (the Collaboration panel, the owner 2026-11-25: the team's notes, one small file per message,
-  reaction or resolve, pasted pictures beside them (5 MB at most), each person's activity as the change log's words
-  for 90 days; names, words and references only, never a row or a value; shared in Git, never ignored) on the user's
-  post, reply, edit, delete, react, resolve, pin and channel (the agent's too, but never a delete),
+  reaction or resolve, pasted pictures beside them (5 MB at most); only what people write, names, words and
+  references, never a row or a value; shared in Git, never ignored) on the user's post, reply, edit, delete, react,
+  resolve, pin and channel, and the agent's collaboration_post (its only write there),
   `.sab/api-shapes/` as its local sandbox API's endpoints are called (each one's learned shape: paths and
   types, never a value; Try it's Keep as its example and its `.sab/api_examples.json` went, the owner,
   2026-11-22: "No need to ever keep values"), `.sab/api-discover.json` on the user's Allow for its discovery
@@ -762,12 +762,13 @@ src/swissarmybench/
                          a script's parts (document_shape), .sab/changes.jsonl's lines, last, history, since, search
     collaboration.py     the Collaboration panel's rules (the owner, 2026-11-25): .sab/collaboration/'s files (a thread's
                          thread.toml; a message's <UTC time>-<author>-<id>.md, TOML front matter between +++ lines then
-                         its Markdown; _events/ a reaction, resolve or pin each; _channels/; _activity/<author>.jsonl),
-                         byte-stable, so a Git merge never conflicts; a thread folded (events over messages); object
-                         references ([@text](sab:kind/path#id): cells by number, tables, columns, connections, scripts
-                         and functions, .sql files, endpoints, widgets, analyses, changes) and where each opens (href);
-                         people (@login), pictures, the activity's 90 days, filters, unread, search; who may edit or
-                         delete (the agent edits its own, deletes none)
+                         its Markdown; _events/ a reaction, resolve or pin each; _channels/; an older _activity/ never
+                         read), byte-stable, so a Git merge never conflicts; a thread folded (events over messages);
+                         object references ([@text](sab:kind/path#id): cells by number, tables, columns, connections,
+                         scripts and functions, .sql files, endpoints, widgets, analyses), written relative to the
+                         project, and where each opens (href); the page's objects (page_paths); people (@login),
+                         pictures, news (what others wrote since you last read here: its words, said once), filters,
+                         unread, search; who may change what (agent_may_not: the agent only posts)
     write_capability.py  what each connection kind writes (its operations: its Write starters' own words; its
                          modes: the adapter's, what sab.write takes; how) or why it is read-only; OPERATION_MODES
                          (which mode does each operation) and STARTER_ONLY (optimize, vacuum); the Write
@@ -926,13 +927,13 @@ src/swissarmybench/
                          connection's settings and sign-in as it names them; settled (something new to the
                          session that the open project's log already has in the same shape says nothing: a
                          project opened again reads its tables again); the changes tool's views
-    collaboration.py     the Collaboration panel: the timeline (threads and activity mixed, filtered; channels, the
-                         objects with threads, unread, shared or not, the team link's words), a thread, post, reply
-                         (to a change too), edit, delete (the user's only), react, resolve, pin, channel, show (every
-                         window's panel opened there: collaboration_show), search, the `@` picker, pictures, the
-                         profile (the GitHub login when signed in, else Settings' name, else the system's); the
-                         change log heard (changed: this person's activity line); a look every few seconds off the
-                         loop (a Pull's files, another window's), `collaboration_changed` and `collaboration_unread`
+    collaboration.py     the Collaboration panel: the timeline (threads, filtered; channels, the objects with threads,
+                         unread, shared or not, the team link's words), a thread, post (a new thread, or a reply with
+                         `thread`: the agent's one write, collaboration_post), and the user's own reply, edit, delete,
+                         react, resolve, pin, channel, show and name (403 for the agent); search, the `@` picker (the
+                         page's objects first, people, the rest), pictures, the profile; news (opened: a project's new
+                         messages said once, `collaboration_news`); a look every few seconds off the loop (a Pull's
+                         files, another window's), `collaboration_changed` and `collaboration_unread`
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
                          documents: recent, open, the project's: one seam), configuration (never a value),
                          and its calls this session (the app's runs, a Workbench kernel's report; memory only)
@@ -1447,14 +1448,15 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (381 in the base, 411 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (373 in the base, 403 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/
                          one record per server answer and each area's client, Generated/ by tools/generate_api.py;
                          State/ the shared services, each one Changed event; Navigation/ the rail's areas; Layout/
                          the shell, rail and status bar, Layout/Collaboration/ the Collaboration panel floating over
-                         every page; Components/ the shared parts: ErrorNote, Busy, AppDialog,
+                         every page and its buddy icon in each window's top right corner (State/PageObjects: what the
+                         page in front shows, set by each page); Components/ the shared parts: ErrorNote, Busy, AppDialog,
                          Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
                          extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,
                          css/ (tokens.css: every theme token), design.html: an HTML cell's walled-off frame);
@@ -1497,7 +1499,9 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/blazor/ 
                          and Git Data APIs and the device flow over in-memory repositories of made-up files),
                          folder_extension_example/stockroom/ (a made-up folder extension, never shipped: a project
                          type with one deliverable, one route, one command; test_folder_extensions.py proves it)
-tools/                   architecture_map.py (standard library only: the components, their couplings and the
+tools/                   emoji_data.py (the Collaboration panel's emoji list, wwwroot/data/emoji.json, rebuilt from
+                         Unicode's own emoji-test.txt with its version: `python tools/emoji_data.py`, `--check --from`);
+                         architecture_map.py (standard library only: the components, their couplings and the
                          import cycles from the real imports, written to docs/architecture-map.md, byte-stable;
                          `python tools/architecture_map.py`, `--check`); screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
