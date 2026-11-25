@@ -1,0 +1,28 @@
+@* One section of a release in What's New: its small heading with its icon, then its bullets (the app's Markdown). *@
+
+<section class="whatsnew-section @Kind" aria-label="@Title">
+    <h3><Icon Name="@IconName" /> @Title</h3>
+    @if (Bullets.Count == 0)
+    {
+        <p class="muted">None.</p>
+    }
+    else
+    {
+        @((MarkupString)MarkdownText.ToHtml(string.Join('\n', Bullets.Select(b => $"- {b}"))))
+    }
+</section>
+
+@code {
+    /// <summary>features or fixes: the section's class, for its colour.</summary>
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string IconName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Bullets { get; set; } = [];
+}

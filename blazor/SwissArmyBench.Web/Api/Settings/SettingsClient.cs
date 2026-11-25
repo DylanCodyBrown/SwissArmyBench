@@ -78,6 +78,13 @@ public sealed class SettingsClient
     /// <summary>Update to X: the app stops, installs and starts again (the server asks when work would be lost).</summary>
     public Task UpdateAsync(string version) => _api.PostAsync("/updates/install", new { version });
 
+    /// <summary>What's New: the releases since the version last seen (opening by itself after an update), or every one.</summary>
+    public Task<WhatsNewStatus> WhatsNewAsync(bool all = false) =>
+        _api.GetAsync<WhatsNewStatus>(all ? "/whats-new?all=1" : "/whats-new");
+
+    /// <summary>The window closed: the running version is the one last seen on this computer.</summary>
+    public Task WhatsNewSeenAsync() => _api.PostAsync("/whats-new/seen");
+
     public Task<BetaStatus> BetaAsync() => _api.GetAsync<BetaStatus>("/beta");
 
     public Task<BetaStatus> SetBetaAsync(bool on) => _api.PutAsync<BetaStatus>("/beta", new { on });

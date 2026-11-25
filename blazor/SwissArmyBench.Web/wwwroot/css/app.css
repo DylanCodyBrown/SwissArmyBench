@@ -256,6 +256,26 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .dialog-head h2 { flex: 1; font-size: 16px; }
 .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* ===== What's New (Layout/WhatsNewHost.razor): over every page of the main window ===== */
+.whatsnew-shade { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); }
+.dialog.whatsnew { width: min(520px, calc(100vw - 32px)); grid-template-rows: auto minmax(0, 1fr) auto; }
+.whatsnew .dialog-head > .icon-svg { color: var(--accent); }
+.whatsnew-body { display: grid; gap: 8px; overflow: auto; min-height: 0; }
+.whatsnew-release { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.whatsnew-release > summary { cursor: pointer; padding: 8px 12px; display: flex; align-items: baseline; gap: 8px; }
+.whatsnew-release > summary:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: -2px; }
+.whatsnew-version { font-weight: 600; color: var(--fg); }
+.whatsnew-time { color: var(--muted); font-size: 12px; }
+.whatsnew-section { padding: 0 12px 8px; }
+.whatsnew-section h3 { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-size: 13px; font-weight: 600; }
+.whatsnew-section.features h3 .icon-svg { color: var(--ok); }
+.whatsnew-section.fixes h3 .icon-svg { color: var(--warn); }
+.whatsnew-section .note-body ul { margin: 0; padding-left: 20px; }
+.whatsnew-section p.muted { margin: 0 0 0 20px; }
+.status-bar button.version-mark { border: 0; background: none; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.status-bar button.version-mark:hover { text-decoration: underline; }
+.status-bar button.version-mark:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
+
 /* ===== menus ===== */
 .menu { position: absolute; z-index: 70; display: grid; min-width: 180px; padding: 4px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--raised); box-shadow: var(--shadow); }
 .menu-item { padding: 5px 10px; border: 0; border-radius: 4px; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }

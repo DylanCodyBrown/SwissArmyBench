@@ -44,6 +44,9 @@ public partial class MainLayout : IDisposable
     [Inject]
     private ProjectSetup Setup { get; set; } = default!;
 
+    [Inject]
+    private WhatsNewState News { get; set; } = default!;
+
     private string AccentColour => Theme.IsDark ? DarkAccent : LightAccent;
 
     protected override async Task OnInitializedAsync()
@@ -58,7 +61,7 @@ public partial class MainLayout : IDisposable
         await Live.StartAsync();
         _state = Ready;
         await OpenStartGridAsync();
-        await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync(), Beta.StartAsync(), Tour.StartAsync(), Setup.LoadAsync());
+        await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync(), Beta.StartAsync(), Tour.StartAsync(), Setup.LoadAsync(), News.StartAsync());
     }
 
     /// <summary>A classic address's #grid= (a pushed table, the desktop app's file): that grid on the Tables page.</summary>

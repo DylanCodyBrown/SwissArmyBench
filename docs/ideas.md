@@ -9515,3 +9515,25 @@ message when they open the project."
 - News: a project opened (and a look that finds more than was last said, as after a Pull) says once "3 new messages
   from Sam Ortiz and Avery Lin" with Open (the newest thread); a computer that never read the project says the count
   alone ("12 new messages", past 99 "99+"). Your own messages never count; the agent's do.
+
+## What's New, 2026-11-25 (decisions and open notes)
+
+The owner: "Build a what's new page that opens and closes as an overlay when a user update. The we will give simple
+bullet points updates with a time stamp in a markdown file and render that file in the window. Summaries should be
+new features and bug fixes seperated." Then: "Short descriptions as possible."
+
+- The file is `src/swissarmybench/WHATSNEW.md`, shipped in the wheel (hatch ships the package folder, as it does
+  mcp/index.md). Each release is `## <version> · YYYY-MM-DD HH:MM UTC`, newest first, with exactly
+  `### New features` then `### Bug fixes` (an empty section is kept, shown as None.). A bullet is one line of a few
+  words, 60 characters at most, no parentheticals; a fix starts "Fixed: ". tests/test_whats_new.py holds the shape
+  and that pyproject.toml's version has its heading, so the unit suite the release runs refuses a version without
+  one.
+- Seeded from .github/release-notes for 0.0.36 to 0.0.38 (each note cut to its few words) and a 0.0.39 entry for the
+  Collaboration panel and this window, ahead of the version bump. The times are the releases' tag times in UTC;
+  0.0.39's is a placeholder to set when it is tagged (open: the owner's).
+- When it opens: the running version newer than the one last seen (`whats_new.json`, the version only). A brand
+  new install records its version and opens nothing. It shows every release newer than the last seen up to the
+  running one. Closing it in any way marks the running version seen; the reload stays closed.
+- The main window only (sab-home), never a popped-out window; the agent's `app_whats_new open=true` opens it on
+  the main window (every release). Closing it is the user's own (POST /whats-new/seen is 403 for the agent).
+- Where it reopens: Home's What's new beside Tour, and the status bar's version (now a button).

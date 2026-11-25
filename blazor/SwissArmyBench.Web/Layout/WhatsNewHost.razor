@@ -1,0 +1,69 @@
+@* What's New over the page (State/WhatsNewState.cs): a centred window on a dimmed page, each release's New features
+   and Bug fixes apart under their own heading and icon, the newest unfolded and the older ones folded. X, Escape, a
+   click outside and Got it close it; the focus stays inside while it is open (shell.js keepFocus). *@
+@implements IDisposable
+@inject WhatsNewState News
+@inject IJSRuntime Js
+
+@if (News.Open)
+{
+    <div class="whatsnew-shade" @onclick="News.CloseAsync" @onkeydown="OnKeyAsync">
+        <div class="dialog whatsnew" role="dialog" aria-modal="true" aria-labelledby="whatsnew-title" tabindex="-1" @ref="_dialog" @onclick:stopPropagation="true">
+            <div class="dialog-head">
+                <Icon Name="star" />
+                <h2 id="whatsnew-title">What's new</h2>
+                <button type="button" class="btn ghost icon" aria-label="Close" title="Close (Esc)" @onclick="News.CloseAsync"><Icon Name="close" /></button>
+            </div>
+            <div class="whatsnew-body">
+                @if (News.Releases.Count == 0)
+                {
+                    <p class="muted">Nothing new to say yet.</p>
+                }
+                @for (var at = 0; at < News.Releases.Count; at++)
+                {
+                    var release = News.Releases[at];
+                    <details class="whatsnew-release" open="@(at == 0)">
+                        <summary><span class="whatsnew-version">@release.Version</span> <span class="whatsnew-time">@release.Time</span></summary>
+                        <WhatsNewSection Kind="features" Title="New features" IconName="star" Bullets="release.Features" />
+                        <WhatsNewSection Kind="fixes" Title="Bug fixes" IconName="bug" Bullets="release.Fixes" />
+                    </details>
+                }
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn primary" @onclick="News.CloseAsync">Got it</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ElementReference _dialog;
+    private bool _focused;
+
+    protected override void OnInitialized() => News.Changed += Redraw;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (News.Open && !_focused)
+        {
+            _focused = true;
+            await Js.InvokeVoidAsync("sab.keepFocus", _dialog);
+        }
+        else if (!News.Open)
+        {
+            _focused = false;
+        }
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await News.CloseAsync();
+        }
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => News.Changed -= Redraw;
+}

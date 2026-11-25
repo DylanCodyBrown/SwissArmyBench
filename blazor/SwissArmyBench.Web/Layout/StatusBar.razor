@@ -8,9 +8,10 @@
 @inject GridStatus Grid
 @inject SettingsClient Settings
 @inject ProjectSetup Setup
+@inject WhatsNewState News
 
 <footer class="status-bar" aria-label="Status">
-    <span class="status-app version-mark" title="@Version">@Version</span>
+    <button type="button" class="status-app version-mark" title="@($"{Version}: what's new")" aria-haspopup="dialog" @onclick="News.OpenAsync">@Version</button>
     @if (Project.Current is { } open)
     {
         <span class="status-project">

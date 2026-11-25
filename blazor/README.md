@@ -94,6 +94,12 @@ blazor/
                              each page; Components/EmojiCatalog (wwwroot/data/emoji.json, from tools/emoji_data.py);
                              Components/CollaborateButton and CollaborationState.Entry: Collaborate on a cell's menu, a
                              tab's menu, a connection
+    Layout/WhatsNewHost      What's New (the owner, 2026-11-25), in MainLayout only (never a popped-out window: the main
+                             window is sab-home): a centred window over a dimmed page, each release a fold (the newest
+                             open), WhatsNewSection its New features and Bug fixes under their heading and icon through
+                             MarkdownText; X, Escape, outside and Got it close it (POST /whats-new/seen); the focus kept
+                             inside (shell.js keepFocus); State/WhatsNewState (opens by itself after an update, Home's
+                             What's new and the status bar's version, the whats_new_open notice)
     Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost, ProjectSetupBar
                              (the setup bar under every page's top: what the open project needs, installed at once
                              as it opens; ProjectSetup its state service, from the project_installs notice; Hide keeps

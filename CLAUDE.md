@@ -254,7 +254,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
   files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
   (its Qt WebEngine profile: cookies, local storage, cache; `windows.json`, each kind of window's place),
-  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only); `profile.json` (the Collaboration panel's name set in Settings: a name only); `collaboration_read.json` (each project's threads read up to when, this computer's unread marks).
+  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only); `profile.json` (the Collaboration panel's name set in Settings: a name only); `collaboration_read.json` (each project's threads read up to when, this computer's unread marks); `whats_new.json` (What's New's version last seen here: the version only).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs. **`${NAME}` anywhere
@@ -359,6 +359,9 @@ has the rules and why. Three layers, imports pointing inwards, nothing deeper th
 ```
 src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
+  WHATSNEW.md            What's New (the owner, 2026-11-25), shipped in the wheel: `## <version> · YYYY-MM-DD HH:MM UTC`,
+                         newest first, `### New features` then `### Bug fixes`, short bullets (60 characters at most;
+                         "Short descriptions as possible"); the running version has its heading (tests/test_whats_new.py)
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
   sab_excel.py           public: THE workbook builder (Plans/excel.plan.md, the owner 2026-11-21), one file the
                          app, a kernel, a Streamlit app and an export share; standard library, openpyxl and
@@ -693,6 +696,8 @@ src/swissarmybench/
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
                          update's plan (uv tool install --force, each installed extension `--with`)
+    whats_new.py         What's New: WHATSNEW.md read (parse, problems: its shape and its line), the releases newer
+                         than the version last seen, whether it opens by itself (the first start after an update)
     extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps, copilot available), statuses
                          (preinstalled, available, installed, coming), an entry point's description read loosely,
                          the wheel on this version's GitHub release, Install's and Remove's plan; a folder
@@ -1073,7 +1078,9 @@ src/swissarmybench/
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every 30 minutes; the switch), Update to X (asks only when
-                         work would be lost; the agent's waits for Allow)
+                         work would be lost; the agent's waits for Allow); its whats_new
+    whats_new.py         What's New: the releases to show (a brand new install records its version, opens nothing),
+                         seen (the window closed: the user's own, 403 for the agent), show (`whats_new_open`)
     lifecycle.py         the server's life: the windows counted, the clients' requests (from the guard), the stop
                          (an open project saved first, or held), the desktop app's closed
     desktop.py           desktop_status and desktop_open: the app's windows, a page opened in one
@@ -1271,7 +1278,8 @@ src/swissarmybench/
     connection_colours.py colours.toml (the library's), written only when it changes
     claude.py            Launch Claude's files: claude/<project>/ (its context.md atomically, only when changed),
                          claude.json, a Desktop config (backup first)
-    updates.py           the release list's one GET, update.json, the helper's notes
+    updates.py           the release list's one GET, update.json, the helper's notes; WhatsNewFiles (WHATSNEW.md,
+                         whats_new.json)
     desktop.py           the desktop app's channel (127.0.0.1, a key, one JSON line each way), desktop.json, its
                          windows.json
     extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
@@ -1341,7 +1349,7 @@ src/swissarmybench/
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
                          installs with uv, checks the version, starts the app, or the old one and a note;
                          Install and Remove an extension the same way (launch_change)
-    routes_updates.py    the update check, its switch, Update to X
+    routes_updates.py    the update check, its switch, Update to X; /whats-new, /whats-new/seen, /whats-new/open
     routes_lifecycle.py  GET /lifecycle (app_lifecycle), POST /lifecycle/closed (the app's)
     routes_desktop.py    GET /desktop, POST /desktop/open (desktop_status, desktop_open)
     routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)

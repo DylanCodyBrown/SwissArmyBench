@@ -347,6 +347,28 @@ window.sab = {
     target.focus();
   },
 
+  /** A window over the page keeps the focus inside it (What's New): it goes to the window, and Tab and Shift+Tab
+   *  go round its buttons, links and folds, never out to the page behind. */
+  keepFocus(dialog) {
+    if (!dialog) return;
+    const inside = () => [...dialog.querySelectorAll("button, [href], summary, input, select, textarea, [tabindex]:not([tabindex='-1'])")].filter((e) => !e.disabled && e.offsetParent !== null);
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const all = inside();
+      if (all.length === 0) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+    (dialog.querySelector(".dialog-foot .btn.primary") ?? dialog).focus();
+  },
+
   /** Whether the focus is in a box the user types in (an input, a text area, a list, an editable part). */
   typing() {
     const at = document.activeElement;

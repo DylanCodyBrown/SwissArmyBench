@@ -125,6 +125,7 @@ public static class Program
         services.AddScoped<VariableAsks>();
         services.AddScoped<FilePicks>();
         services.AddScoped<TourState>();
+        services.AddScoped<WhatsNewState>();
         services.AddScoped<PageObjects>();
         services.AddScoped<CollaborationState>();
         services.AddScoped<EmojiCatalog>();

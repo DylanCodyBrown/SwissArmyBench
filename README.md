@@ -349,6 +349,15 @@ reads it again when your `git pull` changes it, so a teammate's tables are finda
 anything is loaded. **Set up from the meta store** lists what a new computer still needs (each key vault's
 sign-in, values to type once, each connection's status). The app never runs git.
 
+### What's New
+
+After an update, the first start opens **What's New** over the page: each release since the version you last saw,
+newest first and unfolded, its **New features** and **Bug fixes** apart in short bullets with the release's time.
+X, Escape, a click outside or **Got it** closes it, and it stays closed until the next update. Home's **What's new**
+button and the status bar's version open it again with every release. A new install opens nothing. The notes are
+`WHATSNEW.md` in the package; `whats_new.json` in the state folder keeps only the version last seen. The agent's
+`app_whats_new` reads them and can open the window; closing it is yours.
+
 ### The Collaboration panel: the team's notes and threads
 
 A small speech-bubble buddy sits in the top right corner of every window (never over a page's own buttons), with

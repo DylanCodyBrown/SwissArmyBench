@@ -34,7 +34,11 @@ if not (Settings().blazor_root / "index.html").is_file():
 @pytest.fixture(scope="module")
 def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
     """A server of its own: its state, projects and Workbench folders in a temporary folder."""
-    tmp = tmp_path_factory.mktemp("blazor")
+    yield from serve(tmp_path_factory.mktemp("blazor"))
+
+
+def serve(tmp: Path) -> Iterator[dict[str, Any]]:
+    """A server over `tmp` (its state folder `tmp/state`, which a test may fill first), stopped after."""
     env = os.environ | {
         "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
         "SWISSARMYBENCH_STATE": str(tmp / "state"),
@@ -58,9 +62,11 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
     if info is None:
         process.kill()
         raise AssertionError("the server did not start")
-    yield info | {"tmp": tmp}
-    process.terminate()
-    process.wait(timeout=20)
+    try:
+        yield info | {"tmp": tmp}
+    finally:
+        process.terminate()
+        process.wait(timeout=20)
 
 
 @pytest.fixture(scope="module")

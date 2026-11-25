@@ -1,7 +1,9 @@
 @* The Projects page's Tour button (the classic tourButton.ts), with the "New here? Take the tour" bubble beside it
-   until the tour is opened once or put away with Not now (kept in this browser). The tour itself is the layout's. *@
+   until the tour is opened once or put away with Not now (kept in this browser), and What's new beside it (every
+   release's New features and Bug fixes). The tour and What's New themselves are the layout's. *@
 @implements IDisposable
 @inject TourState Tour
+@inject WhatsNewState News
 
 @if (Tour.Seen)
 {
@@ -17,6 +19,8 @@ else
         </span>
     </span>
 }
+
+<button type="button" class="btn ribbon-btn whatsnew-btn" aria-haspopup="dialog" title="What's new: each release's new features and bug fixes" @onclick="News.OpenAsync"><Icon Name="star" /> What's new</button>
 
 @code {
     protected override void OnInitialized() => Tour.Changed += Redraw;

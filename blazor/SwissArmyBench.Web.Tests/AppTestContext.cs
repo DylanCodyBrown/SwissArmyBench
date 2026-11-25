@@ -42,6 +42,7 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<PackagePrompts>();
         Services.AddScoped<VariableAsks>();
         Services.AddScoped<TourState>();
+        Services.AddScoped<WhatsNewState>();
         Services.AddScoped<FilePicks>();
         Services.AddScoped<Api.Environment.EnvironmentClient>();
         Services.AddScoped<Api.Variables.VariablesClient>();
