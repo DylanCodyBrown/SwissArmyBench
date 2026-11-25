@@ -1,21 +1,25 @@
-"""The Collaboration panel: the team's notes, threads and activity inside a project (domain/collaboration.py
+"""The Collaboration panel: the team's notes and threads inside a project (domain/collaboration.py
 has the format and the rules; the owner, 2026-11-25, who named it).
 
 Everything is files in the open project's `.sab/collaboration/`, so the notes travel with the project's own
 Pull and Push (the team repository: CLAUDE.md "A team"); a project that is not shared keeps them on this
 computer only. No server and no other network traffic.
 
-  timeline    a channel's or an object's threads (or all of them) mixed with the activity, filtered
-              (all, mentions, the page's objects, unresolved, activity only, notes only); the channels and
-              the objects that have threads, each with its unread count; whether the project is shared;
-              the team's sync words
+  timeline    a channel's or an object's threads (or all of them), filtered (all, mentions, the page's
+              objects, unresolved); the channels and the objects that have threads, each with its unread
+              count; whether the project is shared; the team's sync words. Only what people write: the change
+              log stays out (the owner, 2026-11-25)
   thread      one thread folded (its messages, reactions, resolved, pinned); each reference with where it
               opens and whether its object is still in the project
-  post, reply, edit, delete, react, resolve, pin, channel     each a small file of its own (a Git merge never
-              conflicts); deleting is the user's own (the agent edits its own messages, deletes none)
-  search, activity, unread, objects (the `@` picker: people and the project's objects), profile (this
-              computer's name: the GitHub login when signed in, else Settings' name, else the system's)
-  changed     a change log entry (services/changes.py's listeners): one line of this person's activity
+  post        a new thread, or with `thread` a reply: the agent's one way to write (collaboration_post)
+  reply, edit, delete, react, resolve, pin, channel, show, profile     the user's own (403 for the agent: the
+              owner, 2026-11-25, "the agent can post but only with a specific tool"); each a small file of its
+              own (a Git merge never conflicts)
+  search, unread, objects (the `@` picker: the page's objects first, then people, then the rest of the
+              project), profile (this computer's name: the GitHub login when signed in, else Settings' name,
+              else the system's)
+  news        what is new to you since you last read here: as a project opens (opened) and when a Pull or
+              another window brings files (look), said once as `collaboration_news` {count, words, thread}
   look        every few seconds, off the loop: files a Pull or another window brought, said as
               `collaboration_changed` {threads} and `collaboration_unread` {total, mentions, places}
 """
@@ -116,7 +120,7 @@ class Collaboration:
         self._explorer = explorer
         self._every = every
         self._looked: tuple[str | None, dict[str, Stamp]] = (None, {})
-        self._tasks: set[asyncio.Task[None]] = set()
+        self._told = 0  # the new messages the last news said
 
     def _github(self) -> str | None:
         sync = getattr(self._hooks, "team", None)
@@ -143,6 +147,11 @@ class Collaboration:
     def _author(self, who: str) -> rules.Person:
         return rules.agent_for(self.me()) if who == "agent" else self.me()
 
+    @staticmethod
+    def _users_own(who: str, what: str) -> None:
+        if who == "agent":
+            raise Refused(rules.agent_may_not(what))
+
     def profile(self) -> dict[str, Any]:
         kept = self._profile.read()
         named = isinstance(kept, dict) and bool(kept.get("name"))
@@ -150,6 +159,7 @@ class Collaboration:
         return self.me().to_json() | {"source": source, "github": self._github()}
 
     async def set_profile(self, body: Any, who: str = "user") -> dict[str, Any]:
+        self._users_own(who, "your name in the panel")
         name = " ".join(str((body or {}).get("name") or "").split())[:80] if isinstance(body, dict) else ""
         self._profile.write({"name": name} if name else {})
         await self.ws.live.broadcast({"type": "collaboration_changed", "threads": []})
@@ -203,14 +213,6 @@ class Collaboration:
             raise NotFound("No such thread in this project's collaboration.")
         return found
 
-    def _activity(self, project: str) -> list[dict[str, Any]]:
-        top = f"{self._dir(project)}/{rules.ACTIVITY}"
-        lines: list[dict[str, Any]] = []
-        for name in sorted(self._files.stamps(top)):
-            if name.endswith(".jsonl"):
-                lines += rules.parse_activity(self._files.read(f"{top}/{name}") or "")
-        return sorted(lines, key=lambda a: (str(a["time"]), str(a["id"])))
-
     def _channels(self, project: str, threads: Mapping[str, Folded]) -> list[str]:
         made = {rules.GENERAL}
         made |= {t.channel for t, _ in threads.values() if t.channel}
@@ -218,15 +220,12 @@ class Collaboration:
         made |= {n.removesuffix(".toml") for n in self._files.stamps(top) if n.endswith(".toml")}
         return [rules.GENERAL, *sorted(made - {rules.GENERAL})]
 
-    def _people(self, threads: Mapping[str, Folded], activity: list[dict[str, Any]]) -> dict[str, str]:
+    def _people(self, threads: Mapping[str, Folded]) -> dict[str, str]:
         seen = {self.me().login: self.me().name}
         for thread, messages in threads.values():
             seen.setdefault(thread.created_by.login, thread.created_by.name)
             for m in messages:
                 seen.setdefault(m.author.login, m.author.name)
-        for line in activity:
-            found = rules.person_of(line.get("author"))
-            seen.setdefault(found.login, found.name)
         return dict(sorted(seen.items()))
 
     # ===== reading: the read marks =====
@@ -267,12 +266,37 @@ class Collaboration:
             return {"total": 0, "mentions": 0, "places": {}}
         return self._counts(project, self._load(project))
 
+    def news(self) -> dict[str, Any]:
+        """What is new to you since you last read here (the messages someone else wrote)."""
+        project = self._project()
+        if not project:
+            return rules.News(0, (), "", False).to_json()
+        return rules.news(self._load(project).values(), self._seen(project), self.me().login).to_json()
+
+    async def opened(self, folder: str, extra: Any = None) -> None:
+        """A project opened (services/sab_projects.py's opened): its news said once, the count at once."""
+        stamps = await asyncio.to_thread(self._files.stamps, self._dir(folder))
+        self._looked = (folder, stamps)
+        await self._tell_news(folder)
+
+    async def _tell_news(self, project: str, only_more: bool = False) -> None:
+        """The counts at once; the news said once (after a look: only when there is more to read than was
+        last said, so a Pull's messages are said and the same ones are not said again)."""
+        found = await asyncio.to_thread(
+            lambda: rules.news(self._load(project).values(), self._seen(project), self.me().login)
+        )
+        await self.ws.live.broadcast({"type": "collaboration_unread"} | self.unread())
+        told, self._told = self._told, found.count
+        if found.count and (not only_more or found.count > told):
+            await self.ws.live.broadcast({"type": "collaboration_news"} | found.to_json())
+
     async def mark_read(self, body: Any, who: str = "user") -> dict[str, Any]:
         """The panel showed a thread: read up to its last message (this computer's, the user's own)."""
         project = self._root()
         thread, messages = self._one(project, (body or {}).get("thread") if isinstance(body, dict) else None)
         if who != "agent" and messages:
             self._mark(project, thread.id, messages[-1].time)
+            self._told = min(self._told, int(self.unread()["total"]))
             await self._said(project, [])
         return self.unread()
 
@@ -320,24 +344,6 @@ class Collaboration:
             "first": self._message_view(project, first, who) if first else None,
         }
 
-    @staticmethod
-    def _activity_view(line: Mapping[str, Any], threads: Mapping[str, Folded]) -> dict[str, Any]:
-        on = [
-            t.id
-            for t, _ in threads.values()
-            if t.anchor and t.anchor.kind == "change" and t.anchor.id == line["id"]
-        ]
-        return {
-            "type": "activity",
-            "id": line["id"],
-            "time": line["time"],
-            "author": line.get("author"),
-            "object": line.get("object"),
-            "words": line.get("words"),
-            "threads": on,
-            "replies": sum(len(threads[t][1]) for t in on),
-        }
-
     async def timeline(self, query: Mapping[str, Any], who: str = "user") -> dict[str, Any]:
         """{where?: "#general" | an object's key, filter?, page?}: the timeline, oldest first (the last
         200)."""
@@ -353,29 +359,22 @@ class Collaboration:
                 "unread": {},
             }
         threads = self._load(project)
-        activity = self._activity(project)
         shown = rules.check_filter(query.get("filter"))
         where = str(query.get("where") or "")
-        page = str(query.get("page") or "")
+        page = rules.page_paths(query.get("page"))
         seen = self._seen(project)
         items: list[dict[str, Any]] = []
         for folded in threads.values():
             thread, messages = folded
             if where and rules.where_of(thread) != where:
                 continue
-            if thread.anchor and thread.anchor.kind == "change" and not where:
-                continue  # shown under its activity line
-            if shown != "notes" and not rules.kept(shown, thread, messages, me.login, page):
+            if not rules.kept(shown, thread, messages, me.login, page):
                 continue
             items.append({"type": "thread"} | self._thread_view(project, folded, seen, who))
-        if not where and shown in ("all", "activity"):
-            items += [self._activity_view(line, threads) for line in activity]
-        items.sort(key=lambda i: (str(i.get("created") or i.get("time")), str(i["id"])))
+        items.sort(key=lambda i: (str(i.get("created")), str(i["id"])))
         counts = self._counts(project, threads)
         places = counts["places"]
-        anchored = {
-            t.anchor.key: t.anchor for t, _ in threads.values() if t.anchor and t.anchor.kind != "change"
-        }
+        anchored = {t.anchor.key: t.anchor for t, _ in threads.values() if t.anchor}
         return {
             "project": project,
             "me": me.to_json(),
@@ -389,7 +388,7 @@ class Collaboration:
                 self._ref_view(project, ref) | {"key": key, "unread": places.get(key, 0)}
                 for key, ref in sorted(anchored.items())
             ],
-            "people": [{"login": k, "name": v} for k, v in self._people(threads, activity).items()],
+            "people": [{"login": k, "name": v} for k, v in self._people(threads).items()],
             "items": items[-200:],
             "unread": counts,
         }
@@ -405,7 +404,7 @@ class Collaboration:
     # ===== writing =====
 
     def _known(self, project: str) -> list[str]:
-        return list(self._people(self._load(project), self._activity(project)))
+        return list(self._people(self._load(project)))
 
     def _images(self, project: str, thread: str, message: str, text: str, sent: Any) -> str:
         """The pictures pasted into a message, each a file beside it; `sab-image:new-<n>` in the body
@@ -430,7 +429,8 @@ class Collaboration:
     def _message(self, project: str, thread: str, body: Any, who: str, kind: str) -> rules.Message:
         sent = body if isinstance(body, dict) else {}
         ident = self._new_id()
-        text = self._images(project, thread, ident, rules.check_body(sent.get("body")), sent.get("images"))
+        said = rules.in_project_links(rules.check_body(sent.get("body")), project)
+        text = self._images(project, thread, ident, said, sent.get("images"))
         return rules.Message(
             id=ident,
             thread=thread,
@@ -446,9 +446,12 @@ class Collaboration:
         self._files.write(f"{self._dir(project)}/{m.thread}/{file or m.file}", rules.message_text(m))
 
     async def post(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{channel? (default general) | anchor? (a reference), title?, body, images?}: a new thread."""
+        """{channel? (default general) | anchor? (a reference), title?, body, images?}: a new thread; with
+        {thread} a reply in it. The agent's one way to write (collaboration_post), marked as its own."""
         project = self._root()
         sent = body if isinstance(body, dict) else {}
+        if sent.get("thread"):
+            return await self._reply(project, sent, who)
         anchor = rules.in_project(rules.reference(sent["anchor"]), project) if sent.get("anchor") else None
         channel = "" if anchor else rules.channel_name(sent.get("channel") or rules.GENERAL)
         ident = f"t-{self._new_id()}"
@@ -466,11 +469,11 @@ class Collaboration:
         return self.thread(ident, who)
 
     async def reply(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{thread, body, images?}, or {activity: a line's id, body}: a reply (a change's own thread made)."""
-        project = self._root()
-        sent = body if isinstance(body, dict) else {}
-        if sent.get("activity") and not sent.get("thread"):
-            return await self._reply_to_change(project, sent, who)
+        """{thread, body, images?}: a reply (the panel's; the agent replies with collaboration_post)."""
+        self._users_own(who, "replying here (post with a thread)")
+        return await self._reply(self._root(), body if isinstance(body, dict) else {}, who)
+
+    async def _reply(self, project: str, sent: Mapping[str, Any], who: str) -> dict[str, Any]:
         thread, _ = self._one(project, sent.get("thread"))
         made = self._message(project, thread.id, sent, who, "reply")
         self._write_message(project, made)
@@ -480,18 +483,6 @@ class Collaboration:
         await self._said(project, [thread.id])
         return self.thread(thread.id, who)
 
-    async def _reply_to_change(self, project: str, sent: Mapping[str, Any], who: str) -> dict[str, Any]:
-        line = next((a for a in self._activity(project) if a["id"] == str(sent["activity"])), None)
-        if line is None:
-            raise NotFound("No such change in this project's activity.")
-        anchor = rules.change_reference(line)
-        for thread, _ in self._load(project).values():
-            if thread.anchor and thread.anchor.key == anchor.key:
-                return await self.reply(dict(sent) | {"thread": thread.id}, who)
-        return await self.post(
-            {"anchor": anchor.to_json(), "title": anchor.text, "body": sent.get("body")}, who
-        )
-
     def _find(self, project: str, sent: Mapping[str, Any]) -> tuple[rules.Thread, rules.Message, str]:
         thread, messages = self._one(project, sent.get("thread"))
         ident = rules.check_id(sent.get("message"), "message")
@@ -500,17 +491,20 @@ class Collaboration:
             raise NotFound("No such message in that thread.")
         return thread, found, found.file
 
+    def _own(self, message: rules.Message) -> None:
+        try:
+            rules.may_change(message, self.me())
+        except PermissionError as error:
+            raise Refused(str(error)) from None
+
     async def edit(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{thread, message, body}: its author's (the agent its own); only that message's file is
-        rewritten."""
+        """{thread, message, body}: your own message; only its file is rewritten (the user's own)."""
+        self._users_own(who, "editing a message")
         project = self._root()
         sent = body if isinstance(body, dict) else {}
         thread, message, file = self._find(project, sent)
-        try:
-            rules.may_change(message, self.me(), who == "agent", deleting=False)
-        except PermissionError as error:
-            raise Refused(str(error)) from None
-        message.body = rules.check_body(sent.get("body"))
+        self._own(message)
+        message.body = rules.in_project_links(rules.check_body(sent.get("body")), project)
         message.edited = self._now()
         message.mentions = rules.mentions_in(message.body, self._known(project))
         message.references = rules.references_in(message.body)
@@ -521,17 +515,12 @@ class Collaboration:
         return self.thread(thread.id, who)
 
     async def delete(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{thread, message}: the user's own message, marked deleted (its pictures gone). Never the
-        agent's."""
-        if who == "agent":
-            raise Refused(rules.AGENT_DELETE)
+        """{thread, message}: your own message, marked deleted (its pictures gone). The user's own."""
+        self._users_own(who, "deleting a message")
         project = self._root()
         sent = body if isinstance(body, dict) else {}
         thread, message, file = self._find(project, sent)
-        try:
-            rules.may_change(message, self.me(), False, deleting=True)
-        except PermissionError as error:
-            raise Refused(str(error)) from None
+        self._own(message)
         for name in rules.images_in(message.body):
             self._files.remove(f"{self._dir(project)}/{thread.id}/{name}")
         message.deleted, message.body, message.edited = True, "", self._now()
@@ -550,18 +539,20 @@ class Collaboration:
 
     async def react(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{thread, message, emoji}: your reaction on, or off when it is there (a small file of its own)."""
+        self._users_own(who, "a reaction")
         project = self._root()
         sent = body if isinstance(body, dict) else {}
         thread, message, _ = self._find(project, sent)
         emoji = rules.check_emoji(sent.get("emoji"))
-        on = self._author(who).login not in message.reactions.get(emoji, [])
+        on = self.me().login not in message.reactions.get(emoji, [])
         await self._event(
             project, thread.id, "react" if on else "unreact", who, message=message.id, emoji=emoji
         )
         return self.thread(thread.id, who)
 
     async def resolve(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{thread, resolved?: true | false}: resolved, or opened again."""
+        """{thread, resolved?: true | false}: resolved, or opened again (the user's own)."""
+        self._users_own(who, "resolving a thread")
         project = self._root()
         sent = body if isinstance(body, dict) else {}
         thread, _ = self._one(project, sent.get("thread"))
@@ -569,6 +560,7 @@ class Collaboration:
         return self.thread(thread.id, who)
 
     async def pin(self, body: Any, who: str = "user") -> dict[str, Any]:
+        self._users_own(who, "pinning a thread")
         project = self._root()
         sent = body if isinstance(body, dict) else {}
         thread, _ = self._one(project, sent.get("thread"))
@@ -576,7 +568,8 @@ class Collaboration:
         return self.thread(thread.id, who)
 
     async def channel(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{name}: a channel the team can post in (#general is always there)."""
+        """{name}: a channel the team can post in (#general is always there; the user's own)."""
+        self._users_own(who, "making a channel")
         project = self._root()
         name = rules.channel_name((body or {}).get("name") if isinstance(body, dict) else None)
         path = f"{self._dir(project)}/{rules.CHANNELS}/{name}.toml"
@@ -587,8 +580,8 @@ class Collaboration:
         return {"channel": name, "key": f"#{name}"}
 
     async def show(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{anchor? | where?}: every window opens the panel there (Collaborate on an object; the agent's
-        collaboration_show). Nothing is written."""
+        """{anchor? | where?}: every window opens the panel there (the user's own). Nothing is written."""
+        self._users_own(who, "opening the panel")
         sent = body if isinstance(body, dict) else {}
         found = rules.reference(sent["anchor"]) if sent.get("anchor") else None
         project = self._project()
@@ -602,16 +595,15 @@ class Collaboration:
         await self.ws.live.broadcast(notice)
         return {"shown": True, "where": where}
 
-    # ===== search, activity, the picker, pictures =====
+    # ===== search, the picker, pictures =====
 
     def search(self, words: Any, who: str = "user") -> dict[str, Any]:
         project = self._root()
         said = " ".join(str(words or "").split())
         if not said:
             raise rules.CollaborationError("Search for some words.")
-        threads = self._load(project)
         found: list[dict[str, Any]] = []
-        for thread, messages in threads.values():
+        for thread, messages in self._load(project).values():
             for m in messages:
                 refs = " ".join(r.text for r in m.references)
                 if not m.deleted and rules.matches(said, thread.title, m.body, refs, m.author.name):
@@ -623,44 +615,30 @@ class Collaboration:
                             "snippet": rules.snippet(m.body, said),
                         }
                     )
-        for line in self._activity(project):
-            obj = line.get("object") or {}
-            if rules.matches(said, str(line.get("words")), str(obj.get("name")), str(obj.get("kind"))):
-                found.append(self._activity_view(line, threads) | {"snippet": str(line.get("words"))})
         found.sort(key=lambda f: str(f["time"]), reverse=True)
         return {"words": said, "found": found[:100]}
 
-    def activity(self, query: Mapping[str, Any]) -> dict[str, Any]:
-        project = self._root()
-        try:
-            most = int(query.get("n") or 50)
-        except (TypeError, ValueError):
-            raise rules.CollaborationError("n is a whole number.") from None
-        person = str(query.get("who") or "")
-        lines = [
-            a
-            for a in self._activity(project)
-            if not person or rules.person_of(a.get("author")).login == person
-        ]
-        threads = self._load(project)
-        return {"activity": [self._activity_view(a, threads) for a in reversed(lines)][:most]}
-
-    def objects(self, words: Any = "") -> dict[str, Any]:
-        """The `@` picker: the people who wrote here, then the project's objects, matching the words."""
+    def objects(self, words: Any = "", page: Any = None) -> dict[str, Any]:
+        """The `@` picker: the objects of the page in front first, then the people who wrote here (and you),
+        then the rest of the project's objects, matching the words."""
         project = self._project()
         said = str(words or "").strip()
-        people = self._people(self._load(project), self._activity(project)) if project else {}
+        people = self._people(self._load(project)) if project else {}
         found_people = [
             {"login": k, "name": v} for k, v in people.items() if not said or rules.matches(said, k, v)
         ]
+        on = rules.page_paths(page)
         refs = [
             r
             for r in self._objects.candidates(project)
             if not said or rules.matches(said, r.text, r.path, r.kind)
         ]
+        here = [r for r in refs if on and rules.on_page([r], on)]
+        rest = [r for r in refs if r not in here]
         return {
+            "page": [r.to_json() | {"link": r.link()} for r in here[:40]],
             "people": found_people[:20],
-            "objects": [r.to_json() | {"link": r.link()} for r in refs[:60]],
+            "objects": [r.to_json() | {"link": r.link()} for r in rest[:60]],
         }
 
     def image(self, thread: Any, name: Any) -> tuple[bytes, str]:
@@ -674,26 +652,6 @@ class Collaboration:
             raise NotFound("No such picture.")
         mime = next(m for m, ext in rules.IMAGE_TYPES.items() if file.endswith(f".{ext}"))
         return data, mime
-
-    # ===== the activity, heard from the change log =====
-
-    def changed(self, event: Mapping[str, Any]) -> None:
-        """A change log entry (stamped): one line of this person's activity, the file trimmed to 90 days."""
-        project = self._project()
-        me = self.me()
-        line = rules.activity_line(event, me) if project else None
-        if line is None or project is None:
-            return
-        path = f"{self._dir(project)}/{rules.ACTIVITY}/{rules.slug(me.login)}.jsonl"
-        lines = rules.trimmed([*rules.parse_activity(self._files.read(path) or ""), line], self._now())
-        self._files.write(path, rules.activity_text(lines))
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return  # written off the loop: the next look says it
-        task = loop.create_task(self._said(project, []))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
 
     # ===== the notices: a write here, or a look at the folder =====
 
@@ -720,7 +678,7 @@ class Collaboration:
         changed |= {p.split("/")[0] for p in stamps.keys() & was.keys() if stamps[p] != was[p]}
         threads = sorted(t for t in changed if not t.startswith("_"))
         await self.ws.live.broadcast({"type": "collaboration_changed", "threads": threads})
-        await self.ws.live.broadcast({"type": "collaboration_unread"} | await asyncio.to_thread(self.unread))
+        await self._tell_news(project, only_more=True)
         return threads
 
     async def run_forever(self) -> None:

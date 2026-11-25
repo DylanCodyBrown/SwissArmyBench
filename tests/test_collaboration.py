@@ -111,12 +111,15 @@ def test_a_thread_with_a_cell_reference_its_reply_reactions_and_resolve(
     assert "collaboration" not in sab_files.GITIGNORE and "collaboration" not in sab_files.APP_GITIGNORE
 
 
-def test_the_agent_posts_as_itself_edits_its_own_and_deletes_none(client: TestClient, tmp_path: Path) -> None:
+def test_the_agent_posts_only_with_collaboration_post(client: TestClient, tmp_path: Path) -> None:
     _project(client, tmp_path)
     mine = ok(client.post("/collaboration/post", json={"body": "A note of mine"}, headers=AUTH))
     ident, message = mine["id"], mine["messages"][0]["id"]
+    # The agent posts a thread, and replies with the same route and a thread id: marked as its own.
+    made = ok(client.post("/collaboration/post", json={"body": "A note from the agent"}, headers=AGENT))
+    assert made["messages"][0]["author"]["agent"] is True
     said = ok(
-        client.post("/collaboration/reply", json={"thread": ident, "body": "Checked it."}, headers=AGENT)
+        client.post("/collaboration/post", json={"thread": ident, "body": "Checked it."}, headers=AGENT)
     )
     agents = said["messages"][1]
     assert agents["author"] == {
@@ -124,46 +127,49 @@ def test_the_agent_posts_as_itself_edits_its_own_and_deletes_none(client: TestCl
         "login": "claude-for-avery-lin",
         "agent": True,
     }
-    edit = {"thread": ident, "message": message, "body": "Changed by the agent"}
-    assert client.post("/collaboration/edit", json=edit, headers=AGENT).status_code == 403
-    own = {"thread": ident, "message": agents["id"], "body": "Checked it twice."}
-    edited = ok(client.post("/collaboration/edit", json=own, headers=AGENT))["messages"][1]
-    assert edited["body"] == "Checked it twice." and edited["edited"]
-    # Deleting is the user's own, even of the agent's own message.
+    assert agents["kind"] == "reply"
+    # Every other write is the user's own (the owner, 2026-11-25).
+    refused = {
+        "/collaboration/reply": {"thread": ident, "body": "x"},
+        "/collaboration/edit": {"thread": ident, "message": agents["id"], "body": "x"},
+        "/collaboration/delete": {"thread": ident, "message": agents["id"]},
+        "/collaboration/react": {"thread": ident, "message": message, "emoji": "👍"},
+        "/collaboration/resolve": {"thread": ident},
+        "/collaboration/pin": {"thread": ident},
+        "/collaboration/channel": {"name": "agents"},
+        "/collaboration/show": {"where": "#general"},
+    }
+    for route, body in refused.items():
+        answer = client.post(route, json=body, headers=AGENT)
+        assert answer.status_code == 403 and "collaboration_post" in answer.json()["error"], route
+    assert client.put("/collaboration/profile", json={"name": "Bot"}, headers=AGENT).status_code == 403
+    # The user: edits and deletes only their own; the agent's message is not theirs to change.
     gone = {"thread": ident, "message": agents["id"]}
-    assert client.post("/collaboration/delete", json=gone, headers=AGENT).status_code == 403
-    assert client.post("/collaboration/delete", json=gone, headers=AUTH).status_code == 403  # not hers
+    assert client.post("/collaboration/delete", json=gone, headers=AUTH).status_code == 403
+    edit = {"thread": ident, "message": message, "body": "Changed"}
+    assert ok(client.post("/collaboration/edit", json=edit, headers=AUTH))["messages"][0]["edited"]
     deleted = ok(
         client.post("/collaboration/delete", json={"thread": ident, "message": message}, headers=AUTH)
     )
     assert deleted["messages"][0]["deleted"] is True and deleted["messages"][0]["body"] == ""
 
 
-def test_the_activity_a_reply_to_a_change_and_search(client: TestClient, tmp_path: Path) -> None:
+def test_only_what_people_write_and_search(client: TestClient, tmp_path: Path) -> None:
     project = _project(client, tmp_path)
-    push(client, "orders", pa.table({"id": [1, 2], "region": ["North", "South"]}))
-    activity = ok(client.get("/collaboration/activity", headers=AGENT))["activity"]
-    assert activity and activity[0]["author"]["login"] == "avery-lin"
-    files = list((project / ".sab" / "collaboration" / "_activity").glob("*.jsonl"))
-    assert [f.name for f in files] == ["avery-lin.jsonl"]
-    assert "North" not in files[0].read_text(encoding="utf-8")  # names and words, never a value
-    line = activity[0]
-    thread = ok(
-        client.post("/collaboration/reply", json={"activity": line["id"], "body": "Why this?"}, headers=AUTH)
-    )
-    assert thread["anchor"]["kind"] == "change"
-    again = ok(
-        client.post(
-            "/collaboration/reply", json={"activity": line["id"], "body": "Asked again"}, headers=AUTH
-        )
-    )
-    assert again["id"] == thread["id"] and len(again["messages"]) == 2  # one thread a change
+    push(client, "orders", pa.table({"id": [1, 2], "region": ["North", "South"]}))  # a change: not a note
+    assert not (project / ".sab" / "collaboration").exists()  # the change log stays out
+    timeline = ok(client.get("/collaboration", headers=AUTH))
+    assert timeline["items"] == []
+    assert client.get("/collaboration", params={"filter": "activity"}, headers=AUTH).status_code == 400
+    # An earlier build's activity files are never read, and left alone.
+    old = project / ".sab" / "collaboration" / "_activity" / "avery-lin.jsonl"
+    old.parent.mkdir(parents=True)
+    old.write_text('{"id": "a1", "time": "2026-11-25T09:00:00Z", "object": {}}\n', encoding="utf-8")
+    thread = ok(client.post("/collaboration/post", json={"body": "Why are returns high?"}, headers=AUTH))
+    assert [i["id"] for i in ok(client.get("/collaboration", headers=AUTH))["items"]] == [thread["id"]]
     found = ok(client.get("/collaboration/search", params={"words": "why"}, headers=AGENT))["found"]
-    assert any(f.get("thread") == thread["id"] for f in found)
-    timeline = ok(client.get("/collaboration", params={"filter": "activity"}, headers=AUTH))
-    assert all(i["type"] == "activity" for i in timeline["items"])
-    shown = next(i for i in timeline["items"] if i["id"] == line["id"])
-    assert shown["threads"] == [thread["id"]] and shown["replies"] == 2
+    assert [f["thread"] for f in found] == [thread["id"]]
+    assert old.read_text(encoding="utf-8").startswith('{"id": "a1"')
 
 
 def test_objects_pictures_channels_and_the_panel_shown(client: TestClient, tmp_path: Path) -> None:
@@ -181,6 +187,16 @@ def test_objects_pictures_channels_and_the_panel_shown(client: TestClient, tmp_p
             "link": "[@load.py clean()](sab:function/load.py#clean)",
         }
     ]
+    # The page's objects first: the notebook in front and its cell, then people, then the rest.
+    page = json.dumps([str(project / "data.ipynb")])
+    picked = ok(client.get("/collaboration/objects", params={"page": page}, headers=AGENT))
+    assert [o["kind"] for o in picked["page"]] == ["notebook", "cell"]
+    assert picked["people"] == [{"login": "avery-lin", "name": "Avery Lin"}]
+    assert all(o["path"] != "data.ipynb" for o in picked["objects"])
+    # A link to a page's file by its whole path is kept relative to the project.
+    whole = f"[@cell 1](sab:cell/{project / 'data.ipynb'}#1)"
+    posted = ok(client.post("/collaboration/post", json={"body": f"See {whole}"}, headers=AUTH))
+    assert posted["messages"][0]["body"] == "See [@cell 1](sab:cell/data.ipynb#1)"
     columns = ok(client.get("/collaboration/objects", params={"words": "amount"}, headers=AUTH))["objects"]
     assert (
         columns[0]["kind"] == "column" and columns[0]["link"] == "[@orders.amount](sab:column/orders#amount)"
@@ -194,13 +210,13 @@ def test_objects_pictures_channels_and_the_panel_shown(client: TestClient, tmp_p
     big = base64.b64encode(b"0" * (rules.MAX_IMAGE_BYTES + 1)).decode()
     refused = {"body": "Big ![x](sab-image:new-1)", "images": [{"type": "image/png", "data": big}]}
     assert client.post("/collaboration/post", json=refused, headers=AUTH).status_code == 400
-    made = ok(client.post("/collaboration/channel", json={"name": "Month end"}, headers=AGENT))
+    made = ok(client.post("/collaboration/channel", json={"name": "Month end"}, headers=AUTH))
     assert made["key"] == "#month-end"
     channels = [c["name"] for c in ok(client.get("/collaboration", headers=AUTH))["channels"]]
     assert channels == ["general", "month-end"]
     anchor = {"kind": "table", "path": "orders", "text": "orders"}
     assert (
-        ok(client.post("/collaboration/show", json={"anchor": anchor}, headers=AGENT))["where"]
+        ok(client.post("/collaboration/show", json={"anchor": anchor}, headers=AUTH))["where"]
         == "table:orders"
     )
 
@@ -258,8 +274,31 @@ def test_a_second_author_on_disk_is_noticed_with_unread_and_mentions(tmp_path: P
         # A window whose first look comes after the files arrived (a project just opened) still says them.
         late = _service(project, state, "avery-lin", _Live())
         assert thread["id"] in await late.look()
+        # The news: Sam writes twice more; a look (as a Pull brings them) says it once, with the words.
+        avery_live.said.clear()
+        await sam.post({"body": "Another"}, "user")
+        await sam.reply({"thread": thread["id"], "body": "And more"}, "user")
+        await avery.look()
+        news = [n for n in avery_live.said if n["type"] == "collaboration_news"]
+        assert [n["words"] for n in news] == ["2 new messages from Sam Ortiz"]
+        assert news[0]["thread"] in {n["thread"] for n in news}
+        avery_live.said.clear()
+        await avery.look()
+        assert not [n for n in avery_live.said if n["type"] == "collaboration_news"]  # said once
+        # The project opened again: the news is said at once with the count.
+        await avery.opened(str(project))
+        assert [n["words"] for n in avery_live.said if n["type"] == "collaboration_news"] == [
+            "2 new messages from Sam Ortiz"
+        ]
+        # A computer that never read this project: everything there is new, in a count alone.
+        fresh_live = _Live()
+        fresh = _service(project, state, "kai-moss", fresh_live)
+        await fresh.opened(str(project))
+        assert [n["words"] for n in fresh_live.said if n["type"] == "collaboration_news"] == [
+            "5 new messages"
+        ]
 
     asyncio.run(run())
     # Each message its own file: two authors never touch the same one.
     names = sorted(p.name for p in project.glob(".sab/collaboration/t-*/*.md"))
-    assert len(names) == 3 and len(set(names)) == 3
+    assert len(names) == 5 and len(set(names)) == 5

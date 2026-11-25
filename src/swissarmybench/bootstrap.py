@@ -1941,7 +1941,7 @@ def _doors(b: Built) -> None:
         JsonFile(b.state_file("profile.json")), JsonFile(b.state_file("collaboration_read.json")),
         system_name=system_name(), hooks=b.hooks, team=b.team, explorer=b.project_explorer,
     )  # fmt: skip
-    b.changes.listeners.append(b.collaboration.changed)
+    b.sab_projects.opened.append(b.collaboration.opened)
     b.lineage = Lineage(
         ws,
         b.hooks,

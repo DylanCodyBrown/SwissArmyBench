@@ -129,42 +129,50 @@ def test_where_a_reference_opens() -> None:
         rules.href(rules.Reference("connection", "Finance Captive"), folder)
         == "connections?name=Finance%20Captive"
     )
-    assert rules.href(rules.Reference("change", "avery-lin", "abc"), folder) is None
+    assert rules.href(rules.Reference("analysis", ".sab/visualizations/q3.json"), folder) == "analyze"
+    with pytest.raises(rules.CollaborationError):
+        rules.reference({"kind": "change", "path": "avery-lin", "id": "abc"})  # the change log stays out
 
 
-def test_the_activity_keeps_ninety_days_and_never_a_value() -> None:
-    change = {
-        "at": "2026-11-25T09:00:00Z",
-        "who": "user",
-        "object": {"kind": "table", "name": "orders"},
-        "words": "orders: steps added 2 sort",
-        "before": "aaa",
-        "after": "bbb",
-        "diff": {"steps": {"added": ["2 sort"]}},
-    }
-    line = rules.activity_line(change, AVERY)
-    assert line is not None
-    assert set(line) == {"id", "time", "author", "object", "words"}
-    agent = rules.activity_line(change | {"who": "agent"}, AVERY)
-    assert agent is not None and agent["author"]["name"] == "Claude for Avery Lin"
-    old = dict(line, id="old", time="2026-08-01T00:00:00Z")
-    kept = rules.trimmed([old, line, line], "2026-11-25T10:00:00Z")
-    assert [k["id"] for k in kept] == [line["id"]]
-    text = rules.activity_text(kept)
-    assert rules.parse_activity(text) == kept and rules.activity_text(rules.parse_activity(text)) == text
+def test_news_counts_what_others_wrote_since_you_read() -> None:
+    thread = rules.Thread("t-0001", "Returns", AVERY, "2026-11-25T09:00:00Z", channel="general")
+    agent = rules.agent_for(AVERY)
+    messages = [
+        _message(id="aaaa0001", author=AVERY, time="2026-11-25T09:00:00Z", body="mine"),
+        _message(id="aaaa0002", author=SAM, time="2026-11-25T10:00:00Z", body="one"),
+        _message(id="aaaa0003", author=agent, time="2026-11-25T11:00:00Z", body="two"),
+        _message(id="aaaa0004", author=SAM, time="2026-11-25T12:00:00Z", body="three"),
+    ]
+    first = rules.news([(thread, messages)], {}, AVERY.login)
+    assert (first.count, first.first_time, first.words) == (3, True, "3 new messages")
+    later = rules.news([(thread, messages)], {"t-0001": "2026-11-25T10:30:00Z"}, AVERY.login)
+    assert later.count == 2 and later.thread == "t-0001"  # your own never; the agent's count
+    assert later.words == "2 new messages from Sam Ortiz and Claude for Avery Lin"
+    many = rules.News(150, ("Sam Ortiz", "Avery Lin", "Kai Moss", "Lee Park"), "t-1", False)
+    assert many.words == "99+ new messages from Sam Ortiz, Avery Lin and 2 others"
+    assert rules.News(1, ("Sam Ortiz",), "t-1", False).words == "1 new message from Sam Ortiz"
+    assert rules.news([(thread, messages)], {"t-0001": "2026-11-25T12:00:00Z"}, AVERY.login).words == ""
+
+
+def test_links_inside_the_project_are_written_relative() -> None:
+    body = "See [@cell 2](sab:cell//home/avery/Shop/data.ipynb#2) and [@orders](sab:table/orders)"
+    made = rules.in_project_links(body, "/home/avery/Shop")
+    assert made == "See [@cell 2](sab:cell/data.ipynb#2) and [@orders](sab:table/orders)"
+    assert rules.page_paths('["/home/avery/Shop/data.ipynb", "orders"]') == [
+        "/home/avery/Shop/data.ipynb",
+        "orders",
+    ]
+    assert rules.page_paths("orders") == ["orders"]
 
 
 def test_who_may_edit_and_delete() -> None:
     mine = _message()
-    rules.may_change(mine, AVERY, agent=False, deleting=True)
+    rules.may_change(mine, AVERY)
     with pytest.raises(PermissionError, match="Only its author"):
-        rules.may_change(mine, SAM, agent=False, deleting=False)
-    agents = _message(author=rules.agent_for(AVERY))
-    rules.may_change(agents, AVERY, agent=True, deleting=False)  # the agent edits its own
-    with pytest.raises(PermissionError, match="the user's own"):
-        rules.may_change(agents, AVERY, agent=True, deleting=True)
+        rules.may_change(mine, SAM)
     with pytest.raises(PermissionError):
-        rules.may_change(mine, AVERY, agent=True, deleting=False)  # never the user's
+        rules.may_change(_message(author=rules.agent_for(AVERY)), AVERY)  # the agent's: nobody edits it
+    assert "collaboration_post" in rules.agent_may_not("editing a message")
 
 
 def test_unread_filters_and_search() -> None:
@@ -174,8 +182,10 @@ def test_unread_filters_and_search() -> None:
     assert rules.unread_of(messages, "", "sam-ortiz") == 1
     assert rules.kept("mentions", thread, messages, "sam-ortiz")
     assert not rules.kept("mentions", thread, messages, "avery-lin")
-    assert rules.kept("page", thread, messages, "avery-lin", "/home/avery/Returns/data.ipynb")
-    assert not rules.kept("activity", thread, messages, "avery-lin")
+    assert rules.kept("page", thread, messages, "avery-lin", ["/home/avery/Returns/data.ipynb"])
+    assert not rules.kept("page", thread, messages, "avery-lin", ["orders"])
+    with pytest.raises(rules.CollaborationError):
+        rules.check_filter("activity")
     assert rules.matches("CELL look", messages[0].body)
     assert "@data.ipynb cell 7" in rules.snippet(messages[0].body, "cell")
     assert rules.title_of("## [@orders](sab:table/orders) looks off\nmore") == "orders looks off"

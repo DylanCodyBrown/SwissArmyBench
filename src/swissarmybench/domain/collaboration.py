@@ -15,23 +15,23 @@ conflicts:
   <thread>/_events/<UTC time>-<author>-<id>.toml  a reaction, a resolve or a pin: one small file each, so two
                                                people reacting at once never touch the same file
   _channels/<channel>.toml                     a channel the team made (#general is always there)
-  _activity/<author>.jsonl                     each person's shared activity: the change log's entries (names,
-                                               types and words only, never a value), the last 90 days
+
+Only what people write is here (the owner, 2026-11-25: "the change log stays out"): a folder `_activity/` an
+earlier build wrote is never read and left alone.
 
 It reads top to bottom: 1. names and ids, 2. TOML as written here, 3. the files, 4. a message's body (object
-references, people, pictures), 5. a thread folded, 6. the activity, 7. the timeline (filters, unread, search),
-8. who may do what. Pure rules: no I/O, no clock, no randomness (the service gives the time and the ids).
+references, people, pictures), 5. a thread folded, 6. news (what is new since you last read), 7. the timeline
+(filters, unread, search), 8. who may do what. Pure rules: no I/O, no clock, no randomness (the service
+gives the time and the ids).
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import tomllib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from typing import Any
 
 from swissarmybench.domain import project_paths
@@ -40,9 +40,7 @@ FOLDER = ".sab/collaboration"
 THREAD_FILE = "thread.toml"
 EVENTS = "_events"
 CHANNELS = "_channels"
-ACTIVITY = "_activity"
 GENERAL = "general"
-KEEP_DAYS = 90  # the activity kept per person
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_BODY = 40_000  # a message's Markdown, in characters
 MAX_TITLE = 120
@@ -61,12 +59,14 @@ REFERENCE_KINDS = {
     "endpoint": "an endpoint of API.py",
     "widget": "a canvas widget",
     "analysis": "a saved analysis (a dashboard of the Analyze page)",
-    "change": "an entry of the activity",
 }
-FILTERS = ("all", "mentions", "page", "unresolved", "activity", "notes")
+FILTERS = ("all", "mentions", "page", "unresolved")
+MAX_EMOJI = 32  # a reaction's characters (a family or a flag is several code points)
 IMAGE_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp"}
 GONE_WORDS = "no longer in the project"
-AGENT_DELETE = "Deleting a message is the user's own: the agent may edit its own messages, never delete one."
+AGENT_ONLY_POSTS = (
+    "The agent writes only with collaboration_post (a new thread or a reply): {what} is the user's own."
+)
 NOT_YOURS = "Only its author edits or deletes a message."
 
 _SLUG = re.compile(r"[^a-z0-9]+")
@@ -406,7 +406,7 @@ def channel_text(name: str, by: Person, time: str) -> str:
 
 def check_emoji(value: Any) -> str:
     text = str(value or "").strip()
-    if not text or len(text) > 16 or any(ch.isspace() for ch in text):
+    if not text or len(text) > MAX_EMOJI or any(ch.isspace() for ch in text):
         raise CollaborationError("A reaction is one emoji.")
     return text
 
@@ -443,6 +443,20 @@ def references_in(body: str) -> list[Reference]:
         made = Reference(kind, unquote(path), unquote(ident or ""), text.strip())
         found.setdefault(made.key, made)
     return list(found.values())
+
+
+def in_project_links(body: str, folder: str) -> str:
+    """Each reference to a file inside the project written relative to it (a page names its files by their
+    whole path: the same note on every computer names them alike)."""
+
+    def relative(found: re.Match[str]) -> str:
+        made = Reference(
+            found.group(2), unquote(found.group(3)), unquote(found.group(4) or ""), found.group(1)
+        )
+        inner = in_project(made, folder)
+        return inner.link() if inner is not made else found.group(0)
+
+    return REFERENCE.sub(relative, body)
 
 
 def mentions_in(body: str, people: Iterable[str]) -> list[str]:
@@ -495,70 +509,57 @@ def fold(
     return now, shown
 
 
-# ===== 6. The activity: each person's file of the change log's entries =====
+# ===== 6. News: what is new to you since you last read, as a project opens or a Pull brings files =====
+
+MOST_NAMED = 2  # the people a notice names before "and N others"
+MOST_COUNTED = 99  # past it, "99+ new messages"
 
 
-def activity_line(change: Mapping[str, Any], by: Person) -> dict[str, Any] | None:
-    """A change log entry (domain/changes.py, stamped) as a line of the person's activity: when, who, the
-    object by kind and name, the words. Never a value (the change log keeps none either)."""
-    found = change.get("object")
-    when = str(change.get("at") or "")
-    if not isinstance(found, Mapping) or not when:
-        return None
-    obj = {"kind": str(found.get("kind") or ""), "name": str(found.get("name") or "")[:200]}
-    words = " ".join(str(change.get("words") or "").split())[:300]
-    who = str(change.get("who") or "user")
-    person_said = by if who != "agent" else agent_for(by)
-    seed = json.dumps([when, obj, words, person_said.login], sort_keys=True)
-    ident = hashlib.sha1(seed.encode(), usedforsecurity=False).hexdigest()[:10]
-    return {"id": ident, "time": when, "author": person_said.to_json(), "object": obj, "words": words}
+@dataclass(frozen=True)
+class News:
+    count: int
+    authors: tuple[str, ...]  # their names, the newest writer first
+    thread: str  # the newest unread message's thread ("": none)
+    first_time: bool  # nothing read here yet: this computer's first look at the project
+
+    @property
+    def words(self) -> str:
+        """ "3 new messages from Sam Ortiz and Avery Lin"; the first time: "12 new messages"."""
+        if self.count == 0:
+            return ""
+        counted = f"{MOST_COUNTED}+" if self.count > MOST_COUNTED else str(self.count)
+        said = f"{counted} new message" + ("" if self.count == 1 else "s")
+        if self.first_time or not self.authors:
+            return said
+        named = list(self.authors[:MOST_NAMED])
+        more = len(self.authors) - len(named)
+        if more:
+            who = f"{', '.join(named)} and {more} other" + ("" if more == 1 else "s")
+        else:
+            who = " and ".join(named)
+        return f"{said} from {who}"
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "count": self.count,
+            "words": self.words,
+            "thread": self.thread,
+            "first_time": self.first_time,
+        }
 
 
-def activity_text(lines: Iterable[Mapping[str, Any]]) -> str:
-    return "".join(json.dumps(dict(a), sort_keys=True, ensure_ascii=False) + "\n" for a in lines)
-
-
-def parse_activity(text: str) -> list[dict[str, Any]]:
-    out = []
-    for raw in text.splitlines():
-        try:
-            line = json.loads(raw)
-        except ValueError:
-            continue
-        if (
-            isinstance(line, dict)
-            and line.get("id")
-            and line.get("time")
-            and isinstance(line.get("object"), dict)
-        ):
-            out.append(line)
-    return out
-
-
-def _when(time: str) -> datetime | None:
-    try:
-        return datetime.fromisoformat(time.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def trimmed(lines: Iterable[Mapping[str, Any]], now: str, days: int = KEEP_DAYS) -> list[dict[str, Any]]:
-    """The lines of the last `days` days, oldest first (each once)."""
-    today = _when(now)
-    seen: dict[str, dict[str, Any]] = {}
-    for line in lines:
-        at = _when(str(line.get("time") or ""))
-        if today is not None and (at is None or (today - at) > timedelta(days=days)):
-            continue
-        seen.setdefault(str(line["id"]), dict(line))
-    return sorted(seen.values(), key=lambda a: (str(a["time"]), str(a["id"])))
-
-
-def change_reference(line: Mapping[str, Any]) -> Reference:
-    """An activity line as a thread's anchor (anyone can reply to a change)."""
-    obj = line.get("object") or {}
-    author = person_of(line.get("author"))
-    return Reference("change", author.login, str(line["id"]), f"{obj.get('name')}: {line.get('words')}"[:200])
+def news(threads: Iterable[tuple[Thread, Sequence[Message]]], seen: Mapping[str, str], me: str) -> News:
+    """Every message newer than its thread's read mark that someone else wrote (the agent's count: it is not
+    you), the people, the newest one's thread; no mark at all: the first time."""
+    fresh = [
+        m
+        for thread, messages in threads
+        for m in messages
+        if m.time > seen.get(thread.id, "") and m.author.login != me and not m.deleted
+    ]
+    fresh.sort(key=lambda m: (m.time, m.id), reverse=True)
+    authors = tuple(dict.fromkeys(m.author.name for m in fresh))
+    return News(len(fresh), authors, fresh[0].thread if fresh else "", first_time=not seen)
 
 
 # ===== 7. The timeline: filters, unread, search =====
@@ -574,16 +575,30 @@ def unread_of(messages: Sequence[Message], seen: str, me: str) -> int:
     return sum(1 for m in messages if m.time > seen and m.author.login != me and not m.deleted)
 
 
-def on_page(refs: Iterable[Reference], page: str) -> bool:
+def page_paths(page: Any) -> list[str]:
+    """The page in front as the paths and names of its objects: one ("data.ipynb", "orders") or a JSON list
+    of them (the panel sends the page's objects)."""
+    text = str(page or "").strip()
+    if text.startswith("["):
+        try:
+            found = json.loads(text)
+        except ValueError:
+            found = []
+        items = [str(p) for p in found if isinstance(p, str)] if isinstance(found, list) else []
+    else:
+        items = [text]
+    return [p.replace("\\", "/").strip() for p in items if p.strip()]
+
+
+def on_page(refs: Iterable[Reference], page: Sequence[str]) -> bool:
     """A reference to an object of the page in front: its file, or its table or connection by name."""
-    wanted = page.replace("\\", "/").strip()
-    return bool(wanted) and any(r.path == wanted or wanted.endswith("/" + r.path) for r in refs)
+    return any(r.path == wanted or wanted.endswith("/" + r.path) for r in refs for wanted in page if wanted)
 
 
-def kept(filter_by: str, thread: Thread, messages: Sequence[Message], me: str, page: str = "") -> bool:
+def kept(
+    filter_by: str, thread: Thread, messages: Sequence[Message], me: str, page: Sequence[str] = ()
+) -> bool:
     """Whether a thread shows under a filter."""
-    if filter_by == "activity":
-        return False
     if filter_by == "mentions":
         return any(me in m.mentions for m in messages)
     if filter_by == "unresolved":
@@ -619,13 +634,15 @@ def snippet(text: str, words: str, width: int = 120) -> str:
 # ===== 8. Who may do what =====
 
 
-def may_change(message: Message, me: Person, agent: bool, deleting: bool) -> None:
-    """The author edits their own message; the agent edits its own and deletes none (deleting is the
-    user's)."""
-    if deleting and agent:
-        raise PermissionError(AGENT_DELETE)
-    own = agent_for(me).login if agent else me.login
-    if message.author.login != own:
+def agent_may_not(what: str) -> str:
+    """The refusal of every write but a post (the owner, 2026-11-25: the agent posts only with
+    collaboration_post)."""
+    return AGENT_ONLY_POSTS.format(what=what)
+
+
+def may_change(message: Message, me: Person) -> None:
+    """Only its author edits or deletes a message (the agent edits and deletes none: agent_may_not)."""
+    if message.author.login != me.login:
         raise PermissionError(NOT_YOURS)
     if message.deleted:
         raise CollaborationError("That message was deleted.")
@@ -636,7 +653,7 @@ def may_change(message: Message, me: Person, agent: bool, deleting: bool) -> Non
 
 def href(ref: Reference, folder: str, line: int | None = None) -> str | None:
     """The page that shows a reference's object, as the app's own addresses: a notebook at its cell, a
-    script at a line, the Tables page at a table, a connection's card. None: shown in the panel (a change)."""
+    script at a line, the Tables page at a table, a connection's card."""
     full = (
         ref.path if ref.path.startswith("/") or re.match(r"^[A-Za-z]:", ref.path) else f"{folder}/{ref.path}"
     )
@@ -653,9 +670,7 @@ def href(ref: Reference, folder: str, line: int | None = None) -> str | None:
         return f"connections?name={quote(ref.path, safe='')}"
     if ref.kind == "widget":
         return f"canvas?path={at}"
-    if ref.kind == "analysis":
-        return "analyze"
-    return None
+    return "analyze"
 
 
 def cell_numbers(notebook: Mapping[str, Any]) -> dict[int, str]:

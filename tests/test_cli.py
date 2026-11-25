@@ -251,7 +251,14 @@ NOT_COMMANDS = {
     "click only (403 for the agent)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
-    "/collaboration/delete": "deleting a message is the user's own (403 for the agent): the agent edits",
+    "/collaboration/reply": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/edit": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/delete": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/react": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/resolve": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/pin": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/channel": "the owner, 2026-11-25: the agent posts only with collaboration_post",
+    "/collaboration/show": "the owner, 2026-11-25: the agent posts only with collaboration_post",
     "/collaboration/read": "the user's own unread marks, set as the panel shows a thread",
     "/collaboration/image": "a pasted picture's bytes for the panel: collaboration_thread names each one",
 }
@@ -783,10 +790,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # 99,500 (2026-11-21): the Notebooks and Scripts pages (the owner: "notebooks and scripts should not reuse
     # the same page"; the Scripts page a Python IDE): project_tree, workbench_outline, _definition,
     # _references, _rename, _search, _format, workbench_window's page, and the blade tab's commands.
-    # 101,000 (2026-11-25): the Collaboration panel (the owner: "a place where I can leave notes for my
-    # team"): collaboration_list, _thread, _post, _reply, _edit, _react, _resolve, _pin, _channel, _show,
-    # _search, _activity, _unread, _objects, _profile (each one short schema).
-    assert size < 101_000, f"the tool list is {size} characters"
+    # 100,000 (2026-11-25): the Collaboration panel (the owner: "a place where I can leave notes for my
+    # team"; the agent posts only with collaboration_post): collaboration_list, _thread, _post, _search,
+    # _unread, _objects, _profile (each one short schema).
+    assert size < 100_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}
