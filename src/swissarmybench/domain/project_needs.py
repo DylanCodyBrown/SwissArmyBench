@@ -188,7 +188,8 @@ def needs(
             need.why.append(why)
 
     for spec in requirement_lines(requirements_text):
-        add(spec, "requirements.txt", written=True)
+        if not provided(name_of(spec).replace("-", "_")):  # an app module written there by mistake
+            add(spec, "requirements.txt", written=True)
     for name, why in MACHINERY.items():
         add(name, why, machinery=True)
     for spec, why in for_type:

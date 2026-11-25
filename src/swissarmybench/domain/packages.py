@@ -95,7 +95,15 @@ CALL_NEEDS: dict[str, str] = {
 }
 
 # Never installed by pip: the standard library, and Swiss Army Bench itself (sab.blade gives it).
-_PROVIDED: frozenset[str] = frozenset({*sys.stdlib_module_names, "swissarmybench", "__future__"})
+# The app's own modules a project's code imports: carried beside it or handed to it by the app (API.py's
+# sab_api, the scaffold's adapter, a built app's runtime), never a library to fetch from the package index.
+APP_MODULES: frozenset[str] = frozenset(
+    {"sab_api", "adapter", "api_adapter", "sab_excel", "sab_canvas", "sab_widgets", "sab_perf", "sab_live"}
+    | {"sab_lineage", "sab_update"}
+)
+_PROVIDED: frozenset[str] = frozenset(
+    {*sys.stdlib_module_names, "swissarmybench", "__future__", *APP_MODULES}
+)
 
 
 @dataclass(frozen=True)

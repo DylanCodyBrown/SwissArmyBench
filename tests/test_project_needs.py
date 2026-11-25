@@ -146,3 +146,17 @@ def test_each_state_says_one_line() -> None:
     assert problem["fixes"] == [{"label": "Try again", "action": "try_again"}]
     assert problem["details"].endswith("No solution found") and problem["details"].count("\n") == 14
     assert rules.why_words(["a", "b", "c", "d"]) == "a, b and 2 more"
+
+
+def test_the_apps_own_modules_are_never_libraries_to_fetch() -> None:
+    """The owner, 2026-11-25: a project opened said "These could not be installed: sab_api": API.py's
+    `from sab_api import ...` is the app's own module, as are the scaffold's adapter and a built app's
+    runtime."""
+    api = "from sab_api import ApiError, connection, endpoint, records\nimport adapter\nimport api_adapter\n"
+    app = "import sab_canvas\nimport sab_widgets\nfrom sab_excel import build\nimport pandas\n"
+    found = rules.needs(
+        "sab_api\nsab-api\nrich\n",  # written there by mistake: not a library either
+        code=[rules.Code("API.py", api), rules.Code("builds/app/1/app.py", app)],
+    )
+    names = {n.name for n in found if not n.machinery}
+    assert names == {"rich", "pandas"}
