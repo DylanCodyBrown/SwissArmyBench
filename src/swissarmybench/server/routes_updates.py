@@ -4,6 +4,9 @@ GET    /updates           the current version, the latest, whether one is availa
 PUT    /updates           {"check": false}: Settings' Check for updates (kept)            app_update_check on=
 POST   /updates/check     check now (nothing is sent with the switch off)          app_update_check now=
 POST   /updates/install   {"version"?, "confirmed"?}: Update to X (the agent's asks)   app_update
+GET    /whats-new         ?all=1 | ?since=: What's New (WHATSNEW.md): opens after an update   app_whats_new
+POST   /whats-new/seen    the window closed: the running version seen (the user's own; 403 for the agent)
+POST   /whats-new/open    every main window opens What's New                       app_whats_new open=
 """
 
 from __future__ import annotations
@@ -42,7 +45,23 @@ def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list
         body = await read_json(request) if await request.body() else {}
         return json_response(await updates.install(body, actor(request)))
 
+    async def whats_new(request: Request) -> Response:
+        query = request.query_params
+        found = news.state(query.get("since") or None, query.get("all") in ("1", "true")) if news else {}
+        return json_response(found)
+
+    news = updates.whats_new
+    more: list[BaseRoute] = (
+        [
+            Route("/whats-new", whats_new),
+            Route("/whats-new/seen", with_body(news.seen), methods=["POST"]),
+            Route("/whats-new/open", with_body(news.show), methods=["POST"]),
+        ]
+        if news
+        else []
+    )
     return [
+        *more,
         Route("/updates", state),
         Route("/updates", with_body(updates.set), methods=["PUT"]),
         Route("/updates/check", check, methods=["POST"]),

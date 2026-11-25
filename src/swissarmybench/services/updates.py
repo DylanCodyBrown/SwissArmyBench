@@ -20,6 +20,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import updates as rules
 from swissarmybench.domain.updates import Release, UpdateError
 from swissarmybench.services.ports import Approvals, Audit, Notifier
+from swissarmybench.services.whats_new import WhatsNew, WhatsNewPort
 from swissarmybench.services.workspace import Conflict
 
 
@@ -110,8 +111,11 @@ class Updates:
         every_seconds: float = rules.CHECK_EVERY_SECONDS,
         clock: Callable[[], float] = time.time,
         changing: Callable[[], Any] = lambda: None,
+        whats_new: WhatsNewPort | None = None,
     ) -> None:
         self.current = rules.parse_version(current)
+        # What's New (services/whats_new.py): the window after an update, read from the package's WHATSNEW.md.
+        self.whats_new = WhatsNew(current, whats_new, live, audit) if whats_new is not None else None
         # An extension's Install or Remove under way (services/extensions.py): the app stops for it as for
         # an update, and the desktop app is ended by the helper (the new version's app starts again).
         self._changing = changing

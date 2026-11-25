@@ -68,3 +68,32 @@ def take_failure_note(path: Path | None) -> dict[str, Any] | None:
         return None
     reason = note.get("reason")
     return {"version": note["version"][:64], "reason": str(reason or "")[:2000]}
+
+
+class WhatsNewFiles:
+    """What's New at the edge: the package's own WHATSNEW.md (shipped in the wheel), and whats_new.json in the
+    state folder, the version last seen on this computer (the version only). Without a state folder (a test's
+    server) the version is kept in memory."""
+
+    def __init__(self, path: Path | None, notes: Path | None = None) -> None:
+        self.path = path
+        self._notes = notes or Path(__file__).resolve().parents[1] / "WHATSNEW.md"
+        self._file = JsonFile(path, indent=None)
+        self._held: str | None = None
+
+    def text(self) -> str:
+        try:
+            return self._notes.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    def seen(self) -> str | None:
+        if self.path is None or not self.path.is_file():
+            return self._held
+        said = self._file.read()
+        version = said.get("version") if isinstance(said, dict) else None
+        return version if isinstance(version, str) and version else None
+
+    def write_seen(self, version: str) -> None:
+        self._held = version
+        self._file.write({"version": version})

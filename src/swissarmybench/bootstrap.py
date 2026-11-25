@@ -78,7 +78,7 @@ from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
 from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
 from swissarmybench.adapters.team import TeamFiles
 from swissarmybench.adapters.tunnels import TunnelFiles
-from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note
+from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, WhatsNewFiles, take_failure_note
 from swissarmybench.adapters.variables import (
     ProcessEnvironment,
     VariableFiles,
@@ -491,8 +491,7 @@ def _sharing(ws: Workspace, hooks: Hooks, approvals: Approvals, state_dir: Path,
 
 def _updates(
     ws: Workspace, live: LiveUpdates, settings: Settings, update_helper: UpdateHelper, extensions: Extensions,
-    approvals: Approvals, open_work: Any, failure_note: Path | None,
-    state_file: Callable[[str], Path | None],
+    approvals: Approvals, open_work: Any, failure_note: Path | None, state_file: Callable[[str], Path | None],
     on_shutdown: Callable[[], None] | None,
 ) -> Updates:  # fmt: skip
     """The update check (the one request that leaves the computer, the owner's call) and Update to X."""
@@ -509,6 +508,7 @@ def _updates(
         stop=on_shutdown or (lambda: None),
         failed=take_failure_note(failure_note),
         changing=extensions.changing,
+        whats_new=WhatsNewFiles(state_file("whats_new.json")),
     )
 
 

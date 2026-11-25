@@ -207,6 +207,8 @@ NOT_COMMANDS = {
     "window (app plumbing; the agent passes a path to the extension's own command)",
     "/app/rules": "the pages' own tables (which page a file opens on, which files are a structure's tab: "
     "page plumbing): the agent's commands open a file on its page by themselves",
+    "/whats-new/seen": "the What's New window closed by the user, the running version seen (the user's own: "
+    "closing it is the user's, 403 for the agent)",
     "/lifecycle/closed": "the desktop app's own word that its last window closed (app plumbing): "
     "app_lifecycle reads the server's life",
     "/session": "the page's cookie (page plumbing): the agent keeps the Bearer token",

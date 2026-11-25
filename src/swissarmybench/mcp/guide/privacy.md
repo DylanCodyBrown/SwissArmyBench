@@ -73,6 +73,10 @@ password.
   documents and running kernels), then the app stops, installs it with uv and starts again. Your
   connection ends with it; `health` says when it is back. A failure starts the old version, and
   `app_update_check` then has `failed` with the reason.
+- `app_whats_new` reads What's New (WHATSNEW.md: each release's New features and Bug fixes, newest first):
+  the releases since the version last seen on this computer, `since` a version, or `all`; `open=true` opens
+  the window on the user's main window. It opens by itself on the first start after an update; closing it
+  (which marks it seen, `whats_new.json`: the version only) is the user's own (403 for you).
 - `extensions_list`: the Extensions page (Streamlit preinstalled; Accounting and Power Apps coming).
   `extensions_install(id=...)` and `extensions_remove(id=...)` wait for the user's Allow, then the app
   stops, uv installs this version with the kept extensions, and it starts again (as `app_update`).

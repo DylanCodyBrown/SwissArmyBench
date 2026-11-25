@@ -17,9 +17,9 @@ below the picture).
 ```mermaid
 flowchart TB
     subgraph base["swissarmybench (the base)"]
-        domain["domain<br/>127 modules"]
+        domain["domain<br/>128 modules"]
         settings["settings<br/>1 module"]
-        services["services<br/>89 modules"]
+        services["services<br/>90 modules"]
         adapters["adapters<br/>46 modules"]
         cli["cli<br/>42 modules"]
         client["client<br/>24 modules"]
@@ -96,7 +96,7 @@ flowchart TB
     server -->|10| root
     server -->|86| services
     server -->|2| settings
-    services -->|365| domain
+    services -->|366| domain
     services -->|3| settings
     settings -->|1| domain
 ```
@@ -125,10 +125,10 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 127 | 166 | 0 | 0.00 | 336 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 128 | 167 | 0 | 0.00 | 338 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 89 | 95 | 112 | 0.54 | 329 | 177 | 0.54 | 0.08 |
-| adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 38 | 0.63 | 110 | 2 | 0.02 | 0.35 |
+| services | the use cases | 90 | 95 | 113 | 0.54 | 331 | 178 | 0.54 | 0.08 |
+| adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 38 | 0.63 | 111 | 2 | 0.02 | 0.35 |
 | cli | the agent's commands | 42 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 4 | 0 | 0.00 | 0.47 |
@@ -146,9 +146,9 @@ low by design and its D says little; the measure bites for the components that h
 
 | Module | Modules that import it |
 |---|---:|
-| `swissarmybench.services.workspace` | 88 |
+| `swissarmybench.services.workspace` | 89 |
 | `swissarmybench.server.http` | 75 |
-| `swissarmybench.services.ports` | 58 |
+| `swissarmybench.services.ports` | 59 |
 | `swissarmybench.domain.datasets` | 53 |
 | `swissarmybench.cli.api` | 47 |
 | `swissarmybench.domain.blades` | 44 |

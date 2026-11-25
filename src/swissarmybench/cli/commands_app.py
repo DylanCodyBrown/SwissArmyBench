@@ -141,6 +141,23 @@ def app_update(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "app_whats_new",
+    "What's New (WHATSNEW.md): the releases since the version last seen; `since` or `all`; `open` shows the window",
+    opt("since", "Releases newer than this version."),
+    opt("all", "true: every release.", "bool"),
+    opt("open", "true: open the window on the user's screen (closing it is the user's).", "bool"),
+)
+def app_whats_new(a: dict[str, Any]) -> Any:
+    if a.get("open"):
+        api.call("POST", "/whats-new/open", {})
+    if a.get("all"):
+        return api.call("GET", "/whats-new?all=1")
+    if a.get("since"):
+        return api.call("GET", f"/whats-new?since={quote(str(a['since']), safe='')}")
+    return api.call("GET", "/whats-new")
+
+
+@command(
     "app_lifecycle",
     "When the server stops: windows open, the last client, busy, held, seconds left (it lives while the app is open)",
 )
