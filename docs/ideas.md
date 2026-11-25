@@ -9483,9 +9483,11 @@ preserved in the app. It needs rich text and slack like functionality", then nam
   sends the absolute path and the server makes it relative.
 - The agent's own messages count as unread for its user (they are its, not the user's), and the agent's reads
   never move the user's marks.
+- Settings' Collaboration box sets your name once (empty: the GitHub login when signed in, else this computer's
+  user name). The first look after a project opens announces every thread already there (a project opened while
+  the look was between two passes kept its files unannounced). The activity file is each person's and written as
+  they work, so the field service example leaves `.sab/collaboration/` out of its byte-for-byte copy.
 - "This page" is the Tables page's table, else the address's `path`, `table` or `name`: a notebook's other tabs on
   the same page count only while their file is the address's.
 - Open, for the owner: a reaction picker of eight emojis plus the composer's `:` list of thirty-two names (no full
-  emoji catalogue without a package); Settings has no box for the panel's name yet (the agent's
-  `collaboration_profile` and the route set it; the GitHub login or the system's name is the default); the tool
-  list's ceiling went from 99,500 to 101,000 characters for the fifteen `collaboration_*` commands.
+  emoji catalogue without a package); the tool list's ceiling went from 99,500 to 101,000 characters for the fifteen `collaboration_*` commands.

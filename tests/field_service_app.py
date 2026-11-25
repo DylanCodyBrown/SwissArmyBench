@@ -26,8 +26,10 @@ EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "field_service"
 KEYRING_SECRET = "made-up-depot-pa55-7731"  # the Depot connection's password: the keyring's only
 CANVAS = "field_service.canvas.json"
 # What a copy of the project carries (the example folder): never the sandbox's rows, a build, an export, a
-# made file the app writes again as the project opens, or what is Git-ignored.
+# made file the app writes again as the project opens, what is Git-ignored, or the Collaboration panel's
+# folder (each person's activity is written as they work, under their own name: never the example's).
 NOT_KEPT = (
+    "collaboration",
     "sandbox",
     "sandbox_data.py",
     "sandbox_connections.py",

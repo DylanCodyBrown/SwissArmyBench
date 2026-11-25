@@ -76,7 +76,7 @@ a.collab-ref:hover { text-decoration: underline; }
 .collab-reply-to { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .collab-reply-to strong { color: var(--fg); }
 .collab-snippet { color: var(--fg); }
-.collab-composer { position: relative; flex: none; display: grid; gap: 4px; padding: 6px 10px 8px; border-top: 1px solid var(--border); background: var(--surface); }
+.collab-composer { position: relative; flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px 10px 8px; border-top: 1px solid var(--border); background: var(--surface); }
 .collab-format { display: flex; flex-wrap: wrap; gap: 2px; }
 .collab-format-button {
   min-width: 24px; height: 22px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: transparent;

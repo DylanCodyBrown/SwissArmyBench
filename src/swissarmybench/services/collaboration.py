@@ -712,8 +712,10 @@ class Collaboration:
         stamps = await asyncio.to_thread(self._files.stamps, self._dir(project))
         was_for, was = self._looked
         self._looked = (project, stamps)
-        if was_for != project or stamps == was:
+        if stamps == was and was_for == project:
             return []
+        if was_for != project:
+            was = {}  # another project (or the first look): everything in it is news to the pages
         changed = {p.split("/")[0] for p in set(stamps) ^ set(was)}
         changed |= {p.split("/")[0] for p in stamps.keys() & was.keys() if stamps[p] != was[p]}
         threads = sorted(t for t in changed if not t.startswith("_"))

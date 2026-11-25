@@ -255,6 +255,9 @@ def test_a_second_author_on_disk_is_noticed_with_unread_and_mentions(tmp_path: P
         await avery.mark_read({"thread": thread["id"]}, "user")
         assert avery.unread()["total"] == 0
         assert await avery.look() == []  # nothing new since
+        # A window whose first look comes after the files arrived (a project just opened) still says them.
+        late = _service(project, state, "avery-lin", _Live())
+        assert thread["id"] in await late.look()
 
     asyncio.run(run())
     # Each message its own file: two authors never touch the same one.

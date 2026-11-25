@@ -150,3 +150,16 @@ def test_collaborate_on_a_tables_tab(browser: Browser, server: dict[str, Any]) -
         "placeholder", re.compile("A note on ")
     )
     page.close()
+
+
+def test_your_name_is_set_once_in_settings(browser: Browser, server: dict[str, Any]) -> None:
+    page = open_page(browser, server, "settings")
+    box = page.get_by_label("Your name on the notes")
+    box.fill("Avery Lin (finance)")
+    box.press("Tab")
+    expect(page.locator(".collab-name-fieldset")).to_contain_text("as set here")
+    assert call(server, "GET", "/collaboration/profile")["name"] == "Avery Lin (finance)"
+    box.fill("")
+    box.press("Tab")
+    expect(page.locator(".collab-name-fieldset")).not_to_contain_text("as set here")
+    page.close()

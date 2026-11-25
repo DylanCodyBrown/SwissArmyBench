@@ -1,0 +1,56 @@
+@* Settings' Collaboration box: your name on the notes (the owner, 2026-11-25: set once). Empty goes back to the
+   default: the GitHub login when the Git extension is signed in, else this computer's user name. *@
+@inject CollaborationClient Client
+
+<fieldset class="fieldset collab-name-fieldset">
+    <legend><Icon Name="chat" /> Collaboration</legend>
+    @if (_profile is { } profile)
+    {
+        <label class="form-row">
+            <span>Your name on the notes</span>
+            <input type="text" class="input collab-name" maxlength="80" aria-label="Your name on the notes" placeholder="@(profile.Github ?? "Your name")"
+                   @bind="_name" @bind:after="SaveAsync" />
+        </label>
+        <p class="muted">Shown as @profile.Name (@@@profile.Login) @SourceWords(profile.Source).</p>
+    }
+</fieldset>
+
+@code {
+    private CollabProfile? _profile;
+    private string _name = string.Empty;
+
+    [Parameter]
+    public EventCallback<Exception> OnError { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _profile = await Client.ProfileAsync();
+            _name = _profile.Source == "settings" ? _profile.Name : string.Empty;
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+    }
+
+    private static string SourceWords(string source) => source switch
+    {
+        "settings" => "as set here",
+        "github" => "from your GitHub sign-in",
+        _ => "from this computer's user name",
+    };
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _profile = await Client.SetProfileAsync(_name.Trim());
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+    }
+}
