@@ -9464,3 +9464,28 @@ The owner, 2026-11-23: "we can swap over to full Blazer do not keep both in sync
   (WiringRules.cs), a vault secret's variable name worked out (VaultRow.EnvFor). The checks that held web/src to
   it are gone with it; holding blazor/ to it needs those pages changed first. The Blazor Projects page does not
   make way for a table that arrives (the classic did): a pushed table shows on the Grids page.
+
+## The Collaboration panel, 2026-11-25 (decisions and open notes)
+
+The owner, 2026-11-25: "this app needs a place where I can leave notes for my team and like an activity log and
+I can reference objects in the project with @ like the cell and they can comment back like a thread and its
+preserved in the app. It needs rich text and slack like functionality", then named it the Collaboration panel.
+
+- One floating card over every page (MainLayout and pop-out windows), never a rail page and never in the page's
+  layout; Ctrl+Shift+M (no other key used it) and the status bar's button; its place and open state per kind of
+  window in this browser's storage (window.name for the desktop app's windows, else the page's address).
+- No new npm or NuGet package: the notes render through MarkdownText (now with struck text, task lists, a code
+  block's language and the panel's own links through MarkdownLinks); SQL and Python blocks are coloured by
+  Monaco's own colouriser (codeEditor.js's new `colorize`, imported only when a block shows).
+- Times to the microsecond in the files' names and front matter, so two writes in one second still sort in the
+  order they were made; a thread's first note sorts first whatever its id.
+- A reference to a file inside the project is kept relative to it (one key on every computer); a Collaborate click
+  sends the absolute path and the server makes it relative.
+- The agent's own messages count as unread for its user (they are its, not the user's), and the agent's reads
+  never move the user's marks.
+- "This page" is the Tables page's table, else the address's `path`, `table` or `name`: a notebook's other tabs on
+  the same page count only while their file is the address's.
+- Open, for the owner: a reaction picker of eight emojis plus the composer's `:` list of thirty-two names (no full
+  emoji catalogue without a package); Settings has no box for the panel's name yet (the agent's
+  `collaboration_profile` and the route set it; the GitHub login or the system's name is the default); the tool
+  list's ceiling went from 99,500 to 101,000 characters for the fifteen `collaboration_*` commands.

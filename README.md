@@ -349,6 +349,29 @@ reads it again when your `git pull` changes it, so a teammate's tables are finda
 anything is loaded. **Set up from the meta store** lists what a new computer still needs (each key vault's
 sign-in, values to type once, each connection's status). The app never runs git.
 
+### The Collaboration panel: the team's notes, threads and activity
+
+**Ctrl+Shift+M** (or **Collaboration** in the status bar, with your unread count) shows one floating panel over
+whatever page is open; it never moves the page, it can be dragged and resized, and each kind of window remembers
+its place. Leave a note in `#general` or a channel the team makes, or on an object: **Collaborate** on a cell's
+menu, a notebook's or script's tab, a table's tab or a connection. Notes are Markdown (tables, task lists,
+quotes, links, SQL and Python code blocks coloured) written Slack's way: a formatting bar, Enter sends,
+Shift+Enter a new line, `@` lists the people and the project's objects (cells by their number, tables and
+columns, connections, scripts and their functions, .sql files, API.py's endpoints, canvas widgets, saved
+analyses), `:` the emojis, a pasted picture is kept beside the message (5 MB at most). A reference opens its
+object where it lives, or shows struck through once it is no longer in the project. Threads have replies,
+reactions, Resolve and Pin; your own messages can be edited and deleted; search covers notes, references and
+activity; filters show Mentions, This page, Unresolved, Activity or Notes. The timeline mixes the notes with the
+project's **activity** (each person's changes in words, from the change log), and anyone can reply to a change.
+
+Everything is small text files in the project's `.sab/collaboration/` (one per message, one per reaction or
+resolve, one activity file per person, the last 90 days), so a Git merge of two people's notes never conflicts:
+they travel with the shared project's own **Pull** and **Push** (the panel says "Pull to see the team's latest" and
+"Push to send yours" when the team link does). A project that is not shared keeps them on this computer (the panel
+says so, with **Share…**). Your name is your GitHub login when the Git extension is signed in, else a name set once
+(`collaboration_profile`), else this computer's user name. The agent posts as "Claude for <you>", edits only its
+own messages and never deletes one (`collaboration_*` commands; the guide topic `collaboration`).
+
 ```powershell
 swissarmybench open "C:\Users\me\Documents\sales"   # a project's folder; starts the app when it is not running
 ```

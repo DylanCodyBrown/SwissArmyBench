@@ -216,6 +216,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the sandbox deletes the three, nothing else),
   `.sab/stats.json` (the calls' running figures: names, times, sizes) and `.sab/changes.jsonl` (the change log: names,
   types, fingerprints), both Git-ignored and never a value (Plans/stats.plan.md, Plans/changes.plan.md, 2026-11-22),
+  `.sab/collaboration/` (the Collaboration panel, the owner 2026-11-25: the team's notes, one small file per message,
+  reaction or resolve, pasted pictures beside them (5 MB at most), each person's activity as the change log's words
+  for 90 days; names, words and references only, never a row or a value; shared in Git, never ignored) on the user's
+  post, reply, edit, delete, react, resolve, pin and channel (the agent's too, but never a delete),
   `.sab/api-shapes/` as its local sandbox API's endpoints are called (each one's learned shape: paths and
   types, never a value; Try it's Keep as its example and its `.sab/api_examples.json` went, the owner,
   2026-11-22: "No need to ever keep values"), `.sab/api-discover.json` on the user's Allow for its discovery
@@ -250,7 +254,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
   files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
   (its Qt WebEngine profile: cookies, local storage, cache; `windows.json`, each kind of window's place),
-  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
+  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only); `profile.json` (the Collaboration panel's name set in Settings: a name only); `collaboration_read.json` (each project's threads read up to when, this computer's unread marks).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs. **`${NAME}` anywhere
@@ -756,6 +760,14 @@ src/swissarmybench/
     changes.py           the change log (Plans/changes.plan.md): one change (the object, a difference by name, types
                          the only thing shown, words, fingerprints before and after; never a value), a notebook's or
                          a script's parts (document_shape), .sab/changes.jsonl's lines, last, history, since, search
+    collaboration.py     the Collaboration panel's rules (the owner, 2026-11-25): .sab/collaboration/'s files (a thread's
+                         thread.toml; a message's <UTC time>-<author>-<id>.md, TOML front matter between +++ lines then
+                         its Markdown; _events/ a reaction, resolve or pin each; _channels/; _activity/<author>.jsonl),
+                         byte-stable, so a Git merge never conflicts; a thread folded (events over messages); object
+                         references ([@text](sab:kind/path#id): cells by number, tables, columns, connections, scripts
+                         and functions, .sql files, endpoints, widgets, analyses, changes) and where each opens (href);
+                         people (@login), pictures, the activity's 90 days, filters, unread, search; who may edit or
+                         delete (the agent edits its own, deletes none)
     write_capability.py  what each connection kind writes (its operations: its Write starters' own words; its
                          modes: the adapter's, what sab.write takes; how) or why it is read-only; OPERATION_MODES
                          (which mode does each operation) and STARTER_ONLY (optimize, vacuum); the Write
@@ -914,6 +926,13 @@ src/swissarmybench/
                          connection's settings and sign-in as it names them; settled (something new to the
                          session that the open project's log already has in the same shape says nothing: a
                          project opened again reads its tables again); the changes tool's views
+    collaboration.py     the Collaboration panel: the timeline (threads and activity mixed, filtered; channels, the
+                         objects with threads, unread, shared or not, the team link's words), a thread, post, reply
+                         (to a change too), edit, delete (the user's only), react, resolve, pin, channel, show (every
+                         window's panel opened there: collaboration_show), search, the `@` picker, pictures, the
+                         profile (the GitHub login when signed in, else Settings' name, else the system's); the
+                         change log heard (changed: this person's activity line); a look every few seconds off the
+                         loop (a Pull's files, another window's), `collaboration_changed` and `collaboration_unread`
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
                          documents: recent, open, the project's: one seam), configuration (never a value),
                          and its calls this session (the app's runs, a Workbench kernel's report; memory only)
@@ -1194,6 +1213,9 @@ src/swissarmybench/
                          grows; no function over 80 lines; its ceiling 3,000 lines, the owner's to raise
     call_stats.py        the open project's .sab/stats.json read, and written atomically only when it changes
     changes.py           the open project's .sab/changes.jsonl read, and one line appended per change
+    collaboration.py     .sab/collaboration/'s files (read, written atomically only when the bytes change, stamped for
+                         the look) and the project's objects as `@` finds them and a reference checks them (there or
+                         gone, at which line)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -1297,7 +1319,7 @@ src/swissarmybench/
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
                          explorer, library, project_python,
                          shared_catalog, team, found_connections, script_ide, sql_files, debugger, sharing, actions,
-                         call_stats, changes). Every route serves
+                         call_stats, changes, collaboration). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -1425,13 +1447,14 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (365 in the base, 395 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (381 in the base, 411 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/
                          one record per server answer and each area's client, Generated/ by tools/generate_api.py;
                          State/ the shared services, each one Changed event; Navigation/ the rail's areas; Layout/
-                         the shell, rail and status bar; Components/ the shared parts: ErrorNote, Busy, AppDialog,
+                         the shell, rail and status bar, Layout/Collaboration/ the Collaboration panel floating over
+                         every page; Components/ the shared parts: ErrorNote, Busy, AppDialog,
                          Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
                          extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,
                          css/ (tokens.css: every theme token), design.html: an HTML cell's walled-off frame);

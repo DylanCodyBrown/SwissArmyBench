@@ -65,6 +65,11 @@ blazor/
     workbook.js              the Excel canvas's built sheet (charts over their anchor cells), its pointer and keys
     agGrid.js                AG Grid: the infinite row model asking /grids/{id}/rows itself (rows never pass C#)
     mermaid.js               Mermaid: the ERD (strict security, the app's colours)
+    collaboration.js         the Collaboration panel: its place (moved, resized, kept per kind of window in this
+                             browser's storage, try/catch round every read and write), Ctrl+Shift+M, the composer's
+                             keys (Enter sends, Ctrl+B/I, Ctrl+Shift+X/C, Ctrl+Alt+C, Ctrl+K, Ctrl+Shift+7/8/9), a
+                             pasted picture as base64 (5 MB at most), code blocks coloured by codeEditor.js's colorize
+                             (Monaco, imported only when a block shows, never bundled twice)
   SwissArmyBench.Web/
     Program.cs               the composition root: ApiClient, a typed client per area, the state services
     Api/ApiClient.cs         the one door: HttpClient, snake_case JSON, a refusal read into Refusal, ApiException
@@ -74,6 +79,14 @@ blazor/
     State/                   ThemeState, LiveUpdates (the /ws notices), ProjectState, RailState, Notes, Dialogs:
                              small services shared by the pages, each raising one Changed event
     Navigation/              the rail's areas in their order (Areas.cs) and their addresses
+    Layout/Collaboration/    the Collaboration panel (the owner, 2026-11-25): CollaborationHost in MainLayout and
+                             WindowLayout (one floating card over every page, never in its layout), the status bar's
+                             CollaborationButton (the unread count), the panel (switcher, search, filters, timeline,
+                             a thread in place), CollabComposer (formatting bar, `@` and `:` lists, pictures),
+                             CollabWords (a message through MarkdownText with MarkdownLinks: references, pictures,
+                             mentions); State/CollaborationState (open, the place, unread, the page's object; the
+                             collaboration_changed, _unread and _show notices); Components/CollaborateButton and
+                             CollaborationState.Entry: Collaborate on a cell's menu, a tab's menu, a connection
     Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost, ProjectSetupBar
                              (the setup bar under every page's top: what the open project needs, installed at once
                              as it opens; ProjectSetup its state service, from the project_installs notice; Hide keeps

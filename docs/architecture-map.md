@@ -17,14 +17,14 @@ below the picture).
 ```mermaid
 flowchart TB
     subgraph base["swissarmybench (the base)"]
-        domain["domain<br/>126 modules"]
+        domain["domain<br/>127 modules"]
         settings["settings<br/>1 module"]
-        services["services<br/>88 modules"]
-        adapters["adapters<br/>45 modules"]
-        cli["cli<br/>41 modules"]
+        services["services<br/>89 modules"]
+        adapters["adapters<br/>46 modules"]
+        cli["cli<br/>42 modules"]
         client["client<br/>24 modules"]
         root["root<br/>4 modules"]
-        server["server<br/>91 modules"]
+        server["server<br/>92 modules"]
         bootstrap["bootstrap<br/>1 module"]
         mcp["mcp<br/>2 modules"]
     end
@@ -36,15 +36,15 @@ flowchart TB
         ext_powerbi["powerbi<br/>18 modules"]
         ext_streamlit["streamlit<br/>31 modules"]
     end
-    adapters -->|51| domain
+    adapters -->|53| domain
     adapters -->|1| root
     adapters -->|3| services
-    bootstrap -->|42| adapters
+    bootstrap -->|43| adapters
     bootstrap -->|1| client
     bootstrap -->|15| domain
     bootstrap -->|2| root
     bootstrap -->|14| server
-    bootstrap -->|83| services
+    bootstrap -->|84| services
     bootstrap -->|1| settings
     cli -->|2| client
     cli -->|1| domain
@@ -94,9 +94,9 @@ flowchart TB
     server -->|10| client
     server -->|51| domain
     server -->|10| root
-    server -->|85| services
+    server -->|86| services
     server -->|2| settings
-    services -->|364| domain
+    services -->|365| domain
     services -->|3| settings
     settings -->|1| domain
 ```
@@ -125,15 +125,15 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 126 | 164 | 0 | 0.00 | 329 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 127 | 166 | 0 | 0.00 | 335 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 88 | 94 | 111 | 0.54 | 323 | 172 | 0.53 | 0.07 |
-| adapters | the driven edge: DuckDB, files, the keyring | 45 | 22 | 36 | 0.62 | 108 | 2 | 0.02 | 0.36 |
-| cli | the agent's commands | 41 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
+| services | the use cases | 89 | 95 | 112 | 0.54 | 329 | 177 | 0.54 | 0.08 |
+| adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 38 | 0.63 | 110 | 2 | 0.02 | 0.35 |
+| cli | the agent's commands | 42 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 4 | 0 | 0.00 | 0.47 |
-| server | the HTTP door and what starts a process | 91 | 12 | 132 | 0.92 | 43 | 2 | 0.05 | 0.04 |
-| bootstrap | the composition root | 1 | 1 | 158 | 0.99 | 2 | 0 | 0.00 | 0.01 |
+| server | the HTTP door and what starts a process | 92 | 12 | 133 | 0.92 | 43 | 2 | 0.05 | 0.04 |
+| bootstrap | the composition root | 1 | 1 | 160 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
 | accounting | an extension | 9 | 0 | 10 | 1.00 | 5 | 1 | 0.20 | 0.20 |
 | copilot | an extension | 9 | 0 | 9 | 1.00 | 16 | 5 | 0.31 | 0.31 |
@@ -146,14 +146,14 @@ low by design and its D says little; the measure bites for the components that h
 
 | Module | Modules that import it |
 |---|---:|
-| `swissarmybench.services.workspace` | 87 |
-| `swissarmybench.server.http` | 74 |
+| `swissarmybench.services.workspace` | 88 |
+| `swissarmybench.server.http` | 75 |
 | `swissarmybench.services.ports` | 58 |
 | `swissarmybench.domain.datasets` | 53 |
-| `swissarmybench.cli.api` | 46 |
+| `swissarmybench.cli.api` | 47 |
 | `swissarmybench.domain.blades` | 44 |
-| `swissarmybench.cli.command_kit` | 37 |
-| `swissarmybench.adapters.atomic_files` | 33 |
+| `swissarmybench.cli.command_kit` | 38 |
+| `swissarmybench.adapters.atomic_files` | 34 |
 | `swissarmybench.domain.steps` | 31 |
 | `swissarmybench.domain.grids` | 28 |
 | `swissarmybench.domain.connections` | 26 |
