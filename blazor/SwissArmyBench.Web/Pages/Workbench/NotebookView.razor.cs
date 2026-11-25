@@ -29,6 +29,9 @@ public partial class NotebookView
     [Inject]
     private LiveUpdates Live { get; set; } = default!;
 
+    [Inject]
+    private CollaborationState Collaboration { get; set; } = default!;
+
     /// <summary>The notebook as opened (null: a new one, not saved yet).</summary>
     [Parameter]
     public OpenedNotebook? Opened { get; set; }

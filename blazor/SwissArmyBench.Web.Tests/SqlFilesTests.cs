@@ -61,16 +61,17 @@ public sealed class SqlFilesTests : AppTestContext
     public void A_tabs_menu_has_rename_with_F2_and_a_blade_renames_elsewhere()
     {
         var split = new MenuEntry("Split right", "splitRight", () => Task.CompletedTask);
+        var collaborate = new MenuEntry("Collaborate", "chat", () => Task.CompletedTask);
         var renamed = 0;
-        var script = TabMenus.Entries(new OpenDocument(1, false) { Path = "/made/up/load.py" }, split, split, () => { renamed++; return Task.CompletedTask; }, () => Task.CompletedTask);
+        var script = TabMenus.Entries(new OpenDocument(1, false) { Path = "/made/up/load.py" }, split, split, () => { renamed++; return Task.CompletedTask; }, () => Task.CompletedTask, collaborate);
         var rename = Assert.Single(script, e => e.Label == "Rename…");
         Assert.Equal("F2", rename.Keys);
         Assert.Null(rename.Disabled);
         rename.Run();
         Assert.Equal(1, renamed);
-        Assert.Equal(["Split right", "Split right", "-", "Rename…", "Close"], script.Select(e => e.Label));
+        Assert.Equal(["Split right", "Split right", "-", "Rename…", "Collaborate", "Close"], script.Select(e => e.Label));
 
-        var blade = TabMenus.Entries(new OpenDocument(2, false) { Blade = "orders" }, split, split, () => Task.CompletedTask, () => Task.CompletedTask);
+        var blade = TabMenus.Entries(new OpenDocument(2, false) { Blade = "orders" }, split, split, () => Task.CompletedTask, () => Task.CompletedTask, collaborate);
         Assert.Equal(TabMenus.RenameElsewhere, blade.Single(e => e.Label == "Rename…").Disabled);
     }
 

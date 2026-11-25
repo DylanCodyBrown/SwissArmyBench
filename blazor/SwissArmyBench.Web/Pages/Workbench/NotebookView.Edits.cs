@@ -267,6 +267,9 @@ public partial class NotebookView
             line(asked.Cell.OutputHidden ? "Show the output" : "Hide the output", "eye", () => now(ToggleSelectedOutput)),
             MenuEntry.Separator,
             line("Lineage", "lineage", () => OnLineage.InvokeAsync(asked.Cell.Number)),
+            Collaboration.Entry(
+                new(CollaborationState.CellKind, Path ?? string.Empty, $"{asked.Cell.Number}", $"{FilePaths.Name(Path ?? "notebook")} cell {asked.Cell.Number}"),
+                Path is null ? "Save the notebook first: a note names its cells" : null),
         ];
         _menu = new ShownMenu($"Cell {asked.Cell.Number}", entries, asked.At.ClientX, asked.At.ClientY + 4);
     }

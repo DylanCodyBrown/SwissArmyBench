@@ -175,6 +175,7 @@ public static class IconSet
         ["formula"] = "<path d=\"M18 4H6l6.5 8L6 20h12\"/>",
         ["html"] = "<path d=\"M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14\"/>",
         ["markdown"] = "<rect x=\"2.5\" y=\"6\" width=\"19\" height=\"12\" rx=\"2\"/><path d=\"M6 15V9l2.5 3L11 9v6M16.5 9v6M14.5 13l2 2 2-2\"/>",
+        ["chat"] = "<path d=\"M4 5h16v11H9l-5 4z\"/><path d=\"M8 9.5h8M8 12.5h5\"/>",
         ["note"] = "<path d=\"M5 3h10l4 4v14H5z\"/><path d=\"M8.5 10h7M8.5 13.5h7M8.5 17h4\"/>",
     };
 }

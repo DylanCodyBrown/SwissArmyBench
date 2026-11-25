@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from swissarmybench.domain import project_paths
+
 FOLDER = ".sab/collaboration"
 THREAD_FILE = "thread.toml"
 EVENTS = "_events"
@@ -231,6 +233,13 @@ class Reference:
         anchor = f"#{quote(self.id, safe='._-')}" if self.id else ""
         shown = (self.text or self.key).replace("]", ")").replace("\n", " ")
         return f"[@{shown}](sab:{self.kind}/{place}{anchor})"
+
+
+def in_project(ref: Reference, folder: str) -> Reference:
+    """A reference whose path is a file inside the project kept relative to it (the same key on every
+    computer); any other kept as it is."""
+    inner = project_paths.relative_in(ref.path, folder)
+    return Reference(ref.kind, inner, ref.id, ref.text) if inner else ref
 
 
 def reference(raw: Any) -> Reference:

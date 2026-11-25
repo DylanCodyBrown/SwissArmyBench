@@ -1,0 +1,30 @@
+@* The status bar's Collaboration button: shows and hides the panel (Ctrl+Shift+M), with the unread count, marked
+   when someone mentioned you. *@
+@implements IDisposable
+@inject CollaborationState State
+
+<button type="button" class="btn small ghost status-collab @(State.Open ? "on" : null) @(State.Mentions > 0 ? "mentioned" : null)"
+        aria-pressed="@(State.Open ? "true" : "false")" title="@Title" aria-label="@Label" @onclick="State.Toggle">
+    <Icon Name="chat" /> Collaboration
+    @if (State.Unread > 0)
+    {
+        <span class="collab-badge" aria-hidden="true">@State.Unread</span>
+    }
+</button>
+
+@code {
+    private string Title => $"{(State.Open ? "Hide" : "Show")} the Collaboration panel: the team's notes and activity (Ctrl+Shift+M)";
+
+    private string Label => State.Unread switch
+    {
+        0 => "Collaboration",
+        var n when State.Mentions > 0 => $"Collaboration: {n} unread, {State.Mentions} mentioning you",
+        var n => $"Collaboration: {n} unread",
+    };
+
+    protected override void OnInitialized() => State.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= Redraw;
+}

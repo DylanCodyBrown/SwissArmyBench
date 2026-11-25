@@ -1,0 +1,130 @@
+@* One message of the Collaboration panel: its author's mark and name (the agent's marked), when, its Markdown (each
+   reference a link to its object, struck through when it is gone), its reactions, and on your own Edit and Delete.
+   Compact (the timeline's first message): no actions. *@
+@inject CollaborationClient Client
+@inject Dialogs Dialogs
+
+<article class="collab-message @(Message.Author.Agent ? "agent" : null) @(Message.Deleted ? "deleted" : null)" data-message="@Message.Id" aria-label="@($"{Message.Author.Name}, {CollabWords.When(Message.Time, Now)}")">
+    <span class="collab-mark" aria-hidden="true">@CollabWords.Initials(Message.Author.Name)</span>
+    <div class="collab-message-main">
+        <div class="collab-message-head">
+            <strong class="collab-author">@Message.Author.Name</strong>
+            @if (Message.Author.Agent)
+            {
+                <span class="collab-agent-mark" title="Written by the agent for its user"><Icon Name="agent" /> agent</span>
+            }
+            <time class="collab-time" datetime="@Message.Time" title="@Message.Time">@CollabWords.When(Message.Time, Now)</time>
+            @if (Message.Edited.Length > 0 && !Message.Deleted)
+            {
+                <span class="collab-edited" title="@Message.Edited">(edited)</span>
+            }
+        </div>
+        @if (Message.Deleted)
+        {
+            <p class="collab-deleted-words">This message was deleted.</p>
+        }
+        else if (_editing)
+        {
+            <textarea class="collab-edit" aria-label="Edit the message" @bind="_draft" @bind:event="oninput" rows="4"></textarea>
+            <div class="collab-edit-actions">
+                <button type="button" class="btn small primary" @onclick="SaveAsync" disabled="@string.IsNullOrWhiteSpace(_draft)">Save</button>
+                <button type="button" class="btn small ghost" @onclick="() => _editing = false">Cancel</button>
+            </div>
+        }
+        else
+        {
+            <div class="collab-body">@((MarkupString)CollabWords.Body(Message))</div>
+        }
+        @if (!Message.Deleted && (Message.Reactions.Count > 0 || !Compact))
+        {
+            <div class="collab-reactions" role="group" aria-label="Reactions">
+                @foreach (var reaction in Message.Reactions)
+                {
+                    <button type="button" class="collab-reaction @(reaction.Mine ? "mine" : null)" disabled="@Compact"
+                            aria-pressed="@(reaction.Mine ? "true" : "false")" title="@string.Join(", ", reaction.People)"
+                            @onclick="() => ReactAsync(reaction.Emoji)">@reaction.Emoji <span>@reaction.People.Count</span></button>
+                }
+                @if (!Compact)
+                {
+                    <button type="button" class="collab-reaction add" aria-label="Add a reaction" aria-expanded="@(_picking ? "true" : "false")" @onclick="() => _picking = !_picking">+ 🙂</button>
+                    @if (_picking)
+                    {
+                        <span class="collab-quick" role="menu" aria-label="Reactions">
+                            @foreach (var emoji in CollabWords.QuickReactions)
+                            {
+                                <button type="button" role="menuitem" class="collab-reaction" aria-label="@($"React {emoji}")" @onclick="() => ReactAsync(emoji)">@emoji</button>
+                            }
+                        </span>
+                    }
+                    @if (Message.Mine)
+                    {
+                        <span class="collab-own">
+                            <button type="button" class="btn small ghost" @onclick="StartEdit"><Icon Name="edit" /> Edit</button>
+                            <button type="button" class="btn small ghost" @onclick="DeleteAsync"><Icon Name="trash" /> Delete</button>
+                        </span>
+                    }
+                }
+            </div>
+        }
+    </div>
+</article>
+
+@code {
+    private bool _editing;
+    private bool _picking;
+    private string _draft = string.Empty;
+
+    [Parameter, EditorRequired]
+    public CollabMessage Message { get; set; } = default!;
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+
+    [Parameter]
+    public bool Compact { get; set; }
+
+    /// <summary>The thread as it is after a reaction, an edit or a delete.</summary>
+    [Parameter]
+    public EventCallback<CollabItem> OnChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<Exception> OnError { get; set; }
+
+    private void StartEdit()
+    {
+        _draft = Message.Body;
+        _editing = true;
+    }
+
+    private Task ReactAsync(string emoji)
+    {
+        _picking = false;
+        return RunAsync(() => Client.ReactAsync(Message.Thread, Message.Id, emoji));
+    }
+
+    private async Task SaveAsync()
+    {
+        await RunAsync(() => Client.EditAsync(Message.Thread, Message.Id, _draft));
+        _editing = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (await Dialogs.AskYesNoAsync("Delete this message?", "It is gone for the whole team once you push.", "Delete", danger: true))
+        {
+            await RunAsync(() => Client.DeleteAsync(Message.Thread, Message.Id));
+        }
+    }
+
+    private async Task RunAsync(Func<Task<CollabItem>> act)
+    {
+        try
+        {
+            await OnChanged.InvokeAsync(await act());
+        }
+        catch (ApiException error)
+        {
+            await OnError.InvokeAsync(error);
+        }
+    }
+}

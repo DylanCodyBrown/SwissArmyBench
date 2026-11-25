@@ -1,0 +1,39 @@
+@* The Collaboration panel's composer (Slack's): a formatting bar (bold, italic, strike, code, code block, link,
+   lists, quote, task), Enter sends and Shift+Enter starts a new line, `@` lists the people and the project's objects,
+   `:` the emojis, a picture pasted is kept beside the message (5 MB at most). *@
+@implements IAsyncDisposable
+
+<div class="collab-composer">
+    @if (_said is not null)
+    {
+        <ErrorNote Words="@_said" OnClose="() => _said = null" />
+    }
+    <div class="collab-format" role="toolbar" aria-label="Formatting">
+        @foreach (var (kind, label, mark, keys) in _formats)
+        {
+            <button type="button" class="collab-format-button" aria-label="@label" title="@($"{label} ({keys})")" @onclick="() => FormatAsync(kind)">@((MarkupString)mark)</button>
+        }
+    </div>
+    @if (_picks.Count > 0)
+    {
+        <ul class="collab-popup" role="listbox" aria-label="@(_popup == '@' ? "People and objects" : "Emojis")">
+            @for (var i = 0; i < _picks.Count; i++)
+            {
+                var at = i;
+                var pick = _picks[i];
+                <li role="option" aria-selected="@(at == _index ? "true" : "false")" class="@(at == _index ? "on" : null)" @onmousedown="() => PickAsync(at)" @onmousedown:preventDefault="true">
+                    <Icon Name="@pick.Icon" /> <span class="collab-pick-label">@pick.Label</span> <span class="collab-pick-hint">@pick.Hint</span>
+                </li>
+            }
+        </ul>
+    }
+    <textarea @ref="_box" class="collab-box" rows="2" aria-label="@Label" placeholder="@Placeholder"></textarea>
+    <div class="collab-send-row">
+        @if (_images.Count > 0)
+        {
+            <span class="collab-attached"><Icon Name="image" /> @_images.Count @(_images.Count == 1 ? "picture" : "pictures")</span>
+        }
+        <span class="collab-hint">Enter sends · Shift+Enter a new line · @@ an object or a person</span>
+        <button type="button" class="btn small primary" disabled="@(_sending || string.IsNullOrWhiteSpace(_text))" @onclick="SendAsync">Send</button>
+    </div>
+</div>

@@ -28,6 +28,7 @@
                     <a class="btn" href="@($"connections?edit={Uri.EscapeDataString(Name)}")"><Icon Name="edit" /> Edit</a>
                 }
                 <button type="button" class="btn" @onclick="TestAsync"><Icon Name="play" /> Test</button>
+                <CollaborateButton Anchor="@(new("connection", Name, string.Empty, Name))" />
                 @if (_listed is { Dialect: "sqlserver", Connection: "database" })
                 {
                     <button type="button" class="btn" @onclick="ImportRelationshipsAsync"><Icon Name="diagram" /> Import relationships</button>

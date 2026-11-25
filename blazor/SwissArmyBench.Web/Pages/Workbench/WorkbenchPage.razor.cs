@@ -80,6 +80,9 @@ public partial class WorkbenchPage
     [Inject]
     private Commands Palette { get; set; } = default!;
 
+    [Inject]
+    private CollaborationState Collaboration { get; set; } = default!;
+
     /// <summary>notebooks or scripts: the two pages share this component.</summary>
     [Parameter, EditorRequired]
     public string Page { get; set; } = "notebooks";

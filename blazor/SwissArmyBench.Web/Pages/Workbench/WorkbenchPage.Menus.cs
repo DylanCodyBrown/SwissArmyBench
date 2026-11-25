@@ -6,6 +6,7 @@ using SwissArmyBench.Web.Api.Projects;
 using SwissArmyBench.Web.Api.Settings;
 using SwissArmyBench.Web.Components;
 using SwissArmyBench.Web.Pages.Workbench.Tabs;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -95,7 +96,10 @@ public partial class WorkbenchPage
     private (string, IReadOnlyList<MenuEntry>) TabMenu(int key)
     {
         var doc = _byKey[key];
-        return ("Tab menu", TabMenus.Entries(doc, SplitEntry(doc, SplitSide.Right), SplitEntry(doc, SplitSide.Down), () => RenameTabAsync(key), () => CloseAsync(key)));
+        var collaborate = doc.Path is { } path
+            ? Collaboration.Entry(CollaborationState.FileAnchor(path))
+            : Collaboration.Entry(CollaborationState.FileAnchor(doc.Title), "Save it first: a note names a file of the project");
+        return ("Tab menu", TabMenus.Entries(doc, SplitEntry(doc, SplitSide.Right), SplitEntry(doc, SplitSide.Down), () => RenameTabAsync(key), () => CloseAsync(key), collaborate));
     }
 
     /// <summary>The project's entries: New project…, Open project…, Export data.py, and with one open, Copy project

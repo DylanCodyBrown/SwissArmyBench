@@ -30,16 +30,19 @@ public sealed class StateServiceTests : AppTestContext
         var live = Get<LiveUpdates>();
         var project = Get<ProjectState>();
         var grid = Get<GridStatus>();
+        // The Collaboration panel's state (a service, not the bar) follows the project for as long as it lives.
+        _ = Get<CollaborationState>();
+        var services = Subscribers(project, nameof(ProjectState.Changed));
         Render<StatusBar>();
         Assert.Equal(1, Subscribers(grid, nameof(GridStatus.Changed)));
         Assert.Equal(1, Subscribers(live, nameof(LiveUpdates.Changed)));
-        Assert.Equal(1, Subscribers(project, nameof(ProjectState.Changed)));
+        Assert.Equal(services + 1, Subscribers(project, nameof(ProjectState.Changed)));
 
         await DisposeComponentsAsync();
 
         Assert.Equal(0, Subscribers(grid, nameof(GridStatus.Changed)));
         Assert.Equal(0, Subscribers(live, nameof(LiveUpdates.Changed)));
-        Assert.Equal(0, Subscribers(project, nameof(ProjectState.Changed)));
+        Assert.Equal(services, Subscribers(project, nameof(ProjectState.Changed)));
     }
 
     [Fact]

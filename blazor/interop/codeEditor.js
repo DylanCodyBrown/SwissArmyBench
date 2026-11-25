@@ -284,6 +284,12 @@ async function lint(model, language) {
   owner?.dotnet.invokeMethodAsync("Linted", markers.filter((m) => m.severity >= monaco.MarkerSeverity.Warning).length).catch(() => {});
 }
 
+/** Text coloured as `language` (the Collaboration panel's code blocks): Monaco's HTML, its text escaped. */
+export function colorize(text, language, theme) {
+  if (theme) monaco.editor.setTheme(THEMES[theme] ?? "vs");
+  return monaco.editor.colorize(text, LANGUAGES[language] ?? language, { tabSize: 4 });
+}
+
 /** The page's theme for every editor (Monaco has one theme at a time). */
 export function setTheme(theme) {
   monaco.editor.setTheme(THEMES[theme] ?? "vs");

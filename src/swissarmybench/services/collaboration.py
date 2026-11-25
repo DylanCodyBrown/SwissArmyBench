@@ -398,7 +398,9 @@ class Collaboration:
         project = self._root()
         folded = self._one(project, ident)
         view = self._thread_view(project, folded, self._seen(project), who)
-        return view | {"messages": [self._message_view(project, m, who) for m in folded[1]]}
+        return (
+            {"type": "thread"} | view | {"messages": [self._message_view(project, m, who) for m in folded[1]]}
+        )
 
     # ===== writing =====
 
@@ -447,7 +449,7 @@ class Collaboration:
         """{channel? (default general) | anchor? (a reference), title?, body, images?}: a new thread."""
         project = self._root()
         sent = body if isinstance(body, dict) else {}
-        anchor = rules.reference(sent["anchor"]) if sent.get("anchor") else None
+        anchor = rules.in_project(rules.reference(sent["anchor"]), project) if sent.get("anchor") else None
         channel = "" if anchor else rules.channel_name(sent.get("channel") or rules.GENERAL)
         ident = f"t-{self._new_id()}"
         first = self._message(project, ident, sent, who, "note")
@@ -588,7 +590,9 @@ class Collaboration:
         """{anchor? | where?}: every window opens the panel there (Collaborate on an object; the agent's
         collaboration_show). Nothing is written."""
         sent = body if isinstance(body, dict) else {}
-        anchor = rules.reference(sent["anchor"]) if sent.get("anchor") else None
+        found = rules.reference(sent["anchor"]) if sent.get("anchor") else None
+        project = self._project()
+        anchor = rules.in_project(found, project) if found and project else found
         where = anchor.key if anchor else str(sent.get("where") or "")
         notice = {
             "type": "collaboration_show",

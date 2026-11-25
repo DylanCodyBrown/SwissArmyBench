@@ -1,0 +1,9 @@
+@* "Collaborate" on an object (a connection's tools): the Collaboration panel opens on its threads, or starts one. *@
+@inject CollaborationState Collaboration
+
+<button type="button" class="btn" title="@($"The team's notes on {Anchor.Text} (the Collaboration panel)")" @onclick="() => Collaboration.Show(Anchor)"><Icon Name="chat" /> @CollaborationState.CollaborateWords</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public SwissArmyBench.Web.Api.Collaboration.CollabReference Anchor { get; set; } = default!;
+}

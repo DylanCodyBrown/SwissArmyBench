@@ -45,6 +45,8 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<FilePicks>();
         Services.AddScoped<Api.Environment.EnvironmentClient>();
         Services.AddScoped<Api.Variables.VariablesClient>();
+        Services.AddScoped<Api.Collaboration.CollaborationClient>();
+        Services.AddScoped<CollaborationState>();
     }
 
     /// <summary>How many handlers an event of a service holds now (a field-like event's own delegate).</summary>

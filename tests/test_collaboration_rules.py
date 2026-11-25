@@ -199,3 +199,12 @@ def test_the_first_note_stays_first_when_a_reply_shares_its_moment() -> None:
     reply = _message(id="0000ffff", kind="reply", author=SAM, reactions={})
     _, shown = rules.fold(thread, [reply, note], [])
     assert [m.id for m in shown] == ["ffff0000", "0000ffff"]
+
+
+def test_a_file_inside_the_project_is_kept_relative() -> None:
+    made = rules.in_project(
+        rules.Reference("cell", "/home/avery/Shop/data.ipynb", "7", "cell 7"), "/home/avery/Shop"
+    )
+    assert made.path == "data.ipynb" and made.key == "cell:data.ipynb#7"
+    table = rules.Reference("table", "orders")
+    assert rules.in_project(table, "/home/avery/Shop") == table

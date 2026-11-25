@@ -1,0 +1,109 @@
+@* The Collaboration panel: one floating card over the page (it never takes the page's space), moved by its title
+   bar and resized by its corner. Slack's shape in a narrow card: the channel and object switcher with search, the
+   filters, the timeline (notes and activity), a thread opened in place with a back arrow, the composer at the foot. *@
+@implements IAsyncDisposable
+
+<section @ref="_panel" class="collab-panel" role="dialog" aria-modal="false" aria-label="Collaboration">
+    <header @ref="_handle" class="collab-head">
+        @if (_thread is not null || _replyTo is not null)
+        {
+            <button type="button" class="btn ghost icon small" aria-label="Back to the timeline" title="Back" @onclick="BackAsync"><Icon Name="back" /></button>
+        }
+        <Icon Name="chat" />
+        <h2 class="collab-title">@(_thread?.Title ?? (_replyTo is null ? "Collaboration" : "Reply to a change"))</h2>
+        <span class="status-spacer"></span>
+        <button type="button" class="btn ghost icon small" aria-label="Hide the Collaboration panel" title="Hide (Ctrl+Shift+M)" @onclick="OnClose"><Icon Name="close" /></button>
+    </header>
+    <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
+    @if (_timeline is { Project: null })
+    {
+        <div class="collab-empty">
+            <Icon Name="project" />
+            <p>Open a project: its notes are kept in its folder and travel with it to your team.</p>
+        </div>
+    }
+    else if (_thread is { } thread)
+    {
+        <div class="collab-scroll">
+            <CollabThreadView Thread="thread" Now="_now" OnChanged="TookThread" OnError="Failed" OnResolve="ResolveAsync" OnPin="PinAsync" />
+        </div>
+        <CollabComposer @key="@($"reply-{thread.Id}")" Label="Reply" Placeholder="Reply in the thread" OnSend="ReplyAsync" />
+    }
+    else if (_replyTo is { } change)
+    {
+        <div class="collab-scroll">
+            <p class="collab-reply-to"><Icon Name="history" /> <strong>@change.Author?.Name</strong> @CollabWords.Activity(change)</p>
+        </div>
+        <CollabComposer @key="@($"change-{change.Id}")" Label="Reply to the change" Placeholder="Ask about this change" OnSend="ReplyToChangeAsync" />
+    }
+    else
+    {
+        <div class="collab-switch">
+            <select class="collab-where" aria-label="Channel or object" value="@(State.Where ?? string.Empty)" @onchange="GoAsync">
+                <option value="">Everything</option>
+                @foreach (var channel in _timeline?.Channels ?? [])
+                {
+                    <option value="@channel.Key">@($"#{channel.Name}{Unread(channel.Unread)}")</option>
+                }
+                @foreach (var place in _timeline?.Objects ?? [])
+                {
+                    <option value="@place.Key">@($"@{place.Text}{Unread(place.Unread)}")</option>
+                }
+                @if (State.Anchor is { } anchor && !(_timeline?.Objects ?? []).Any(o => o.Key == State.Where))
+                {
+                    <option value="@State.Where">@($"@{anchor.Text}")</option>
+                }
+            </select>
+            <button type="button" class="btn ghost icon small" aria-label="New channel…" title="New channel…" @onclick="NewChannelAsync"><Icon Name="plus" /></button>
+            <input type="search" class="collab-search" aria-label="Search notes and activity" placeholder="Search" @bind="_words" @bind:event="oninput" @bind:after="SearchAsync" />
+        </div>
+        <div class="collab-filters" role="group" aria-label="Show">
+            @foreach (var (filter, label) in CollabWords.Filters)
+            {
+                <button type="button" class="collab-chip @(_filter == filter ? "on" : null)" aria-pressed="@(_filter == filter ? "true" : "false")" @onclick="() => FilterAsync(filter)">@label</button>
+            }
+        </div>
+        @if (_timeline is { Shared: false, Project: not null })
+        {
+            <p class="collab-line"><Icon Name="info" /> <span class="collab-line-words">These notes stay on this computer: the project is not shared with your team.</span> <button type="button" class="btn small ghost" @onclick="ShareAsync">Share…</button></p>
+        }
+        @if (_timeline?.Team is { } team)
+        {
+            <p class="collab-line team">
+                @if (team.State == "behind")
+                {
+                    <span>Pull to see the team's latest.</span> <button type="button" class="btn small" @onclick="PullAsync">Pull</button>
+                }
+                else if (team.State == "changes")
+                {
+                    <span>Push to send yours.</span> <button type="button" class="btn small" @onclick="PushAsync">Push</button>
+                }
+                else
+                {
+                    <span>@team.Words</span>
+                }
+            </p>
+        }
+        <div class="collab-scroll">
+            <Busy IsBusy="_timeline is null && _error is null" Words="Loading the notes…">
+                @if (_found is { } found)
+                {
+                    <CollabSearchView Found="found" Now="_now" OnOpen="OpenAsync" />
+                }
+                else if (_timeline is { Items.Count: 0 })
+                {
+                    <p class="collab-empty-words">Nothing here yet. Write the first note below: @@ names a cell, a table or a teammate.</p>
+                }
+                else if (_timeline is { } timeline)
+                {
+                    <CollabTimelineView Items="timeline.Items" Now="_now" OnOpen="OpenAsync" OnReply="ReplyToAsync" />
+                }
+            </Busy>
+        </div>
+        @if (_timeline is { Project: not null } && _filter != "activity")
+        {
+            <CollabComposer @key="@($"post-{State.Where}")" Label="New note" Placeholder="@PostPlaceholder" OnSend="PostAsync" />
+        }
+    }
+    <div @ref="_edge" class="collab-resize" aria-hidden="true" title="Drag to resize"></div>
+</section>

@@ -9,6 +9,7 @@ using SwissArmyBench.Web.Api.Apis;
 using SwissArmyBench.Web.Api.App;
 using SwissArmyBench.Web.Api.Canvas;
 using SwissArmyBench.Web.Api.Catalog;
+using SwissArmyBench.Web.Api.Collaboration;
 using SwissArmyBench.Web.Api.Connections;
 using SwissArmyBench.Web.Api.Environment;
 using SwissArmyBench.Web.Api.Extensions;
@@ -99,6 +100,7 @@ public static class Program
         services.AddScoped<CodeAppClient>();
         services.AddScoped<AccountingClient>();
         services.AddScoped<VariablesClient>();
+        services.AddScoped<CollaborationClient>();
     }
 
     private static void AddState(IServiceCollection services)
@@ -123,5 +125,6 @@ public static class Program
         services.AddScoped<VariableAsks>();
         services.AddScoped<FilePicks>();
         services.AddScoped<TourState>();
+        services.AddScoped<CollaborationState>();
     }
 }

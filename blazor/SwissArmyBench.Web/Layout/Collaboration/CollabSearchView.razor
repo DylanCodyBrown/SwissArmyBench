@@ -1,0 +1,40 @@
+@* The Collaboration panel's search results: messages (their thread's title and the words found) and activity lines,
+   newest first; a message opens its thread. *@
+
+@if (Found.Found.Count == 0)
+{
+    <p class="collab-empty-words">Nothing found for “@Found.Words”.</p>
+}
+else
+{
+    <ol class="collab-timeline collab-found" aria-label="Found">
+        @foreach (var found in Found.Found)
+        {
+            <li class="collab-item">
+                @if (found.Thread is { } thread)
+                {
+                    <button type="button" class="collab-thread-open" @onclick="() => OnOpen.InvokeAsync(thread)">
+                        <span class="collab-place">@found.Title</span>
+                        <span class="collab-snippet"><strong>@found.Author?.Name</strong> @found.Snippet</span>
+                    </button>
+                }
+                else
+                {
+                    <span class="collab-snippet"><Icon Name="history" /> <strong>@found.Author?.Name</strong> @found.Snippet</span>
+                }
+                <time class="collab-time" datetime="@found.Time">@CollabWords.When(found.Time, Now)</time>
+            </li>
+        }
+    </ol>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public CollabSearch Found { get; set; } = default!;
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+
+    [Parameter]
+    public EventCallback<string> OnOpen { get; set; }
+}

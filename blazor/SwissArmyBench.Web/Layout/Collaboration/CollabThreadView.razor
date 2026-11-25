@@ -1,0 +1,56 @@
+@* One thread in the Collaboration panel: where it is (Jump to its object), Resolve or Reopen, Pin, its messages
+   (reactions, your own Edit and Delete) and the reply box. *@
+
+<div class="collab-thread" data-thread="@Thread.Id">
+    <div class="collab-thread-tools" role="toolbar" aria-label="Thread">
+        <span class="collab-place">@CollabWords.Place(Thread)</span>
+        @if (Thread.Anchor is { Href: { Length: > 0 } href, Gone: false })
+        {
+            <a class="btn small ghost" href="@href"><Icon Name="forward" /> Jump to it</a>
+        }
+        else if (Thread.Anchor is { Gone: true })
+        {
+            <span class="collab-ref gone" title="@CollabWords.GoneWords"><s>@Thread.Anchor.Text</s> (@CollabWords.GoneWords)</span>
+        }
+        <span class="status-spacer"></span>
+        <button type="button" class="btn small ghost" aria-pressed="@(Thread.Pinned ? "true" : "false")" @onclick="() => OnPin.InvokeAsync(!Thread.Pinned)"><Icon Name="pin" /> @(Thread.Pinned ? "Unpin" : "Pin")</button>
+        @if (Thread.Resolved is null)
+        {
+            <button type="button" class="btn small" @onclick="() => OnResolve.InvokeAsync(true)"><Icon Name="check" /> Resolve</button>
+        }
+        else
+        {
+            <button type="button" class="btn small" @onclick="() => OnResolve.InvokeAsync(false)"><Icon Name="undo" /> Reopen</button>
+        }
+    </div>
+    @if (Thread.Resolved is { } resolved)
+    {
+        <p class="collab-resolved-line"><Icon Name="check" /> Resolved by @resolved.By, @CollabWords.When(resolved.Time, Now)</p>
+    }
+    <div class="collab-messages">
+        @foreach (var message in Thread.Messages ?? [])
+        {
+            <CollabMessageView @key="message.Id" Message="message" Now="Now" OnChanged="OnChanged" OnError="OnError" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public CollabItem Thread { get; set; } = default!;
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+
+    [Parameter]
+    public EventCallback<CollabItem> OnChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<Exception> OnError { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnResolve { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnPin { get; set; }
+}

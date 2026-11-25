@@ -159,7 +159,7 @@ public partial class GridsPage
         return Task.CompletedTask;
     }
 
-    /// <summary>A tab's right-click menu: Compare with…, Rename, Close.</summary>
+    /// <summary>A tab's right-click menu: Compare with…, Rename, Collaborate (the panel on its table's threads), Close.</summary>
     private void TabMenu((string Grid, double X, double Y) at)
     {
         var tab = _tabs.FirstOrDefault(t => t.Grid == at.Grid);
@@ -172,6 +172,7 @@ public partial class GridsPage
         [
             new("Compare with…", "columns", () => CompareWithAsync(at.Grid, at.X, at.Y), _tabs.Count < 2 ? "Open another table to compare with" : null),
             new("Rename", "rename", () => _tabRow?.StartRenameAsync(at.Grid) ?? Task.CompletedTask),
+            Collaboration.Entry(new("table", tab.Dataset, string.Empty, tab.Dataset)),
             MenuEntry.Separator,
             new("Close", "close", () => CloseGridAsync(at.Grid)),
         ], at.X, at.Y);
