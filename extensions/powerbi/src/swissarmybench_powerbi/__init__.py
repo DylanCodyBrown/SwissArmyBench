@@ -4,4 +4,4 @@ Installed beside the base (`swissarmybench`), it registers itself under the entr
 `swissarmybench.extensions` (extension.py). Released with the base, at the base's version.
 """
 
-__version__: str = "0.0.38"
+__version__: str = "0.0.39"
