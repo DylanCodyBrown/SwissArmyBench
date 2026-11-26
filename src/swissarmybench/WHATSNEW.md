@@ -1,5 +1,12 @@
 # What's new in Swiss Army Bench
 
+## 0.0.40 · 2026-11-26 20:37 UTC
+
+### New features
+- Full screen Canvas
+
+### Bug fixes
+
 ## 0.0.39 · 2026-11-26 01:47 UTC
 
 ### New features
