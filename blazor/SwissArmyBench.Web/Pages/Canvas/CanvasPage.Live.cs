@@ -18,6 +18,9 @@ public partial class CanvasPage
                 await ReloadAsync();
                 Say("The canvas changed in another window: it is shown as it is now.");
                 break;
+            case FullNotice:
+                await HeardFullAsync(notice);
+                break;
             case "widgets_changed":
                 _widgets = (await WidgetsApi.ListAsync()).Widgets;
                 _previews.Clear();
@@ -49,6 +52,7 @@ public partial class CanvasPage
         _previews.Dispose();
         try
         {
+            await LeaveFullAsync();
             if (_keys is not null)
             {
                 await _keys.InvokeVoidAsync("stop");

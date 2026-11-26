@@ -9537,3 +9537,22 @@ new features and bug fixes seperated." Then: "Short descriptions as possible."
 - The main window only (sab-home), never a popped-out window; the agent's `app_whats_new open=true` opens it on
   the main window (every release). Closing it is the user's own (POST /whats-new/seen is 403 for the agent).
 - Where it reopens: Home's What's new beside Tour, and the status bar's version (now a button).
+
+## Full screen Canvas, 2026-11-26 (decisions and open notes)
+
+The owner: "At full screen mode for the canvas" (read as "Add a full screen mode for the Canvas").
+
+- One full screen for every page: shell.js `sab.fullScreen(on, kind)` (the body's class, then the desktop app's
+  window through its channel's `sabApp.fullScreen`, else the browser's Fullscreen API with a refusal harmless; the
+  browser's own way out tells the page through `window.sabFullScreen`). The Notebooks and Scripts pages' F11 now go
+  through it too, so in a browser they also take the screen.
+- In full screen the Canvas page draws no top bar, bottom bar or dock panes; the body's `cvs-full` hides the rail,
+  the status bar and the setup bar. The strip sits in the bottom left corner (the Collaboration buddy keeps the top
+  right); Widgets and Properties open one at a time as a pane over the board's right side, under the buddy.
+- Escape always leaves full screen, from a box too (its other meanings wait for the next press). Remembered as
+  `canvas.full` in this browser; the Canvas opens in full screen only when it was left that way.
+- The agent: `canvas_full_screen` (canvas, on: true, false, or none to toggle), a command of its own beside the
+  canvas_* ones because full screen is the page's state, not a change to the canvas file (nothing is written).
+- WHATSNEW.md: its rules take only `## <version> · <time> UTC` headings, so there is no `## Unreleased`; the
+  bullet waits for the next version's entry (open: the owner's).
+

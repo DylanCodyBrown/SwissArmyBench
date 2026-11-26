@@ -347,6 +347,25 @@ window.sab = {
     target.focus();
   },
 
+  /** A page's full screen (the Notebooks and Scripts pages' F11, the Canvas's): `kind` on the body (the page's own
+   *  CSS hides what goes) and body.page-full; in the desktop app the window itself (its channel's sabApp.fullScreen),
+   *  in a browser its Fullscreen API, a refusal harmless (the page is full screen inside the window all the same).
+   *  The browser's own Escape out of it tells the page (window.sabFullScreen, the page's toggle). */
+  fullScreen(on, kind) {
+    document.body.classList.toggle(kind, !!on);
+    document.body.classList.toggle("page-full", !!on);
+    if (window.sabApp?.app === true) {
+      window.sabApp.fullScreen?.(!!on);
+      return;
+    }
+    try {
+      if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.()?.catch(() => {});
+      else if (!on && document.fullscreenElement) document.exitFullscreen?.()?.catch(() => {});
+    } catch {
+      // no Fullscreen API here: the page alone
+    }
+  },
+
   /** A window over the page keeps the focus inside it (What's New): it goes to the window, and Tab and Shift+Tab
    *  go round its buttons, links and folds, never out to the page behind. */
   keepFocus(dialog) {
@@ -420,3 +439,8 @@ document.addEventListener("keydown", (e) => {
   e.stopPropagation();
   home.click();
 }, { capture: true });
+
+// The browser's own way out of full screen (its Escape, its bar): the page in full screen leaves its own too.
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && document.body.classList.contains("page-full")) window.sabFullScreen?.(false);
+});

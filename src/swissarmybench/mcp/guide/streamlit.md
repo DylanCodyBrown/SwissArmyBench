@@ -76,6 +76,9 @@ says so in one line.
   page), `canvas_set_container`, `canvas_set_values` (null: back to the default), `canvas_replace_widget`,
   `canvas_delete`, `canvas_set` (columns: a guide that re-flows, the row height, gap, snap, step 1, 2, 4, 8 or
   grid; both layouts), `canvas_page` (add, rename, move, remove), `canvas_undo` (redo=true redoes).
+- `canvas_full_screen` (canvas, on: true, false, none toggles): the Canvas page holding it goes full screen (the
+  user's F11: the rail, bars and panes hidden, the board alone with a small strip) or back. The page's own state:
+  nothing is written; Escape always leaves it.
 - `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
   stop=play stops it. Play follows live data: a table it reads (an open table after its steps, a
   `[Sandbox].x`, data.ipynb's data.py) is written again into the run when it changes (a sandbox write, an

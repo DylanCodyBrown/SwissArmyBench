@@ -146,6 +146,8 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     assert said["ctrl_shift_t_reopened"] and said["workbench_f5_kept_page"] is True
     # F11: the window itself full screen with the page's, and back (2026-11-21).
     assert said["f11_window_full"] is True and said["f11_window_back"] is True
+    # The Canvas's F11 too (2026-11-26): the board alone and the window full screen; Escape back as it was.
+    assert said["canvas_f11_full"] is True and said["canvas_escape_back"] is True
     assert said["ctrl_w_closed_empty_window"]
     # The profile in the state folder: cookies and local storage kept there.
     assert {"Cookies", "Local Storage"} <= set(said["profile_folder"])

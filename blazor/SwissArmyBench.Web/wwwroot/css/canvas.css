@@ -2279,3 +2279,30 @@ body:has(.cat-main > .blade-host > .code-ide) .cat-top {
 :is(.cvs, .wg-page) input.cvs-num { padding: 1px 4px; border-radius: 4px; }
 :is(.cvs, .wg-page) select.cvs-step { padding: 1px 4px; border-radius: 4px; }
 
+
+/* ===== Full screen (Pages/Canvas/CanvasPage.Full.cs; F11): the board alone, the window's whole room ===== */
+body.cvs-full .nav-rail, body.cvs-full .status-bar, body.cvs-full .setup-bar { display: none; }
+body.cvs-full .page-frame { inset: 0; }
+.cvs-full-strip {
+  position: fixed; left: 12px; bottom: 12px; z-index: 56;
+  display: flex; align-items: center; gap: 2px; padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--raised); box-shadow: var(--shadow);
+}
+.cvs-full-strip .cvs-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border); }
+.cvs-full-strip .btn[aria-pressed="true"] { background: var(--selected); color: var(--fg); }
+/* A pane over the board: on the right, under the Collaboration buddy's corner, above the strip's line. */
+.cvs-full-overlay {
+  position: fixed; right: 12px; top: calc(var(--collab-buddy-top, 8px) + var(--collab-buddy-size, 32px) + 12px); bottom: 12px;
+  z-index: 55; display: flex; flex-direction: column; width: min(340px, calc(100vw - 24px)); min-height: 0;
+  border: 1px solid var(--border-strong); border-radius: 8px; background: var(--raised); box-shadow: var(--shadow);
+}
+.cvs-full-overlay-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.cvs-full-overlay-head h2 { flex: 1; margin: 0; font-size: 13px; font-weight: 600; }
+.cvs-full-overlay-body { flex: 1; min-height: 0; overflow: auto; }
+/* A notice in full screen floats over the board's top instead of taking its room. */
+.cvs-is-full > .cvs-notice, .cvs-is-full > .error-note {
+  position: fixed; top: 8px; left: 50%; z-index: 56; max-width: min(640px, calc(100vw - 120px)); transform: translateX(-50%);
+  border-radius: 8px; box-shadow: var(--shadow);
+}
+/* Both at once: the error under the notice, never over it. */
+.cvs-is-full > .cvs-notice ~ .error-note { top: 56px; }

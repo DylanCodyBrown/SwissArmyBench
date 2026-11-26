@@ -13,6 +13,7 @@ POST   /streamlit/canvases/{canvas}/play       {"page"?}: the pages built and ru
 POST   /streamlit/canvases/{canvas}/stop
 POST   /streamlit/canvases/{canvas}/check      every page headless (AppTest): each widget's errors
 POST   /streamlit/canvases/{canvas}/export     {"folder"}: the app that runs alone (the agent's on Allow)
+POST   /streamlit/canvases/{canvas}/full-screen {"on"?}: its page full screen or back (none: toggled)
 (Launch, Builds and the Performance Analyzer: routes_launch.py)
 """
 
@@ -68,7 +69,13 @@ def routes(canvases: Canvases) -> list[BaseRoute]:
     async def export(request: Request) -> Response:
         return json_response(await canvases.export(name_of(request), await body_of(request), actor(request)))
 
+    async def full_screen(request: Request) -> Response:
+        return json_response(
+            await canvases.full_screen(name_of(request), await body_of(request), actor(request))
+        )
+
     return [
+        Route("/streamlit/canvases/{canvas}/full-screen", full_screen, methods=["POST"]),
         Route("/streamlit/canvases", listing, methods=["GET", "POST"]),
         Route("/streamlit/canvases/{canvas}", one, methods=["GET", "DELETE"]),
         Route("/streamlit/canvases/{canvas}/command", command, methods=["POST"]),

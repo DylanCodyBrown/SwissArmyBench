@@ -31,6 +31,16 @@ export function keys(dotnet) {
   const listener = (e) => {
     const ctrl = e.ctrlKey || e.metaKey;
     const key = e.key;
+    if (key === "F11" && !ctrl && !e.altKey) {
+      e.preventDefault();
+      dotnet.invokeMethodAsync("FullScreen", null).catch(() => {});
+      return;
+    }
+    // Escape always leaves full screen, from a box too.
+    if (key === "Escape" && document.body.classList.contains("cvs-full")) {
+      dotnet.invokeMethodAsync("FullScreen", false).catch(() => {});
+      return;
+    }
     const always = key === "F5" || (ctrl && e.shiftKey && key.toLowerCase() === "e");
     if (!always && (typing(e.target) || e.defaultPrevented)) {
       if (key === "Escape") dotnet.invokeMethodAsync("Key", key, ctrl, e.shiftKey, e.altKey, true).catch(() => {});
@@ -44,7 +54,16 @@ export function keys(dotnet) {
     dotnet.invokeMethodAsync("Key", key, ctrl, e.shiftKey, e.altKey, false).catch(() => {});
   };
   document.addEventListener("keydown", listener);
-  return { stop: () => document.removeEventListener("keydown", listener) };
+  // The desktop app's F11 is the page's while it is open (the shell asks window.sabFullScreen first); the browser's
+  // own Escape out of full screen asks with false.
+  const full = (on) => dotnet.invokeMethodAsync("FullScreen", on === false ? false : null).catch(() => {});
+  window.sabFullScreen = full;
+  return {
+    stop: () => {
+      document.removeEventListener("keydown", listener);
+      if (window.sabFullScreen === full) delete window.sabFullScreen;
+    },
+  };
 }
 
 /** Ctrl+wheel over the viewport zooms (told to C# as a factor). */
@@ -73,6 +92,8 @@ export function openPage(url, name, features) {
 
 /** A gallery card's preview asked for once the card is in view (told to C# once: Seen). */
 export function seen(element, dotnet) {
+  // A card already gone (the pane closed as it drew: full screen at once): nothing to watch.
+  if (!(element instanceof Element)) return { stop: () => {} };
   if (typeof IntersectionObserver === "undefined") {
     dotnet.invokeMethodAsync("Seen").catch(() => {});
     return { stop: () => {} };
@@ -103,5 +124,14 @@ export function widgetKeys(dotnet) {
     }
   };
   document.addEventListener("keydown", listener);
-  return { stop: () => document.removeEventListener("keydown", listener) };
+  // The desktop app's F11 is the page's while it is open (the shell asks window.sabFullScreen first); the browser's
+  // own Escape out of full screen asks with false.
+  const full = (on) => dotnet.invokeMethodAsync("FullScreen", on === false ? false : null).catch(() => {});
+  window.sabFullScreen = full;
+  return {
+    stop: () => {
+      document.removeEventListener("keydown", listener);
+      if (window.sabFullScreen === full) delete window.sabFullScreen;
+    },
+  };
 }

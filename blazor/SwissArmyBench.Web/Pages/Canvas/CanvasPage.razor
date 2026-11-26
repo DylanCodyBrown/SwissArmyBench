@@ -13,7 +13,9 @@
 else
 {
     <CascadingValue Value="_previews" IsFixed="true">
-        <main class="cvs" id="canvas">
+        <main class="cvs @(_full ? "cvs-is-full" : null)" id="canvas">
+            @if (!_full)
+            {
             <header class="cvs-top">
                 <PageTabs View="_view" OnSelect="SelectPage" OnSend="SendAsync" OnMenu="OpenMenu" />
                 <span class="cvs-grow"></span>
@@ -26,15 +28,17 @@ else
                         <button type="button" class="btn icon cvs-play-more" aria-label="More ways to run" title="More ways to run" @onclick="MoreWaysAsync"><Icon Name="down" /></button>
                     </span>
                     <button type="button" class="btn cvs-export" title="Export… (Ctrl+Shift+E)" @onclick="ExportAsync"><Icon Name="export" /><span class="btn-label">Export</span></button>
+                    <button type="button" class="btn ghost icon cvs-full-toggle" aria-label="Full screen" title="Full screen (F11)" aria-pressed="false" @onclick="ToggleFullAsync"><Icon Name="max" /></button>
                 </span>
             </header>
+            }
             @if (_notice.Length > 0)
             {
                 <div class="cvs-notice" role="status">@_notice</div>
             }
             <ErrorNote Error="_error" Words="@_warning" Warning="@(_warning is not null)" OnClose="ClearError" />
             <div class="cvs-body">
-                <PaneDock State="_dock" Panes="DockPanes" ClassName="cvs-dock">
+                <PaneDock State="_dock" Panes="ShownPanes" ClassName="cvs-dock">
                     <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
                         <div class="cvs-stage">
                             @if (_playUrl is not null)
@@ -60,7 +64,23 @@ else
                     </Busy>
                 </PaneDock>
             </div>
-            @if (_view.State is not null)
+            @if (_full && _view.State is not null)
+            {
+                <CanvasFullStrip View="_view" Running="Running" Overlay="@_overlay" OnLeave="() => SetFullAsync(false)" OnPlay="PlayOrStopAsync"
+                                 OnUndo="UndoAsync" OnZoom="SetZoomAsync" OnFit="FitAsync" OnOverlay="ToggleOverlay" />
+                @if (_overlay is { } shown && DockPanes.FirstOrDefault(p => p.Id == shown) is { } pane)
+                {
+                    <aside class="cvs-full-overlay @pane.ClassName" aria-label="@pane.Label" data-pane="@pane.Id">
+                        <div class="cvs-full-overlay-head">
+                            <h2>@pane.Label</h2>
+                            @pane.Actions
+                            <button type="button" class="btn ghost icon" aria-label="@($"Close {pane.Label}")" title="Close" @onclick="() => _overlay = null"><Icon Name="close" /></button>
+                        </div>
+                        <div class="cvs-full-overlay-body">@pane.Content</div>
+                    </aside>
+                }
+            }
+            else if (_view.State is not null)
             {
                 <CanvasBottom View="_view" ShowWires="_showWires" Dock="_dock" OnSend="SendAsync" OnUndo="UndoAsync" OnLayout="SetLayoutAsync"
                               OnPreviewWidth="RememberViewAsync" OnZoom="SetZoomAsync" OnFit="FitAsync" OnWires="ToggleWiresAsync" />

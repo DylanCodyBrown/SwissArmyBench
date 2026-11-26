@@ -1,0 +1,56 @@
+@* The Canvas's strip in full screen (CanvasPage.Full.cs): a small bar floating in the board's bottom left corner,
+   never under the Collaboration buddy (top right): Leave full screen (Escape or F11), Play or Stop, Undo and Redo,
+   the zoom (−, %, +, Fit), and the Widgets and Properties panes as overlays over the board. *@
+
+<div class="cvs-full-strip" role="toolbar" aria-label="Full screen">
+    <button type="button" class="btn ghost icon cvs-full-leave" aria-label="Leave full screen" title="Leave full screen (Escape or F11)" @onclick="OnLeave"><Icon Name="restore" /></button>
+    <span class="cvs-sep" aria-hidden="true"></span>
+    <button type="button" class="btn ghost icon cvs-full-play" aria-label="@(Running ? "Stop" : "Play")" title="@(Running ? "Stop" : "Play (F5)")" @onclick="OnPlay"><Icon Name="@(Running ? "stop" : "play")" /></button>
+    <button type="button" class="btn ghost icon" aria-label="Undo" title="Undo (Ctrl+Z)" disabled="@(!View.Editable || View.State!.Undo == 0)" @onclick="() => OnUndo.InvokeAsync(false)"><Icon Name="undo" /></button>
+    <button type="button" class="btn ghost icon" aria-label="Redo" title="Redo (Ctrl+Y)" disabled="@(!View.Editable || View.State!.Redo == 0)" @onclick="() => OnUndo.InvokeAsync(true)"><Icon Name="redo" /></button>
+    <span class="cvs-sep" aria-hidden="true"></span>
+    <button type="button" class="btn ghost icon" aria-label="Zoom out" title="Zoom out (Ctrl+-)" @onclick="() => OnZoom.InvokeAsync(View.Zoom / ZoomStep)"><Icon Name="minus" /></button>
+    <button type="button" class="cvs-zoom-label" title="Back to 100% (Ctrl+0)" @onclick="() => OnZoom.InvokeAsync(1)">@($"{Math.Round(View.Zoom * 100)}%")</button>
+    <button type="button" class="btn ghost icon" aria-label="Zoom in" title="Zoom in (Ctrl+=)" @onclick="() => OnZoom.InvokeAsync(View.Zoom * ZoomStep)"><Icon Name="plus" /></button>
+    <button type="button" class="btn ghost cvs-fit" @onclick="OnFit">Fit</button>
+    <span class="cvs-sep" aria-hidden="true"></span>
+    @foreach (var (pane, label, icon) in _panes)
+    {
+        <button type="button" class="btn ghost icon cvs-full-pane" data-pane="@pane" aria-label="@label" title="@($"{label} over the board")"
+                aria-pressed="@(Overlay == pane ? "true" : "false")" @onclick="() => OnOverlay.InvokeAsync(pane)"><Icon Name="@icon" /></button>
+    }
+</div>
+
+@code {
+    private const double ZoomStep = 1.25;
+
+    private static readonly (string Pane, string Label, string Icon)[] _panes = [("widgets", "Widgets", "blade"), ("properties", "Properties", "properties")];
+
+    [Parameter, EditorRequired]
+    public CanvasView View { get; set; } = default!;
+
+    [Parameter]
+    public bool Running { get; set; }
+
+    /// <summary>The pane shown over the board (widgets, properties), or none.</summary>
+    [Parameter]
+    public string? Overlay { get; set; }
+
+    [Parameter]
+    public EventCallback OnLeave { get; set; }
+
+    [Parameter]
+    public EventCallback OnPlay { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnUndo { get; set; }
+
+    [Parameter]
+    public EventCallback<double> OnZoom { get; set; }
+
+    [Parameter]
+    public EventCallback OnFit { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnOverlay { get; set; }
+}

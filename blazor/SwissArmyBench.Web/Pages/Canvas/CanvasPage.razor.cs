@@ -106,6 +106,7 @@ public partial class CanvasPage
         if (_keys is null)
         {
             await StartKeysAsync();
+            await RecallFullAsync();
         }
     }
 

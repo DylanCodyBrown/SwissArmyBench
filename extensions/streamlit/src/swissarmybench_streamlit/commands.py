@@ -286,6 +286,16 @@ def canvas_page(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "canvas_full_screen",
+    "The Canvas page holding a canvas full screen (the board alone, F11's) or back; no `on`: the other way",
+    req("canvas", "The canvas's id."),
+    opt("on", "true: full screen; false: back.", "bool"),
+)
+def canvas_full_screen(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/full-screen", _given(a, "on"))
+
+
+@command(
     "canvas_undo",
     "Undo a canvas's last change (redo=true: redo the last undone)",
     req("canvas", "The canvas's id."),

@@ -297,3 +297,29 @@ def test_a_widget_run_alone_gets_the_open_table_its_value_names(
     ok(client.post("/streamlit/widgets/order_count/run", headers=AUTH, json={"python": "/p"}))
     folder = Path(runner.started[-1][1])
     assert pq.read_table(folder / "data" / "orders.parquet").num_rows == 2
+
+
+def test_the_agent_puts_the_canvas_page_full_screen_and_nothing_is_written(
+    served: tuple[TestClient, FakeRunner, Path],
+) -> None:
+    """canvas_full_screen (the owner, 2026-11-26): the page holding the canvas is told; on, off, or the other
+    way; the file is not touched."""
+    client, _, project = served
+    canvas = opened(client, project)["canvas"]
+    path = project / "sales.canvas.json"
+    before = path.read_bytes()
+    host = {"Host": "127.0.0.1:8765"}
+    with client.websocket_connect("/ws", headers=AUTH | host) as page:
+        answer = ok(
+            client.post(f"/streamlit/canvases/{canvas}/full-screen", headers=AGENT, json={"on": True})
+        )
+        assert answer == {"canvas": canvas, "on": True, "told": True}
+        notice = page.receive_json()
+        while notice.get("type") != "canvas_full_screen":
+            notice = page.receive_json()
+        assert notice == {"type": "canvas_full_screen", "canvas": canvas, "on": True}
+    assert ok(client.post(f"/streamlit/canvases/{canvas}/full-screen", headers=AUTH))["on"] is None
+    refused = client.post(f"/streamlit/canvases/{canvas}/full-screen", headers=AGENT, json={"on": "yes"})
+    assert refused.status_code == 400 and "true or false" in refused.json()["error"]
+    assert client.post("/streamlit/canvases/nope/full-screen", headers=AGENT, json={}).status_code == 404
+    assert path.read_bytes() == before

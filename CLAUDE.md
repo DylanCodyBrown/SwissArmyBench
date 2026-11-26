@@ -184,6 +184,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   values its properties with masks; the Widgets window writes and runs one; the Canvas lays pages out from
   containers and widget instances in pixels, rule-checked and undoable; Play, Launch, Export from one builder;
   Launch with the Performance Analyzer, Builds' Compare and Restore; a table property takes `[Conn].table`;
+  Full screen (the owner, 2026-11-26: F11 or the top bar's button, the Scripts page's one full screen through
+  shell.js sab.fullScreen: the desktop app's window itself, else the browser's Fullscreen API; the board alone with
+  a small strip in its bottom left corner, the Widgets and Properties panes as overlays; Escape always leaves it;
+  kept in this browser, `canvas.full`; the agent's `canvas_full_screen`);
   Play and Launch follow live data (2026-11-22: a table changed is read again, the pages run again by themselves);
   app notebooks, `.stapp.json` canvases, live cells and controllers went),
   projects (a folder: data.ipynb and its export data.py, the canvas), named
@@ -1456,7 +1460,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (373 in the base, 403 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (374 in the base, 405 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/
@@ -1561,6 +1565,7 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          canvases, live runs, previews; the base's hooks: an old app file said, a new project's
                          canvas, the outline's canvas pages); scaffold (data.ipynb and an empty canvas)
     commands.py          the agent's widgets_* and canvas_* tools (canvas_builds and canvas_perf by an action), app_launch;
+                         canvas_full_screen (the page holding a canvas full screen or back: the canvas_full_screen notice);
                          OLD_NAMES (canvas_list, canvas_show, canvas_stop answer one release);
                          GONE: the old app canvas's
                          commands, each said gone (cli/commands.py gone_commands)
@@ -1631,7 +1636,7 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          check a value, copy (Copy to project / to library), project_widgets (an export's widgets/),
                          delete (the agent's on Allow), Run in place, the
                          headless check, previews' state; its ports WidgetProject, WidgetTables, WidgetApis
-    services/canvas.py   Canvases: open (validated), command (versioned: another window's change refused with the
+    services/canvas.py   Canvases: full_screen (the page told, nothing written; 2026-11-26); open (validated), command (versioned: another window's change refused with the
                          canvas as it is now; a file changed on disk read first), undo, redo, state (missing, marks,
                          notes said once), play, check, export (the agent's on Allow), replace (one change: a
                          build's Restore), rename_widget; an inserted widget wired to its pattern's endpoint in

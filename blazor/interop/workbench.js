@@ -70,7 +70,11 @@ export function keys(dotnet) {
   };
   window.addEventListener("keydown", listener, true);
   // The desktop app's F11 is the page's while it is open: the shell asks window.sabFullScreen first.
-  const full = () => dotnet.invokeMethodAsync("PageKey", "fullScreen").catch(() => {});
+  // The browser's own Escape out of full screen asks with false: only a page still in full screen leaves it.
+  const full = (on) => {
+    if (on === false && !document.body.classList.contains("wb-full")) return;
+    dotnet.invokeMethodAsync("PageKey", "fullScreen").catch(() => {});
+  };
   window.sabFullScreen = full;
   return {
     stop: () => {
@@ -111,9 +115,7 @@ export function sash(element, dotnet, row) {
 /** The page full screen (F11): the rail, the top bar and the side panes go (body.wb-full); in the desktop app, the
  * window too. */
 export function fullScreen(on) {
-  document.body.classList.toggle("wb-full", !!on);
-  // In the desktop app the window itself goes full screen too (and back).
-  if (window.sabApp?.app === true) window.sabApp.fullScreen?.(!!on);
+  window.sab.fullScreen(on, "wb-full");
 }
 
 /** Where a control is on screen, for a menu opened under it. */

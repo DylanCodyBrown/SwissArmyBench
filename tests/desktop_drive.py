@@ -17,6 +17,7 @@ import re
 import sys
 import time
 import traceback
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
@@ -87,6 +88,17 @@ def main(folder: Path, shots: Path | None) -> int:
         if shots is not None:
             wait(lambda: True, 0.5)
             window.grab().save(str(shots / name))
+
+    def post_json(route: str, body: Any) -> bytes:
+        info = read_info(info_file) or {}
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['port']}{route}",
+            data=json.dumps(body).encode(),
+            method="POST",
+            headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=30) as answer:  # noqa: S310 (127.0.0.1)
+            return bytes(answer.read())
 
     def call(method: str, route: str, body: bytes | None = None) -> Any:
         info = read_info(info_file) or {}
@@ -368,6 +380,29 @@ def main(folder: Path, shots: Path | None) -> int:
         QTest.keyClick(wb_target, Qt.Key.Key_W, ctrl)
         wait(lambda: again.ident not in shell.windows, 15, "Ctrl+W closed the Workbench window")
         results["ctrl_w_closed_empty_window"] = True
+
+        # 11d. The Canvas's F11 (2026-11-26): the board alone and the window itself full screen; Escape puts
+        # the window back as it was.
+        project = {"name": "Drive", "type": "streamlit", "folder": str(folder / "projects")}
+        made = json.loads(post_json("/project/new", project))
+        canvas_path = call("GET", "/streamlit/canvases")["canvases"][0]["path"]
+        results["canvas_project"] = bool(made)
+        js(home, f"window.open('/blazor/canvas?path={urllib.parse.quote(canvas_path)}', 'sab-canvas'); true")
+        board = wait(
+            lambda: next((w for w in shell.windows.values() if "/canvas" in w.page.url().toString()), None),
+            30,
+            "the Canvas window",
+        )
+        wait(lambda: js(board, "!!document.querySelector('.cvs-board')"), 60, "the Canvas's board")
+        board.bring_forward()
+        board_target = board.view.focusProxy() or board.view
+        board_target.setFocus()
+        QTest.keyClick(board_target, Qt.Key.Key_F11)
+        wait(lambda: board.isFullScreen(), 15, "F11 made the Canvas's window full screen")
+        results["canvas_f11_full"] = js(board, "document.body.classList.contains('cvs-full')")
+        QTest.keyClick(board_target, Qt.Key.Key_Escape)
+        wait(lambda: not board.isFullScreen(), 15, "Escape put the Canvas's window back")
+        results["canvas_escape_back"] = not js(board, "document.body.classList.contains('cvs-full')")
 
         # 12. Every window closed (each page asked first): the app tells the server, which stops.
         for window in list(shell.windows.values()):

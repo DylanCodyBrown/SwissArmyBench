@@ -594,6 +594,17 @@ class Canvases:
             "broken": broken,
         }
 
+    async def full_screen(self, canvas: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """The Canvas page holding this canvas full screen or back (the owner, 2026-11-26): on true or false,
+        none the other way. The page's own state, told (`canvas_full_screen`); nothing is written."""
+        opened = self._get(canvas)
+        on = (body or {}).get("on") if isinstance(body, dict) else None
+        if on is not None and not isinstance(on, bool):
+            raise ValueError("on is true or false (none: the other way).")
+        await self.ws.live.broadcast({"type": "canvas_full_screen", "canvas": opened.id, "on": on})
+        self.ws.audit.write(who, "canvas_full_screen", opened.path)
+        return {"canvas": opened.id, "on": on, "told": True}
+
     async def stop(self, canvas: str, body: Any = None) -> dict[str, Any]:
         """Play stopped (run "play", the default), or the launched app (run "launch")."""
         run = (body or {}).get("run") if isinstance(body, dict) else None
