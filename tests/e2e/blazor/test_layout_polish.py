@@ -9,7 +9,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from .conftest import FIRST_LOAD_MS, call, open_page
+from tests.e2e.blazor.conftest import FIRST_LOAD_MS, call, open_page
 
 # Two boxes overlap when each starts before the other ends, both ways.
 OVERLAP = """([a, b]) => {

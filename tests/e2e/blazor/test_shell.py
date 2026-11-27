@@ -4,6 +4,7 @@ status bar, a page it does not have yet saying so with the classic page's link, 
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from playwright.sync_api import Browser, expect
@@ -85,3 +86,24 @@ def test_an_old_address_lands_on_its_blazor_page(browser: Browser, server: dict[
     page.goto(f"{base}/workspace#grid={grid}")
     page.wait_for_url(f"**/blazor/tables?grid={grid}", timeout=60_000)
     page.close()
+
+
+def test_the_agents_navigate_moves_the_main_window(browser: Browser, server: dict[str, Any]) -> None:
+    """app_navigate (POST /navigate) answered "sent" and nothing moved: no page followed the navigate notice.
+    The main window goes there as a rail click would: an area, a connection's detail, a table's tab, Back."""
+    made = call(server, "POST", "/samples/store", {})
+    grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
+    page = open_page(browser, server, "")
+    expect(page.locator("h1.area-page-title")).to_be_visible()
+
+    assert call(server, "POST", "/navigate", {"to": "analyze"})["sent"] == {"window": "home", "to": "analyze"}
+    expect(page).to_have_url(re.compile(r"/blazor/analyze$"))
+    call(server, "POST", "/navigate", {"to": f"grid:{grid}"})
+    expect(page).to_have_url(re.compile(rf"/blazor/tables\?grid={grid}$"))
+    expect(page.locator(".ag-row").first).to_be_visible()
+    call(server, "POST", "/navigate", {"to": "back"})
+    expect(page).to_have_url(re.compile(r"/blazor/analyze$"))
+    call(server, "POST", "/navigate", {"to": "home"})
+    expect(page).to_have_url(re.compile(r"/blazor/$"))
+    page.close()
+

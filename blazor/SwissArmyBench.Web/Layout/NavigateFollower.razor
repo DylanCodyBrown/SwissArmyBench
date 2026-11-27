@@ -1,0 +1,41 @@
+@* The agent's app_navigate (POST /navigate) followed: the main window (sab-home, never a window popped out) hears the
+   "navigate" notice and goes there as a rail click would (Navigation/AgentPlace.cs); Back and Forward are the
+   browser's own. Nothing is drawn. *@
+@implements IDisposable
+@inject LiveUpdates Live
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+@code {
+    private bool _main;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        _main = await Js.InvokeAsync<string?>("sab.windowName") == WhatsNewState.MainWindow;
+    }
+
+    // An event handler returns nothing: the move goes on as a Task of its own.
+    private void OnNotice(Notice notice)
+    {
+        if (_main && AgentPlace.IsForMainWindow(notice))
+        {
+            _ = InvokeAsync(() => GoAsync(notice));
+        }
+    }
+
+    private async Task GoAsync(Notice notice)
+    {
+        var to = notice.Text("to") ?? string.Empty;
+        if (AgentPlace.IsHistory(to))
+        {
+            await Js.InvokeVoidAsync("sab.historyGo", to == AgentPlace.Back ? -1 : 1);
+        }
+        else if (AgentPlace.AddressOf(notice) is { } address)
+        {
+            Nav.NavigateTo(address);
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

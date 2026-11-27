@@ -413,6 +413,11 @@ window.sab = {
     all[((at < 0 ? 0 : at + step) + all.length) % all.length].focus();
   },
 
+  /** Back (-1) or Forward (1) in this window's history: the agent's app_navigate back and forward. */
+  historyGo(by) {
+    history.go(by);
+  },
+
   /** This window's name: sab-home is the app's first window (a .sql file's run brings the Tables page there). */
   windowName() {
     return window.name;
