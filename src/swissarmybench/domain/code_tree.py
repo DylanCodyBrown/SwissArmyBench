@@ -17,7 +17,7 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from swissarmybench.domain import project_paths, workbench_pages
+from swissarmybench.domain import project_paths, text_documents, workbench_pages
 
 # The groups in their order, each a folder of the tree.
 SCRIPTS = "scripts"  # Your scripts: scripts/ and its packages
@@ -183,24 +183,41 @@ def sql_group(paths: Iterable[str]) -> dict[str, Any] | None:
 
 
 TEXT = "text"
-_TEXT_ENDINGS: tuple[str, ...] = (".md", ".txt")
+_TEXT_ENDINGS: tuple[str, ...] = text_documents.ENDINGS
+
+
+# The docs listed first, in this order (the project's own page, then the app's outline of it).
+DOCS_FIRST: tuple[str, ...] = ("readme.md", "architecture.md")
+
+
+def docs(paths: Iterable[str]) -> list[str]:
+    """The project's documentation files (the owner, 2026-11-27: "The idea is the context documentation for a
+    project can be created and edited"): every Markdown, HTML, SVG, Mermaid, chart spec and plain text file
+    wherever it sits, README.md and ARCHITECTURE.md first, then by folder and name."""
+    found = []
+    for relative in paths:
+        relative = relative.replace("\\", "/")
+        if relative.lower().endswith(_TEXT_ENDINGS) and listed(relative):
+            found.append(relative)
+
+    def order(relative: str) -> tuple[int, str, str]:
+        lowered = relative.lower()
+        first = DOCS_FIRST.index(lowered) if lowered in DOCS_FIRST else len(DOCS_FIRST)
+        return first, posixpath.dirname(relative).casefold(), posixpath.basename(relative).casefold()
+
+    return sorted(found, key=order)
 
 
 def text_group(paths: Iterable[str]) -> dict[str, Any] | None:
-    """The Scripts page's Text files group (New file, 2026-11-27): the project's Markdown and plain text
-    files, by folder then name, each a plain editor's tab. None when there are none."""
-    files = []
-    for relative in paths:
-        relative = relative.replace("\\", "/")
-        if not relative.lower().endswith(_TEXT_ENDINGS) or not listed(relative):
-            continue
-        files.append(
-            {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
-        )
+    """The Scripts page's Docs group (2026-11-27; its id stays `text`): the project's documentation files
+    (docs), each a tab with its Preview. None when there are none."""
+    files = [
+        {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
+        for relative in docs(paths)
+    ]
     if not files:
         return None
-    files.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
-    return {"id": TEXT, "name": "Text files", "files": files, "kind": TEXT}
+    return {"id": TEXT, "name": "Docs", "files": files, "kind": TEXT}
 
 
 def structure_group(paths: Iterable[str]) -> dict[str, Any] | None:

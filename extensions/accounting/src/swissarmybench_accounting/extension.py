@@ -62,6 +62,22 @@ MODE: dict[str, Any] = {
         "builds it again whenever the data changes. You get data.ipynb, workbook.design.json and workbook.py."
     ),
     "example": "Example: the quarterly cession statements for each reinsurer, built in one click.",
+    # New file's type an Accounting project adds (the base's domain/new_files.py): a workbook's design, made
+    # by this extension's own path (a new design opened, then saved where it was named: routes() below).
+    "new_files": [
+        {
+            "id": "workbook",
+            "label": "Workbook design",
+            "ending": ".design.json",
+            "folder": "",
+            "page": "notebooks",
+            "kind": "workbook",
+            "icon": "excel",
+            "words": "A workbook's design on the Excel canvas: sheets of tables, pivots and charts.",
+            "suggested": "workbook",
+            "asks": ["name"],
+        },
+    ],
 }
 # The Accounting project's own functions, beside the Excel starters (Insert a function…).
 FUNCTIONS = [
@@ -116,6 +132,32 @@ def routes(seams: Seams) -> list[Any]:
         return await seams.datasets.store_table(name, table, kind, new_grid, who)
 
     accounting = Accounting(seams.ws, seams.approvals, store_table, project_folder, files)
+
+    async def new_workbook(body: dict[str, Any], who: str) -> dict[str, Any]:
+        """New file's Workbook design: ({name, folder, check}, who) -> where it is, the address it opens at."""
+        from urllib.parse import quote
+
+        from swissarmybench.services.workspace import Conflict
+
+        ending = ".design.json"
+        name = str(body.get("name") or "").strip()
+        stem = name[: -len(ending)] if name.lower().endswith(ending) else name
+        folder = (project_folder() or "").replace("\\", "/").rstrip("/")
+        if not folder:
+            raise ValueError("Open a project first: a workbook's design is a file of its folder.")
+        path = f"{folder}/{stem}{ending}"
+        if files.exists(path):
+            raise Conflict(f"{stem}{ending} is there already: pick another name.")
+        if not body.get("check"):
+            opened = await accounting.open({"title": stem}, who)
+            path = (await accounting.save(opened["id"], {"path": path}, who))["path"]
+        return {
+            "path": path,
+            "relative": f"{stem}{ending}",
+            "address": f"notebooks?path={quote(path, safe='')}",
+        }
+
+    seams.hooks.new_file_makers["workbook"] = new_workbook
 
     def functions() -> dict[str, Any]:
         families = seams.blades.starters()["families"]

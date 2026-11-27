@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import with_actor
+from swissarmybench.server.http import with_body
 from swissarmybench.services.project_outline import ProjectOutline
 
 
@@ -23,5 +23,5 @@ def routes(outline: ProjectOutline) -> list[BaseRoute]:
 
     return [
         Route("/project/outline", read, methods=["GET"]),
-        Route("/project/outline", with_actor(outline.write), methods=["POST"]),
+        Route("/project/outline", with_body(outline.write), methods=["POST"]),
     ]

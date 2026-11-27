@@ -18,6 +18,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from swissarmybench.domain import text_documents
+
 PAGES: tuple[str, ...] = ("notebooks", "scripts")
 WINDOW_NAMES: dict[str, str] = {"notebooks": "sab-notebooks", "scripts": "sab-scripts"}
 WORDS: dict[str, str] = {"notebooks": "Notebooks", "scripts": "Scripts"}
@@ -43,8 +45,8 @@ _KIND_WORDS: dict[str, str] = {
 _PATH_PAGES: tuple[tuple[str, str], ...] = (
     (".py", "scripts"),
     (".sql", "scripts"),  # a SQL file (domain/sql_files.py, the owner 2026-11-24)
-    (".md", "scripts"),  # Markdown and plain text: a plain editor's tab (New file, 2026-11-27)
-    (".txt", "scripts"),
+    # Text documents (Markdown, HTML, SVG, Mermaid, a chart's spec, plain text: domain/text_documents.py).
+    *((ending, "scripts") for ending in text_documents.ENDINGS),
     (".ipynb", "notebooks"),
     (".stapp.json", "notebooks"),
     (".design.json", "notebooks"),
@@ -55,8 +57,7 @@ _PATH_KINDS: tuple[tuple[str, str], ...] = (
     (".ipynb", "notebook"),
     (".py", "script"),
     (".sql", "sql"),
-    (".md", "text"),
-    (".txt", "text"),
+    *((ending, "text") for ending in text_documents.ENDINGS),
 )
 _WRONG_PAGE: str = "{kind} opens on the {page} page, not here."
 _STATE_FOLDER: str = ".sab"
@@ -81,7 +82,12 @@ def kind_of_path(path: Any) -> str | None:
 
 STRUCTURE_SUFFIXES: tuple[str, ...] = (".json", ".yaml", ".yml", ".xml", ".toml")
 # Files with a suffix of theirs that keep their own owners (the Canvas page, the Excel canvas, the old app).
-_NOT_STRUCTURES: tuple[str, ...] = (".canvas.json", ".design.json", ".stapp.json")
+_NOT_STRUCTURES: tuple[str, ...] = (
+    ".canvas.json",
+    ".design.json",
+    ".stapp.json",
+    *text_documents.NOT_STRUCTURES,  # a chart's spec (.vl.json, .vg.json): a text document with a preview
+)
 
 
 def is_structure_path(path: Any) -> bool:
@@ -135,10 +141,11 @@ def rules() -> dict[str, Any]:
             "state_folder": _STATE_FOLDER,
             "home": "scripts",
         },
+        "text": text_documents.rules(),
     }
 
 
-_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql", ".md", ".txt")
+_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql", *text_documents.ENDINGS)
 
 
 def renamed(path: str, to: Any) -> str:

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from swissarmybench.domain import changes as change_rules
@@ -25,6 +26,10 @@ from swissarmybench.domain import code_tree, new_files
 from swissarmybench.domain import script_ide as rules
 from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, Refused, Workspace
+
+# An extension's own "new" path for a file type its project type adds: ({name, folder, check}, who) ->
+# {path, relative, address?} (check: nothing written).
+NewFileMaker = Callable[[dict[str, Any], str], Awaitable[dict[str, Any]]]
 
 
 class Code(Protocol):
@@ -45,6 +50,8 @@ class Code(Protocol):
     def write(self, path: str, text: str) -> bool: ...
 
     def exists(self, path: str) -> bool: ...
+
+    def is_folder(self, path: str) -> bool: ...
 
     def move(self, source: str, target: str) -> None: ...
 
@@ -93,6 +100,10 @@ class ScriptIde:
         self._tables = tables  # the open tables as their read-only cells (services/table_cells.py listing)
         self._library_roots = library_roots  # Python's own folders: a library's source shown read-only
         self._trash = trash  # the system's trash (server/file_manager.py): Delete, the user's only
+        # New file's project-type types (the open project's mode's `new_files`) and their makers, each an
+        # extension's own "new" path (services/hooks.py new_file_makers); set by the composition root.
+        self.extra_types: Callable[[], list[Any]] = list
+        self.makers: Mapping[str, NewFileMaker] = {}
 
     # ===== the project's scripts =====
 
@@ -347,50 +358,85 @@ class ScriptIde:
 
     # ===== New file (the owner, 2026-11-27): a type, a name, a folder; its starter written =====
 
-    def new_file_options(self) -> dict[str, Any]:
-        """What the New file dropdown and its dialog draw: the types as data, the folders of the open project
-        (none open: no folders; the page then makes an untitled tab instead)."""
+    def _offer(self) -> tuple[list[Any], str | None, dict[str, dict[str, Any]]]:
+        """(the open project's type's own file types, the project's folder, the tree's files)."""
         files, folder = self._files()
+        return (list(self.extra_types()) if folder else []), folder, files
+
+    def new_file_options(self) -> dict[str, Any]:
+        """What every New file list and the one dialog draw: the types as data (the base's, then the open
+        project's type's own; none open: only the ones made loose), the folders of the open project (none
+        open: no folders; the dialog asks a folder of the disk instead)."""
+        extra, folder, files = self._offer()
         inside = [self._inside(p, folder)[1] for p in files] if folder else []
         return {
             "project": bool(folder),
-            "types": new_files.types(),
+            "types": new_files.types(extra, bool(folder)),
             "default": new_files.DEFAULT_TYPE,
             "folders": new_files.folders(inside) if folder else [],
         }
 
+    def _starter_options(self, kind: new_files.FileType, body: dict[str, Any], folder: str | None) -> Any:
+        tables = sorted(self.ws.store.all(), key=lambda i: i.name.casefold())
+        table = body.get("table") if isinstance(body.get("table"), str) and body["table"].strip() else None
+        root = str(folder or "").replace("\\", "/").rstrip("/")
+        return {
+            "connection": body.get("connection"),
+            "table": table or (tables[0].name if tables else None),
+            "variant": new_files.variant_of(kind, body.get("variant")),
+            "project": root.rsplit("/", 1)[-1],
+            "date": datetime.now(UTC).date().isoformat(),
+            "tables": [
+                {"name": i.name, "columns": [{"name": c.name, "type": c.type} for c in i.columns]}
+                for i in tables
+            ],
+        }
+
     async def new_file(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{type?, name, folder?, connection?, table?, check?}: a new file of the open project, its starter
-        written (domain/new_files.py): a Python script, a SQL file (its `-- connection:` line; the first rows
-        of an open table), a JSON, YAML, TOML or XML structure, Markdown, plain text or a notebook. A name
-        already taken is refused. {path, relative, type, kind, page, made}: the page opens it there; with
-        `check`, only where it would go (or why not): nothing written."""
+        """{type?, name, folder?, connection?, table?, variant?, check?}: a new file, named and written with
+        its type's starter (domain/new_files.py) before any tab opens: in the open project (folder: inside
+        it), else in any folder of the disk (folder: its whole path). No name, no file. A type the project's
+        type adds is made by its extension's own "new" path. A name already taken is refused.
+        {path, relative, type, kind, page, address?, made}; with `check`, only where it would go (or why
+        not): nothing written."""
         if not isinstance(body, dict):
             raise ValueError('Send {"type": "sql", "name": "orders_by_month", "folder": "scripts"}.')
-        _, folder = self._files()
-        if not folder:
-            raise Refused("Open a project first: a new file goes in its folder.")
-        kind = new_files.type_of(body.get("type"))
-        root = str(folder).replace("\\", "/").rstrip("/")
-        try:
-            relative = new_files.place(
-                kind,
-                body.get("name"),
-                body.get("folder"),
-                lambda inside: self._code.exists(f"{root}/{inside}"),
+        extra, folder, _ = self._offer()
+        kind = new_files.type_of(body.get("type"), extra, bool(folder))
+        checking = bool(body.get("check"))
+        new_files.variant_of(kind, body.get("variant"))
+        if kind.maker:
+            maker = self.makers.get(kind.maker)
+            if maker is None:
+                raise Refused(f"A {kind.label} cannot be made here: its extension is not on.")
+            new_files.named(kind, body.get("name"))  # no name, no file: said the one way
+            made = await maker(
+                {"name": body.get("name"), "folder": body.get("folder"), "check": checking}, who
             )
+            if not checking:
+                self.ws.audit.write(who, "script_new_file", made.get("relative"), type=kind.id)
+            return {"type": kind.id, "kind": kind.kind, "page": kind.page} | made | {"made": not checking}
+        try:
+            if folder:
+                root = str(folder).replace("\\", "/").rstrip("/")
+                relative = new_files.place(
+                    kind,
+                    body.get("name"),
+                    body.get("folder"),
+                    lambda inside: self._code.exists(f"{root}/{inside}"),
+                )
+                full = self._inside(relative, folder)[0]
+            else:
+                full = new_files.loose_place(kind, body.get("name"), body.get("folder"), self._code.exists)
+                relative = full.rsplit("/", 1)[-1]
+                if not self._code.is_folder(full.rsplit("/", 1)[0]):
+                    raise Refused(f"There is no folder {full.rsplit('/', 1)[0]}: pick one that is there.")
         except new_files.NameTaken as error:
             raise Conflict(str(error)) from None
-        full = self._inside(relative, folder)[0]
         made = {"path": full, "relative": relative, "type": kind.id, "kind": kind.kind, "page": kind.page}
-        if body.get("check"):
+        if checking:
             return made | {"made": False}  # the dialog's live check: where it would go, nothing written
-        table = body.get("table") if isinstance(body.get("table"), str) and body["table"].strip() else None
-        if kind.id == "sql" and table is None:
-            table = min((i.name for i in self.ws.store.all()), key=str.casefold, default=None)
-        text = new_files.starter(
-            kind, relative.rsplit("/", 1)[-1], {"connection": body.get("connection"), "table": table}
-        )
+        text = new_files.starter(kind, relative.rsplit("/", 1)[-1], self._starter_options(kind, body, folder))
         await asyncio.to_thread(self._code.write, full, text)
         await self._touched(full, who)
         if kind.id == "python":

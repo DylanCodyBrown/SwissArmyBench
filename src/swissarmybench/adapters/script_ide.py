@@ -5,6 +5,7 @@ written (atomically, only when the text changes), Ruff's format in the document'
 
 from __future__ import annotations
 
+import sysconfig
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,14 @@ def _place(name: Any, root: str | None) -> dict[str, Any]:
         "builtin": bool(name.in_builtin_module()),
         "description": name.description,
     }
+
+
+def python_roots() -> tuple[str, ...]:
+    """Python's own folders (the standard library, site-packages): a library's source is shown read-only."""
+    paths = sysconfig.get_paths()
+    return tuple(
+        dict.fromkeys(p for k in ("stdlib", "platstdlib", "purelib", "platlib") if (p := paths.get(k)))
+    )
 
 
 class ScriptCode:
@@ -78,6 +87,10 @@ class ScriptCode:
     @staticmethod
     def exists(path: str) -> bool:
         return Path(path).exists()
+
+    @staticmethod
+    def is_folder(path: str) -> bool:
+        return Path(path).is_dir()
 
     @staticmethod
     def move(source: str, target: str) -> None:

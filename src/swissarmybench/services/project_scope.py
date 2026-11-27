@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from swissarmybench.domain import code_tree, project_paths
+from swissarmybench.domain import code_tree, markdown_blocks, project_paths
 from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import project_scope as rules
@@ -110,7 +110,28 @@ class ProjectScope:
             "project": current.name,
             "folder": current.folder,
             "documents": [d | {"full": rules.inside(current.folder, d["path"])} for d in listed],
+            "docs": self.docs(),
         }
+
+    DOC_HEAD = 64_000  # a doc's first bytes read for its title
+
+    def docs(self) -> list[dict[str, Any]]:
+        """The open project's documentation files, by path and title only (a Markdown file's first heading):
+        what context.md's Documents lists, never a doc's text."""
+        current = self._projects.current
+        if current is None:
+            return []
+        out: list[dict[str, Any]] = []
+        for relative in code_tree.docs(f[0] for f in self._files.files(current.folder)):
+            title = ""
+            if relative.lower().endswith(".md"):
+                try:
+                    head = self._files.read_file(current.folder, relative)[: self.DOC_HEAD]
+                    title = markdown_blocks.title(head.decode("utf-8", "replace"))
+                except OSError:
+                    title = ""
+            out.append({"path": relative, "title": title, "full": rules.inside(current.folder, relative)})
+        return out
 
     # ===== the explorer of the Notebooks and Scripts pages (domain/code_tree.py) =====
 

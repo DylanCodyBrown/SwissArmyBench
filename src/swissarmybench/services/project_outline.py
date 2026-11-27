@@ -23,6 +23,8 @@ Two seams, each a Protocol with a small default, so the branches building the re
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 import posixpath
 import re
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
@@ -753,12 +755,40 @@ class ProjectOutline:
         """The open project's outline as markdown."""
         return rules.render(await self.gather())
 
-    async def write(self, who: str = "user") -> dict[str, Any]:
+    KEPT = ".sab/outline.json"  # the hash of the ARCHITECTURE.md the app last wrote (never its text)
+    EDITED = (
+        f"{rules.FILE_NAME} was edited by hand since the app wrote it: your edit is kept. "
+        "Replace it to take the new outline."
+    )
+
+    def _edited(self, folder: str, text: bytes) -> bool:
+        """Is the ARCHITECTURE.md on disk someone's own: there, not the new outline, and not the bytes the
+        app last wrote (no hash kept: an older project's file is taken as someone's, never written over)."""
+        on_disk = self._files.read_state(folder, rules.FILE_NAME)
+        if on_disk is None or on_disk == text:
+            return False
+        try:
+            kept = json.loads((self._files.read_state(folder, self.KEPT) or b"{}").decode("utf-8"))
+        except ValueError:
+            kept = {}
+        last = kept.get("sha256") if isinstance(kept, dict) else None
+        return hashlib.sha256(on_disk).hexdigest() != last
+
+    async def write(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         """ARCHITECTURE.md at the project folder's top, only when its bytes change: the text, its path in
-        the project, and whether it was written."""
+        the project, and whether it was written. One edited by hand since the app wrote it is kept and said
+        (`edited`), never written over silently; {"replace": true} takes the new outline."""
         project = self._open()
+        folder = str(project["folder"])
         text = await self.build()
-        written = self._files.write_state(str(project["folder"]), rules.FILE_NAME, text.encode("utf-8"))
+        raw = text.encode("utf-8")
+        answer = {"file": rules.FILE_NAME, "path": scope_rules.inside(folder, rules.FILE_NAME), "text": text}
+        replace = isinstance(body, dict) and body.get("replace") is True
+        if not replace and self._edited(folder, raw):
+            self.ws.audit.write(who, "project_outline", rules.FILE_NAME, written=False)
+            return answer | {"written": False, "edited": True, "said": self.EDITED}
+        written = self._files.write_state(folder, rules.FILE_NAME, raw)
+        mark = json.dumps({"sha256": hashlib.sha256(raw).hexdigest()}, sort_keys=True) + "\n"
+        self._files.write_state(folder, self.KEPT, mark.encode("utf-8"))
         self.ws.audit.write(who, "project_outline", rules.FILE_NAME, written=written)
-        return {"file": rules.FILE_NAME, "path": scope_rules.inside(str(project["folder"]), rules.FILE_NAME),
-                "written": written, "text": text}  # fmt: skip
+        return answer | {"written": written, "edited": False}

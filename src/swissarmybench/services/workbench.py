@@ -27,6 +27,7 @@ from swissarmybench.domain import notebooks as rules
 from swissarmybench.domain.datasets import validate_name
 from swissarmybench.services.changes import raised
 from swissarmybench.services.hooks import AppDocument, Hooks
+from swissarmybench.services.text_documents import TextDocuments
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 MAX_KERNELS: int = 12
@@ -61,6 +62,10 @@ class Documents(Protocol):
     def made_default_folder(self) -> str: ...
 
     def move(self, path: str, to: str) -> str: ...
+
+    def read_bytes(self, path: str, most: int) -> bytes: ...
+
+    def write_bytes(self, path: str, data: bytes) -> tuple[str, bool]: ...
 
 
 class Kernel(Protocol):
@@ -130,6 +135,8 @@ class Workbench:
     ) -> None:
         self.ws = ws
         self._documents = documents
+        # Text documents: a Markdown file's blocks, a preview's pictures (services/text_documents.py).
+        self.text = TextDocuments(documents.read, self.save, documents)
         self._kernels = kernels
         self._environ = environ
         self._now = now

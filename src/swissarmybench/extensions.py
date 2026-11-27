@@ -444,6 +444,10 @@ def _mode(raw: Any) -> dict[str, Any] | None:
     areas = raw.get("areas")
     mode["areas"] = [str(a) for a in areas] if isinstance(areas, list | tuple) else []
     mode["first_open"] = str(raw.get("first_open") or "")
+    made = raw.get("new_files")  # New file's types this project type adds (domain/new_files.py)
+    mode["new_files"] = (
+        [dict(t) for t in made if isinstance(t, dict)] if isinstance(made, list | tuple) else []
+    )
     tour = raw.get("tour")
     mode["tour"] = (
         [

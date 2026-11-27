@@ -42,6 +42,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import text_documents
 from swissarmybench.domain.html_cells import check_height
 
 APP_SUFFIX: str = ".stapp.json"  # an old app canvas (went 2026-11-21): said gone in one line when opened
@@ -403,7 +404,7 @@ def write_notebook(
     return json.dumps(notebook, indent=1, ensure_ascii=False) + "\n"
 
 
-TEXT_SUFFIXES: tuple[str, ...] = (".md", ".txt")
+TEXT_SUFFIXES: tuple[str, ...] = text_documents.ENDINGS
 
 
 def kind_of(path: str) -> str:

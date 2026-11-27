@@ -5,6 +5,11 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   GET    /workbench/home                    where Save as starts, and the recent files
   POST   /workbench/open      {"path"}      a notebook's cells or a script's text
   POST   /workbench/save      {"path", "cells" | "text", "modified", "force"}
+  POST   /workbench/markdown  {"text" | "path", "block"?, "to"?, "after"?, "task"?, "done"?}: a Markdown
+                                            file's blocks; one edited, added or its task box ticked (a
+                                            path alone: the file is saved)
+  GET    /workbench/picture   ?path=        a picture beside a document, for its preview (pictures only)
+  POST   /workbench/export-picture {"path", "format", "data"}: a diagram's preview saved beside its file
   POST   /workbench/rename    {"path", "to"}: a notebook, a SQL file or a loose script renamed in its folder
                                             (a tab's Rename…; a project's .py: /scripts/files/move)
   GET    /workbench/pythons                 the Pythons a kernel can run in (this server's own first)
@@ -179,6 +184,27 @@ def routes(
     async def cancel_handoff(request: Request) -> Response:
         return json_response(workbench.cancel_handoff(request.path_params["handoff"]))
 
+    async def markdown(request: Request) -> Response:
+        body = await read_json(request)
+        done = workbench.text.markdown(body, actor(request))
+        if done["written"] and code_files and isinstance(body, dict):  # the agent's edit: every tab follows
+            done["hash"] = await code_files.touched(str(body.get("path")), actor(request))
+        return json_response(done)
+
+    async def export_picture(request: Request) -> Response:
+        return json_response(workbench.text.export_picture(await read_json(request), actor(request)))
+
+    async def picture(request: Request) -> Response:
+        # A picture beside a document, for its preview: never a page of the app's origin (an SVG opened at
+        # this address runs nothing: sandboxed, no script, no network).
+        data, mime = workbench.text.picture(request.query_params.get("path"))
+        headers = {
+            "Cache-Control": "private, no-cache",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        }
+        return Response(data, media_type=mime, headers=headers)
+
     async def notebook_flow(request: Request) -> Response:
         return json_response(workbench.flow(await read_json(request)))
 
@@ -188,6 +214,9 @@ def routes(
         Route("/workbench/open", open_document, methods=["POST"]),
         Route("/workbench/save", save, methods=["POST"]),
         Route("/workbench/rename", with_body(workbench.rename), methods=["POST"]),
+        Route("/workbench/markdown", markdown, methods=["POST"]),
+        Route("/workbench/picture", picture),
+        Route("/workbench/export-picture", export_picture, methods=["POST"]),
         Route("/workbench/pythons", pythons),
         Route("/workbench/environments", environments),
         Route("/workbench/environments", create_environment, methods=["POST"]),

@@ -131,6 +131,11 @@ class Hooks:
     query_hints: Callable[[], dict[str, str]] = field(default=dict)
     # The code a project folder's canvases place (their widgets'), as (why, code): what it needs installed.
     project_code: Callable[[str], list[tuple[str, str]]] = field(default=lambda folder: [])
+    # New file's types a project type adds (its mode's `new_files`): each one's maker by its id, the
+    # extension's own "new" path: ({name, folder, check}, who) -> {path, relative, address?}.
+    new_file_makers: dict[str, Callable[[dict[str, Any], str], Awaitable[dict[str, Any]]]] = field(
+        default_factory=dict
+    )
 
 
 # ===== what the base offers an extension (Seams) =====

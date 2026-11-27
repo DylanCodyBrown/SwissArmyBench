@@ -258,6 +258,10 @@ class Canvases:
         self._open[opened.id] = opened
         return self.state(opened.id)
 
+    def exists(self, path: str) -> bool:
+        """Is there a canvas file at this path (New file's check)?"""
+        return bool(self._files.exists(path))
+
     def title_of(self, canvas: str) -> str:
         """An open canvas's name, as the user knows it (its file's, without .canvas.json)."""
         opened = self._open.get(canvas)

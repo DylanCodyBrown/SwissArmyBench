@@ -144,6 +144,9 @@ def test_the_folder_stays_inside_the_project() -> None:
             rules.folder_of(of("sql"), bad)
     assert rules.folders(["scripts/etl/load.py", "functions.py", ".venv/x.py"]) == [
         "",
+        "docs",
+        "docs/decisions",
+        "docs/diagrams",
         "scripts",
         "scripts/etl",
         "structures",
@@ -174,8 +177,9 @@ def project(client: TestClient, tmp_path: Path) -> Path:
 
 def test_new_file_writes_each_types_starter_into_the_project(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
+        # No project open: a new file still needs its folder (tests/test_named_files.py has the rest).
         refused = client.post("/scripts/files/new", json={"type": "sql", "name": "q"}, headers=AUTH)
-        assert refused.status_code == 403 and "Open a project first" in refused.json()["error"]
+        assert refused.status_code == 400 and "No project is open" in refused.json()["error"]
         assert ok(client.get("/scripts/files/new", headers=AUTH))["project"] is False
         folder = project(client, tmp_path)
         options = ok(client.get("/scripts/files/new", headers=AUTH))
@@ -284,6 +288,10 @@ def test_the_agents_command_makes_a_file_of_a_type(tmp_path: Path, monkeypatch: 
     )
     run({"action": "new", "to": "load_orders"})
     run({"action": "types"})
+    # An old call with no name: refused in one sentence, nothing sent.
+    assert run({"action": "new", "type": "sql"}) == {
+        "error": "Give the file a name (to): a new file is made only once it is named."
+    }
     assert sent == [
         (
             "POST",
