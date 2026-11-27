@@ -1,6 +1,7 @@
 @* The agent's app_navigate (POST /navigate) followed: the main window (sab-home, never a window popped out) hears the
-   "navigate" notice and goes there as a rail click would (Navigation/AgentPlace.cs); Back and Forward are the
-   browser's own. Nothing is drawn. *@
+   home window's "navigate" notice and goes there as a rail click would (Navigation/AgentPlace.cs); the Notebooks or
+   Scripts page the server told (window notebooks, scripts or workbench: only the open one the user was last in hears
+   it) follows its own. Back and Forward are the browser's own. Nothing is drawn. *@
 @implements IDisposable
 @inject LiveUpdates Live
 @inject NavigationManager Nav
@@ -18,7 +19,7 @@
     // An event handler returns nothing: the move goes on as a Task of its own.
     private void OnNotice(Notice notice)
     {
-        if (_main && AgentPlace.IsForMainWindow(notice))
+        if ((_main && AgentPlace.IsForMainWindow(notice)) || AgentPlace.IsForThisWorkbench(notice))
         {
             _ = InvokeAsync(() => GoAsync(notice));
         }

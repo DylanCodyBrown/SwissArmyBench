@@ -29,6 +29,9 @@ public sealed class LiveUpdates : IAsyncDisposable
 
     public bool Connected { get; private set; }
 
+    /// <summary>The window this page last said it is (null before the layout said one).</summary>
+    public string? Kind { get; private set; }
+
     /// <summary>Open the socket once, as a page of the app (workspace=1: the server counts it as a window).</summary>
     public async Task StartAsync()
     {
@@ -38,6 +41,21 @@ public sealed class LiveUpdates : IAsyncDisposable
         }
         _self = DotNetObjectReference.Create(this);
         _socket = await _js.InvokeAsync<IJSObjectReference>("sab.live", _self, "workspace=1");
+        if (Kind is { } kind)
+        {
+            await _socket.InvokeVoidAsync("place", kind); // said before the socket was there
+        }
+    }
+
+    /// <summary>Which window this page is now (home, notebooks, scripts, tables...), said on the socket: the agent's
+    /// commands for the Notebooks or Scripts page reach the open one (the layout says it as the page moves).</summary>
+    public async Task PlaceAsync(string kind)
+    {
+        Kind = kind;
+        if (_socket is not null)
+        {
+            await _socket.InvokeVoidAsync("place", kind);
+        }
     }
 
     [JSInvokable]

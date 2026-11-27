@@ -1,0 +1,37 @@
+@* Which window this page is, said on the live socket as the page moves (State/LiveUpdates.PlaceAsync): the first
+   word of its address (home for the first page; grids, the Tables page's old address, as tables). The server tells
+   the Notebooks and Scripts pages apart by it. Nothing is drawn. *@
+@implements IDisposable
+@inject NavigationManager Nav
+@inject LiveUpdates Live
+
+@code {
+    private const string Home = "home";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnMoved;
+        await SayAsync();
+    }
+
+    /// <summary>The window an address of this app is: its first word.</summary>
+    public static string KindOf(string relativePath)
+    {
+        var first = relativePath.Split('?', '#')[0].Split('/')[0];
+        return first.Length == 0 ? Home : first == Areas.OldTablesRoute ? "tables" : first;
+    }
+
+    // An event handler returns nothing: the saying goes on as a Task of its own.
+    private void OnMoved(object? sender, LocationChangedEventArgs e) => _ = InvokeAsync(SayAsync);
+
+    private async Task SayAsync()
+    {
+        var kind = KindOf(Nav.ToBaseRelativePath(Nav.Uri));
+        if (kind != Live.Kind)
+        {
+            await Live.PlaceAsync(kind);
+        }
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnMoved;
+}

@@ -312,9 +312,13 @@ def create_app(
         )
         try:
             while True:
-                # The only message a client sends: a VS Code or Workbench window saying it came to the front.
-                if await websocket.receive_text() == '{"type":"focus"}':
+                # What a client sends: a VS Code or Workbench window saying it came to the front, and a page
+                # saying which window it is now ({"type": "window", "kind": "notebooks"}).
+                said = await websocket.receive_text()
+                if said == '{"type":"focus"}':
                     ctx.live.focus(websocket)
+                elif (kind := navigation_rules.window_kind(said)) is not None:
+                    ctx.live.place(websocket, kind)
         except WebSocketDisconnect:
             pass
         finally:
