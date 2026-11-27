@@ -1,23 +1,29 @@
 @* One project's card: its name and type, Local or Shared, its counts and times, its Git branch, Open, and the menu
    ("…": Show in folder, Share or Make a local copy, Rename, Move left or right, Remove from list, Delete…). *@
-<div class="card explorer-card @(Card.Open ? "open" : string.Empty)" data-path="@Card.Path" tabindex="0" aria-label="@Card.Name" @onclick="ClickAsync" @onkeydown="KeyAsync">
+<div class="card explorer-card @(Card.Open ? "open" : string.Empty) @(Card.Where == "shared" ? "shared" : string.Empty)" data-path="@Card.Path" tabindex="0" aria-label="@Card.Name" @onclick="ClickAsync" @onkeydown="KeyAsync">
     <div class="card-title">
         <Icon Name="project" />
         <span>@Card.Name</span>
-        <span class="chip @(Card.Where == "shared" ? "shared" : string.Empty)">@(Card.Where == "shared" ? "Shared" : "Local")</span>
-        <button type="button" class="btn ghost icon small explorer-more" aria-label="@($"{Card.Name}: more")" title="@($"{Card.Name}: more")" @onclick="() => _menu = !_menu" @onclick:stopPropagation="true"><Icon Name="more" /></button>
+        <button type="button" class="btn ghost icon small explorer-more" aria-label="@($"{Card.Name}: more")" title="@($"{Card.Name}: more")" aria-haspopup="menu" aria-expanded="@(_menu ? "true" : "false")" @onclick="() => _menu = !_menu" @onclick:stopPropagation="true"><Icon Name="more" /></button>
     </div>
-    <div class="card-meta">
-        <span>@Card.TypeName</span>
-        <span>@Counts</span>
+    <div class="card-meta explorer-facts">
+        <span class="chip" data-fact="type">@Card.TypeName</span>
+        <span class="chip @(Card.Where == "shared" ? "shared" : string.Empty)" data-fact="where">@(Card.Where == "shared" ? "Shared" : "Local")</span>
         @if (Card.Git is { Repository: true } git)
         {
             <span title="Git repository"><Icon Name="branch" /> @(git.Branch ?? "Git")</span>
         }
+        <span data-fact="opened" title="@TimesTitle">@OpenedWords</span>
     </div>
-    <div class="card-meta">
-        <span>Opened @When(Card.Opened)</span>
-        <span>Changed @When(Card.Changed)</span>
+    <div class="explorer-counts" data-fact="counts">
+        @if (Counts.Count == 0)
+        {
+            <span class="muted">Empty</span>
+        }
+        @foreach (var count in Counts)
+        {
+            <span class="explorer-count" data-count="@count.Word"><Icon Name="@count.Icon" />@count.Words</span>
+        }
     </div>
     @if (Card.Missing)
     {
@@ -35,7 +41,7 @@
     {
         <p class="hint explorer-copied">Copied from @from</p>
     }
-    <p class="explorer-folder" title="@Card.Path"><Icon Name="folder" /><span>@Card.Path</span></p>
+    <p class="explorer-folder" title="@Card.Path"><Icon Name="folder" /><span>@FilePaths.Short(Card.Path, FolderParts)</span></p>
     <div class="card-actions">
         @if (Card.Open)
         {
@@ -48,6 +54,10 @@
         else
         {
             <button type="button" class="btn small" @onclick="LocateAsync">Locate…</button>
+        }
+        @if (!Card.Missing)
+        {
+            <button type="button" class="btn small ghost explorer-show" @onclick="ShowAsync" @onclick:stopPropagation="true">Show in folder</button>
         }
     </div>
     @if (_menu)

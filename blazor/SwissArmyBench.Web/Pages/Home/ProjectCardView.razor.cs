@@ -9,6 +9,8 @@ namespace SwissArmyBench.Web.Pages.Home;
 
 public partial class ProjectCardView
 {
+    /// <summary>How much of the folder's path a card shows (its end); the whole path is its title.</summary>
+    private const int FolderParts = 4;
 
     private bool _menu;
 
@@ -54,29 +56,26 @@ public partial class ProjectCardView
     [Parameter]
     public EventCallback<Exception> OnError { get; set; }
 
-    /// <summary>"2 notebooks · 1 script · 3 tables", or Empty.</summary>
-    private string Counts
-    {
-        get
+    /// <summary>What the project holds, each with its icon ("4 tables", "2 notebooks"); none when it is empty.</summary>
+    private IReadOnlyList<CardCount> Counts => new CardCount[]
         {
-            (int Count, string Word)[] counts =
-            [
-                (Card.Counts.Notebooks, "notebook"),
-                (Card.Counts.Scripts, "script"),
-                (Card.Counts.Apps, "app"),
-                (Card.Counts.Tables, "table"),
-            ];
-            var parts = counts
-                .Where(c => c.Count > 0)
-                .Select(c => $"{c.Count} {c.Word}{(c.Count == 1 ? string.Empty : "s")}")
-                .ToList();
-            return parts.Count == 0 ? "Empty" : string.Join(" · ", parts);
+            new(Card.Counts.Tables, "table", "table"),
+            new(Card.Counts.Notebooks, "notebook", "notebook"),
+            new(Card.Counts.Scripts, "script", "code"),
+            new(Card.Counts.Apps, "app", "page"),
         }
-    }
+        .Where(c => c.Count > 0)
+        .ToList();
 
-    /// <summary>A time the server gives as seconds since 1970, in this computer's own time; Never when there is none.</summary>
-    private static string When(double? seconds) =>
-        seconds is { } value ? DateTimeOffset.FromUnixTimeMilliseconds((long)(value * 1000)).ToLocalTime().ToString("d MMM yyyy, HH:mm") : "Never";
+    /// <summary>"Opened 3 minutes ago", or that it never was.</summary>
+    private string OpenedWords => Card.Opened is { } opened
+        ? $"Opened {TimeAgo.Words(TimeAgo.FromSeconds(opened), DateTimeOffset.Now)}"
+        : "Never opened";
+
+    /// <summary>The exact times, on hover: when it was opened and when it last changed.</summary>
+    private string TimesTitle => $"Opened {Exact(Card.Opened)}\nChanged {Exact(Card.Changed)}";
+
+    private static string Exact(double? seconds) => seconds is { } value ? TimeAgo.Exact(TimeAgo.FromSeconds(value)) : "never";
 
     private Task OpenAsync() => RunAsync(() => ProjectAsks.OpenAsync(Dialogs, Project, Projects, Card.Path));
 

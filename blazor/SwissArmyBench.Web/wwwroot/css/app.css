@@ -223,8 +223,18 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .card-title > :first-child + span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .card-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: 12px; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-/* A project's folder: a long path breaks inside its card, never past its edge. */
-.explorer-folder { display: flex; align-items: baseline; gap: 6px; overflow-wrap: anywhere; }
+/* A project's card: a stripe down its left edge (the open project's in the accent), its type and place as chips, what it
+   holds as icon counts, and the end of its folder's path (the whole of it on hover). */
+.explorer-cards { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.explorer-card { border-left: 4px solid var(--border-strong); }
+.explorer-card.shared { border-left-color: var(--agent); }
+.explorer-card.open { border-left-color: var(--accent); }
+.explorer-facts { align-items: center; }
+.explorer-facts .chip { white-space: nowrap; }
+.explorer-counts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; }
+.explorer-count { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.explorer-count .icon-svg { width: 14px; height: 14px; color: var(--muted); }
+.explorer-folder { display: flex; align-items: baseline; gap: 6px; margin: 0; overflow-wrap: anywhere; color: var(--muted); font-size: 12px; }
 .explorer-folder > svg { flex: none; align-self: center; }
 .explorer-folder > span { min-width: 0; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--border); border-radius: 10px; font-size: 11.5px; color: var(--muted); }
@@ -249,6 +259,14 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .summary-sections {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 18px 24px 24px;
 }
+/* The four figure tiles across the top (SummaryFigures): each a link, two by two where the page is narrow. */
+.summary-figures { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.summary-figure { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 2px; text-decoration: none; }
+.summary-figure > .icon-svg { grid-row: span 2; width: 28px; height: 28px; color: var(--accent); }
+.summary-figure-count { font-size: 13px; font-weight: 500; line-height: 1.1; }
+.summary-figure-count strong { font-size: 22px; font-weight: 700; color: var(--fg); }
+.summary-figure-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1100px) { .summary-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .summary-section { margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); }
 .summary-section .section-head h2 { display: flex; align-items: center; gap: 8px; }
 .summary-count { padding: 0 7px; border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; }
@@ -259,14 +277,6 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ===== a dialog of the app's own (never the browser's confirm or prompt) ===== */
 .dialog-shade { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }
-/* The four figure tiles across the top (SummaryFigures): each a link, two by two where the page is narrow. */
-.summary-figures { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.summary-figure { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 2px; text-decoration: none; }
-.summary-figure > .icon-svg { grid-row: span 2; width: 28px; height: 28px; color: var(--accent); }
-.summary-figure-count { font-size: 13px; font-weight: 500; line-height: 1.1; }
-.summary-figure-count strong { font-size: 22px; font-weight: 700; color: var(--fg); }
-.summary-figure-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 1100px) { .summary-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .dialog {
   display: grid; gap: 12px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto;
   padding: 16px 18px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow);
