@@ -73,7 +73,9 @@ def test_the_grid_page_keyboard_paths(browser: Browser, server: dict[str, Any]) 
     page.close()
 
 
-def test_escape_still_closes_a_dialog_after_a_click_beside_it(browser: Browser, server: dict[str, Any]) -> None:
+def test_escape_still_closes_a_dialog_after_a_click_beside_it(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     """A click on the dimmed page beside a dialog (a double click on the button that opened it lands there)
     took the focus out of the dialog: Escape and Enter then reached nothing and Tab walked the page behind.
     The focus stays in the dialog."""
@@ -85,7 +87,9 @@ def test_escape_still_closes_a_dialog_after_a_click_beside_it(browser: Browser, 
     expect(page.locator(".dialog")).to_be_visible()
     shade = page.locator(".dialog-shade").bounding_box()
     assert shade is not None
-    page.mouse.click(shade["x"] + shade["width"] - 6, shade["y"] + shade["height"] / 2)  # the shade, not the dialog
+    page.mouse.click(
+        shade["x"] + shade["width"] - 6, shade["y"] + shade["height"] / 2
+    )  # the shade, not the dialog
     assert page.evaluate("() => !!document.activeElement?.closest('.dialog')")
     page.keyboard.press("Escape")
     expect(page.locator(".dialog")).to_have_count(0)
@@ -104,7 +108,8 @@ def test_enter_twice_in_a_steps_editor_adds_one_step(browser: Browser, server: d
     expect(page.locator(".dialog")).to_be_visible()
     page.evaluate(
         """() => { for (let n = 0; n < 2; n++)
-             document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }"""
+             document.activeElement.dispatchEvent(
+               new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }"""
     )
     expect(page.locator(".dialog")).to_have_count(0)
     page.wait_for_timeout(500)

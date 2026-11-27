@@ -63,7 +63,9 @@ def test_an_empty_state_is_centred_as_a_whole(browser: Browser, server: dict[str
     page.close()
 
 
-def test_a_generated_files_row_keeps_its_mark_and_action_apart(browser: Browser, server: dict[str, Any]) -> None:
+def test_a_generated_files_row_keeps_its_mark_and_action_apart(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     call(server, "POST", "/project/new", {"name": "made_up_rows"})
     call(server, "POST", "/samples/store", {})
     page = open_page(browser, server, "scripts")
@@ -77,7 +79,9 @@ def test_a_generated_files_row_keeps_its_mark_and_action_apart(browser: Browser,
     page.close()
 
 
-def test_a_narrow_widgets_bar_keeps_its_words_off_its_buttons(browser: Browser, server: dict[str, Any]) -> None:
+def test_a_narrow_widgets_bar_keeps_its_words_off_its_buttons(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     page = narrow_page(browser, server, "widgets")
     page.locator(".wg-item, [data-widget]").first.wait_for()
     expect(page.locator(".wg-saved")).to_contain_text("Prebuilt")
@@ -100,7 +104,9 @@ def test_a_narrow_status_bar_keeps_to_one_line(browser: Browser, server: dict[st
     page.close()
 
 
-def test_the_apis_page_with_no_api_is_the_shared_empty_state(browser: Browser, server: dict[str, Any]) -> None:
+def test_the_apis_page_with_no_api_is_the_shared_empty_state(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     """With no API imported the page said one grey line; it is the shared empty state now: the area's icon,
     one sentence and Add API, which opens the form."""
     page = open_page(browser, server, "apis")
@@ -121,7 +127,8 @@ def test_the_notebooks_landing_gives_its_heading_button_and_cards_room(
     expect(page.locator(".wb-landing .card-grid .card").first).to_be_visible()
     gaps = page.evaluate(
         """() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
-           const head = box('.wb-landing-section'), row = box('.wb-landing > .form-row'), cards = box('.wb-landing .card-grid');
+           const head = box('.wb-landing-section'), row = box('.wb-landing > .form-row');
+           const cards = box('.wb-landing .card-grid');
            return [row.top - head.bottom, cards.top - row.bottom]; }"""
     )
     assert gaps[0] >= 8 and gaps[1] >= 8

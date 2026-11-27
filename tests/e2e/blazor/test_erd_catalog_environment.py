@@ -80,7 +80,9 @@ def test_the_pages_say_tab_and_catalog(browser: Browser, server: dict[str, Any])
     grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
     page = open_page(browser, server, "environment")
     page.locator(".env-row[data-name=orders]").first.click()
-    mark = page.locator(".env-tag", has=page.locator("xpath=following-sibling::button[@data-used-kind='grid']"))
+    mark = page.locator(
+        ".env-tag", has=page.locator("xpath=following-sibling::button[@data-used-kind='grid']")
+    )
     expect(mark.first).to_have_text("Tab")
     page.close()
 
