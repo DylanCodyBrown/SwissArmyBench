@@ -110,3 +110,19 @@ def test_the_apis_page_with_no_api_is_the_shared_empty_state(browser: Browser, s
     empty.get_by_role("link", name="Add API").click()
     expect(page.locator("h1.area-page-title")).to_contain_text("Add API")
     page.close()
+
+
+def test_the_notebooks_landing_gives_its_heading_button_and_cards_room(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """Your notebooks, New notebook and the cards sat glued together (no gap between the three)."""
+    call(server, "POST", "/project/new", {"name": "made_up_landing"})
+    page = open_page(browser, server, "notebooks")
+    expect(page.locator(".wb-landing .card-grid .card").first).to_be_visible()
+    gaps = page.evaluate(
+        """() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
+           const head = box('.wb-landing-section'), row = box('.wb-landing > .form-row'), cards = box('.wb-landing .card-grid');
+           return [row.top - head.bottom, cards.top - row.bottom]; }"""
+    )
+    assert gaps[0] >= 8 and gaps[1] >= 8
+    page.close()

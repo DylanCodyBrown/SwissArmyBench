@@ -443,6 +443,9 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .wb-status { display: flex; flex: none; align-items: center; gap: 8px; padding: 2px 12px; border-top: 1px solid var(--border); background: var(--surface); font-size: 12px; }
 .wb-session { display: inline-flex; align-items: center; gap: 4px; }
 .wb-landing { padding: 18px 24px; }
+/* Its heading, New and the cards each on a line of their own with room between (they sat glued together). */
+.wb-landing > .wb-landing-section { margin: 0 0 10px; }
+.wb-landing > .form-row { margin-bottom: 12px; }
 .side-pane { display: flex; flex: 0 0 260px; flex-direction: column; min-height: 0; overflow: auto; border-left: 1px solid var(--border); background: var(--surface); }
 .side-pane-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .side-pane-search { flex: 1 1 100%; }
