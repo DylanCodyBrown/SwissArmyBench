@@ -116,9 +116,10 @@ def test_on_the_base_project_still_has_its_app_and_the_canvas(client: TestClient
     folder = Path(made["folder"])
     assert [p.name for p in folder.glob("*.canvas.json")] == ["orchard.canvas.json"]
     assert not (folder / ".sab" / "project.json").exists()
-    assert client.get(f"/streamlit/canvases?folder={folder}", headers=AUTH).json()["canvases"] == [
-        {"name": "orchard", "path": str(folder / "orchard.canvas.json")}
-    ]
+    (listed_canvas,) = client.get(f"/streamlit/canvases?folder={folder}", headers=AUTH).json()["canvases"]
+    assert listed_canvas["name"] == "orchard" and listed_canvas["path"] == str(folder / "orchard.canvas.json")
+    # Its card's facts ride along (the Canvas landing page's cards).
+    assert listed_canvas["pages"] == 1 and listed_canvas["layouts"] == ["desktop", "phone"]
     listed = {e["id"]: e for e in client.get("/extensions", headers=AUTH).json()["extensions"]}
     assert listed["streamlit"]["status"] == "installed" and listed["streamlit"]["preinstalled"] is True
 
