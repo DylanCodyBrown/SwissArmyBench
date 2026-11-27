@@ -24,7 +24,7 @@
             }
         </div>
         <div class="summary-folder" data-fact="folder">
-            <Icon Name="folder" /> <code title="@Project.Path">@Project.Path</code>
+            <Icon Name="folder" /> <code title="@Project.Path">@FilePaths.Short(Project.Path, FolderParts)</code>
             <button type="button" class="btn small ghost" @onclick="OnCopyPath"><Icon Name="copy" /> Copy path</button>
             <button type="button" class="btn small ghost" @onclick="OnShowFolder">Show in folder</button>
         </div>
@@ -47,6 +47,7 @@
 </header>
 
 <div class="summary-sections">
+    <SummaryFigures Summary="Summary" />
     <section class="section summary-section" aria-label="Tables" data-section="tables">
         <div class="section-head">
             <h2><Icon Name="table" /> Tables <span class="summary-count">@Summary.Tables.Count</span></h2>
@@ -176,6 +177,9 @@
 </div>
 
 @code {
+    /// <summary>How much of the folder's path the head shows (its end); the whole path is its title and Copy path's.</summary>
+    private const int FolderParts = 2;
+
     [Parameter, EditorRequired]
     public ProjectSummary Summary { get; set; } = default!;
 

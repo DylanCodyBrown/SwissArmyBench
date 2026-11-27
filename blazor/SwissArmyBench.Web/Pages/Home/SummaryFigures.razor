@@ -1,0 +1,71 @@
+@* Home's four figure tiles, above the summary's sections: the tables with their rows in memory, the notebooks, the
+   scripts and the connections the project uses with their status. Each tile is a link to where they live, drawn
+   from the summary alone (no call of its own). *@
+
+<nav class="summary-figures" aria-label="The project in figures">
+    @foreach (var figure in Figures)
+    {
+        <a class="card summary-figure" href="@figure.Href" data-figure="@figure.Id" aria-label="@($"{figure.Count:N0} {figure.Word}: {figure.Detail}")">
+            <Icon Name="@figure.Icon" />
+            <span class="summary-figure-count"><strong>@figure.Count.ToString("N0")</strong> <span class="muted">@figure.Word</span></span>
+            <span class="card-meta summary-figure-detail" title="@figure.Detail">@figure.Detail</span>
+        </a>
+    }
+</nav>
+
+@code {
+    private const int NamesShown = 2;
+
+    [Parameter, EditorRequired]
+    public ProjectSummary Summary { get; set; } = default!;
+
+    private IReadOnlyList<Figure> Figures =>
+    [
+        new("tables", "grids", "tables", Summary.Tables.Count, Plural(Summary.Tables.Count, "table"), RowsWords),
+        DocumentsFigure("notebooks", "notebook", "notebook"),
+        DocumentsFigure("scripts", "code", "script"),
+        new("connections", "plug", "connections", Summary.Connections.Count, Plural(Summary.Connections.Count, "connection"), ConnectionWords),
+    ];
+
+    private string RowsWords
+    {
+        get
+        {
+            if (Summary.Tables.Count == 0)
+            {
+                return "None open yet";
+            }
+            var read = Summary.Tables.Where(t => t.Rows is not null).ToList();
+            return read.Count == 0 ? "Not read yet" : $"{read.Sum(t => t.Rows ?? 0):N0} rows in memory";
+        }
+    }
+
+    private string ConnectionWords => Summary.Connections.Count == 0
+        ? "None used yet"
+        : string.Join(", ", Summary.Connections.Select(c => c.Status.Length > 0 ? $"{c.Name} · {c.Status.ToLowerInvariant()}" : c.Name));
+
+    private Figure DocumentsFigure(string id, string icon, string kind)
+    {
+        var names = Summary.Documents.Where(d => d.Kind == kind).Select(d => d.Name).ToList();
+        return new(id, icon, id, names.Count, Plural(names.Count, kind), Names(names));
+    }
+
+    /// <summary>The first names, then how many more: "data.ipynb · analysis.ipynb · 3 more".</summary>
+    private static string Names(IReadOnlyList<string> names)
+    {
+        if (names.Count == 0)
+        {
+            return "None yet";
+        }
+        var shown = names.Take(NamesShown).ToList();
+        if (names.Count > NamesShown)
+        {
+            shown.Add($"{names.Count - NamesShown} more");
+        }
+        return string.Join(" · ", shown);
+    }
+
+    private static string Plural(int count, string word) => count == 1 ? word : $"{word}s";
+
+    private sealed record Figure(string Id, string Icon, string Href, int Count, string Word, string Detail);
+}

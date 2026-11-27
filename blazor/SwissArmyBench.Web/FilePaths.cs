@@ -38,4 +38,15 @@ public static class FilePaths
         var dot = name.LastIndexOf('.');
         return dot > 0 ? name[..dot] : name;
     }
+
+    /// <summary>The path's last <paramref name="parts"/> parts behind an ellipsis, for a place too narrow for the
+    /// whole of it: <c>/home/me/work/projects/sales</c> with 2 is <c>…/projects/sales</c>. A path that short
+    /// already is given as it is. The whole path stays the caller's title and what is copied.</summary>
+    public static string Short(string? path, int parts)
+    {
+        var whole = path ?? string.Empty;
+        var separator = whole.Contains('\\') && !whole.Contains('/') ? '\\' : '/';
+        var names = whole.Split(_separators, StringSplitOptions.RemoveEmptyEntries);
+        return names.Length <= parts ? whole : $"…{separator}{string.Join(separator, names[^parts..])}";
+    }
 }

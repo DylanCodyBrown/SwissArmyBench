@@ -30,4 +30,14 @@ public sealed class FilePathsTests
     [InlineData(".gitignore", ".gitignore")]
     public void TheStemDropsTheLastExtension(string path, string stem) =>
         Assert.Equal(stem, FilePaths.Stem(path));
+
+    [Theory]
+    [InlineData("/home/made-up/work/projects/sales", 2, "…/projects/sales")]
+    [InlineData("/home/made-up/work/projects/sales", 4, "…/made-up/work/projects/sales")]
+    [InlineData(@"C:\Repos\made-up\projects\sales", 2, @"…\projects\sales")]
+    [InlineData("/projects/sales", 2, "/projects/sales")]
+    [InlineData("sales", 2, "sales")]
+    [InlineData(null, 2, "")]
+    public void AShortPathIsItsLastPartsBehindAnEllipsis(string? path, int parts, string shown) =>
+        Assert.Equal(shown, FilePaths.Short(path, parts));
 }

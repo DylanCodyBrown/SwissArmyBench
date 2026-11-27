@@ -259,6 +259,14 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ===== a dialog of the app's own (never the browser's confirm or prompt) ===== */
 .dialog-shade { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }
+/* The four figure tiles across the top (SummaryFigures): each a link, two by two where the page is narrow. */
+.summary-figures { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.summary-figure { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 2px; text-decoration: none; }
+.summary-figure > .icon-svg { grid-row: span 2; width: 28px; height: 28px; color: var(--accent); }
+.summary-figure-count { font-size: 13px; font-weight: 500; line-height: 1.1; }
+.summary-figure-count strong { font-size: 22px; font-weight: 700; color: var(--fg); }
+.summary-figure-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1100px) { .summary-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .dialog {
   display: grid; gap: 12px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto;
   padding: 16px 18px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow);

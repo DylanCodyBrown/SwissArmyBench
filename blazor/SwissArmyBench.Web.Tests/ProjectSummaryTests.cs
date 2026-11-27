@@ -37,7 +37,9 @@ public sealed class ProjectSummaryTests : AppTestContext
         Assert.Equal("Captive_Unassigned", summary.Find(".summary-name span").TextContent);
         Assert.Equal("Analysis", summary.Find("[data-fact=type]").TextContent);
         Assert.Equal("Shared", summary.Find("[data-fact=where]").TextContent);
-        Assert.Contains("/home/made-up/Captive_Unassigned", summary.Find("[data-fact=folder]").TextContent);
+        // The folder's path is shortened to its end; the whole of it is the hover's (and Copy path's).
+        Assert.Equal("…/made-up/Captive_Unassigned", summary.Find("[data-fact=folder] code").TextContent);
+        Assert.Equal("/home/made-up/Captive_Unassigned", summary.Find("[data-fact=folder] code").GetAttribute("title"));
         Assert.Contains("Saved", summary.Find("[data-fact=saved]").TextContent);
         Assert.Contains("The project's Python is ready", summary.Find("[data-fact=python]").TextContent);
         Assert.DoesNotContain(summary.FindAll("button"), b => b.TextContent.Trim() == "Save");
