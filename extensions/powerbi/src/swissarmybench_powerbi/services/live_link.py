@@ -87,6 +87,8 @@ class LiveLink:
                 await self.ws.live.broadcast(
                     {"type": "powerbi_live", "words": said["words"], "live": said["live"]}
                 )
+                # The Power BI page is drawn from data: it reads its panel again on the panel's own notice.
+                await self.ws.live.broadcast({"type": "extension_panel_changed", "id": "powerbi"})
 
     def open_file(self) -> str | None:
         """The target's file name while Power BI Desktop has it open (E's Local source), else None."""

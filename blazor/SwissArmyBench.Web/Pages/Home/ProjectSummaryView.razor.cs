@@ -20,6 +20,8 @@ public partial class ProjectSummaryView : IDisposable
         "grid_shown", "grid_closed", "dataset_closed", "dataset_renamed", "dataset_updated",
         "file_changed", "environment_changed", "project_python", "session_entry",
         "connection_colours_changed", "connections_changed",
+        // Documents imported into the project, and the scaffold's made files (the Deliverable card's).
+        "project_documents_changed", "scaffold_changed",
     ];
 
     private const int SettleMilliseconds = 300;

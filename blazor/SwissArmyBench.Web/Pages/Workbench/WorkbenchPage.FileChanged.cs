@@ -9,6 +9,21 @@ public partial class WorkbenchPage
 {
     private void OnFileNotice(Notice notice)
     {
+        if (notice.Type == "code_file_moved" && notice.Text("from") is { } from)
+        {
+            _ = InvokeAsync(() => FileMovedAsync(from, notice.Text("to")));
+            return;
+        }
+        if (notice.Type == "project_documents_changed")
+        {
+            // Documents imported into the project: the Files pane lists them.
+            _ = InvokeAsync(async () =>
+            {
+                await LoadTreeAsync();
+                StateHasChanged();
+            });
+            return;
+        }
         if (notice.Type != "file_changed" || notice.Text("path") is not { } path)
         {
             return;
@@ -23,6 +38,30 @@ public partial class WorkbenchPage
             await LoadTreeAsync();
             StateHasChanged();
         });
+    }
+
+    /// <summary>A module or package renamed, moved or deleted anywhere (the Scripts page's Rename and Delete, the
+    /// agent's): every tab on it follows its file to the new path, or says its file is gone.</summary>
+    private async Task FileMovedAsync(string from, string? to)
+    {
+        foreach (var doc in _documents.Where(d => d.Path is not null).ToList())
+        {
+            if (MovedFiles.Follow(doc.Path!, from, to) is not { } now)
+            {
+                continue;
+            }
+            if (now.Length == 0)
+            {
+                doc.Elsewhere = "gone";
+            }
+            else
+            {
+                doc.Path = now;
+            }
+        }
+        await LoadTreeAsync();
+        await FollowAddressAsync();
+        StateHasChanged();
     }
 
     private async Task FileChangedAsync(OpenDocument doc, string? hash)

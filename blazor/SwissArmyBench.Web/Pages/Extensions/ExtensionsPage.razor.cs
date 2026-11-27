@@ -212,7 +212,8 @@ public partial class ExtensionsPage
 
     private void OnNotice(Notice notice)
     {
-        if (notice.Type is "extensions_changed" or "app_updating")
+        // extensions_changing: an Install or Remove started in another window (its card says so here too).
+        if (notice.Type is "extensions_changed" or "extensions_changing" or "app_updating")
         {
             _ = InvokeAsync(async () =>
             {

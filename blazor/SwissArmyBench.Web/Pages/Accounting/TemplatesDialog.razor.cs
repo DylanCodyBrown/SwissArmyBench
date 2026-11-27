@@ -6,7 +6,7 @@ using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Accounting;
 
-public partial class TemplatesDialog
+public partial class TemplatesDialog : IDisposable
 {
     private IReadOnlyList<string> _names = [];
     private bool _listed;
@@ -21,6 +21,9 @@ public partial class TemplatesDialog
     /// <summary>Statements and invoices… with the template shown (or none).</summary>
     [Parameter]
     public EventCallback<string?> OnStatements { get; set; }
+
+    [Inject]
+    private LiveUpdates Live { get; set; } = default!;
 
     [Inject]
     private AccountingClient Accounting { get; set; } = default!;
@@ -40,7 +43,26 @@ public partial class TemplatesDialog
             .GroupBy(p => p.Item1)
             .ToDictionary(g => g.Key, g => g.First().Item2);
 
-    protected override Task OnInitializedAsync() => ListAsync();
+    protected override Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        return ListAsync();
+    }
+
+    // A template bound anywhere (another window, the agent): the list and the one shown read again.
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type == "template_changed")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await ListAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
 
     /// <summary>What fills a place, in a few words: the lines' columns, a column, the number, the date or the text.</summary>
     public static string Said(TemplateBinding b) => b.Kind == "table"

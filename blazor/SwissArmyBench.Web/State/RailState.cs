@@ -44,6 +44,19 @@ public sealed class RailState : IDisposable
         try
         {
             await ShowNamesAsync((await _app.RailAsync()).Labels);
+        }
+        catch (Api.ApiException)
+        {
+            // The server's answer did not come: the rail keeps the remembered choice.
+        }
+        await ReadAreasAsync();
+        Changed?.Invoke();
+    }
+
+    private async Task ReadAreasAsync()
+    {
+        try
+        {
             ExtensionAreas = await _app.AreasAsync();
             var modes = (await _app.ModesAsync()).Modes;
             CanvasOn = modes.Any(m => m.Canvases.Contains("streamlit"));
@@ -51,9 +64,8 @@ public sealed class RailState : IDisposable
         }
         catch (Api.ApiException)
         {
-            // The server's answer did not come: the rail keeps the remembered choice and the base's areas.
+            // The server's answer did not come: the rail keeps the areas it has.
         }
-        Changed?.Invoke();
     }
 
     public async Task SetNamesAsync(bool on)
@@ -90,6 +102,11 @@ public sealed class RailState : IDisposable
             case "session_entry" when notice.Body.TryGetProperty("entry", out var entry)
                 && entry.TryGetProperty("actor", out var actor) && actor.GetString() == "agent":
                 Unseen++;
+                Changed?.Invoke();
+                break;
+            case "mode_changed":
+                // An extension's project was made or opened: the areas its mode offers (the Canvas, the Code App).
+                await ReadAreasAsync();
                 Changed?.Invoke();
                 break;
             default:
