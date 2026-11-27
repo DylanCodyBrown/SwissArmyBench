@@ -102,7 +102,7 @@ def test_a_markdown_file_opens_rendered_and_one_block_is_edited_in_place(
     expect(page.locator(".wb-view-preview")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".wb-textfile .monaco-editor")).to_have_count(0)
     expect(reader.locator("h1")).to_have_text("Made-up shop")
-    expect(reader.locator(".md-block")).to_have_count(7)
+    expect(reader.locator(".md-block")).to_have_count(8)
     expect(reader.locator("table.md-table td").first).to_have_text("orders")
     expect(reader.locator("li li")).to_have_text("from the warehouse")  # a nested list
     expect(reader.locator("pre code[data-lang=python] span").first).to_be_visible()  # coloured

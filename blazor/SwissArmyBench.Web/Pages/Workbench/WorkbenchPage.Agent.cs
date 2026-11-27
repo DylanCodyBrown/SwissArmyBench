@@ -24,11 +24,33 @@ public partial class WorkbenchPage
                 return await OpenAtAsync(args);
             case "project.saveDocuments":
                 return await SaveDocumentsAsync(args);
+            case "file.new" or "file.newSql" or "tabs.new-query" or "workbook.new":
+                return await AgentNewFileAsync(command, args);
             case "view.preview" or "view.split" or "view.source" or "preview.saveSvg" or "preview.savePng":
                 return await TextAnswerAsync(command, args);
             default:
                 return null;
         }
+    }
+
+    // The agent's file.new {"name", "type"?, "folder"?} (file.newSql: a SQL file; workbook.new: a workbook's
+    // design): the file named and written by the server, then its tab, as the dialog's Create does. The dialog
+    // itself is the user's (it opens on their screen): with no name the agent is told to pass one.
+    private async Task<CommandAnswer?> AgentNewFileAsync(string command, JsonElement args)
+    {
+        if (TextOf(args, "name") is not { Length: > 0 } name)
+        {
+            throw new InvalidOperationException("Give the file a name (args.name): a new file is made only once it is named. workbench_file new makes one the same way.");
+        }
+        var type = TextOf(args, "type") ?? command switch
+        {
+            "file.newSql" => "sql",
+            "workbook.new" => "workbook",
+            _ => IsNotebooks ? "notebook" : "python",
+        };
+        var made = await ScriptIde.NewFileAsync(new Api.Workbench.NewFileRequest(type, name, TextOf(args, "folder") ?? await NewFileFolderAsync(type)));
+        await NewFileMadeAsync(made);
+        return new CommandAnswer(new { ran = command, path = made.Path, relative = made.Relative }, made.Path, FilePaths.Name(made.Path), null);
     }
 
     private CommandAnswer At(object? result) => new(result, Front?.Path, Front?.Title, Front?.NotebookView?.Selected?.Number);

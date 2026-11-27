@@ -71,6 +71,16 @@ public partial class WorkbenchPage
         _newFileButton?.Ask(type);
     }
 
+    /// <summary>The folder a new file of a type starts in, as the dialog would: the type's own inside the open
+    /// project, else (no project open) the Workbench's folder.</summary>
+    private async Task<string> NewFileFolderAsync(string typeId)
+    {
+        await LoadNewFileOptionsAsync();
+        return _newFileOptions is { Project: true } options
+            ? options.Types.FirstOrDefault(t => t.Id == typeId)?.Folder ?? string.Empty
+            : _newFileStart;
+    }
+
     /// <summary>The dialog made the file: it opens as its kind's tab here, on its own page when it has one.</summary>
     private async Task NewFileMadeAsync(NewFileMade made)
     {

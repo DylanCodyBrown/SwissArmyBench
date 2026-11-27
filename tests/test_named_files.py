@@ -563,3 +563,13 @@ def test_the_front_end_names_no_file_type() -> None:
         code = code.replace('type="text"', "")  # an input's own attribute
         named = sorted(i for i in ids if re.search(rf'"{re.escape(i)}"', code))
         assert named == [], f"{file.name} names the file type(s) {named}"
+
+
+def test_the_screen_says_which_view_a_text_documents_tab_is_in() -> None:
+    from swissarmybench.domain import screen
+
+    tab = {"title": "README.md", "path": "/p/README.md", "kind": "document", "dirty": False, "view": "split"}
+    state = screen.clean({"page": "scripts", "tab": tab | {"text": "never kept"}, "tabs": [tab]})
+    assert state["tab"]["view"] == "split" and state["tabs"][0]["view"] == "split"
+    assert "text" not in state["tab"]  # names and states only: never a document's text
+    assert "document /p/README.md, split view" in screen.shows(state)

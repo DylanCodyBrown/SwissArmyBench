@@ -76,7 +76,8 @@ STEP: dict[str, Any] = {
     "directions": NAMES,
 }
 
-DOCUMENT: dict[str, Any] = {"title": NAME, "path": NAME, "kind": NAME, "dirty": FLAG}
+# A tab's document; `view`: a text document's view (preview, split or source: its tab's Preview toggle).
+DOCUMENT: dict[str, Any] = {"title": NAME, "path": NAME, "kind": NAME, "dirty": FLAG, "view": NAME}
 
 # The page-specific parts, by name: each a page's own hook (blazor: ScreenState.Show).
 PARTS: dict[str, dict[str, Any]] = {
@@ -404,7 +405,8 @@ def shows(state: dict[str, Any]) -> str:
     tab = state.get("tab", {})
     if tab.get("path") or tab.get("title"):
         dirty = " (unsaved)" if tab.get("dirty") else ""
-        said.append(f"{tab.get('kind') or 'document'} {tab.get('path') or tab.get('title')}{dirty}")
+        view = f", {tab['view']} view" if tab.get("view") else ""
+        said.append(f"{tab.get('kind') or 'document'} {tab.get('path') or tab.get('title')}{dirty}{view}")
     if "cursor" in state:
         said.append(f"cursor at line {state['cursor'].get('line', 0)}")
     if state.get("notebook", {}).get("focused"):

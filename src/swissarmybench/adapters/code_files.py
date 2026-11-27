@@ -10,6 +10,7 @@ from swissarmybench.domain import text_documents
 Stamp = tuple[int, int]
 MAX_WATCHED = 4000
 _ENDINGS = (".py", ".ipynb", ".sql")  # a .sql file (2026-11-24) follows its changes too
+_DOC_ENDINGS = tuple(e for e in text_documents.ENDINGS if e != ".txt")
 # A project's structure files (a tab beside the code follows them as a script's): its top, structures/.
 _STRUCTURE_ENDINGS = (".json", ".yaml", ".yml", ".xml", ".toml")
 
@@ -58,8 +59,9 @@ def code_files_in(folder: str | None, structures: bool = False) -> list[str]:
             if entry.is_dir():
                 stack.append(entry)
             elif entry.suffix.lower() in _ENDINGS or (
-                # The open project's docs, wherever they sit (a Markdown file's tab follows its file too).
-                structures and entry.name.lower().endswith(text_documents.ENDINGS)
+                # The open project's docs, wherever they sit (a Markdown file's tab follows its file too);
+                # never plain text: requirements.txt is the app's own to write (its installs say so themselves).
+                structures and entry.name.lower().endswith(_DOC_ENDINGS)
             ):
                 found.append(str(entry))
             elif (

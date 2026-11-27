@@ -55,7 +55,7 @@ flowchart TB
     client -->|1| services
     ext_accounting -->|1| adapters
     ext_accounting -->|2| cli
-    ext_accounting -->|2| domain
+    ext_accounting -->|3| domain
     ext_accounting -->|2| root
     ext_accounting -->|1| server
     ext_accounting -->|4| services
@@ -71,7 +71,7 @@ flowchart TB
     ext_git -->|5| services
     ext_powerapps -->|2| adapters
     ext_powerapps -->|2| cli
-    ext_powerapps -->|13| domain
+    ext_powerapps -->|14| domain
     ext_powerapps -->|2| server
     ext_powerapps -->|5| services
     ext_powerbi -->|1| adapters
@@ -81,7 +81,7 @@ flowchart TB
     ext_powerbi -->|9| services
     ext_streamlit -->|4| adapters
     ext_streamlit -->|2| cli
-    ext_streamlit -->|6| domain
+    ext_streamlit -->|7| domain
     ext_streamlit -->|4| server
     ext_streamlit -->|14| services
     mcp -->|2| cli
@@ -125,7 +125,7 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 132 | 170 | 0 | 0.00 | 349 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 132 | 172 | 0 | 0.00 | 349 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
 | services | the use cases | 93 | 97 | 117 | 0.55 | 335 | 179 | 0.53 | 0.08 |
 | adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 39 | 0.64 | 111 | 2 | 0.02 | 0.34 |
@@ -135,12 +135,12 @@ low by design and its D says little; the measure bites for the components that h
 | server | the HTTP door and what starts a process | 93 | 12 | 135 | 0.92 | 43 | 2 | 0.05 | 0.04 |
 | bootstrap | the composition root | 1 | 1 | 161 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
-| accounting | an extension | 9 | 0 | 10 | 1.00 | 5 | 1 | 0.20 | 0.20 |
+| accounting | an extension | 9 | 0 | 11 | 1.00 | 5 | 1 | 0.20 | 0.20 |
 | copilot | an extension | 9 | 0 | 10 | 1.00 | 16 | 5 | 0.31 | 0.31 |
 | git | an extension | 9 | 0 | 8 | 1.00 | 17 | 4 | 0.24 | 0.24 |
-| powerapps | an extension | 20 | 0 | 21 | 1.00 | 39 | 15 | 0.38 | 0.38 |
+| powerapps | an extension | 20 | 0 | 22 | 1.00 | 39 | 15 | 0.38 | 0.38 |
 | powerbi | an extension | 18 | 0 | 24 | 1.00 | 50 | 9 | 0.18 | 0.18 |
-| streamlit | an extension | 32 | 0 | 16 | 1.00 | 58 | 3 | 0.05 | 0.05 |
+| streamlit | an extension | 32 | 0 | 17 | 1.00 | 58 | 3 | 0.05 | 0.05 |
 
 ### The modules most depended on
 

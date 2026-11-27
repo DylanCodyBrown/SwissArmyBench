@@ -71,6 +71,10 @@ public partial class WorkbenchPage
             await structure.ChangedOnDiskAsync(hash);
             return;
         }
+        if (doc.IsWorkbook || doc.IsBlade || doc.CodeFile is not null)
+        {
+            return; // its own view follows its file (a workbook's design by its own notice): never read as a script
+        }
         if (hash is not null && hash == doc.Hash)
         {
             return; // this page's own save, or the same text
