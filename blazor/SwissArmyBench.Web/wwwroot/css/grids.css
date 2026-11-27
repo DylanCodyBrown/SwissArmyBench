@@ -221,8 +221,8 @@ body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offs
 
 /* ===== no table open, and a query's table (SQL is written on the Scripts page: 2026-11-24) ===== */
 .tables-empty { display: grid; align-content: start; gap: 12px; padding: 18px 24px; overflow: auto; }
-.empty-state { display: grid; justify-items: start; gap: 8px; }
-.empty-state-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The empty state itself is the shared one (app.css): centred, as on every page. */
+.empty-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .project-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
 .project-fix-message { color: var(--muted); }
 .query-shown { display: grid; border-bottom: 1px solid var(--border); background: var(--surface); }
