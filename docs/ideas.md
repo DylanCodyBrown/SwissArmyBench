@@ -9742,3 +9742,24 @@ It answers the New file notes above: no untitled tab is left, with or without a 
   Preview for a Python script's docstring or a notebook as a document; whether TypeScript and TSX get starters in
   the Power Apps extension so they can join New file; inlining a page's relative pictures as data: addresses.
 
+
+## A Power BI dataset dropped anywhere (the owner, 2026-11-27; a future feature, not built)
+
+The owner: "If you drag a power bi data set into the application anywhere it will automatically import the
+connections from that power bi data set and the queries."
+
+- **What is there today:** a .pbix, .pbit or .pbip opened with the app or dropped on a window goes to the Power BI
+  page, which offers Make a Power BI project for it (no project open) or Import its model and Use its pages on our
+  model (one open). The import (domain/pbix_import.py) already plans each source as a connection, reusing one that
+  matches or making one, with its variables, and keeps each table's Power Query (M) for the round trip.
+- **What the idea adds:**
+  - a drop on any page, of any window, not only the Power BI page's drop zone;
+  - no stop on the Power BI page: the connections and the queries come in by themselves, and one notice says what
+    came in, with Undo;
+  - each table's Power Query query becomes something the app runs: a `.sql` file on the Scripts page in the source's
+    own SQL where the query folds, else the M kept beside it and said.
+- **To settle before building:**
+  - Does "data set" also mean a published dataset dragged from the Power BI service in a browser? A drop carries
+    only a link then, so it would be read through the workspace connection.
+  - What does "automatically" do with a project open: import into it, or ask once?
+  - Should a source that only works on this computer be made at all? It would carry the amber warning.
