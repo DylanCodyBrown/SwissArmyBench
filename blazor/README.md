@@ -106,6 +106,11 @@ blazor/
                              place as this app's address; Back and Forward the browser's own), the "snapshot_request"
                              notice has the page in front draw the area asked for and send the PNG itself
                              (interop/snapshot.js, html-to-image)
+    Layout/WindowPlace, CommandFollower   which window this page is, said on the live socket as it moves (the first
+                             word of its address: the server tells the Notebooks and Scripts pages apart by it), and
+                             the agent's workbench_window followed: the "workbench_command" notice runs a command of
+                             the page in front's palette as the user's own (State/Commands.AnswerAsync: "commands"
+                             lists them; the page's own answers first, WorkbenchPage.Agent.cs) and answers the server
     Layout/LibraryNotices    what the library says once (its older stores moved in, an older project's blades taken in,
                              a team library pointed at): taken as the main window opens (POST /library/notices) and
                              heard as it happens (library_notice), each a line in the corner with OK

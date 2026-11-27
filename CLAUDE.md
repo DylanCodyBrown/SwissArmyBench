@@ -888,6 +888,8 @@ src/swissarmybench/
                          way the agent asks for the user's Allow (allowed(who, subject=, action=, detail=,
                          otherwise=): the user's at once; the agent's waits, a no raises Refused "The user
                          declined (or did not answer): <otherwise>."; tests/test_approvals.py: no raw ask)
+    background.py        keep(work, name): the one way a task is started and not waited for (held until it ends,
+                         its exception logged by the job's name; tests/test_background.py: no bare create_task)
     workspace.py         Workspace (the ports every use case shares, grid lookups and queries) and the
                          outcomes Refused, NotFound, TimedOut, Conflict
     datasets.py          every way data arrives (push, file, paste, the "+" tab's query), list, close
