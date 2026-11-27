@@ -115,3 +115,22 @@ def test_enter_twice_in_a_steps_editor_adds_one_step(browser: Browser, server: d
     page.wait_for_timeout(500)
     assert len(call(server, "GET", f"/grids/{grid}")["steps"]) == before + 1
     page.close()
+
+
+def test_the_rail_is_under_a_dialogs_shade(browser: Browser, server: dict[str, Any]) -> None:
+    """A dialog of the page left the rail bright and clickable beside it (the rail sat above the shade): a
+    click there left the dialog's page for another. The shade covers the rail like the rest of the page."""
+    grids = call(server, "GET", "/grids")["grids"]
+    grid = grids[0]["grid"] if grids else call(server, "POST", "/samples/store", {})["tables"][0]["grid"]
+    page = open_page(browser, server, f"tables?grid={grid}")
+    expect(page.locator(".ag-row").first).to_be_visible()
+    page.click("[data-tool=sort]")
+    expect(page.locator(".dialog")).to_be_visible()
+    rail = page.locator(".nav-rail-item[data-area=notebooks]").bounding_box()
+    assert rail is not None
+    at = (rail["x"] + rail["width"] / 2, rail["y"] + rail["height"] / 2)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).className", list(at)) == "dialog-shade"
+    page.mouse.click(*at)
+    expect(page.locator(".dialog")).to_be_visible()
+    assert "/blazor/tables" in page.url
+    page.close()
