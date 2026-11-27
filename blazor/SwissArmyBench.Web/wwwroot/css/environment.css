@@ -450,6 +450,10 @@
   border-color: var(--cat-2);
   color: var(--cat-2);
 }
+/* On the selected row's tint the blue words fell under WCAG AA (4.2 to 1): the row's own text colour there. */
+.env-row.sel .env-tag-grid {
+  color: var(--fg);
+}
 .env-why {
   color: var(--muted);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;

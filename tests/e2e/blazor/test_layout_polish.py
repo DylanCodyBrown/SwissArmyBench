@@ -126,3 +126,17 @@ def test_the_notebooks_landing_gives_its_heading_button_and_cards_room(
     )
     assert gaps[0] >= 8 and gaps[1] >= 8
     page.close()
+
+
+def test_the_selected_rows_tab_mark_keeps_its_contrast(browser: Browser, server: dict[str, Any]) -> None:
+    """In 1 tab on the Environment's selected row was blue on the selection's tint, 4.2 to 1 (under WCAG
+    AA's 4.5): on that row it wears the row's own text colour."""
+    call(server, "POST", "/samples/store", {})
+    page = open_page(browser, server, "environment")
+    row = page.locator(".env-row.sel").first
+    expect(row.locator(".env-tag-grid")).to_be_visible()
+    colours = row.evaluate(
+        "(row) => [getComputedStyle(row.querySelector('.env-tag-grid')).color, getComputedStyle(row).color]"
+    )
+    assert colours[0] == colours[1]
+    page.close()
