@@ -36,6 +36,10 @@
 
     private async Task RenameAsync()
     {
+        if (_busy)
+        {
+            return; // the rename is already on its way (Enter twice)
+        }
         _busy = true;
         try
         {

@@ -80,7 +80,7 @@ public partial class BetaNoteHost : IAsyncDisposable
 
     private async Task SaveAsync()
     {
-        if (_text.Trim().Length == 0 || Beta.Noting is not { } fallback)
+        if (_saving || _text.Trim().Length == 0 || Beta.Noting is not { } fallback)
         {
             return;
         }
