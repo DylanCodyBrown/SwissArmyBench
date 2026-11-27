@@ -1,0 +1,44 @@
+@* The agent's app_snapshot (POST /snapshots) answered: the page hears the "snapshot_request" notice, draws the area
+   asked for and sends the PNG itself (interop/snapshot.js; the picture never passes C#). Nothing is drawn here. *@
+@implements IAsyncDisposable
+@inject LiveUpdates Live
+@inject IJSRuntime Js
+
+@code {
+    private const string NoticeType = "snapshot_request";
+    private const string DefaultArea = "app";
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized() => Live.NoticeArrived += OnNotice;
+
+    // An event handler returns nothing: the drawing goes on as a Task of its own.
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type == NoticeType && notice.Text("id") is { Length: > 0 } id)
+        {
+            _ = InvokeAsync(() => AnswerAsync(id, notice.Text("area") ?? DefaultArea, notice.Number("scale") ?? 1));
+        }
+    }
+
+    private async Task AnswerAsync(string id, string area, long scale)
+    {
+        try
+        {
+            _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/snapshot.js");
+            await _module.InvokeAsync<bool>("answer", id, area, scale);
+        }
+        catch (JSException)
+        {
+            // The page could not draw or send: the agent's request says so itself when its wait ends.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Live.NoticeArrived -= OnNotice;
+        if (_module is not null)
+        {
+            await _module.DisposeAsync();
+        }
+    }
+}

@@ -101,9 +101,11 @@ blazor/
                              MarkdownText; X, Escape, outside and Got it close it (POST /whats-new/seen); the focus kept
                              inside (shell.js keepFocus); State/WhatsNewState (opens by itself after an update, Home's
                              What's new and the status bar's version, the whats_new_open notice)
-    Layout/NavigateFollower  the agent's app_navigate followed by the page: the "navigate" notice moves the main window
-                             as a rail click would (Navigation/AgentPlace: its place as this app's address; Back and
-                             Forward the browser's own)
+    Layout/NavigateFollower, SnapshotFollower   the agent's app_navigate and app_snapshot followed by the page: the
+                             "navigate" notice moves the main window as a rail click would (Navigation/AgentPlace: its
+                             place as this app's address; Back and Forward the browser's own), the "snapshot_request"
+                             notice has the page in front draw the area asked for and send the PNG itself
+                             (interop/snapshot.js, html-to-image)
     Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost, ProjectSetupBar
                              (the setup bar under every page's top: what the open project needs, installed at once
                              as it opens; ProjectSetup its state service, from the project_installs notice; Hide keeps

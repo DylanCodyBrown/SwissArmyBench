@@ -4,7 +4,10 @@ status bar, a page it does not have yet saying so with the classic page's link, 
 
 from __future__ import annotations
 
+import json
 import re
+import urllib.error
+import urllib.request
 from typing import Any
 
 from playwright.sync_api import Browser, expect
@@ -107,3 +110,33 @@ def test_the_agents_navigate_moves_the_main_window(browser: Browser, server: dic
     expect(page).to_have_url(re.compile(r"/blazor/$"))
     page.close()
 
+
+def snapshot(server: dict[str, Any], area: str) -> tuple[int, bytes, dict[str, str]]:
+    """POST /snapshots as the agent asks it: the status, the bytes and the answer's headers."""
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{server['port']}/snapshots",
+        data=json.dumps({"area": area}).encode(),
+        method="POST",
+        headers={"Authorization": f"Bearer {server['token']}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 (127.0.0.1)
+            return response.status, response.read(), {k.lower(): v for k, v in response.headers.items()}
+    except urllib.error.HTTPError as refused:
+        return refused.code, refused.read(), {k.lower(): v for k, v in refused.headers.items()}
+
+
+def test_the_agents_snapshot_is_drawn_by_the_page(browser: Browser, server: dict[str, Any]) -> None:
+    """app_snapshot (POST /snapshots) waited its 30 seconds and was told no page answered: no page followed
+    the snapshot_request notice. The page in front draws the area and sends the PNG; an area it does not
+    show is said at once."""
+    page = open_page(browser, server, "")
+    expect(page.locator("h1.area-page-title")).to_be_visible()
+
+    status, picture, headers = snapshot(server, "app")
+    assert status == 200 and picture.startswith(b"\x89PNG\r\n\x1a\n")
+    assert headers["x-snapshot-width"] == "1360" and headers["x-snapshot-height"] == "860"
+
+    status, words, _ = snapshot(server, "analyze")  # Home shows no Analyze board
+    assert status == 502 and b"does not show the analyze area" in words
+    page.close()
