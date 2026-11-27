@@ -131,7 +131,15 @@
     private async Task LookAgainAsync()
     {
         _missing = null;
-        await Settings.ClaudeAsync(true);
+        try
+        {
+            await Settings.ClaudeAsync(true);
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+            return;
+        }
         await LaunchAsync(null, false, null);
     }
 
@@ -140,7 +148,15 @@
         _missing = null;
         if (await Files.ChooseAsync("file", $"Choose {NameOf(kind)}", null, "claude") is { } path)
         {
-            await Settings.SetClaudeAsync(new Dictionary<string, object?> { [kind] = path });
+            try
+            {
+                await Settings.SetClaudeAsync(new Dictionary<string, object?> { [kind] = path });
+            }
+            catch (ApiException error)
+            {
+                Notes.Error(error); // a file that cannot be started: the server's sentence, in the corner
+                return;
+            }
             await LaunchAsync(kind, false, null);
         }
     }
@@ -155,11 +171,20 @@
     {
         var likeliest = _unknown?.Path;
         _unknown = null;
-        var state = await Settings.ClaudeAsync(false);
-        if (state.Desktop.Chosen is { } desktop && await Files.ChooseAsync("save", "Choose claude_desktop_config.json", likeliest, "claude") is { } path)
+        try
         {
+            var state = await Settings.ClaudeAsync(false);
+            if (state.Desktop.Chosen is not { } desktop || await Files.ChooseAsync("save", "Choose claude_desktop_config.json", likeliest, "claude") is not { } path)
+            {
+                return;
+            }
             await Settings.SetClaudeAsync(new Dictionary<string, object?> { ["config"] = new Dictionary<string, string> { [desktop] = path } });
-            await LaunchAsync("desktop", false, null);
         }
+        catch (ApiException error)
+        {
+            Notes.Error(error);
+            return;
+        }
+        await LaunchAsync("desktop", false, null);
     }
 }

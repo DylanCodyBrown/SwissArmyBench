@@ -116,7 +116,16 @@
 
     private async Task PointAsync()
     {
-        var references = (await Grids.ReferencesAsync(From)).Where(r => r.Pickable).ToList();
+        List<CodeReference> references;
+        try
+        {
+            references = (await Grids.ReferencesAsync(From)).Where(r => r.Pickable).ToList();
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+            return;
+        }
         if (references.Count == 0)
         {
             _ = Notes.SayAsync($"No cells name {From}");

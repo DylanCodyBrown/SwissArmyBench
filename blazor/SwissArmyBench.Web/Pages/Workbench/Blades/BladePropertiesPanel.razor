@@ -4,6 +4,7 @@
 @using System.Text.Json
 @using SwissArmyBench.Web.Api.Blades
 @inject BladesClient Blades
+@inject Notes Notes
 
 <aside class="ide-props" aria-label="Properties">
     <h3>Properties</h3>
@@ -158,10 +159,18 @@
 
     private async Task ForgetAsync(string secret)
     {
-        if (Detail is { } detail)
+        if (Detail is not { } detail)
+        {
+            return;
+        }
+        try
         {
             await Blades.ForgetSecretAsync(detail.Name, secret);
             _forgotten.Add(secret);
+        }
+        catch (ApiException error)
+        {
+            Notes.Error(error); // a refusal is said in the corner, never the page's crash bar
         }
     }
 }
