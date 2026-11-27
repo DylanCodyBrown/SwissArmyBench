@@ -60,7 +60,7 @@ def code_files_in(folder: str | None, structures: bool = False) -> list[str]:
                 stack.append(entry)
             elif entry.suffix.lower() in _ENDINGS or (
                 # The open project's docs, wherever they sit (a Markdown file's tab follows its file too);
-                # never plain text: requirements.txt is the app's own to write (its installs say so themselves).
+                # never plain text: requirements.txt is the app's own to write (its installs say so).
                 structures and entry.name.lower().endswith(_DOC_ENDINGS)
             ):
                 found.append(str(entry))

@@ -269,8 +269,7 @@
             }
             @if (doc.IsWorkbook)
             {
-                <SwissArmyBench.Web.Pages.Accounting.WorkbookPage @key="doc.Key" @ref="doc.WorkbookView" Path="@doc.Path"
-                    OnSaved="p => WorkbookSavedAsync(doc, p)" OnDirty="d => doc.Dirty = d" />
+                <SwissArmyBench.Web.Pages.Accounting.WorkbookPage @key="doc.Key" @ref="doc.WorkbookView" Path="@doc.Path" OnSaved="p => WorkbookSavedAsync(doc, p)" OnDirty="d => doc.Dirty = d" />
             }
             else if (doc.CodeFile is { } codeFile)
             {
@@ -345,21 +344,9 @@
             {
                 @* The Excel canvas's own bar holds its Save, Play and the rest. *@
             }
-            else if (doc.IsText)
+            else if (doc.CodeFile is not null || doc.IsStructure || doc.IsText)
             {
-                @if (doc.TextKind is { HasPreview: true } drawn)
-                {
-                    <SwissArmyBench.Web.Pages.Workbench.Docs.PreviewToggle View="@doc.TextViewNow" Preview="@drawn.Preview" OnView="v => SetTextViewAsync(doc, v)" />
-                    @if (drawn.Preview == "mermaid")
-                    {
-                        <button type="button" class="btn small ghost wb-save-svg" title="@SavePictureTitle(doc, "SVG")" disabled="@(doc.TextViewNow == SwissArmyBench.Web.Pages.Workbench.Docs.TextFiles.Source)" @onclick='() => SavePictureAsync(doc, "svg")'><Icon Name="image" /> SVG</button>
-                        <button type="button" class="btn small ghost wb-save-png" title="@SavePictureTitle(doc, "PNG")" disabled="@(doc.TextViewNow == SwissArmyBench.Web.Pages.Workbench.Docs.TextFiles.Source)" @onclick='() => SavePictureAsync(doc, "png")'><Icon Name="image" /> PNG</button>
-                    }
-                }
-                <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
-            }
-            else if (doc.CodeFile is not null || doc.IsStructure)
-            {
+                <SwissArmyBench.Web.Pages.Workbench.Docs.TextFileBar Doc="doc" OnView="v => SetTextViewAsync(doc, v)" OnPicture="f => SavePictureAsync(doc, f)" />
                 <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             }
             else if (doc.IsBlade)

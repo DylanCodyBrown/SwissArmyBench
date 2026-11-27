@@ -46,10 +46,6 @@ public partial class WorkbenchPage
         await FollowAddressAsync();
     }
 
-    private static string SavePictureTitle(OpenDocument doc, string format) => doc.TextViewNow == TextFiles.Source
-        ? "Show its preview first: the picture saved is the diagram as drawn"
-        : $"Save the diagram as {format} beside the file";
-
     private Task SavePictureAsync(OpenDocument doc, string format) => GuardAsync(async () =>
     {
         if (doc.TextView is not { } view)

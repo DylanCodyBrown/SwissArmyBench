@@ -1,0 +1,31 @@
+@* A text document's part of its tab's bar: the one Preview toggle (for a file the app can draw) and, for a diagram,
+   its picture saved beside the file as SVG or PNG (the drawing as shown: not from Source). *@
+
+@if (Doc.TextKind is { HasPreview: true } drawn)
+{
+    <PreviewToggle View="@Doc.TextViewNow" Preview="@drawn.Preview" OnView="OnView" />
+    @if (drawn.Preview == "mermaid")
+    {
+        <button type="button" class="btn small ghost wb-save-svg" title="@Title("SVG")" disabled="@InSource" @onclick='() => OnPicture.InvokeAsync("svg")'><Icon Name="image" /> SVG</button>
+        <button type="button" class="btn small ghost wb-save-png" title="@Title("PNG")" disabled="@InSource" @onclick='() => OnPicture.InvokeAsync("png")'><Icon Name="image" /> PNG</button>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public OpenDocument Doc { get; set; } = default!;
+
+    /// <summary>A view picked: preview, split or source.</summary>
+    [Parameter]
+    public EventCallback<string> OnView { get; set; }
+
+    /// <summary>Save the diagram's picture: svg or png.</summary>
+    [Parameter]
+    public EventCallback<string> OnPicture { get; set; }
+
+    private bool InSource => Doc.TextViewNow == TextFiles.Source;
+
+    private string Title(string format) => InSource
+        ? "Show its preview first: the picture saved is the diagram as drawn"
+        : $"Save the diagram as {format} beside the file";
+}

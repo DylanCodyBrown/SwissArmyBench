@@ -158,13 +158,7 @@ public partial class WorkbenchPage
         }
         await RevealPendingAsync();
         ShowFront();
-        if (_askOnceDrawn is { } asked)
-        {
-            _askOnceDrawn = null;
-            await AskNewAsync(asked.Length > 0 ? asked : null);
-            await FollowAddressAsync();
-            StateHasChanged();
-        }
+        await AskOnceDrawnAsync();
     }
 
     /// <summary>What an address asks for, as one key: the one the page last acted on is not acted on again.</summary>
@@ -195,12 +189,7 @@ public partial class WorkbenchPage
         }
         else
         {
-            if (New)
-            {
-                // ?new=<type>: the New file dialog for it, once the page is drawn (its name first; Cancel makes
-                // nothing). The address goes back to the page's own, so it never asks twice.
-                _askOnceDrawn = NewKind is null or "1" or "true" ? string.Empty : NewKind;
-            }
+            AskOnceDrawn(); // ?new=<type>: the New file dialog for it, once the page is drawn
             _recent = await RecentAsync();
         }
         await Js.InvokeVoidAsync("sab.setTitle", Title);

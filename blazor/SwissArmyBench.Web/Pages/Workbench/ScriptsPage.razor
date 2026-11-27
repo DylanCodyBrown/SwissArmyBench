@@ -1,5 +1,6 @@
-@* The Scripts page (/scripts, the classic window sab-scripts: the Python IDE): ?path= opens a script or a SQL file,
-   ?new=1 starts a script, ?new=sql a SQL file (the Tables page's "+"). *@
+@* The Scripts page (/scripts, the classic window sab-scripts: the Python IDE): ?path= opens a script, a SQL file or
+   a document; ?new=<type> opens the New file dialog for that type (?new=1 a script, ?new=sql the Tables page's "+"):
+   its name first, never an untitled tab. *@
 @page "/scripts"
 
 <WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" NewKind="@NewParameter" Blade="@BladeParameter" Line="@LineParameter" Cell="@CellParameter" CodeFile="@CodeFileParameter" />

@@ -6479,3 +6479,57 @@ to the scripts page with an open script" / "sql authorship will have one place i
   (2,013 lines).
 - Looked at in Chromium at deviceScaleFactor 2, light and dark, on a made-up project: the open dropdown and the
   dialog (a SQL file, a refused name, JSON).
+## Named files, project documentation, the Markdown reader (2026-11-27)
+
+- tests/test_markdown_blocks.py (11): the blocks of a document in order (front matter only at the very top, a
+  fence holding blank lines and a "#" line, a longer fence holding a shorter, a nested list with a blank line
+  inside, a table, a quote, a rule, a ```mermaid diagram); each block's text is exactly its characters; an edit is
+  `before + new + after` byte for byte; CRLF kept and what is typed takes the file's line ends; an emptied block
+  goes with its blank line; a task box ticked by one character; the title.
+- tests/test_named_files.py (19): no name, no file (the one sentence); with no project open a file written in the
+  folder named (a folder not there or not whole refused, the check writing nothing); a Streamlit project's list
+  has widget and canvas and a plain one's does not, each made by the extension's own path, a taken or bad name
+  refused; the agent's `types` follows the project; the HTML starter read by html.parser (a doctype, every tag
+  closed, nothing loaded from outside); the six diagram starters; the documentation starters as real named files
+  (the data dictionary holds names and types, no value); the Docs group with README.md first; context.md's docs by
+  path and title and never their text; which files are text documents and what each previews; a block edited
+  through the route and through `workbench_file` blocks and edit_block (only there, CRLF kept, a task ticked, a
+  block added); view and export sent to the Scripts window; a picture served and nothing else (an SVG's headers);
+  a diagram's SVG and PNG saved beside it; ARCHITECTURE.md kept when edited by hand, Replace, an older one with no
+  hash kept; Docs/TextFiles.cs held to the server's table; the New file list and dialog name no type; the screen
+  state's view.
+- tests/test_new_files.py (11, updated): the new folders, no project open, an agent's call with no name refused.
+- bUnit: 326 of 326 (NewFileTests 12: the list is the server's data and draws a type it has never heard of, one
+  type is one plain button, the no-project mode with Browse…, a type's kinds, Cancel makes nothing;
+  TextDocumentTests 12 facts and theories, 18 cases: each kind's language, preview and first view, the toggle, the reader's blocks, a block
+  edited and written back by its index, Escape with nothing changed, a task box, the three views, an HTML page and
+  an SVG picture only ever in the frame, a diagram, a chart spec, plain text, nested lists, live task boxes and a
+  file's pictures and links only through the reader). `dotnet build -warnaserror` clean;
+  `dotnet format --verify-no-changes` clean on both projects.
+- Browser (Release build): tests/e2e/blazor/test_named_files.py (2: every entry point asks a name and Cancel
+  makes nothing, the project's files compared before and after; a Streamlit project's list shows Widget and Canvas
+  and makes a widget through the extension), test_documents.py (5: a .md opens rendered, a paragraph clicked,
+  edited, Escape, and the file's bytes changed only there with its CRLF kept; click away finishes an edit; a task
+  box ticked writes one character; a relative picture loads, a link opens the other file; the three views
+  remembered per tab and `app_screen` saying split; an HTML page's script runs inside the frame and cannot read
+  the parent's title, write to it, read a cookie or storage, or fetch (`window.origin` is "null"), and a picture
+  beside the file does not load; an SVG as a picture in the frame; each of the six UML starters draws with no
+  error; a broken diagram says "Line 9" with Mermaid's words, keeps the last drawing and marks the line in the
+  editor; SVG and PNG saved beside the file), test_workbench_new_file.py (3, updated: the no-project dialog with
+  Browse…). The whole browser suite, two workers: 210 passed, 7 skipped, 1 failed
+  (test_apis_structures' Discover note, a 30 s wait that ran out on the loaded machine: it passes run with a few
+  files).
+- Unit suite (no e2e, four workers, 15 minutes): 6,113 passed, 43 skipped, 13 failed: this container's known
+  eight (the four data.py export tests, test_script_export, test_connection_drivers, test_performance,
+  test_updater); two of this change's own, fixed after the run (test_blazor_structure: WorkbenchPage.razor and
+  its code back at their limits, four wide records one parameter a line); and three that pass run again
+  (test_analyze_http's time limit, test_api_editor's completion, the desktop drive's F11). ruff and ruff format
+  clean; mypy: only sab_canvas.py:622; tests/test_architecture.py passes; the architecture map is current;
+  bootstrap.py is 2,009 lines and its ceiling was lowered from 2,012 to 2,009.
+- WHATSNEW.md has a `## 0.0.41` heading while 0.0.40 runs: tests/test_whats_new.py passes with it (20).
+- Found on the way: a workbook's tab read its design as a script when its file changed on disk (a 400 on the
+  page, and Play's state lost); plain text is left out of the file watch, because the watch heard an install's own
+  requirements.txt and checked the project again.
+- Looked at in Chromium at deviceScaleFactor 2, light and dark, on a made-up Streamlit project: the dialog with no
+  project open, the project's New file list, a Markdown file in Read view, a block being edited, Split view, an
+  HTML page's preview, a class diagram, a sequence diagram and a flowchart in Split view.

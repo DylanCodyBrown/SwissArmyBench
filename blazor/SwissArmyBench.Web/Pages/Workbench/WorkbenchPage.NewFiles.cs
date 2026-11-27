@@ -71,6 +71,28 @@ public partial class WorkbenchPage
         _newFileButton?.Ask(type);
     }
 
+    /// <summary>?new= in the address (a file type): the New file dialog for it once the page is drawn (its name first;
+    /// Cancel makes nothing). The address goes back to the page's own, so it never asks twice.</summary>
+    private void AskOnceDrawn()
+    {
+        if (New)
+        {
+            _askOnceDrawn = NewKind is null or "1" or "true" ? string.Empty : NewKind;
+        }
+    }
+
+    private async Task AskOnceDrawnAsync()
+    {
+        if (_askOnceDrawn is not { } asked)
+        {
+            return;
+        }
+        _askOnceDrawn = null;
+        await AskNewAsync(asked.Length > 0 ? asked : null);
+        await FollowAddressAsync();
+        StateHasChanged();
+    }
+
     /// <summary>The folder a new file of a type starts in, as the dialog would: the type's own inside the open
     /// project, else (no project open) the Workbench's folder.</summary>
     private async Task<string> NewFileFolderAsync(string typeId)
