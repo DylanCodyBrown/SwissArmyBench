@@ -47,6 +47,15 @@ page, and SQL is written only on the Scripts page).
   "explorer.popOut" opens the Catalog page (the one place to browse tables) in a window of its own.
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data Explorer).
+- Review comments (the owner, 2026-11-27): the user selects code, right-clicks, Comment… (Ctrl+Alt+M), on any
+  editor of a tab; the comments live on the page only, never in the file. `workbench_window` "comments"
+  {path?} lists the ones waiting on an open document (default the one in front); "comments.add" {line, end?,
+  comment, cell?, path?} leaves a note of your own on whole lines (marked as the agent's: use it to point the
+  user at code); "comments.remove" {id} takes one of yours back. Only the user sends (Send to agent): the
+  whole document's comments then arrive as ONE `agent_inbox` item of kind `review` ("Review comments on <path>: N comments", each
+  with its lines, the selected code and the comment; a known secret's value masked; at most 50 comments and
+  20,000 characters a send), and the page clears them. Work through every comment as one task; the line numbers
+  are the file's as the editor had it. `app_screen` gives each tab's count (`comments`), never the words.
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;
   `workbench_move_back` brings it back.
 - Getting around: "nav.home" brings the home window (the Tables page) forward; "nav.back" and "nav.forward"

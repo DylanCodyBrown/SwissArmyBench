@@ -17,7 +17,7 @@ below the picture).
 ```mermaid
 flowchart TB
     subgraph base["swissarmybench (the base)"]
-        domain["domain<br/>130 modules"]
+        domain["domain<br/>131 modules"]
         settings["settings<br/>1 module"]
         services["services<br/>92 modules"]
         adapters["adapters<br/>46 modules"]
@@ -96,7 +96,7 @@ flowchart TB
     server -->|10| root
     server -->|88| services
     server -->|2| settings
-    services -->|368| domain
+    services -->|369| domain
     services -->|3| settings
     settings -->|1| domain
 ```
@@ -125,9 +125,9 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 130 | 168 | 0 | 0.00 | 345 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 131 | 169 | 0 | 0.00 | 348 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 92 | 96 | 115 | 0.55 | 333 | 178 | 0.53 | 0.08 |
+| services | the use cases | 92 | 96 | 116 | 0.55 | 333 | 178 | 0.53 | 0.08 |
 | adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 38 | 0.63 | 111 | 2 | 0.02 | 0.35 |
 | cli | the agent's commands | 42 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |

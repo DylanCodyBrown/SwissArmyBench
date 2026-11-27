@@ -111,6 +111,9 @@ def _normal(path: str) -> str:
 
 # Server routes with no command, each on purpose.
 NOT_COMMANDS = {
+    # Review comments (the owner, 2026-11-27): Send to agent is the user's own send (403 for the agent, who
+    # reads the waiting ones with workbench_window comments and the sent batch with agent_inbox).
+    "/agent/inbox/review": "the user's send of their review comments to the agent: never the agent's own",
     # The golden rule (the owner, 2026-11-14): whatever the user can do, the agent can do through the
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.

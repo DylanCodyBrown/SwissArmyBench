@@ -466,6 +466,17 @@ class Variables:
             out |= {k: value for k, value in got.items() if k in from_vault}
         return out
 
+    def secret_values(self) -> list[str]:
+        """Every secret's value this computer keeps (the keyring variables', each connection's saved
+        secrets): for masking what the user sends on (a review's selected code). Never answered."""
+        found = list(self._keyring([d.name for d in self._defined() if d.origin == "keyring"]).values())
+        for blade in self._blades.all():
+            try:
+                found += self._blades.saved_secrets(blade).values()
+            except Exception:  # noqa: S112 (no keyring here: nothing saved)
+                continue
+        return [value for value in dict.fromkeys(found) if value]
+
     def unset(self, names: Iterable[str]) -> list[str]:
         """Of these names, those no source on this computer gives (a vault's entry counts as given)."""
         by = self._sources()

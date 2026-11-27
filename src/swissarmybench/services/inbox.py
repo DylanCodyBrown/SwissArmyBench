@@ -6,25 +6,33 @@ will send via hook in the MCP." So the agent hears of it two ways: the plugin's 
 (`swissarmybench-context`) takes what is waiting into the user's next message, and the MCP tool
 agent_inbox reads it whenever the agent asks. Kept in memory only (nothing on disk), the newest 20; each
 send is written to the audit log (its size, not its text).
+
+Review comments (the owner, 2026-11-27): `review` takes every comment on one open document as ONE item
+(domain/review_comments.py has its shape and caps); a secret's value this computer knows is masked first.
+Only the user sends them; the page clears its comments once this answers.
 """
 
 from __future__ import annotations
 
 import itertools
 import time
+from collections.abc import Callable
 from typing import Any
 
-from swissarmybench.services.workspace import Workspace
+from swissarmybench.domain import review_comments
+from swissarmybench.services.workspace import Refused, Workspace
 
 MAX_ITEMS: int = 20
 MAX_TEXT: int = 20_000
 MAX_NOTE: int = 4_000
-KINDS: tuple[str, ...] = ("error", "code", "text")
+KINDS: tuple[str, ...] = ("error", "code", "text", "review")
 
 
 class Inbox:
-    def __init__(self, ws: Workspace) -> None:
+    def __init__(self, ws: Workspace, secrets: Callable[[], list[str]] = list) -> None:
         self.ws = ws
+        # Every secret's value this computer knows (services/variables.py secret_values): masked in a review.
+        self._secrets = secrets
         self._items: list[dict[str, Any]] = []
         self._ids = itertools.count(1)
 
@@ -56,6 +64,20 @@ class Inbox:
         self.ws.audit.write(who, "send_to_agent", None, kind=kind, chars=len(text))
         await self.ws.live.broadcast({"type": "inbox_changed", "waiting": self.waiting()})
         return {"id": item["id"], "waiting": self.waiting()}
+
+    async def review(self, body: Any, who: str) -> dict[str, Any]:
+        """Every review comment on one document, sent as one item: {"path", "comments": [{"line", "end",
+        "code", "comment", "part", "by"}]}. The user's own send (the agent's is refused)."""
+        if who == "agent":
+            raise Refused("Only the user sends review comments: they are the user's words to you.")
+        path, comments = review_comments.read(body)
+        try:
+            known = self._secrets()
+        except Exception:  # no keyring here, a library that cannot be read: nothing known to mask
+            known = []
+        made = review_comments.message(path, comments, known)
+        sent = await self.send({"kind": "review", "title": made.title, "text": made.text}, who)
+        return sent | {"comments": made.count, "masked": made.masked}
 
     def waiting(self) -> int:
         return sum(1 for i in self._items if not i["taken"])

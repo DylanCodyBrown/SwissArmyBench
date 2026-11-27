@@ -1917,7 +1917,7 @@ def _doors(b: Built) -> None:
     )
     b.exports = Exports(ws, export_writer, b.tickets, now=lambda: datetime.now(UTC))
     b.codes = CodeService(ws, b.verifier)
-    b.inbox = Inbox(ws)
+    b.inbox = Inbox(ws, b.variables.secret_values)
     b.folders = Folders(
         folder_listing,
         lambda where: ensure_own_folder(where, b.settings.workbench_dir),

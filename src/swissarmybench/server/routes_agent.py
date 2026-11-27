@@ -13,6 +13,8 @@ are in services/agent.py; this file reads the requests and shapes the answers.
   POST /workspace/active                the page reports which grid tab is in front
   GET  /agent/context                   the current table: a short summary, no cell values
   POST /agent/inbox                     {kind, title, text, note}: the user sends their agent an error or code
+  POST /agent/inbox/review              {path, comments}: every review comment on one document, as one item
+                                        (the user's only: 403 for the agent)
   GET  /agent/inbox?take=1&all=1        what was sent, oldest first (take: mark it read)
 
 Cell values reach the agent only as data inside the MCP layer's delimited block
@@ -114,5 +116,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         Route("/workspace/active", set_active, methods=["POST"]),
         Route("/agent/context", current),
         Route("/agent/inbox", with_body(inbox.send), methods=["POST"]),
+        Route("/agent/inbox/review", with_body(inbox.review), methods=["POST"]),
         Route("/agent/inbox", read_inbox),
     ]
