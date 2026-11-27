@@ -77,8 +77,8 @@ def test_escape_still_closes_a_dialog_after_a_click_beside_it(browser: Browser, 
     """A click on the dimmed page beside a dialog (a double click on the button that opened it lands there)
     took the focus out of the dialog: Escape and Enter then reached nothing and Tab walked the page behind.
     The focus stays in the dialog."""
-    made = call(server, "POST", "/samples/store", {})
-    grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
+    grids = call(server, "GET", "/grids")["grids"]  # the sample store the tests above opened, else a new one
+    grid = grids[0]["grid"] if grids else call(server, "POST", "/samples/store", {})["tables"][0]["grid"]
     page = open_page(browser, server, f"tables?grid={grid}")
     expect(page.locator(".ag-row").first).to_be_visible()
     page.click("[data-tool=sort]")
