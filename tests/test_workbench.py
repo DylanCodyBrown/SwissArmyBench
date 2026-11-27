@@ -150,14 +150,14 @@ def test_open_save_and_recent(client: TestClient, tmp_path: Path) -> None:
         headers=AUTH,
     )
     assert forced.status_code == 200
-    # Only notebooks and scripts, only folders that are there.
+    # Only notebooks, scripts and text files, only folders that are there.
     assert (
         client.post("/workbench/open", json={"path": str(tmp_path / "gone.ipynb")}, headers=AUTH).status_code
         == 404
     )
     assert (
         client.post(
-            "/workbench/save", json={"path": str(tmp_path / "x.txt"), "text": ""}, headers=AUTH
+            "/workbench/save", json={"path": str(tmp_path / "x.csv"), "text": ""}, headers=AUTH
         ).status_code
         == 400
     )

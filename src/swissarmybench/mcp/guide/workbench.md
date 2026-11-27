@@ -132,7 +132,11 @@ page, and SQL is written only on the Scripts page).
   module's outline), `workbench_outline`, `workbench_definition` (`source=true`: a library's file text, read-only),
   `workbench_references`, `workbench_rename` (a
   plan; `apply` writes it, never a made file), `workbench_search` (with `to`: replace), `workbench_format`,
-  `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (move: rename a module or
+  `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (new: a file of a `type` with its starter written
+  inside the open project: python (a typed main()), sql (its `-- connection:` line from `connection`, the first
+  rows of an open table), json, yaml, toml, xml (a valid empty document, a structure's tab), markdown, text or
+  notebook; `to` its name, the ending filled in, `path` the folder inside the project; a name already taken is
+  refused; types: the types and the project's folders; move: rename a module or
   package, its imports in the project following, a plan until `apply`; package: a new one; duplicate; rename:
   a notebook, a .sql file or a loose script renamed in its folder, a tab's Rename…). `workbench_sql`: run a .sql
   file (path, or text; line: the statement there, Run selection) as the open table named after the file, a
