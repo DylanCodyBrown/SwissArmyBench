@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from swissarmybench.domain import navigation as rules
+from swissarmybench.services.pop_outs import PopOuts
 from swissarmybench.services.workspace import Conflict, Workspace
 
 # Said when no window of that kind is open, with how to open one.
@@ -42,6 +43,8 @@ class Navigation:
         # The rail's names on or off: this computer's choice (rail.json), shared by every window.
         self._kept: Kept = kept or _Memory()
         self._labels = rules.rail_labels(self._kept.read())
+        # Which window holds each popped-out page or table (services/pop_outs.py): memory only.
+        self.pop_outs = PopOuts(ws)
 
     def rail(self) -> dict[str, Any]:
         return {"labels": self._labels}

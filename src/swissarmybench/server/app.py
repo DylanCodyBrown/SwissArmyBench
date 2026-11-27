@@ -68,6 +68,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_processes.py      Python sessions offering tables: the Open list
   routes_snapshots.py      a PNG of the page the user sees, drawn by the page, for an agent
   routes_screen.py         what each window shows, as text, kept in memory for the agent to read
+  routes_pop_outs.py       a page or a table in a window of its own: pop out, reattach, show, the list
 plus here: the WebSocket for live updates and the front end's files (the Blazor front end, at /blazor/).
 
 All DuckDB work runs on the priority worker pool (adapters/database.py), never on the event loop.
@@ -135,6 +136,7 @@ from swissarmybench.server import (
     routes_local_api,
     routes_modes,
     routes_navigation,
+    routes_pop_outs,
     routes_processes,
     routes_project_explorer,
     routes_project_outline,
@@ -315,8 +317,10 @@ def create_app(
         # One of the app's own windows (never VS Code's opener nor the agent's event socket): what it shows is
         # kept from its reports (services/screen.py) and dropped as it closes.
         window = not any(websocket.query_params.get(k) == "1" for k in ("agent", "opener"))
+        pop_outs = ctx.navigation.pop_outs
         if window:
             ctx.screen.opened(websocket)
+            await pop_outs.opened(websocket, websocket.send_json)
         try:
             while True:
                 # What a client sends: a VS Code or Workbench window saying it came to the front, a page
@@ -325,15 +329,17 @@ def create_app(
                 said = await websocket.receive_text()
                 if said == '{"type":"focus"}':
                     ctx.live.focus(websocket)
+                    pop_outs.focused(websocket)
                 elif (kind := navigation_rules.window_kind(said)) is not None:
                     ctx.live.place(websocket, kind)
-                elif window:
+                elif window and not await pop_outs.heard(websocket, said):
                     ctx.screen.heard(websocket, said)
         except WebSocketDisconnect:
             pass
         finally:
             ctx.screen.closed(websocket)
             ctx.live.discard(websocket)
+            await pop_outs.closed(websocket)
 
     async def catalog_page(request: Request) -> Response:
         # The old blades page (the owner, 2026-11-21: blades move into the Scripts page): its Blades pane, and
@@ -476,6 +482,7 @@ def create_app(
                 *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
                 *routes_explorer.routes(ctx.explorer),
                 *routes_navigation.routes(ctx.navigation),
+                *routes_pop_outs.routes(ctx.navigation.pop_outs),
                 *routes_library.routes(ctx.library, ctx.library_setup),
                 *routes_team.routes(ctx.team),
                 *routes_sharing.routes(ctx.sharing),

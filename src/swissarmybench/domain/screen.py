@@ -162,6 +162,11 @@ WINDOW: dict[str, Any] = {
     "notices": Many(SENTENCE),
     "problems": COUNT,
     "session": NAME,  # the Python session's word: Ready, Running…, Not started
+    # Pop out (domain/pop_outs.py): the page or table this window holds as its own window; what other
+    # windows hold; and the placeholder this window shows where one of those was.
+    "pop_out": NAME,
+    "popped_out": NAMES,
+    "placeholder": SENTENCE,
     **PARTS,
 }
 
@@ -408,6 +413,10 @@ def _table_line(table: dict[str, Any]) -> str:
 def shows(state: dict[str, Any]) -> str:
     """One line of what a window shows, for the list of every window."""
     said: list[str] = []
+    if state.get("placeholder"):
+        said.append(f"{state['placeholder']} (Reattach brings it back)")
+    if state.get("pop_out"):
+        said.append(f"{state['pop_out']}, popped out in its own window")
     if state.get("table"):
         said.append(_table_line(state["table"]))
     tab = state.get("tab", {})

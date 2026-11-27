@@ -268,10 +268,26 @@ def app_audit(a: dict[str, Any]) -> Any:
     ),
     opt("window", "home (default), notebooks, scripts or workbench (either: the one last used)."),
     opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),
+    opt("pop", "`to` (a page, grid:<id>) in its own window: out, reattach, show; list."),
 )
 def app_navigate(a: dict[str, Any]) -> Any:
+    if a.get("pop"):
+        return _pop_out(str(a["pop"]), str(a["to"]))
     keys = ("to", "window", "new_window")
     return api.call("POST", "/navigate", {k: a[k] for k in keys if a.get(k) is not None})
+
+
+# Pop out (the owner, 2026-11-27): any page or table in a window of its own, its old place blank with Reattach.
+_POP_OUT = {"out": "/pop-outs", "reattach": "/pop-outs/reattach", "show": "/pop-outs/show"}
+
+
+def _pop_out(action: str, to: str) -> Any:
+    if action == "list":
+        return api.call("GET", "/pop-outs")
+    if action not in _POP_OUT:
+        raise api.CommandError("pop is out, reattach, show or list.")
+    kind, _, grid = to.partition(":")
+    return api.call("POST", _POP_OUT[action], {"table": grid} if kind == "grid" and grid else {"page": to})
 
 
 @command(

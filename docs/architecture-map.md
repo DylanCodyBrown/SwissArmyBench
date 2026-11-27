@@ -17,14 +17,14 @@ below the picture).
 ```mermaid
 flowchart TB
     subgraph base["swissarmybench (the base)"]
-        domain["domain<br/>133 modules"]
+        domain["domain<br/>134 modules"]
         settings["settings<br/>1 module"]
-        services["services<br/>93 modules"]
+        services["services<br/>94 modules"]
         adapters["adapters<br/>46 modules"]
         cli["cli<br/>42 modules"]
         client["client<br/>24 modules"]
         root["root<br/>4 modules"]
-        server["server<br/>93 modules"]
+        server["server<br/>94 modules"]
         bootstrap["bootstrap<br/>1 module"]
         mcp["mcp<br/>2 modules"]
     end
@@ -94,9 +94,9 @@ flowchart TB
     server -->|10| client
     server -->|51| domain
     server -->|10| root
-    server -->|88| services
+    server -->|89| services
     server -->|2| settings
-    services -->|372| domain
+    services -->|373| domain
     services -->|3| settings
     settings -->|1| domain
 ```
@@ -125,14 +125,14 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 133 | 173 | 0 | 0.00 | 352 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 134 | 174 | 0 | 0.00 | 354 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 93 | 97 | 118 | 0.55 | 335 | 179 | 0.53 | 0.08 |
+| services | the use cases | 94 | 98 | 119 | 0.55 | 336 | 179 | 0.53 | 0.08 |
 | adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 39 | 0.64 | 111 | 2 | 0.02 | 0.34 |
 | cli | the agent's commands | 42 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 4 | 0 | 0.00 | 0.47 |
-| server | the HTTP door and what starts a process | 93 | 12 | 135 | 0.92 | 43 | 2 | 0.05 | 0.04 |
+| server | the HTTP door and what starts a process | 94 | 12 | 136 | 0.92 | 43 | 2 | 0.05 | 0.03 |
 | bootstrap | the composition root | 1 | 1 | 161 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
 | accounting | an extension | 9 | 0 | 11 | 1.00 | 5 | 1 | 0.20 | 0.20 |
@@ -146,8 +146,8 @@ low by design and its D says little; the measure bites for the components that h
 
 | Module | Modules that import it |
 |---|---:|
-| `swissarmybench.services.workspace` | 93 |
-| `swissarmybench.server.http` | 76 |
+| `swissarmybench.services.workspace` | 94 |
+| `swissarmybench.server.http` | 77 |
 | `swissarmybench.services.ports` | 59 |
 | `swissarmybench.domain.datasets` | 53 |
 | `swissarmybench.cli.api` | 47 |

@@ -111,6 +111,9 @@ def _normal(path: str) -> str:
 
 # Server routes with no command, each on purpose.
 NOT_COMMANDS = {
+    # Pop out (the owner, 2026-11-27): app_navigate's pop lists, pops out, reattaches and shows. This one is
+    # a page's own plumbing: a link followed in a popped-out window, handed to the main window.
+    "/pop-outs/front": "a popped-out window's link handed to the main window: the agent's is app_navigate",
     # Annotations (review comments in the code; the owner, 2026-11-27): Send to agent is the user's own send
     # (403 for the agent, who reads the waiting ones with workbench_window comments and the sent batch with
     # agent_inbox).
