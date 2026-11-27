@@ -1,21 +1,31 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
-// A document in a window of its own (the classic workbenchPage.ts popOut and moveToMain): Open in its own window opens
-// its file in a new window and takes its tab away here (unsaved changes asked about first: they stay in this one);
-// in that window, Move to the main window hands it back to the window that opened it and closes.
+// A document in a window of its own, by the app's one pop-out (State/PopOuts.cs; the owner, 2026-11-27): Open in its
+// own window opens its file in a new window (unsaved changes asked about first: it opens the file as saved) and its tab
+// here stays, blank but for Reattach and Show window (Tabs/GroupView). In that window, Move to the main window (or the
+// corner's Reattach) saves what is unsaved, closes it and shows the document here again, read from its file. The
+// project's one Python session is the same in both windows.
 public partial class WorkbenchPage
 {
     private bool _popped;
+
+    [Inject]
+    private PopOuts PopOuts { get; set; } = default!;
 
     private async Task ReadWindowAsync()
     {
         if (_module is not null)
         {
-            _popped = await _module.InvokeAsync<bool>("popped");
+            _popped = PopOuts.Own is not null || await _module.InvokeAsync<bool>("popped");
+        }
+        if (PopOuts.Own?.StartsWith($"{PopOutKeys.Document}:", StringComparison.Ordinal) == true)
+        {
+            PopOuts.BeforeClose = SaveUnsavedAsync;
         }
     }
 
@@ -35,8 +45,16 @@ public partial class WorkbenchPage
         {
             await SaveAsync(doc);
         }
-        await _module.InvokeVoidAsync("popOut", AddressOf(doc));
-        await CloseAsync(doc.Key, force: true);
+        await PopOuts.PopAsync(PopOutKeys.DocumentKey(doc.Path), doc.Title, AddressOf(doc));
+    }
+
+    // A popped-out document's window is about to close itself (Reattach): what is unsaved goes to its file first.
+    private async Task SaveUnsavedAsync()
+    {
+        foreach (var doc in _documents.Where(d => d.Dirty && d.Path is not null).ToList())
+        {
+            await SaveAsync(doc);
+        }
     }
 
     private async Task MoveToMainAsync(OpenDocument doc)
@@ -48,6 +66,11 @@ public partial class WorkbenchPage
         if (doc.Dirty)
         {
             await SaveAsync(doc);
+        }
+        if (PopOuts.Own is not null)
+        {
+            await PopOuts.ReattachOwnAsync();
+            return;
         }
         if (!await _module.InvokeAsync<bool>("moveToMain", AddressOf(doc)))
         {

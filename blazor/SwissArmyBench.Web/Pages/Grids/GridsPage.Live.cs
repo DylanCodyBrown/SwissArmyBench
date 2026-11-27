@@ -13,7 +13,7 @@ public partial class GridsPage
         FollowDiskMark(notice);
         HeardSwap(notice);
         var mine = notice.Text("grid") is { } grid && _infos.ContainsKey(grid);
-        if (notice.Type == "grid_shown" && notice.Text("grid") is { } arrived)
+        if (notice.Type == "grid_shown" && notice.Text("grid") is { } arrived && PopOuts.Own is null)
         {
             // A push, a file opened, a paste or the agent: the new grid arrives as a tab and comes to the front.
             _ = InvokeAsync(async () =>

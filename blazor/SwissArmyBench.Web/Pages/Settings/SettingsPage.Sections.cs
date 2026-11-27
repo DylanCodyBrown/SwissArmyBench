@@ -13,6 +13,14 @@ public partial class SettingsPage : IAsyncDisposable
     private DotNetObjectReference<SettingsPage>? _self;
     private HashSet<string>? _drawn;
     private string _current = SettingsSection.Theme;
+    private Func<string>? _address;
+
+    [Inject]
+    private State.PopOuts PopOuts { get; set; } = default!;
+
+    /// <summary>The section to open at (settings?section=agent): a pop-out and its Reattach keep the one in view.</summary>
+    [SupplyParameterFromQuery(Name = "section")]
+    public string? SectionParameter { get; set; }
 
     /// <summary>The list's lines: every section until the page says which boxes are drawn, then only those.</summary>
     private IEnumerable<SettingsSection> Listed => SettingsSection.All.Where(s => _drawn?.Contains(s.Id) ?? AlwaysDrawn(s.Id));
@@ -31,6 +39,13 @@ public partial class SettingsPage : IAsyncDisposable
             _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/settings.js");
             _self = DotNetObjectReference.Create(this);
             _watch = await _module.InvokeAsync<IJSObjectReference>("watch", _layout, _self);
+            if (SectionParameter is { } wanted && SettingsSection.All.Any(s => s.Id == wanted))
+            {
+                await JumpAsync(wanted);
+                StateHasChanged();
+            }
+            _address = () => $"settings?section={_current}";
+            PopOuts.StateAddress = _address;
         }
         catch (JSException)
         {
@@ -43,13 +58,19 @@ public partial class SettingsPage : IAsyncDisposable
     public void OnSections(string[] drawn, string current)
     {
         _drawn = [.. drawn];
+        var moved = _current != current;
         _current = current;
+        if (moved)
+        {
+            PopOuts.Touch();
+        }
         StateHasChanged();
     }
 
     private async Task JumpAsync(string id)
     {
         _current = id;
+        PopOuts.Touch();
         if (_watch is not null)
         {
             await _watch.InvokeVoidAsync("jump", id);
@@ -58,6 +79,10 @@ public partial class SettingsPage : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (ReferenceEquals(PopOuts.StateAddress, _address))
+        {
+            PopOuts.StateAddress = null;
+        }
         try
         {
             if (_watch is not null)

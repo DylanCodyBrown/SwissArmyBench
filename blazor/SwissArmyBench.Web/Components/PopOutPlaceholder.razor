@@ -1,0 +1,20 @@
+@* What a page's or a table's old place shows while it is in a window of its own (the owner, 2026-11-27: "that
+   grid or page should go blank on the original app with a reattach button in the pane to bring it back"): the
+   shared empty state, one sentence and two buttons. Reattach closes its window and shows it here again where it
+   is now; Show window brings its window to the front. *@
+@inject PopOuts PopOuts
+
+<div class="empty-state pop-out-placeholder" role="status" data-pop-out="@Entry.Key">
+    <Icon Name="popout" />
+    <p>@Entry.Placeholder</p>
+    <div class="empty-state-actions">
+        <button type="button" class="btn primary pop-out-reattach" @onclick="() => PopOuts.ReattachAsync(Entry.Key)"><Icon Name="popin" /> Reattach</button>
+        <button type="button" class="btn pop-out-show" @onclick="() => PopOuts.ShowAsync(Entry.Key)"><Icon Name="popout" /> Show window</button>
+    </div>
+</div>
+
+@code {
+    /// <summary>What is in a window of its own.</summary>
+    [Parameter, EditorRequired]
+    public PopOutEntry Entry { get; set; } = default!;
+}

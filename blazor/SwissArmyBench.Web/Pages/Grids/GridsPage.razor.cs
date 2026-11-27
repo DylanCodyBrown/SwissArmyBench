@@ -112,6 +112,7 @@ public partial class GridsPage : IDisposable
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
+        PopOuts.Changed += PopOutsChanged;
         OfferCommands();
         Screen.Show(this, ScreenPart);
         var kept = await Js.InvokeAsync<string?>("sab.recall", OrderKey);
@@ -275,6 +276,7 @@ public partial class GridsPage : IDisposable
     public void Dispose()
     {
         Live.NoticeArrived -= OnNotice;
+        PopOuts.Changed -= PopOutsChanged;
         WithdrawCommands();
         Status.Set(null);
         Status.SetRows(null);

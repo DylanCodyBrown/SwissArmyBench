@@ -1,0 +1,55 @@
+@* One owner at a time (State/PopOuts.cs): the page of this address is drawn here unless it is live in a window of
+   its own; then its place is blank but for the placeholder (Reattach, Show window). In a popped-out window the page
+   is drawn alone, and a link that leaves what the window holds goes to the main window instead. *@
+@implements IDisposable
+@inject PopOuts PopOuts
+@inject NavigationManager Nav
+
+@if (PopOuts.Own is null && PopOuts.Elsewhere(PopOutKeys.PageKey(Here)) is { } entry)
+{
+    <PopOutPlaceholder Entry="entry" />
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    private IDisposable? _leaving;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string Here => Nav.ToBaseRelativePath(Nav.Uri);
+
+    protected override void OnInitialized()
+    {
+        PopOuts.Changed += Redraw;
+        _leaving = Nav.RegisterLocationChangingHandler(LeavingAsync);
+    }
+
+    // A popped-out window holds one page, table or document: any other address is the main window's.
+    private async ValueTask LeavingAsync(LocationChangingContext context)
+    {
+        if (PopOuts.Own is not { } own)
+        {
+            return;
+        }
+        var target = Nav.ToBaseRelativePath(Nav.ToAbsoluteUri(context.TargetLocation).ToString());
+        // A document's window stays a whole Notebooks or Scripts page: another file opens beside it there.
+        var samePage = own.StartsWith($"{PopOutKeys.Document}:", StringComparison.Ordinal) && PopOutKeys.PageKey(target) == PopOutKeys.PageKey(Here);
+        if (!samePage && !PopOutKeys.Of(target).Contains(own))
+        {
+            context.PreventNavigation();
+            await PopOuts.ToMainAsync(target);
+        }
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        PopOuts.Changed -= Redraw;
+        _leaving?.Dispose();
+    }
+}

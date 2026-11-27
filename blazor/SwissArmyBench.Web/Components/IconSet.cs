@@ -49,6 +49,7 @@ public static class IconSet
         ["copy"] = "<rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 012-2h8\"/>",
         ["zoom"] = "<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M21 21l-5-5M11 8v6M8 11h6\"/>",
         ["popout"] = "<path d=\"M14 4h6v6M20 4l-9 9M18 14v6H4V6h6\"/>",
+        ["popin"] = "<path d=\"M11 7v6h6M11 13l9-9M18 14v6H4V6h6\"/>",
         ["play"] = "<path d=\"M7 5l12 7-12 7V5z\"/>",
         ["stop"] = "<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"1\"/>",
         ["bug"] = "<path d=\"M9 7a3 3 0 016 0M8 9h8v6a4 4 0 01-8 0V9zM12 9v10M4 12h4M16 12h4M5 7l3 2M19 7l-3 2M5 18l3-2M19 18l-3-2\"/>",

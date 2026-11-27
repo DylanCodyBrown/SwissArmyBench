@@ -105,7 +105,7 @@ a.collab-ref:hover { text-decoration: underline; }
 }
 /* The buddy: the panel's way in, a small speech-bubble face in every window's top right corner. Its place
    (--collab-buddy-*) is a token, so a page that needs the corner can say so in one rule. */
-:root { --collab-buddy-top: 6px; --collab-buddy-right: 10px; --collab-buddy-size: 28px; --collab-buddy-room: 44px; }
+:root { --collab-buddy-top: 6px; --collab-buddy-right: 10px; --collab-buddy-size: 28px; --collab-buddy-room: 78px; }
 .collab-buddy {
   position: fixed; top: var(--collab-buddy-top); right: var(--collab-buddy-right); z-index: 57;
   display: grid; place-items: center; width: var(--collab-buddy-size); height: var(--collab-buddy-size); padding: 0;

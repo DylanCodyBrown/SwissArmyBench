@@ -411,6 +411,57 @@ def main(folder: Path, shots: Path | None) -> int:
         wait(lambda: not board.isFullScreen(), 15, "Escape put the Canvas's window back")
         results["canvas_escape_back"] = not js(board, "document.body.classList.contains('cvs-full')")
 
+        # 11e. Pop out (the owner, 2026-11-27): a page's Pop out opens a real window of its own, the home
+        # window shows the placeholder there, and closing that window (or Reattach) brings the page back.
+        def popped_window() -> Any:
+            return next((w for w in shell.windows.values() if w.name.startswith("sab-pop:")), None)
+
+        placeholder = "!!document.querySelector('.pop-out-placeholder')"
+        js(home, "window.__before = 1; location.assign('/blazor/connections'); true")
+        on_connections = (
+            "!window.__before && location.pathname.endsWith('/connections')"
+            " && !!document.querySelector('.pop-out-corner')"
+            " && !!document.querySelector('.page-main .area-page')"
+        )
+        wait(lambda: js(home, on_connections), 60, "the Connections page and its Pop out button")
+        windows_before = len(shell.windows)
+        js(home, "document.querySelector('.pop-out-corner').click(); true")
+        own = wait(popped_window, 30, "the popped-out window")
+        wait(lambda: js(own, "document.body.classList.contains('popped-out')"), 60, "the popped-out page")
+        results["pop_out_made_window"] = len(shell.windows) - windows_before
+        results["pop_out_window"] = [
+            own.name,
+            own.isVisible(),
+            "/blazor/connections" in own.page.url().toString(),
+        ]
+        results["pop_out_no_rail"] = not js(own, "!!document.querySelector('.nav-rail')")
+        results["pop_out_placeholder"] = wait(
+            lambda: js(home, "document.querySelector('.pop-out-placeholder p')?.textContent"),
+            30,
+            "placeholder",
+        )
+        shot(own, "desktop-popped-out-window.png")
+        shot(home, "desktop-pop-out-placeholder.png")
+        own.close()  # the user closes the popped-out window: its page is asked first, then it goes
+        wait(lambda: own.ident not in shell.windows, 30, "the popped-out window closed")
+        wait(lambda: not js(home, placeholder), 30, "the page back by itself")
+        results["pop_out_closed_reattached"] = bool(
+            js(home, "!!document.querySelector('.connections-page, .area-page')")
+        )
+        # Again, brought back by the placeholder's Reattach: the popped-out window closes itself.
+        js(home, "document.querySelector('.pop-out-corner').click(); true")
+        own = wait(popped_window, 30, "the popped-out window, again")
+        wait(
+            lambda: js(own, "document.body.classList.contains('popped-out')"),
+            60,
+            "the popped-out page, again",
+        )
+        wait(lambda: js(home, placeholder), 30, "the placeholder, again")
+        js(home, "document.querySelector('.pop-out-reattach').click(); true")
+        wait(lambda: popped_window() is None, 30, "Reattach closed the popped-out window")
+        wait(lambda: not js(home, placeholder), 30, "the page back by Reattach")
+        results["pop_out_reattach_closed_window"] = len(shell.windows) == windows_before
+
         # 12. Every window closed (each page asked first): the app tells the server, which stops.
         for window in list(shell.windows.values()):
             window.close()

@@ -217,22 +217,27 @@ def test_the_buddy_never_covers_a_pages_own_buttons(
 ) -> None:
     page = open_page(browser, server, address)
     expect(page.locator(".collab-buddy")).to_be_visible()
+    expect(page.locator(".pop-out-corner")).to_be_visible()
     page.wait_for_timeout(500)
     assert page.evaluate(UNDER_THE_BUDDY) == [], address
     page.close()
 
 
-# The controls found at the buddy's edges with the buddy out of the way: none on any page.
+# The controls found at the corner's edges with the corner's own buttons out of the way (the buddy, and the
+# Pop out button beside it: the owner, 2026-11-27): none on any page.
 UNDER_THE_BUDDY = """() => {
-  const b = document.querySelector('.collab-buddy');
-  const r = b.getBoundingClientRect();
-  b.style.visibility = 'hidden';
-  const points = [[r.left - 2, r.top + r.height / 2], [r.left + r.width / 2, r.top + r.height / 2],
-    [r.right + 2, r.top + r.height / 2], [r.left + r.width / 2, r.bottom + 3]];
+  const own = [...document.querySelectorAll('.collab-buddy, .pop-out-corner')];
+  const boxes = own.map((b) => b.getBoundingClientRect());
+  const r = { left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)),
+    top: Math.min(...boxes.map((b) => b.top)), bottom: Math.max(...boxes.map((b) => b.bottom)) };
+  own.forEach((b) => { b.style.visibility = 'hidden'; });
+  const middle = (r.top + r.bottom) / 2;
+  const points = [[r.left - 2, middle], [(r.left + r.right) / 2, middle], [r.left + 8, middle],
+    [r.right - 8, middle], [r.right + 2, middle], [r.left + 8, r.bottom + 3], [r.right - 8, r.bottom + 3]];
   const found = points.map(([x, y]) => document.elementFromPoint(x, y))
     .map((el) => el && el.closest('button, a[href], input, select, textarea, [role=tab]'))
     .filter(Boolean).map((el) => el.outerHTML.slice(0, 80));
-  b.style.visibility = '';
+  own.forEach((b) => { b.style.visibility = ''; });
   return found;
 }"""
 

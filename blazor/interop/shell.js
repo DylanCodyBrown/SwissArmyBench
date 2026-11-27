@@ -455,6 +455,91 @@ window.sab = {
     return window.name;
   },
 
+  /** Pop out (the owner, 2026-11-27: any page or table in a window of its own; State/PopOuts.cs): a popped-out
+   *  window is named sab-pop:<key>, so every window finds it by name, and this window keeps each one it opened to
+   *  see it close (a reload never counts: the window is still there). */
+  popOut: {
+    PREFIX: "sab-pop:",
+    opened: new Map(),
+    timer: null,
+
+    /** The key this window holds ("" for a window that is not popped out). */
+    own() {
+      return window.name.startsWith(this.PREFIX) ? window.name.slice(this.PREFIX.length) : "";
+    },
+
+    /** The address in a window of its own: the desktop app's own window, a browser's own tab. False when blocked. */
+    open(key, address, listener) {
+      const opened = window.open(new URL(address, document.baseURI).href, this.PREFIX + key);
+      if (!opened) return false;
+      this.opened.set(key, opened);
+      opened.focus?.();
+      this.timer ??= setInterval(() => {
+        for (const [held, win] of this.opened) {
+          if (!win.closed) continue;
+          this.opened.delete(held);
+          listener.invokeMethodAsync("WindowClosedAsync", held).catch(() => {});
+        }
+      }, 400);
+      return true;
+    },
+
+    /** The popped-out window to the front: the one this window opened, else found by its name (a browser's; never
+     *  a blank one made by the asking). */
+    show(key) {
+      let win = this.opened.get(key);
+      if ((!win || win.closed) && window.sabApp?.app !== true) {
+        win = window.open("", this.PREFIX + key);
+        try {
+          if (win && win.location.href === "about:blank") {
+            win.close();
+            win = null;
+          }
+        } catch {
+          win = null;
+        }
+      }
+      if (win && !win.closed) win.focus();
+    },
+
+    /** The window this one opened for `key`, closed (Reattach: it closes itself too). */
+    close(key) {
+      const win = this.opened.get(key);
+      this.opened.delete(key);
+      if (win && !win.closed) win.close();
+    },
+
+    /** An address in the main window (found by its name, else a new one), brought to the front. */
+    toMain(address) {
+      const main = window.open(new URL(address, document.baseURI).href, "sab-home");
+      main?.focus?.();
+      return !!main;
+    },
+
+    focusSelf() {
+      window.focus();
+    },
+
+    /** The window that opened this one, to the front (it took a link this window handed over). */
+    focusOpener() {
+      try {
+        window.opener?.focus?.();
+      } catch {
+        /* another origin's opener: nothing to raise */
+      }
+    },
+
+    closeSelf() {
+      window.close();
+    },
+
+    /** The page drawn alone (no rail): CSS reads the class. */
+    mark(kind) {
+      document.body.classList.add("popped-out");
+      if (kind) document.body.dataset.popped = kind;
+    },
+  },
+
   /** A page of the app in a window of its own, reused by its name (the Queries window); false when blocked. */
   openWindow(url, name, features) {
     const opened = window.open(url, name, features);

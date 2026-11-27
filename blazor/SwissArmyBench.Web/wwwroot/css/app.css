@@ -676,3 +676,24 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .diff-host { height: min(60vh, 640px); border: 1px solid var(--border); }
 .wb-script-html { max-height: 40%; overflow: auto; border-top: 1px solid var(--border); padding: 4px 8px; }
 .wb-script-html-line { font-size: 0.85em; color: var(--muted); }
+
+/* ===== pop out (the owner, 2026-11-27): any page or table in a window of its own ===== */
+/* The Pop out button of every page, beside the Collaboration buddy in the window's top right corner; in a
+   popped-out window the same corner holds Reattach. */
+.pop-out-corner {
+  position: fixed; top: var(--collab-buddy-top); right: calc(var(--collab-buddy-right) + var(--collab-buddy-size) + 6px); z-index: 57;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: var(--collab-buddy-size); min-width: var(--collab-buddy-size);
+  padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--raised); color: var(--muted);
+  font: inherit; font-size: 12px; cursor: pointer; opacity: 0.85; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.pop-out-corner:hover, .pop-out-corner:focus-visible { opacity: 1; color: var(--fg); border-color: var(--border-strong); }
+.pop-out-corner.reattach { opacity: 1; color: var(--fg); padding: 0 10px; }
+.pop-out-corner .icon-svg { width: 16px; height: 16px; }
+/* A popped-out window draws its page alone (no rail), and its top bar keeps room for Reattach. */
+body.popped-out { --collab-buddy-room: 136px; }
+body.popped-out .page-frame { inset: 0; }
+.grids-page > .tabs-row { padding-right: var(--collab-buddy-room); }
+.pop-out-placeholder > .icon-svg { width: 32px; height: 32px; color: var(--muted); }
+.panes > .pane-popped-out { flex: 1 1 0; min-width: 0; }
+/* A document popped out of the Notebooks or Scripts page: its tab stays, its body blank but for the placeholder. */
+.wb-doc-body.popped-out-here > :not(.pop-out-placeholder) { display: none; }

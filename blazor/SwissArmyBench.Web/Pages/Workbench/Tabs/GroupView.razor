@@ -1,7 +1,9 @@
 @* One group of tabs (the classic workbenchGroups.ts group, VS Code's editor group): its tabs (the kind's icon, the
    unsaved dot, the name, Close; a middle click closes, a right click its menu, F2 its Rename…, the arrow keys, Home
    and End move between them), "+" New tab, the document in front's controls, and its documents: each stays drawn while hidden. *@
+@implements IDisposable
 @inject IJSRuntime Js
+@inject PopOuts PopOuts
 
 <section class="wb-group @Mark @(Focused ? "focused" : string.Empty) @(Only ? "only" : string.Empty)" aria-label="@Name"
          @onfocusin="OnFocus" @onpointerdown="OnFocus">
@@ -39,8 +41,13 @@
     <div class="wb-gbody">
         @foreach (var key in Group.Tabs)
         {
-            <div class="wb-doc-body kind-@(Documents[key].CodeFile is not null ? "codefile" : Documents[key].IsWorkbook ? "workbook" : Documents[key].IsNotebook ? "notebook" : Documents[key].IsSql ? "sql" : Documents[key].IsText ? "text" : "script")" hidden="@(key != Group.Active)" @key="key">
+            <div class="wb-doc-body @(PoppedOut(Documents[key]) is null ? null : "popped-out-here") kind-@(Documents[key].CodeFile is not null ? "codefile" : Documents[key].IsWorkbook ? "workbook" : Documents[key].IsNotebook ? "notebook" : Documents[key].IsSql ? "sql" : Documents[key].IsText ? "text" : "script")" hidden="@(key != Group.Active)" @key="key">
                 @* The document's review comments: its bar over it, and the comments handed down to its editors. *@
+                @* In a window of its own (State/PopOuts.cs): its place here is blank but for Reattach and Show window. *@
+                @if (PoppedOut(Documents[key]) is { } elsewhere)
+                {
+                    <PopOutPlaceholder Entry="elsewhere" />
+                }
                 <ReviewPanel @ref="Documents[key].ReviewPanel" Review="Documents[key].Review" Path="@Documents[key].ReviewPath" Parts="Documents[key].ReviewParts" OnChanged="OnReview" />
                 <CascadingValue Value="Documents[key].Review" IsFixed="true">@Content(Documents[key])</CascadingValue>
             </div>
@@ -51,6 +58,15 @@
 @code {
     [Parameter, EditorRequired]
     public TabGroup Group { get; set; } = default!;
+
+    private PopOutEntry? PoppedOut(OpenDocument doc) =>
+        doc.Path is { } path ? PopOuts.Elsewhere(PopOutKeys.DocumentKey(path)) : null;
+
+    protected override void OnInitialized() => PopOuts.Changed += PopOutsChanged;
+
+    private void PopOutsChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => PopOuts.Changed -= PopOutsChanged;
 
     /// <summary>The group's number on screen, from one.</summary>
     [Parameter]

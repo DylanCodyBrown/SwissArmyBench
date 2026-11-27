@@ -108,6 +108,19 @@ blazor/
                              place as this app's address; Back and Forward the browser's own), the "snapshot_request"
                              notice has the page in front draw the area asked for and send the PNG itself
                              (interop/snapshot.js, html-to-image)
+    Layout/PopOutGate, PopOutCorner   pop out any page or table (the owner, 2026-11-27): State/PopOuts (one window's
+                             view of the server's list, from GET /pop-outs and the pop_outs notice; Own: the key a
+                             popped-out window holds, read from its name sab-pop:<key>; Elsewhere(key): live in
+                             another window; PopAsync, ReattachAsync, ReattachOwnAsync, ShowAsync; a page's own state
+                             as an address, StateAddress: the Settings section in view), State/PopOutKeys (what an
+                             address shows: its page, its table, its document), interop shell.js `sab.popOut` (the
+                             window opened by its name, seen as it closes, brought forward, closed); PopOutGate round
+                             every page's body in MainLayout (the placeholder instead of the page while it is
+                             elsewhere; in a popped-out window, no rail, and a link out goes to the main window);
+                             PopOutCorner (Pop out beside the buddy; Reattach in a popped-out window);
+                             Components/PopOutPlaceholder (the shared empty state: "<name> is open in its own window",
+                             Reattach, Show window), used by the gate, the Tables page's pane (GridsPage.Windows.cs:
+                             a table's own window shows that table's tab alone) and a document's body (Tabs/GroupView)
     Layout/ScreenReporter    what this window shows, told to the server for the agent's app_screen (the owner,
                              2026-11-27), in MainLayout and WindowLayout; nothing drawn. Three parts: State/ScreenState
                              (a page's hook: Show(this, reader) once, its reader giving its own keys of the server's

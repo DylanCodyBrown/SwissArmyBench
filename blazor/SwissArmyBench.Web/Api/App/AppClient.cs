@@ -28,4 +28,21 @@ public sealed class AppClient
     public Task<RailAnswer> RailAsync() => _api.GetAsync<RailAnswer>("/rail");
 
     public Task<RailAnswer> SetRailAsync(bool labels) => _api.PutAsync<RailAnswer>("/rail", new { labels });
+
+    /// <summary>Everything in a window of its own (routes_pop_outs.py).</summary>
+    public Task<PopOutsAnswer> PopOutsAsync() => _api.GetAsync<PopOutsAnswer>("/pop-outs");
+
+    /// <summary>A page or a table popped out: this page opens its window itself (a click may open one).</summary>
+    public Task<PopOutEntry> PopOutAsync(string key, string name, string address) =>
+        _api.PostAsync<PopOutEntry>("/pop-outs", new { key, name, address, open = false });
+
+    /// <summary>Back in its old place. front: the main window goes to it (the popped-out window's own Reattach);
+    /// closed: the window that opened it saw it close (ignored when its window is there again).</summary>
+    public Task ReattachAsync(string key, bool front, bool closed = false) => _api.PostAsync("/pop-outs/reattach", new { key, front, closed });
+
+    /// <summary>A popped-out window's link out: true when a main window took it.</summary>
+    public async Task<bool> FrontAsync(string address) =>
+        (await _api.PostAsync<System.Text.Json.JsonElement>("/pop-outs/front", new { address })).GetProperty("shown").GetBoolean();
+
+    public Task ShowPopOutAsync(string key) => _api.PostAsync("/pop-outs/show", new { key });
 }

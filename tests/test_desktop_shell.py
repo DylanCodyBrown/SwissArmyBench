@@ -149,6 +149,12 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     # The Canvas's F11 too (2026-11-26): the board alone and the window full screen; Escape back as it was.
     assert said["canvas_f11_full"] is True and said["canvas_escape_back"] is True
     assert said["ctrl_w_closed_empty_window"]
+    # Pop out (the owner, 2026-11-27): a real second window named for what it holds, its page alone; the home
+    # window shows the placeholder; closing it, or Reattach, brings the page back.
+    assert said["pop_out_made_window"] == 1 and said["pop_out_no_rail"]
+    assert said["pop_out_window"] == ["sab-pop:page:connections", True, True]
+    assert said["pop_out_placeholder"] == "Connections is open in its own window"
+    assert said["pop_out_closed_reattached"] and said["pop_out_reattach_closed_window"]
     # The profile in the state folder: cookies and local storage kept there.
     assert {"Cookies", "Local Storage"} <= set(said["profile_folder"])
     # Every window closed: the app told the server, and the server stopped.

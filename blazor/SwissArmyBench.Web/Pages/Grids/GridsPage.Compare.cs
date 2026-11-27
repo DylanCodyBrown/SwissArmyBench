@@ -171,6 +171,7 @@ public partial class GridsPage
         var label = TabOrder.Label(tab, _tabs, _order);
         _menu = new OpenMenu(label,
         [
+            .. PopOutEntries(at.Grid),
             new("Compare with…", "columns", () => CompareWithAsync(at.Grid, at.X, at.Y), _tabs.Count < 2 ? "Open another table to compare with" : null),
             new("Rename", "rename", () => _tabRow?.StartRenameAsync(at.Grid) ?? Task.CompletedTask),
             Collaboration.Entry(new("table", tab.Dataset, string.Empty, tab.Dataset)),

@@ -128,6 +128,7 @@ public static class Program
         services.AddScoped<WhatsNewState>();
         services.AddScoped<PageObjects>();
         services.AddScoped<ScreenState>();
+        services.AddScoped<PopOuts>();
         services.AddScoped<CollaborationState>();
         services.AddScoped<EmojiCatalog>();
     }

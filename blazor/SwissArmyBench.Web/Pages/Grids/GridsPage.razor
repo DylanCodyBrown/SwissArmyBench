@@ -8,10 +8,14 @@
 @page "/grids"
 
 <section class="area-page grids-page" @onkeydown="PageKeyAsync">
-    <GridTabs @ref="_tabRow" Tabs="_tabs" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split"
+    <GridTabs @ref="_tabRow" Tabs="TabsShown" Order="_order" Designations="Designations" ChangedOnDisk="_changedOnDisk" Active="@_active" Split="_split"
               OnActivate="ActivateAsync" OnClose="CloseGridAsync" OnMenu="TabMenu" OnSplit="SplitWithAsync" OnOrder="SetOrderAsync"
               OnDragging="d => _dragging = d" OnRename="RenameAsync">
         <Extra>
+            @if (PopOuts.Own is null && _active is { } front && PoppedOut(front) is null)
+            {
+                <button type="button" class="btn ghost icon tab-new tab-pop-out" aria-label="Pop out this table" title="Pop out: this table in its own window" @onclick="() => PopOutAsync(front)"><Icon Name="popout" /></button>
+            }
             <button type="button" class="btn ghost icon tab-new" aria-label="Open file…" title="Open file…" @onclick="OpenFileAsync"><Icon Name="folder" /></button>
             <button type="button" class="btn ghost icon tab-new" aria-label="Tables" title="Tables" @onclick="() => _dialog = TablesList"><Icon Name="rows" /></button>
         </Extra>
@@ -21,6 +25,11 @@
     @if (_tabs.Count == 0 && _loaded)
     {
         <TablesEmpty OnOpenFile="OpenFileAsync" />
+    }
+    else if (_split is null && _active is { } only && PoppedOut(only) is { } away)
+    {
+        @* The table in front is live in a window of its own: its place is blank but for Reattach and Show window. *@
+        <PopOutPlaceholder Entry="away" />
     }
     else if (_info is { } info)
     {
@@ -42,6 +51,11 @@
         <div class="panes" data-split="@(_split is null ? "off" : "on")" data-aligned="@(Aligned ? "on" : "off")">
             @foreach (var shown in Shown)
             {
+                @if (PoppedOut(shown.Grid) is { } elsewhere)
+                {
+                    <div class="pane pane-popped-out" @key="@($"popped:{shown.Grid}")"><PopOutPlaceholder Entry="elsewhere" /></div>
+                    continue;
+                }
                 <GridPane @key="shown.Grid" @ref="Panes[shown.Grid]" Info="shown" Split="_split is not null" Active="shown.Grid == _active" Focus="FocusOn(shown.Grid)"
                           Compare="CompareOf(shown.Grid)" OnlyColumns="OnlyOf(shown.Grid)" KeyRows="_keyRows"
                           OnActivate="FocusPaneAsync" OnCloseSide="UnsplitAsync" OnClearFocus="ClearFocusAsync"

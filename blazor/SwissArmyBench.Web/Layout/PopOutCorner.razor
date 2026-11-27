@@ -1,0 +1,60 @@
+@* The Pop out button of every page (the owner, 2026-11-27), in every window's top right corner beside the
+   Collaboration buddy: the page in front opens in a window of its own (the desktop app's window, a browser's tab)
+   at the address it is at, and this place goes blank with Reattach. In a popped-out window the same corner holds
+   Reattach ("Grids should have a reattach button to bring them back"): back to the main window, this one closed;
+   with no main window open it opens there in a new one. *@
+@implements IDisposable
+@inject PopOuts PopOuts
+@inject NavigationManager Nav
+@inject RailState RailState
+
+@if (PopOuts.Own is not null)
+{
+    <button type="button" class="pop-out-corner reattach" title="@ReattachTitle" aria-label="Reattach" @onclick="PopOuts.ReattachOwnAsync">
+        <Icon Name="popin" /> <span>Reattach</span>
+    </button>
+}
+else if (PopOuts.Elsewhere(PopOutKeys.PageKey(Here)) is null)
+{
+    <button type="button" class="pop-out-corner" title="@($"Pop out: {Name} in its own window")" aria-label="Pop out" @onclick="PopAsync">
+        <Icon Name="popout" />
+    </button>
+}
+
+@code {
+    private string Here => Nav.ToBaseRelativePath(Nav.Uri);
+
+    private string ReattachTitle => PopOuts.Mains > 0
+        ? "Reattach: back in the main window, this window closes"
+        : "Reattach: the main window is closed, so it opens in a new one and this window closes";
+
+    /// <summary>The page's name as the rail says it (an extension's area by its own), else its address's word.</summary>
+    private string Name
+    {
+        get
+        {
+            var kind = PopOutKeys.KindOf(Here);
+            var route = kind == "home" ? string.Empty : kind;
+            return Areas.All.FirstOrDefault(a => a.Route == route)?.Name
+                ?? (route == Areas.Structures.Route ? Areas.Structures.Name : null)
+                ?? RailState.ExtensionAreas.FirstOrDefault(a => $"x-{a.Area}" == kind)?.Name
+                ?? string.Concat(kind[..1].ToUpperInvariant(), kind.AsSpan(1));
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        PopOuts.Changed += Redraw;
+        RailState.Changed += Redraw;
+    }
+
+    private Task PopAsync() => PopOuts.PopAsync(PopOutKeys.PageKey(Here), Name, PopOuts.AddressNow);
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        PopOuts.Changed -= Redraw;
+        RailState.Changed -= Redraw;
+    }
+}

@@ -13,15 +13,20 @@
         break;
     default:
         <FluentDesignTheme Mode="@(Theme.IsDark ? DesignThemeModes.Dark : DesignThemeModes.Light)" CustomColor="@AccentColour" />
-        <Rail />
+        @* A popped-out window (State/PopOuts.cs) draws its page alone: no rail. *@
+        @if (PopOuts.Own is null)
+        {
+            <Rail />
+        }
         <div class="page-frame">
             <ProjectSetupBar />
             <main class="page-main">
-                @Body
+                <PopOutGate>@Body</PopOutGate>
             </main>
             <StatusBar />
         </div>
         <CollaborationHost />
+        <PopOutCorner />
         <NoteCorner />
         <ProjectTitle />
         <DialogHost />

@@ -47,6 +47,9 @@ public partial class MainLayout : IDisposable
     [Inject]
     private WhatsNewState News { get; set; } = default!;
 
+    [Inject]
+    private PopOuts PopOuts { get; set; } = default!;
+
     private string AccentColour => Theme.IsDark ? DarkAccent : LightAccent;
 
     protected override async Task OnInitializedAsync()
@@ -59,6 +62,7 @@ public partial class MainLayout : IDisposable
         Theme.Changed += StateHasChanged;
         await Theme.StartAsync();
         await Live.StartAsync();
+        await PopOuts.StartAsync();
         _state = Ready;
         await OpenStartGridAsync();
         await Task.WhenAll(RailState.StartAsync(), Project.RefreshAsync(), Beta.StartAsync(), Tour.StartAsync(), Setup.LoadAsync(), News.StartAsync());
