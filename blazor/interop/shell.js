@@ -332,6 +332,10 @@ window.sab = {
     };
     open();
     window.addEventListener("focus", front);
+    // A window that is going away (closed; the desktop app keeps its page a moment longer) lets go of its socket at
+    // once, so the server never asks a window that can no longer answer (the project's Save waited a minute for
+    // one). A page that comes back (the browser's Back cache) opens it again by itself.
+    window.addEventListener("pagehide", () => socket?.close());
     return {
       place: (now) => {
         kind = now;
