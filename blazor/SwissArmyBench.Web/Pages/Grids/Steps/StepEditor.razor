@@ -90,7 +90,8 @@
 
     private async Task SaveAsync()
     {
-        if (_form is null)
+        // Enter twice (or a double click) before the first answer came added the step twice: once at a time.
+        if (_form is null || _saving)
         {
             return;
         }

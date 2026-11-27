@@ -90,3 +90,23 @@ def test_escape_still_closes_a_dialog_after_a_click_beside_it(browser: Browser, 
     page.keyboard.press("Escape")
     expect(page.locator(".dialog")).to_have_count(0)
     page.close()
+
+
+def test_enter_twice_in_a_steps_editor_adds_one_step(browser: Browser, server: dict[str, Any]) -> None:
+    """Enter pressed twice before the first answer came (a key held a moment too long) added the step
+    twice: the editor saves once at a time."""
+    grids = call(server, "GET", "/grids")["grids"]
+    grid = grids[0]["grid"] if grids else call(server, "POST", "/samples/store", {})["tables"][0]["grid"]
+    before = len(call(server, "GET", f"/grids/{grid}")["steps"])
+    page = open_page(browser, server, f"tables?grid={grid}")
+    expect(page.locator(".ag-row").first).to_be_visible()
+    page.click("[data-tool=sort]")
+    expect(page.locator(".dialog")).to_be_visible()
+    page.evaluate(
+        """() => { for (let n = 0; n < 2; n++)
+             document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }"""
+    )
+    expect(page.locator(".dialog")).to_have_count(0)
+    page.wait_for_timeout(500)
+    assert len(call(server, "GET", f"/grids/{grid}")["steps"]) == before + 1
+    page.close()
