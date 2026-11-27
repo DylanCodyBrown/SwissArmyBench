@@ -209,6 +209,24 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `app_screen` (the resource swissarmybench://screen) answers from it at once, asking no page. Names only, never a
   value; 8 KB a window at most. NEVER in the prompt hook nor context.md (tests/test_screen_state.py holds it);
   `app_snapshot` stays for a picture.
+- **Pop out any page or any table (the owner, 2026-11-27: "I should be able to pop out any page or any grid into a
+  new tab of its own and that grid or page should go blank on the original app with a reattach button in the pane to
+  bring it back"; then: "Grids should have a reattach button to bring them back.").** ONE mechanism
+  (domain/pop_outs.py, services/pop_outs.py, the Blazor State/PopOuts): every page has **Pop out** in its top right
+  corner beside the Collaboration buddy, every table on the Tables page's tab row and tab menu, a Notebooks or
+  Scripts document in its "…" menu (Open in its own window). It opens at the same address (the same table and
+  steps, the same Connections card, the Settings section in view) in a window named `sab-pop:<key>` (`page:<word>`,
+  `table:<grid>`, `doc:<path>`): the desktop app's own window, a browser's own tab, the page drawn alone with no
+  rail. **One owner at a time:** its old place is blank but for the shared empty state, "<name> is open in its own
+  window", with **Reattach** (its window closes, it shows here again where it is now) and **Show window**. The
+  popped-out window has **Reattach** in the same corner: back in the main window and closed; with no main window
+  open it opens the page in a new main window. Closing the popped-out window reattaches by itself; popping out
+  twice brings the window there is to the front; a reload of either window keeps it right (the window says its key
+  again; 8 s for a reload, 30 s for a window that never connects). The server keeps which window holds what in
+  memory only, never on disk, and tells every window over the live socket (`pop_outs`). A link that leaves what a
+  popped-out window holds goes to the main window. The agent: `app_navigate`'s `pop` (out, reattach, show, list; `to` a
+  page or `grid:<id>`); `app_screen` says each window's `pop_out`, `popped_out` and `placeholder`. The steps, Key Finder, SQL,
+  Queries and Widgets windows are tool windows of their own and stay as they were.
 - **Annotations on code (the owner, 2026-11-27: "any script to have an option to highlight a part by draging
   mouse over that section right click then make a comment, then a send to agent button to send all comments to and
   agent then reset the file so no comments are retained"; then, 2026-11-27: "Comment should at the top of the menu.
@@ -825,6 +843,11 @@ src/swissarmybench/
                          no starter; workbooks())
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
+    pop_outs.py          pop out any page or table (the owner, 2026-11-27): one entry a popped-out page, table or
+                         document (its key page:<word>, table:<grid>, doc:<path>; its name; the address it is at),
+                         the window's name (sab-pop:<key>), keys and addresses checked (only this app's own), a
+                         page by the agent's word, the placeholder's sentence, what a popped-out window says on its
+                         socket, the two waits (CONNECT_SECONDS, RELOAD_SECONDS)
     screen.py            the screen state (the owner, 2026-11-27): the ONE shape a window's report is read into
                          (WINDOW and PARTS: a known key of a known type kept, the rest dropped: names, numbers and
                          states only, no place for a cell's value, an output, code or a secret), the kind from the
@@ -1287,6 +1310,12 @@ src/swissarmybench/
     tieout.py            the tie-out report on a compare's two grids
     processes.py         Python sessions offering tables: the registry and the Open list
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
+    pop_outs.py          which window holds each popped-out page or table (PopOuts, made by Navigation: memory
+                         only): the windows as their sockets open and close, pop (the asking page opens the window;
+                         the agent's by the main window last in front; twice: the window there is to the front),
+                         heard (a popped-out window's key and where it is now), reattach (front: the main window
+                         goes there), show, front (a link out), the waits (a reload, a window that never
+                         connects); every change told to every window (`pop_outs`)
     screen.py            what each window shows, kept (Screens): opened (a window's socket connected: known, not
                          reported yet), heard and report (its report read into the shape; the stamp moves only
                          when it changed), closed (dropped), read (every window in brief, the focused one first,
@@ -1452,9 +1481,9 @@ src/swissarmybench/
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
                          explorer, library, project_python,
                          shared_catalog, team, found_connections, script_ide, sql_files, debugger, sharing, actions,
-                         call_stats, changes, collaboration, screen). Every route serves
+                         call_stats, changes, collaboration, screen, pop_outs). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
-                         project's Show in folder and Delete. routes_screen.py: GET /screen and /screen/{window}
+                         project's Show in folder and Delete. routes_pop_outs.py: /pop-outs (app_navigate's pop). routes_screen.py: GET /screen and /screen/{window}
                          (app_screen); the windows report over their live socket (/ws, app.py), never by a route
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route

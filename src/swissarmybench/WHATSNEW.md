@@ -1,5 +1,12 @@
 # What's new in Swiss Army Bench
 
+## 0.0.42 · 2026-11-27 20:49 UTC
+
+### New features
+- Pop out any page or table; Reattach brings it back
+
+### Bug fixes
+
 ## 0.0.41 · 2026-11-27 19:44 UTC
 
 ### New features

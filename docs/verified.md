@@ -6574,3 +6574,56 @@ to the scripts page with an open script" / "sql authorship will have one place i
 - Looked at in Chromium at deviceScaleFactor 2, light and dark, on a made-up Streamlit project: the dialog with no
   project open, the project's New file list, a Markdown file in Read view, a block being edited, Split view, an
   HTML page's preview, a class diagram, a sequence diagram and a flowchart in Split view.
+
+## Pop out any page or any table (2026-11-27, branch pop-out)
+
+- The rules and the owner map (tests/test_pop_outs.py, 13): keys and addresses (only this app's own: another
+  site's, an absolute path, `..` and a scheme are refused), a page by the agent's word, a table by its grid; one
+  owner at a time; popping out twice brings the window there is to the front and makes no second entry; the
+  popped-out window closed (its socket shut for RELOAD_SECONDS) gives the place back, a reload inside that wait
+  keeps it, one reloaded after it holds it again as it says so; a window that never connects gives the place back
+  after CONNECT_SECONDS; the main window closed first leaves the popped-out one held with `mains` 0, and a new main
+  window is counted again; the agent's pop out is opened by the main window last in front (none: 409 in one
+  sentence); the opener's "it closed" about an old window never takes a newer one back; over the real socket: the
+  routes, `app_navigate`'s `pop` (out, list, show, reattach; a page and `grid:<id>`), and `app_screen`'s lines
+  ("orders is open in its own window (Reattach brings it back)", "orders, popped out in its own window").
+- bUnit (PopOutTests): the keys an address shows; the placeholder's sentence, Reattach and Show window (the
+  routes asked, the window closed and shown); the Pop out button's words and what it opens; the gate (the
+  placeholder instead of the page, the page again on the notice); a popped-out window's Reattach and its words
+  with the main window gone; a popped-out window closing itself once brought back, after its BeforeClose. The
+  whole bUnit run: 346 passed. `dotnet build -warnaserror` clean; `dotnet format --verify-no-changes` clean on
+  both projects.
+- Browser (Release build), tests/e2e/blazor/test_pop_out.py (6): a table popped out shows the same table alone
+  with its step and rows while the original tab shows the placeholder and no rows, a step added meanwhile is
+  there after Reattach and the popped-out page has closed; the tab's menu pops out, the popped-out table's own
+  Reattach brings it back and closes itself, and a popped-out page closed by the user brings the table back by
+  itself; with the main window closed the popped-out table works on and its Reattach opens a new main window on
+  that table; Connections popped out at `connections?add=1` opens there, the agent's second pop out makes no
+  second page, another rail page is itself, a reload of the popped-out page keeps the placeholder, and Reattach
+  brings it back at the address it moved to; the agent's routes pop Settings out and back and `app_screen` says
+  both windows; a script popped out leaves its tab with the placeholder and comes back on Reattach.
+  test_collaboration.py's corner check now looks under the buddy and the Pop out button together on ten pages.
+  The whole browser suite, two workers: 220 passed, 7 skipped.
+- The desktop app under Qt off screen (tests/desktop_drive.py 11e, tests/test_desktop_shell.py): Pop out on
+  Connections makes one real second window named `sab-pop:page:connections`, visible, its page with no rail; the
+  home window shows "Connections is open in its own window"; closing that window brings the page back by itself;
+  popped out again, the placeholder's Reattach closes the window (the window count back as it was).
+- Unit suite (no e2e, four workers): 6,142 passed, 43 skipped, 10 failed: this container's known eight (the
+  four data.py tests of test_projects, test_script_export, test_connection_drivers, test_performance,
+  test_updater), test_agent_index (the index 18 characters over: its line taken back out, the guide's grids topic
+  says it) and the desktop drive once under the suite's load (its Open in browser step; it passes run alone and
+  with twelve other files). ruff and ruff format clean; mypy: only sab_canvas.py:622; tests/test_architecture.py
+  passes; the architecture map is current; bootstrap.py is 2,009 lines, unchanged (PopOuts is made by Navigation);
+  the MCP tool list stays under 100,000 characters: a tool of its own (app_pop_out) put it at 100,090, so pop out
+  is `app_navigate`'s `pop`.
+- WHATSNEW.md has a `## 0.0.42` heading while 0.0.41 runs: tests/test_whats_new.py passes with it.
+- Found on the way: the page that opened a window polls for its closing, and an old window's closing arrived
+  after the same thing was popped out again and took the new one back (a full browser run failed five tests on
+  it): the server now ignores "it closed" while the entry's window is connected or still on its way, and the
+  page lets go of a window as its key comes back.
+- Not done: a table's scroll place is not carried into its own window (the grid's rows come a block at a time,
+  so a row far down is not there to scroll to on the first draw); "Show window" in a browser is best effort (a
+  tab comes forward only when the browser lets a page focus one).
+- Looked at in Chromium at deviceScaleFactor 2, light and dark, on the made-up sample store: the Pop out button
+  on a table and on a page, a table in its own window, the placeholder with Reattach, a rail page in its own
+  window and its placeholder.

@@ -65,6 +65,14 @@ steps strip counts the table's steps; Edit steps opens them in a tab of their ow
   screen, the Canvas's page, selection and layout, Analyze's form and cards, the selected connection, the
   Settings section. Names only, never a cell's value: read values with `row_read`. Read it when you need to
   know what the user sees, instead of asking for a snapshot; also the resource swissarmybench://screen.
+- `app_navigate(to, pop)`: with `pop`, a page or a table in a window of its own, as the user's Pop out button.
+  `pop="out"` pops `to` out (a page: home, connections, catalog, tables, erd, analyze, environment, settings…; a
+  table: `grid:<id>`), opened by the main window last in front (a browser may block a window no click asked for:
+  then it is back in its place after 30 s); `pop="reattach"` brings it back to its old place and closes its
+  window; `pop="show"` brings its window to the front; `pop="list"` says what is popped out (`popped`: key, name,
+  address, connected) and how many main windows are open. One owner at a time: where it was, the main window
+  shows "<name> is open in its own window" with Reattach. `app_screen` says it: a popped-out window's `pop_out`,
+  the others' `popped_out` and the `placeholder` a window shows.
 - `app_snapshot(area)`: a PNG of what the user sees (app, ribbon, grid, steps, analyze or projects:
   the Projects page while it is open); the page's tab must be visible. It shows real values and is audited.
 - `app_rail(labels)`: the rail's names on or off (kept). `files_list`: a folder's files (`hidden` too); `files_new_folder`: a new folder in one. A system file dialog is the user's click only: pass paths to commands directly.
