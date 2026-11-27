@@ -7,8 +7,8 @@ Settings' Team box, Advanced, points it at another folder.
 
 ## A team (Settings' Team box)
 A team is ONE GitHub repository: the team library at its top, the team's shared projects in its `projects/`.
-The screen calls it the Team library. Joining needs GitHub sync (the Git extension; `team_status` says
-`needs` when it is not installed: `extensions_install`). Signing in to GitHub is the user's own.
+The screen calls it the Team library. GitHub sync is built in (nothing to install first). Signing in to GitHub is
+the user's own.
 - `team_status(remote?, repositories?, search?, owners?)`: `state` none or joined; joined: `team.repository`,
   `team.folder` (the local copy), `team.projects`, `team.sync` (only when something is to do: Pull, changes to
   push, conflicts); `signed_in`, `pending` (a Join or Start step kept over Install's restart).

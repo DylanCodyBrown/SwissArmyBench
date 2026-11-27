@@ -8,9 +8,9 @@ page sortable by card with explanations of project types for beginners"). Pure r
                   taken off the list, whether the type explanations were put away
   where           a card is Shared when its folder is under the shared projects folder, else Local (one
                   opened from elsewhere too); a filter All / Local / Shared
-  cards           each project's card from its facts: name (its folder's), type (an off extension's said as
-                  "needs the <Name> extension"), last opened, last changed, created, its folder, what it
-                  holds (notebooks, scripts, apps, tables), Git (a repository, its branch from .git/HEAD:
+  cards           each project's card from its facts: name (its folder's), type, last opened, last changed,
+                  created, its folder, what it holds (notebooks, scripts, apps, tables), Git (a repository,
+                  its branch from .git/HEAD:
                   never running git), moved or deleted
   sort            Last opened, Name, Type, Last changed, Created (ascending or descending), or Custom (the
                   cards' own order, dragged or moved left and right)
@@ -168,15 +168,14 @@ def card(
     path: str,
     facts: Mapping[str, Any] | None,
     kinds: Mapping[str, Mapping[str, Any]],
-    off: Mapping[str, Mapping[str, Any]],
     opened: float | None,
     open_now: str | None,
     in_folder: bool,
     where: str = "local",
 ) -> dict[str, Any]:
     """One project's card. `facts` (None: the folder is not there): type, documents, tables, head (.git/HEAD's
-    text, or None), repository, changed, created. `kinds`: the types on here, by id; `off`: an extension's
-    type that is not on, by type id: its extension's id and name."""
+    text, or None), repository, changed, created. `kinds`: the project types, by id (a type nothing here
+    adds, a removed folder extension's, is said by its id)."""
     name = re.split(r"[\\/]", path.rstrip("\\/"))[-1] or path
     out: dict[str, Any] = {
         "path": path,
@@ -212,12 +211,6 @@ def card(
         if facts.get("repository")
         else {"repository": False, "branch": None},
     }
-    if known is None and project_type in off:
-        needed = off[project_type]
-        out |= {
-            "type_name": str(needed.get("title") or needed.get("name") or project_type),
-            "needs": {"extension": needed["id"], "name": needed["name"]},
-        }
     return out
 
 

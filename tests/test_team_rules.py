@@ -52,19 +52,19 @@ def test_names_and_owners() -> None:
 
 
 def test_the_steps_and_the_one_kept_over_a_restart() -> None:
-    assert rules.next_step("join", False, False) == "install"
+    assert rules.next_step("join", False, False) == "sign_in"  # GitHub sync is built in: nothing to install
     assert rules.next_step("join", True, False) == "sign_in"
     assert rules.next_step("join", True, True) == "pick"
     assert rules.next_step("start", True, True) == "name"
-    kept = rules.pending("join", "install", 1000.0)
-    assert kept == {"action": "join", "step": "install", "since": 1000.0}
+    kept = rules.pending("join", "sign_in", 1000.0)
+    assert kept == {"action": "join", "step": "sign_in", "since": 1000.0}
     with pytest.raises(rules.TeamError):
         rules.pending("join", "name", 1000.0)
-    # After the restart with GitHub sync installed: the flow goes on where it was.
+    with pytest.raises(rules.TeamError):
+        rules.pending("join", "install", 1000.0)  # the step an install had, gone
+    # After a restart: the flow goes on where it was.
     assert rules.resume(kept, True, False, 1100.0) == {"action": "join", "step": "sign_in"}
     assert rules.resume(kept, True, True, 1100.0) == {"action": "join", "step": "pick"}
-    # The install did not happen: Install again.
-    assert rules.resume(kept, False, False, 1100.0) == {"action": "join", "step": "install"}
     # A day later, or a broken record: nothing taken up.
     assert rules.resume(kept, True, True, 1000.0 + rules.PENDING_SECONDS + 1) is None
     for broken in (None, {}, {"action": "steal", "since": 1}, {"action": "join", "since": "x"}, [1]):

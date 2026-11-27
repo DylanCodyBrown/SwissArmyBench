@@ -17,7 +17,6 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench import extensions
 from swissarmybench_git import extension as git_extension
 from swissarmybench_git.domain import sync as rules
 from tests.conftest import AGENT, AUTH, make_client
@@ -35,7 +34,6 @@ CONNECTION = (
 @pytest.fixture
 def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[GitHubStandin]:
     with GitHubStandin() as standin:
-        monkeypatch.setenv(extensions.VARIABLE, "streamlit,git")
         monkeypatch.setenv("SWISSARMYBENCH_GITHUB_API", standin.url)
         monkeypatch.setenv("SWISSARMYBENCH_GITHUB_WEB", standin.url)
         monkeypatch.delenv("SWISSARMYBENCH_GITHUB_CLIENT_ID", raising=False)
@@ -489,17 +487,12 @@ def test_a_shared_project_its_card_and_the_footers_mark(
         repo = ok(client.get("/git/changes?which=shared", headers=AUTH))["repositories"][0]
         assert repo["name"] == "shared-projects/Close" and repo["count"] == 0
         # The rail's area is the extension's (the page draws it from this), with the footer's mark route.
-        assert ok(client.get("/app/areas", headers=AUTH))["areas"] == [
-            {"area": "scm", "name": "Git", "icon": "source-control", "mark": "/git/mark"}
-        ]
-
-
-def test_off_the_door_says_which_extension(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit")
-    with make_client(tmp_path) as client:
-        off = client.get("/git", headers=AUTH)
-        assert off.status_code in (404, 409) and "Git" in off.text
-        assert ok(client.get("/app/areas", headers=AUTH))["areas"] == []
+        assert ok(client.get("/app/areas", headers=AUTH))["areas"][0] == {
+            "area": "scm",
+            "name": "Git",
+            "icon": "source-control",
+            "mark": "/git/mark",
+        }
 
 
 def test_githubs_sign_in_refusals_are_said_in_plain_words() -> None:

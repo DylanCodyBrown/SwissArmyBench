@@ -138,7 +138,7 @@ def wrong_id(declared: str, folder_name: str) -> str:
 
 
 def shadowed(ident: str) -> str:
-    return f"A folder extension {ident} in the library is not loaded: the installed package {ident} wins."
+    return f"The folder {ident} in the library is not loaded: {ident} is built in, and that wins."
 
 
 def remove_question(name: str, path: str) -> str:

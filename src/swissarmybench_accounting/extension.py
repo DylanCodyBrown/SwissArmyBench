@@ -1,7 +1,7 @@
-"""The Accounting extension: what it is and what it brings, as the base reads it (its entry point:
-`accounting = "swissarmybench_accounting.extension"` in the group `swissarmybench.extensions`).
+"""Accounting: what it is and what it brings, as the app reads it (swissarmybench/extensions.py BUILT_IN names
+this module). Built in (the owner, 2026-11-27).
 
-  ID, NAME, DESCRIPTION, ADDS   the extension, said for the Extensions page and context.md
+  ID, NAME, DESCRIPTION, ADDS   the feature, said for context.md
   PROJECT_TYPE, MODE            the project type it adds and its mode, as DATA (Plans/editions.plan.md,
                                 "Project modes"): the Excel canvas, Excel and accounting families, Python,
                                 no extra cell kinds, the agent's tool group, the export

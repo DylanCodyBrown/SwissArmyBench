@@ -107,7 +107,7 @@ class Projects:
         kind = rules.check_type(body.get("type"))
         scaffold = self._scaffold(kind) if kind != rules.BASE_TYPE else None
         if kind != rules.BASE_TYPE and scaffold is None:
-            raise ProjectError(f"No installed extension makes a {kind} project here.")
+            raise ProjectError(f"Nothing here makes a {kind} project.")
         wanted = body.get("notebooks") or []
         if not isinstance(wanted, list) or not all(isinstance(n, str) for n in wanted) or len(wanted) > 20:
             raise ProjectError("notebooks is a list of names.")

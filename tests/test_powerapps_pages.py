@@ -16,7 +16,6 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench import extensions
 from swissarmybench.cli import api as cli_api
 from swissarmybench_powerapps.domain import pages
 from tests import powerapps_fakes as fakes
@@ -193,7 +192,6 @@ def test_the_starter_files_and_a_new_page_compile_and_lint(tmp_path: Path) -> No
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     tools = fakes.install(tmp_path / "fake-tools")
     monkeypatch.setenv("PATH", str(tools) + os.pathsep + os.environ.get("PATH", ""))
     with make_client(tmp_path) as test_client:

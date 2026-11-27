@@ -20,7 +20,6 @@ from tests.fake_keyring import memory_keyring
 
 @pytest.fixture(autouse=True)
 def vault(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit,powerbi")
     with memory_keyring():
         yield
 

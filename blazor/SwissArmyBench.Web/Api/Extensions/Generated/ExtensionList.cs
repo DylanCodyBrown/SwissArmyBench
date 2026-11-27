@@ -3,19 +3,14 @@
 // script, never this file (tests/test_blazor_api_types.py checks it is current).
 // </auto-generated>
 #nullable enable
-using System.Text.Json;
 
 namespace SwissArmyBench.Web.Api.Extensions;
 
 /// <summary>
-/// GET /extensions: every extension (preinstalled, available, installed, coming) with what it adds, whether
-/// this copy can install one, and the change under way.
+/// GET /extensions: the cards the Extensions page draws (a built-in feature with a panel of its own; the
+/// library's folder extensions).
 /// </summary>
 public sealed record ExtensionList
 {
     public IReadOnlyList<ExtensionCard> Extensions { get; init; } = [];
-
-    public bool Installable { get; init; }
-
-    public JsonElement? Changing { get; init; }
 }

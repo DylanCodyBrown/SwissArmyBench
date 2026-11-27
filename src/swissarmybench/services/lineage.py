@@ -236,9 +236,7 @@ class Lineage:
     def _target(self, body: Mapping[str, Any]) -> tuple[Key, dict[str, Document]]:
         """What the lineage starts from: the cell and its document."""
         if isinstance(body.get("app"), str):  # an old app canvas's block (app notebooks went, 2026-11-21)
-            raise NotFound(
-                "Canvases are the Streamlit extension's: it is not installed here (Extensions: Install)."
-            )
+            raise NotFound("An app canvas's blocks went with app notebooks: a canvas holds widgets now.")
         path: Any = body.get("document")
         cell: Any = body.get("cell")
         if not isinstance(path, str) or not path or isinstance(cell, bool) or not isinstance(cell, int):

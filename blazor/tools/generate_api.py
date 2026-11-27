@@ -447,10 +447,10 @@ ANSWERS.append(
         "ExtensionList",
         "GET",
         "/extensions",
-        "GET /extensions: every extension (preinstalled, available, installed, coming) with what it adds, "
-        "whether this copy can install one, and the change under way.",
+        "GET /extensions: the cards the Extensions page draws (a built-in feature with a panel of its own; "
+        "the library's folder extensions).",
         nested={"extensions": "ExtensionCard"},
-        types={"changing": f"{JSON}?", "version": "string?"},
+        types={"version": "string?"},
     )
 )
 

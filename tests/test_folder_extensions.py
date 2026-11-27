@@ -281,11 +281,11 @@ def test_a_missing_import_is_offered_as_a_package(library: Path) -> None:
     assert loader.folders()["plots"].missing == ["made_up_module_nobody_has"]  # pip's name for it
 
 
-def test_a_folder_with_a_packages_id_loses_to_the_package(library: Path) -> None:
-    (library / "streamlit").mkdir()  # the Streamlit extension is on in every test (conftest)
+def test_a_folder_with_a_built_in_features_id_loses_to_it(library: Path) -> None:
+    (library / "streamlit").mkdir()
     (library / "streamlit" / "extension.py").write_text('raise SystemExit("never run")\n')
     found = loader.folders()["streamlit"]
-    assert found.shadowed and found.module is None and "the installed package streamlit wins" in found.error
+    assert found.shadowed and found.module is None and "streamlit is built in, and that wins" in found.error
     assert loader.load("streamlit").__name__ == "swissarmybench_streamlit.extension"  # type: ignore[union-attr]
 
 

@@ -138,23 +138,34 @@ def workbench(info: dict[str, Any]) -> None:
     print("Send to the agent reaches the agent through the prompt hook.")
 
 
-def streamlit_preinstalled(info: dict[str, Any]) -> None:
-    """The installers put the Streamlit extension in beside the base: it is installed, its mode is offered,
-    and its routes answer (the list of canvases). SWISSARMYBENCH_SMOKE_BASE_ONLY=1: a base-only install."""
-    listed = {e["id"]: e for e in get(info, "/extensions")["extensions"]}
-    if os.environ.get("SWISSARMYBENCH_SMOKE_BASE_ONLY") == "1":
-        if listed["streamlit"]["status"] != "available":
-            sys.exit(f"A base-only install lists Streamlit as {listed['streamlit']['status']}.")
-        print("The base alone: Streamlit is offered on the Extensions page.")
-        return
-    if listed["streamlit"]["status"] != "installed" or not listed["streamlit"].get("preinstalled"):
-        sys.exit(f"The Streamlit extension is not installed with the app: {listed['streamlit']}")
+BUILT_IN_ROUTES = {
+    "/streamlit/canvases": "canvases",
+    "/accounting/functions": None,
+    "/powerapps/tools": None,
+    "/powerbi/setup": None,
+    "/git/mark": None,
+    "/copilot/panel": None,
+}
+
+
+def built_in(info: dict[str, Any]) -> None:
+    """One wheel holds every feature (the owner, 2026-11-27): each project type is offered, each feature's
+    routes answer, the rail has its areas, and nothing is listed to install."""
     modes = [m["type"] for m in get(info, "/app/modes")["modes"]]
-    if "streamlit" not in modes:
-        sys.exit(f"The Streamlit project type is missing: {modes}")
-    if "canvases" not in get(info, "/streamlit/canvases"):
-        sys.exit("The Streamlit extension's routes do not answer.")
-    print("The Streamlit extension is installed (preinstalled): its project type and its routes answer.")
+    for wanted in ("streamlit", "accounting", "codeapp", "powerbi"):
+        if wanted not in modes:
+            sys.exit(f"The {wanted} project type is missing: {modes}")
+    for route, key in BUILT_IN_ROUTES.items():
+        said = get(info, route)
+        if key is not None and key not in said:
+            sys.exit(f"{route} does not answer with {key}.")
+    areas = [a["area"] for a in get(info, "/app/areas")["areas"]]
+    if "scm" not in areas or "powerbi" not in areas:
+        sys.exit(f"The rail lacks Source Control or Power BI: {areas}")
+    listed = get(info, "/extensions")["extensions"]
+    if any(e["status"] != "builtin" and e.get("source") != "folder" for e in listed):
+        sys.exit(f"The Extensions page lists something to install: {listed}")
+    print("Every feature is built in: its project types, routes and rail areas answer.")
 
 
 def main() -> None:
@@ -267,7 +278,7 @@ def main() -> None:
 
         pages_load_whole(info)
         workbench(info)
-        streamlit_preinstalled(info)
+        built_in(info)
     finally:
         subprocess.run([command, "stop"], check=False)
         try:

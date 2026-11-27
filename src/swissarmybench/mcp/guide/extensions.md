@@ -6,28 +6,28 @@ the manifest says; an extension never ships `.ts`, `.tsx`, `.css` or `.html`. Us
 things: blades, language support (a cell kind, its completion, a runtime) and a canvas; the data and the APIs
 underneath stay the same (design principles 1.0 and 13a).
 
-Read the existing ones before writing one: `extensions/copilot/` is the smallest (a panel, three commands),
-`extensions/powerbi/` adds a project type and a rail page, `extensions/streamlit/` a canvas.
+Read the built-in features before writing one, they have the same shape: `src/swissarmybench_copilot/` is the
+smallest (a panel, three commands), `src/swissarmybench_powerbi/` adds a project type and a rail page,
+`src/swissarmybench_streamlit/` a canvas.
 
-## Two kinds, one shape
-An extension is either **a folder in the library** (the quickest: no package, no install, no restart) or **a
-package** (a wheel with an entry point, as the shipped ones are). Both have the same module values (`extension.py`
-below), the same `commands.py` and the same `contract.json`, so one moves between the two.
+## Built in, and your own
+Streamlit, Accounting, Power Apps, Power BI, Git and GitHub Copilot are **built in** (the owner, 2026-11-27): each
+a package of its own in the app's one wheel, on every install, never installed and never removed
+(`extensions_install` or `extensions_remove` with one's id answers in one sentence that it is built in). An
+extension you make is **a folder in the library**: no package, no install, no restart. Both have the same module
+values (`extension.py` below), the same `commands.py` and the same `contract.json`.
 
 - **A folder:** the library's `extensions/<id>/` (the library is `~/.swissarmybench/library` unless Settings moved
   it: `library_info` says where). Found when the app starts, trusted like the library's blades (no signing, no
   question), shared with the library (a team's Git repository too). It loads as the package `sab_ext_<id>`: its own
   files import each other relatively (`from .commands import COMMANDS`), never as top-level modules. One that fails
-  is listed on the Extensions page with its error and the line (the app starts anyway); a folder with an installed
-  package's id loses to the package.
-- **A package:** its `pyproject.toml` names the base at the same version and registers one entry point,
-  `[project.entry-points."swissarmybench.extensions"]` with `<id> = "<package>.extension"`; the base reads the
-  installed entry points once at start. In a checkout, `SWISSARMYBENCH_EXTENSIONS=<id>` turns one on without
-  installing it; `-<id>` turns one off (a folder's too).
-- `extensions_list` shows them all (a folder's: `source: "folder"`, its `path`, `on`, its `error`, its `missing`
-  packages). `extensions_install` and `extensions_remove` wait for the user's Allow: for a package the app
-  restarts; for a folder Install installs its missing packages and loads it again (no restart), Remove sends its
-  folder to the trash and stops its routes at once. Show its folder is the user's click only.
+  is listed on the Extensions page with its error and the line (the app starts anyway); a folder with a built-in
+  feature's id is not loaded (the built-in one wins), and says so.
+- `extensions_list` shows them (`source: "folder"`, its `path`, `on`, its `error`, its `missing` packages), and a
+  built-in feature that has a panel of its own (`status: "builtin"`). `extensions_install` and
+  `extensions_remove` wait for the user's Allow: Install installs a folder's missing packages and loads it again
+  (no restart), Remove sends its folder to the trash and stops its routes at once. Show its folder is the user's
+  click only.
 
 ## Make a folder extension from scratch
 1. `extensions_new(id="inventory", name="Inventory", project_type="inventory")` (waits for the user's Allow): it
@@ -87,18 +87,14 @@ key, an unknown key, a newer format, a path out of the project or a core file.
   through the base's adapters.
 - `languages` maps file patterns to the IDE's languages; `cells` the notebook's cell kinds (beyond python, sql,
   dax, html and markdown they are the mode's extra cell kinds).
-- The shipped extensions with a project type each carry one (Streamlit, Accounting, Power Apps, Power BI); Copilot
+- The built-in features with a project type each carry one (Streamlit, Accounting, Power Apps, Power BI); Copilot
   and Git add none and have none.
 
 ## The layout
 Arranged like the base (Cosmic Python, REFACTOR.md): imports point inwards, one file per feature in each layer.
 
 ```
-extensions/<id>/
-  pyproject.toml            the package, its entry point, `swissarmybench[server]==<the base's version>`
-  README.md
-  src/<package>/
-    __init__.py             __version__
+library/extensions/<id>/    (a built-in feature: src/swissarmybench_<id>/, with __init__.py's __version__)
     extension.py            the manifest and the composition root (below)
     commands.py             the agent's commands
     domain/                 rules: standard library (and sqlglot) only, no input or output, no clock
@@ -106,7 +102,6 @@ extensions/<id>/
     adapters/               files, processes, the network
     server/routes.py        Starlette routes under /<id>/...
     starters/               read-only .blade.py starters (optional)
-  tests/ in the repository's tests/: test_<id>_*.py
 ```
 
 ## extension.py: the manifest
@@ -186,7 +181,7 @@ Routes are behind the base's guard (127.0.0.1, the token): never open a port of 
 
 ## Tests
 - Rules first (its `domain/`), then its routes through the base's test client, then its commands.
-- A stand-in for anything that cannot run here (see `tests/copilot_standin.py`, `tests/devtunnel_standin.py`).
+- A stand-in for anything that cannot run here (see the stand-ins in `tests/`: GitHub Copilot's, `tests/devtunnel_standin.py`).
 - A browser test that builds one thing end to end in Chromium, with made-up data.
 - The base's own tests keep the boundary: no extension's name in `web/`, no front-end file in an extension, each
   manifest against the shared shapes.

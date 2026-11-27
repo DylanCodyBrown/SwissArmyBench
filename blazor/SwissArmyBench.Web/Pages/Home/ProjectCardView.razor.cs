@@ -123,12 +123,6 @@ public partial class ProjectCardView
         _ = Notes.SayAsync($"Copied to {done.GetProperty("copied").GetString()}");
     });
 
-    private Task InstallAsync(string extension) => RunAsync(async () =>
-    {
-        await Api.PostAsync("/extensions/install", new { id = extension });
-        _ = Notes.SayAsync("Installing: the app restarts when it is done.");
-    });
-
     /// <summary>A click on the card (not on a button) or Enter on it opens the project.</summary>
     private Task ClickAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs e) => Card.Missing || _menu ? Task.CompletedTask : OpenAsync();
 

@@ -9,16 +9,11 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-# The Streamlit extension is switched on (SWISSARMYBENCH_EXTENSIONS) before anything of the app is imported, so
-# the commands' registry and every server a test starts (in this process or its own) have it. A child process
-# finds the packages through PYTHONPATH.
+# Every feature is built in (the owner, 2026-11-27): the app's package and each feature's own sit side by side
+# in src/. A child process a test starts finds them through PYTHONPATH.
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 if SRC not in os.environ.get("PYTHONPATH", "").split(os.pathsep):
     os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (SRC, os.environ.get("PYTHONPATH")) if p)
-if "streamlit" not in os.environ.get("SWISSARMYBENCH_EXTENSIONS", ""):
-    os.environ["SWISSARMYBENCH_EXTENSIONS"] = ",".join(
-        p for p in ("streamlit", os.environ.get("SWISSARMYBENCH_EXTENSIONS")) if p
-    )
 
 # Folder extensions (the library's extensions/<id>/): none in a test unless it makes one
 # (test_folder_extensions.py points this at its own folder); never the real home's library.

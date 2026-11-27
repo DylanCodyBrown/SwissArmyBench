@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pytest
 
-from swissarmybench import extensions
 from swissarmybench_git import extension as git_extension
 from tests.conftest import AGENT, AUTH, make_client
 from tests.fake_keyring import MemoryKeyring, memory_keyring
@@ -30,7 +29,6 @@ MANIFEST = json.dumps({"swissarmybench": "project", "format": 1, "tables": []}).
 @pytest.fixture
 def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[GitHubStandin]:
     with GitHubStandin() as standin:
-        monkeypatch.setenv(extensions.VARIABLE, "streamlit,git")
         monkeypatch.setenv("SWISSARMYBENCH_GITHUB_API", standin.url)
         monkeypatch.setenv("SWISSARMYBENCH_GITHUB_WEB", standin.url)
         monkeypatch.delenv("SWISSARMYBENCH_GITHUB_CLIENT_ID", raising=False)
@@ -61,7 +59,7 @@ def test_join_a_team_pull_push_and_its_shared_projects(
     copy = (tmp_path / "state" / "team" / "made-up-team-team-library").resolve()
     with make_client(tmp_path) as client:
         status = ok(client.get("/team", headers=AUTH))
-        assert status["state"] == "none" and status["sync_on"] is True and status["needs"] is None
+        assert status["state"] == "none" and status["sync_on"] is True and "needs" not in status
         assert status["signed_in"] is False and "Fine-grained tokens" in " ".join(status["token_steps"])
         # Not signed in: nothing is offered, nothing joined.
         assert client.get("/team/repositories", headers=AUTH).status_code == 403
@@ -227,22 +225,3 @@ def test_the_agent_joins_starts_and_leaves_only_on_the_users_allow(
         assert refused.status_code == 403 and hub.created == []
         # Signing in stays the user's own.
         assert client.post("/git/sign-in/token", json={"token": TOKEN}, headers=AGENT).status_code == 403
-
-
-def test_the_step_kept_over_installs_restart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit")
-    with make_client(tmp_path) as client:
-        status = ok(client.get("/team", headers=AUTH))
-        assert status["sync_on"] is False and status["needs"]["id"] == "git"
-        assert status["needs"]["words"] == "Joining a team needs GitHub sync"
-        assert client.post("/team/join", json={"repository": TEAM}, headers=AUTH).status_code == 409
-        ok(client.post("/team/pending", json={"action": "join"}, headers=AUTH))
-        assert ok(client.get("/team", headers=AUTH))["pending"] == {"action": "join", "step": "install"}
-    assert json.loads((tmp_path / "state" / "team.json").read_text())["pending"]["step"] == "install"
-    # After the restart, with GitHub sync installed: the flow goes on at sign-in.
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,git")
-    with memory_keyring(), make_client(tmp_path) as client:
-        assert ok(client.get("/team", headers=AUTH))["pending"] == {"action": "join", "step": "sign_in"}
-        ok(client.post("/team/pending", json={"action": None}, headers=AUTH))
-        assert ok(client.get("/team", headers=AUTH))["pending"] is None
-        assert client.post("/team/pending", json={"action": "steal"}, headers=AUTH).status_code == 400

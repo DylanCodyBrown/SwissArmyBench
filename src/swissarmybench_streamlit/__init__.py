@@ -1,8 +1,8 @@
-"""Swiss Army Bench's Streamlit extension: Streamlit apps built from your notebooks' cells.
+"""Swiss Army Bench's Streamlit: Streamlit apps built from widgets on a canvas.
 
-Preinstalled with the base (`swissarmybench`): the installers and every update install it beside the base, and
-it can be removed on the Extensions page. It registers itself under the entry-point group
-`swissarmybench.extensions` (extension.py). Released with the base, at the base's version.
+Built into Swiss Army Bench (the owner, 2026-11-27: "all extensions should be built in now"): its own package
+in the app's one wheel, always on; what it adds is declared in extension.py, which the app reads
+(swissarmybench/extensions.py BUILT_IN). At the app's version.
 """
 
 __version__: str = "0.0.42"

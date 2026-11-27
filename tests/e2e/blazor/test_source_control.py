@@ -43,7 +43,6 @@ def server(tmp_path_factory: pytest.TempPathFactory, hub: GitHubStandin) -> Iter
     env = os.environ | {
         "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
         "SWISSARMYBENCH_STATE": str(tmp / "state"),
-        "SWISSARMYBENCH_EXTENSIONS": "streamlit,git",
         "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
         "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
         "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),

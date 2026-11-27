@@ -27,17 +27,6 @@
             <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
                 @switch (_at)
                 {
-                    case "install":
-                        <h3 class="team-step-title">@_status?.Needs?.Words</h3>
-                        @if (_installing)
-                        {
-                            <div class="loading-block">Installing @_status?.Needs?.Name: the app starts again and Settings opens here.</div>
-                        }
-                        else
-                        {
-                            <div class="row"><button type="button" class="btn primary team-install" @onclick="InstallAsync"><Icon Name="extensions" /> Install</button></div>
-                        }
-                        break;
                     case "sign_in":
                         @* The Git extension's own sign-in step (the classic scmPage.ts teamSignIn), borrowed here. *@
                         <SwissArmyBench.Web.Pages.Scm.TeamSignIn Device="_status?.Device == true" TokenSteps="@(_status?.TokenSteps ?? [])" OnSignedIn="NextAsync" />

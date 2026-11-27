@@ -20,10 +20,13 @@ packages; the server's `swissarmybench` command runs the app. The front end ship
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import shutil
 import subprocess
 import sys
 import tomllib
+import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -57,6 +60,55 @@ def build_blazor() -> None:
         sys.exit("The Blazor build wrote no index.html.")
 
 
+# The packages the extensions were before they were built in (the owner, 2026-11-27). An install of 0.0.42 or
+# older updates with its own, older, updater, which asks uv for each installed extension's wheel at the new
+# version from this version's GitHub release (`--with <address>`), and fails when one is not there. So each
+# release still carries a wheel of each name: EMPTY (no code, no entry point), needing only the app at this
+# version. The app never asks for them; an update made by this version or a newer one leaves them out.
+TRANSITION_PACKAGES = (
+    "swissarmybench_accounting",
+    "swissarmybench_copilot",
+    "swissarmybench_git",
+    "swissarmybench_powerapps",
+    "swissarmybench_powerbi",
+    "swissarmybench_streamlit",
+)
+
+
+def transition_wheels(version: str) -> list[Path]:
+    """An empty wheel for each package an extension used to be, in dist/ (standard library only)."""
+    made: list[Path] = []
+    for package in TRANSITION_PACKAGES:
+        info = f"{package}-{version}.dist-info"
+        files = {
+            f"{info}/METADATA": (
+                f"Metadata-Version: 2.1\nName: {package.replace('_', '-')}\nVersion: {version}\n"
+                "Summary: Built into Swiss Army Bench: this package is empty and only lets an older "
+                "install update.\nRequires-Python: >=3.12\n"
+                f"Requires-Dist: swissarmybench[server]=={version}\n"
+            ),
+            f"{info}/WHEEL": (
+                "Wheel-Version: 1.0\nGenerator: swissarmybench build.py\nRoot-Is-Purelib: true\n"
+                "Tag: py3-none-any\n"
+            ),
+        }
+        record = "".join(
+            f"{name},sha256={_urlsafe_sha256(text.encode())},{len(text.encode())}\n"
+            for name, text in files.items()
+        )
+        files[f"{info}/RECORD"] = record + f"{info}/RECORD,,\n"
+        wheel = HERE / "dist" / f"{package}-{version}-py3-none-any.whl"
+        with zipfile.ZipFile(wheel, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, text in files.items():
+                archive.writestr(zipfile.ZipInfo(name, (2020, 1, 1, 0, 0, 0)), text)
+        made.append(wheel)
+    return made
+
+
+def _urlsafe_sha256(data: bytes) -> str:
+    return base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -74,6 +126,8 @@ def main() -> None:
     if not wheel.is_file():
         sys.exit(f"uv build wrote no {wheel.name}.")
     print(f"\nBuilt {wheel.relative_to(HERE)}")
+    for made in transition_wheels(version):
+        print(f"Built {made.relative_to(HERE)} (empty: an older install's update asks for it)")
     # The installers, with this version written in: they go in the release beside the wheel.
     for name in ("install.sh", "install.ps1"):
         text = (HERE / "installer" / name).read_text(encoding="utf-8").replace("__VERSION__", version)

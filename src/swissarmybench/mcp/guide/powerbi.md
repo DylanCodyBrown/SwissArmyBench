@@ -1,7 +1,6 @@
-# Power BI (an extension)
+# Power BI
 
-On only where the Power BI extension is installed (`extensions_install` with `powerbi`); else its door says
-which extension it needs.
+Built in (an extension of its own before 2026-11-27): on every install, with its rail page.
 
 - `powerbi_export`: Export to Power BI… as the ERD page does it: the tables (default: the ERD's), their
   relationships and each table's Power Query as a Power BI Project in the open project's `powerbi/` (no project

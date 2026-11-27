@@ -29,10 +29,6 @@
     {
         <p class="explorer-missing">Moved or deleted</p>
     }
-    @if (Card.Needs is { } needs)
-    {
-        <p class="explorer-needs">Needs the @needs.Name extension <button type="button" class="btn ghost small explorer-install" @onclick="() => InstallAsync(needs.Extension)" @onclick:stopPropagation="true">Install</button></p>
-    }
     @if (Card.Where == "shared" && !Card.Missing && Sync?.WordsFor(Card.Name) is { } syncWords)
     {
         <p class="explorer-sync">@syncWords</p>

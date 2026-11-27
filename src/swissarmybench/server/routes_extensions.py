@@ -1,9 +1,10 @@
 """The Extensions page (services/extensions.py), for the page and the agent.
 
-GET    /extensions          every extension: preinstalled, available, installed, coming; folders too
-POST   /extensions/install  {"id"}: Install (the app restarts; the agent waits for Allow); a folder's: its
-                            packages, then Load again (no restart)
-POST   /extensions/remove   {"id", "confirmed"?}: Remove (the user's asks first); a folder's to the trash
+GET    /extensions          the library's folder extensions, and each built-in feature with a panel of its own
+POST   /extensions/install  {"id"}: a folder's missing packages (the agent waits for Allow), then Load again
+                            (no restart); a built-in feature's id: one sentence, it is built in
+POST   /extensions/remove   {"id", "confirmed"?}: a folder's to the trash (the user's asks first); a built-in
+                            feature's id: one sentence, it cannot be removed
 POST   /extensions/new      {"id", "name"?, "project_type"?}: New extension, a folder in the library
 POST   /extensions/show     {"id"}: Show its folder (the user's click only: 403 for the agent)
 

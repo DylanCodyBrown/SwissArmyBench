@@ -383,14 +383,6 @@ def execute_result(name: str, raw: dict[str, Any] | None = None) -> str | ImageR
     if cmd is None:
         import difflib  # only a mistyped name needs it
 
-        from swissarmybench.domain import extensions as catalog
-
-        owner = catalog.owner_of(name)
-        if owner is not None:
-            raise CommandError(
-                f"{name} is the {owner.name} extension's, and it is not installed here: install it on the "
-                f"Extensions page (extensions_install id={owner.id})."
-            )
         close = difflib.get_close_matches(name, list(REGISTRY), n=5)
         hint = f" Did you mean: {', '.join(close)}?" if close else ""
         raise CommandError(f"No command {name!r}.{hint} Call commands for the catalog.")

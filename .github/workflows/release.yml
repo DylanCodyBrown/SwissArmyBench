@@ -174,7 +174,7 @@ jobs:
           name: dist
           path: dist
       - name: Only the wheel goes to PyPI
-        run: mkdir pypi && mv dist/swissarmybench-*.whl pypi/  # the base only: the extensions' wheels stay on the GitHub release
+        run: mkdir pypi && mv dist/swissarmybench-*.whl pypi/  # the app's wheel only: the empty swissarmybench_<id> wheels (an older install's update asks for them) stay on the GitHub release
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: pypi/

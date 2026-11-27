@@ -72,7 +72,6 @@ class ProjectExplorer:
         default_folder: str,
         modes: Callable[[], list[dict[str, Any]]],
         streamlit: Mapping[str, Any],
-        off: Callable[[], dict[str, dict[str, Any]]] = dict,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -81,9 +80,8 @@ class ProjectExplorer:
         self._projects = projects
         self._approvals = approvals
         self._default = default_folder
-        self._modes = modes  # every on project type's mode (the base's, each on extension's)
+        self._modes = modes  # every project type's mode (the base's, each feature's)
         self._streamlit = streamlit  # the Streamlit app's words, the base's
-        self._off = off  # an extension's project type that is not on: {type: {"id", "name"}}
 
     def folder(self) -> str:
         """The local projects folder: Settings' choice, else the default (~/Swiss Army Bench Projects)."""
@@ -126,7 +124,6 @@ class ProjectExplorer:
         listed = [*inside, *(str(r["path"]) for r in recent.values())]
         paths = list({key(p): p for p in reversed(listed)}.values())[::-1]
         kinds = {k["type"]: k for k in rules.kinds(self._modes(), self._streamlit)}
-        off = self._off()
         current = self._projects.current.folder if self._projects.current is not None else None
         cards = []
         for path in paths:
@@ -136,7 +133,6 @@ class ProjectExplorer:
                 path,
                 facts,
                 kinds,
-                off,
                 float(seen["opened"]) if seen else None,
                 current,
                 key(path) in inside_keys,

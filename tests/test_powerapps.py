@@ -18,7 +18,6 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench import extensions
 from swissarmybench.cli import api as cli_api
 from swissarmybench.cli import commands as base_commands
 from tests import powerapps_fakes as fakes
@@ -38,7 +37,6 @@ def tools_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def switched_on(monkeypatch: pytest.MonkeyPatch, tools_dir: Path) -> Iterator[None]:
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     monkeypatch.setenv("PATH", str(tools_dir) + os.pathsep + os.environ.get("PATH", ""))
     yield
 
@@ -78,23 +76,10 @@ def answer_in_background(client: TestClient, approve: bool) -> threading.Thread:
 # ===== off and on =====
 
 
-def test_off_nothing_of_it_is_there(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(extensions.VARIABLE, raising=False)
-    with make_client(tmp_path) as client:
-        assert client.get("/powerapps", headers=AUTH).status_code == 404
-        assert client.get("/powerapps/live/any/", headers=AUTH).status_code == 404
-        mode = ok(client.get("/app/mode", headers=AUTH))
-        assert mode["project_type"] == "bi" and mode["mode"]["languages"] == ["python"]
-        assert [m["type"] for m in ok(client.get("/app/modes", headers=AUTH))["modes"]] == ["bi"]
-        assert all(not n.startswith("powerapps_") for n in base_commands.REGISTRY)
-        families = [f["family"] for f in ok(client.get("/blades/starters", headers=AUTH))["families"]]
-        assert "TypeScript" not in families and "React" not in families
-
-
 def test_on_its_project_type_and_mode_are_listed(client: TestClient) -> None:
     listed = ok(client.get("/app/modes", headers=AUTH))["modes"]
-    assert [m["type"] for m in listed] == ["bi", "codeapp"]
-    assert listed[1]["deliverable"] == "a Power Apps code app"
+    assert [m["type"] for m in listed] == ["bi", "streamlit", "accounting", "codeapp", "powerbi"]
+    assert listed[3]["deliverable"] == "a Power Apps code app"
     families = [f["family"] for f in ok(client.get("/blades/starters", headers=AUTH))["families"]]
     assert {"TypeScript", "React", "Connectors"} <= set(families)
 
@@ -113,7 +98,6 @@ def test_a_missing_tool_is_the_missing_package_answer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     only = fakes.install(tmp_path / "only-node", tools=("node", "npm", "npx"))
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     monkeypatch.setenv("PATH", str(only))
     with make_client(tmp_path) as client:
         refused = new_app(client, tmp_path)

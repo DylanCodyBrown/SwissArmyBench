@@ -68,7 +68,6 @@ def environment(folder: Path) -> dict[str, str]:
         "SWISSARMYBENCH_WORKBENCH_DIR": str(folder / "home" / "SwissArmyBench"),
         "SWISSARMYBENCH_PROJECTS_DIR": str(folder / "home" / "Projects"),
         "SWISSARMYBENCH_UPDATE_FEED": "none",
-        "SWISSARMYBENCH_EXTENSIONS": "streamlit",
         # The server's life, short: it stops 2 s after the app's last window, 3 s after a client's request.
         "SWISSARMYBENCH_LIFE_GRACE": "2",
         "SWISSARMYBENCH_LIFE_IDLE": "3",

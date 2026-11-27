@@ -21,7 +21,7 @@ from swissarmybench.domain.snippets import SnippetError, fill, placeholders
 from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
-# The base's starters and the Streamlit extension's (preinstalled): one pack, as the app lists it.
+# The base's starters and Streamlit's (built in): one pack, as the app lists it.
 EXTENSION = Path(__file__).resolve().parents[1] / "src"
 STREAMLIT_STARTERS = EXTENSION / "swissarmybench_streamlit" / "starters"
 FILES = sorted([*FOLDER.glob("*.blade.py"), *STREAMLIT_STARTERS.glob("*.blade.py")], key=lambda p: p.name)
@@ -339,7 +339,10 @@ def test_every_streamlit_piece_names_its_cell() -> None:
 def test_the_pack_is_listed_by_family_and_kept_apart_from_your_blades(client: TestClient) -> None:
     listed = client.get("/blades/starters", headers=AUTH).json()
     assert listed["pack"] == STARTERS
-    assert [f["family"] for f in listed["families"]] == list(FAMILIES)
+    families = [f["family"] for f in listed["families"]]
+    assert families[: len(FAMILIES)] == list(FAMILIES)
+    # Power Apps' starters, built in too, in families of their own after the pack's.
+    assert sorted(families[len(FAMILIES) :]) == ["Connectors", "React", "TypeScript"]
     first = listed["families"][0]["blades"][0]
     assert first["source"] == "starter" and first["pack"] == STARTERS
     dax = next(f for f in listed["families"] if f["family"] == "DAX")["blades"]

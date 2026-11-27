@@ -25,7 +25,6 @@ from tests.test_powerbi import saved_connection
 
 @pytest.fixture(autouse=True)
 def extension_on(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit,powerbi")
     with memory_keyring():
         yield
 

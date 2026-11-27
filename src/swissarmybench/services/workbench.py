@@ -188,12 +188,9 @@ class Workbench:
     # ===== files =====
 
     def _app_document(self) -> AppDocument:
-        """An app's own file is the extension's that makes apps (none on: said plainly)."""
+        """An app's own file is the feature's that makes apps (Streamlit, built in; none wired: said)."""
         if self._hooks.app_document is None:
-            raise NotFound(
-                "A Streamlit app's file opens with the Streamlit extension: it is not installed here "
-                "(Extensions: Install)."
-            )
+            raise NotFound("A Streamlit app's file cannot be opened here: Streamlit did not start.")
         return self._hooks.app_document
 
     def home(self) -> dict[str, Any]:

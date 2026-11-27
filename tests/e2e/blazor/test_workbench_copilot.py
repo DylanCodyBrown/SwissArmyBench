@@ -37,7 +37,6 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         "SWISSARMYBENCH_STATE": str(state),
         "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
         "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),
-        "SWISSARMYBENCH_EXTENSIONS": "copilot",
         "SWISSARMYBENCH_COPILOT_STANDIN": str(STANDIN),
         "COPILOT_STANDIN_LOG": str(tmp / "standin.log"),
         "COPILOT_STANDIN_STATE": str(tmp / "account.json"),

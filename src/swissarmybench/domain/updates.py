@@ -221,8 +221,8 @@ def install_command(
     wheels: tuple[str, ...] = (),
 ) -> list[str]:
     """`uv tool install --force "swissarmybench[server]==X"` on the Python the app runs on now.
-    `find_links`: a folder of wheels to look in as well (the tests' local wheel). `wheels`: the installed
-    extensions' wheels at that version, each `--with` (an update keeps them; domain/extensions.py)."""
+    `find_links`: a folder of wheels to look in as well (the tests' local wheel). `wheels`: the user's own
+    packages, each `--with` (an update keeps them: own_packages)."""
     # --refresh-package: the package index read again for the app itself (uv's cache can hold the list
     # from before this version was published, and say "no version of swissarmybench==X").
     command = [uv, "tool", "install", "--force", "--refresh-package", PACKAGE, "--python", python]
@@ -303,8 +303,8 @@ def plan_update(
 ) -> UpdatePlan:
     """The plan for updating from `current` to `version`; `tool_python` is the app's own Python (the uv
     tool's), which runs the new version once it is installed. `stop_in` (Windows): the tool's folder,
-    whose programs still running are stopped before the install. `wheels`, `restore_wheels`: the installed
-    extensions' wheels at `version` and at `current` (each kept, `--with`)."""
+    whose programs still running are stopped before the install. `wheels`, `restore_wheels`: the user's own
+    packages for `version` and for `current` (each kept, `--with`)."""
     if parse_version(version) <= parse_version(current) and find_links is None:
         raise UpdateError(f"{version} is not newer than {current}.")
     start = (tool_python, "-m", f"{PACKAGE}.server", "start")
@@ -338,9 +338,9 @@ def update_question(version: str, at_risk: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-# ===== the user's own packages, kept across an update or an extension's Install and Remove =====
+# ===== the user's own packages, kept across an update =====
 # The owner (2026-11-18): "everytime I add an extension or update, im having to reinstall all of the imports":
-# `uv tool install --force` makes the app's environment again from the app and its extensions only, so what
+# `uv tool install --force` makes the app's environment again from the app only, so what
 # Install now put there (azure-identity for a connection) went. What nothing of the app's needs is the user's,
 # and goes `--with` into the new environment.
 
@@ -356,8 +356,9 @@ def package_key(name: str) -> str:
 
 def own_packages(installed: dict[str, list[str]]) -> list[str]:
     """The packages in the app's environment that nothing of the app's needs: the user's own.
-    `installed`: each distribution's name and its Requires-Dist lines. The app's own (swissarmybench and every
-    swissarmybench-* extension) and all they need, at any depth, under any extra or marker (taken broadly: a
+    `installed`: each distribution's name and its Requires-Dist lines. The app's own (swissarmybench, and an
+    older install's swissarmybench-* extension packages) and all they need, at any depth, under any extra or
+    marker (taken broadly: a
     package both need comes back with the app anyway), are not the user's; nor is pip's tooling. Only the tops
     are given (azure-identity, not the azure-core it brings): uv resolves what they need again."""
     needs = {package_key(name): requires for name, requires in installed.items()}

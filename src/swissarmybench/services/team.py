@@ -1,12 +1,12 @@
 """Settings' Team box (domain/team.py has the rules; the owner, 2026-11-19: "you have made linking a
 meta store and shared project folder way too difficult; the settings menu makes no sense"): ONE GitHub
 repository holds the team library (at its top) and the team's shared projects (its projects/). The GitHub
-work is the extension's that fills services/hooks.py's `team` (none on here: the Team box offers its
-Install); this service points the library folder and the shared projects folder, keeps team.json and gives
+work is the built-in Git feature's, which fills services/hooks.py's `team`; this service points the library
+folder and the shared projects folder, keeps team.json and gives
 the steps' words.
 
   status      no team (Join a team…, Start a team…) or joined (owner/repo, its sync words when something is to
-              do); the step kept over Install's restart, taken up; the local projects folder; the two folders
+              do); a step kept over a restart, taken up; the local projects folder; the two folders
               for Advanced
   join        the repository's local copy made in the state folder's team/<owner>-<repo>/ (no path asked),
               the library pointed at it, the shared projects folder at its projects/ (made), then Set up this
@@ -18,7 +18,7 @@ the steps' words.
               Allow)
   pull, push  the team library's (the extension asks the agent's Allow)
   show        Show its folder: the user's own (403 for the agent), as a project's Show in folder
-  pending     Install of GitHub sync restarts the app: the step is kept in team.json, never in the page
+  pending     a step kept over a restart of the app: in team.json, never in the page
 """
 
 from __future__ import annotations
@@ -113,7 +113,6 @@ class Team:
         files: Files,
         state_dir: str,
         approvals: Approvals,
-        needs: Callable[[], dict[str, Any]],
         now: Callable[[], float] = time.time,
     ) -> None:
         self.ws = ws
@@ -125,7 +124,6 @@ class Team:
         self._files = files
         self._state = state_dir
         self._approvals = approvals
-        self._needs = needs  # the extension that syncs with GitHub: its id, name, the words, installable
         self._now = now
 
     # ===== what is kept =====
@@ -144,9 +142,7 @@ class Team:
     def _needed(self) -> TeamSync:
         sync = self._sync()
         if sync is None:
-            raise Conflict(
-                f"{rules.NEEDS_WORDS}: Install it on the Extensions page ({self._needs()['name']})."
-            )
+            raise Conflict(f"{rules.NEEDS_WORDS}.")
         return sync
 
     def _joined(self) -> dict[str, Any] | None:
@@ -183,7 +179,6 @@ class Team:
         out: dict[str, Any] = {
             "state": "joined" if team else "none",
             "sync_on": sync is not None,
-            "needs": None if sync else self._needs() | {"words": rules.NEEDS_WORDS},
             **signed,
             "pending": rules.resume(
                 self._read().get("pending"), sync is not None, bool(signed.get("signed_in")), self._now()
@@ -206,13 +201,13 @@ class Team:
         return out
 
     async def set_pending(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"action": "join" | "start", "step"?}: kept over Install's restart; {"action": null}: gone."""
+        """{"action": "join" | "start", "step"?}: kept over a restart; {"action": null}: gone."""
         data = self._read()
         action = body.get("action") if isinstance(body, dict) else None
         if action is None:
             data.pop("pending", None)
         else:
-            step = str(body.get("step") or "install")
+            step = str(body.get("step") or "sign_in")
             data["pending"] = rules.pending(rules.check_action(action), step, self._now())
         self._write(data)
         return {"pending": data.get("pending")}

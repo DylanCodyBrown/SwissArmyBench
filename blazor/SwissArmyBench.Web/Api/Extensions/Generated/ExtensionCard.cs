@@ -19,9 +19,7 @@ public sealed record ExtensionCard
 
     public string Status { get; init; } = string.Empty;
 
-    public string Package { get; init; } = string.Empty;
-
-    public bool Preinstalled { get; init; }
-
     public string? Version { get; init; }
+
+    public string Panel { get; init; } = string.Empty;
 }

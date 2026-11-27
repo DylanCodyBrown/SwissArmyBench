@@ -25,7 +25,6 @@ def extension_server(
         | {
             "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
             "SWISSARMYBENCH_STATE": str(tmp / "state"),
-            "SWISSARMYBENCH_EXTENSIONS": ",".join(extensions),
             "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
             "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
             "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),

@@ -1,60 +1,32 @@
-"""Extensions: the Extensions page's cards, Install and Remove (Plans/editions.plan.md; 2026-11-17).
+"""Extensions: the Extensions page's cards (Plans/folder-extensions.plan.md; the owner, 2026-11-27: every
+packaged extension built in, with no Install and no Remove).
 
-The catalog (domain/extensions.py) with each extension's status: available, installed (found under the
-entry-point group at start; Streamlit, preinstalled, is installed by the installers and kept by each update),
-coming. Install and Remove
-reuse Update to X's machinery (server/updater.py): the helper waits for the app to stop, runs
-`uv tool install --force "swissarmybench[server]==<this version>" --with <each kept extension's wheel>`,
-checks the version and starts the app; on a failure the old set again and a note. The agent's install and
-remove wait for the user's Allow (installing software restarts the app). A development checkout (not a uv
-tool) says what to run instead and does nothing.
+The page lists the user's own folder extensions (the library's extensions/<id>/) and each built-in feature
+that brings a panel of its own. A built-in feature is never installed or removed: asked to, the answer is
+one sentence (domain/extensions.py built_in_words).
 
-A folder extension (the library's extensions/<id>/, Plans/folder-extensions.plan.md) changes without a
-restart: Install is its missing packages (the one missing-package answer; the agent's on Allow) and Load
-again, its routes mounted in the running app; Remove sends its folder to the trash (asked first; the agent's
-on Allow); Show its folder is the user's click; New extension writes its folder (the agent's on Allow) and
-loads it.
+A folder extension changes without a restart: Install is its missing packages (the one missing-package
+answer; the agent's on Allow) and Load again, its routes mounted in the running app; Remove sends its folder
+to the trash (asked first; the agent's on Allow); Show its folder is the user's click; New extension writes
+its folder (the agent's on Allow) and loads it.
 """
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import extension_folders as folder_rules
 from swissarmybench.domain import extensions as rules
-from swissarmybench.domain.extensions import Extension, Found
-from swissarmybench.domain.updates import UpdateError
+from swissarmybench.domain.extensions import BuiltIn, Found
 from swissarmybench.services.ports import Approvals, Audit, Notifier
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
-
-# Long enough for the answer to reach the asker before the server stops.
-STOP_AFTER_SECONDS: float = 0.5
-
-
-class ExtensionHelper(Protocol):
-    """server/updater.py's Helper: whether this copy is a uv tool, and the hand-over for a new set."""
-
-    def installable(self) -> bool: ...
-
-    def launch_change(self, wheels: list[str], before: list[str]) -> None: ...
-
-
-class Record(Protocol):
-    """A small JSON file of the state folder's (adapters/state_files.py JsonFile)."""
-
-    def read(self) -> Any: ...
-
-    def write(self, data: Any) -> None: ...
 
 
 class Folders(Protocol):
     """The library's folder extensions (adapters/extensions.py FolderExtensions)."""
 
     def found(self) -> dict[str, Found]: ...
-
-    def shadowed(self) -> dict[str, str]: ...
 
     def place(self, ident: str) -> str: ...
 
@@ -68,12 +40,9 @@ class Folders(Protocol):
 
 
 class _NoFolders:
-    """No library: no folder extensions (a test's Extensions of packages only)."""
+    """No library: no folder extensions."""
 
     def found(self) -> dict[str, Found]:
-        return {}
-
-    def shadowed(self) -> dict[str, str]:
         return {}
 
     def place(self, ident: str) -> str:
@@ -105,32 +74,19 @@ class Extensions:
         self,
         *,
         current: str,
-        found: dict[str, Found],
-        helper: ExtensionHelper,
         approvals: Approvals,
         audit: Audit,
         live: Notifier,
-        stop: Callable[[], None],
-        catalog: tuple[Extension, ...] = rules.CATALOG,
-        record: Record | None = None,
-        panels: dict[str, str] | None = None,
+        built_in: tuple[BuiltIn, ...] = (),
         folders: Folders | None = None,
         install_packages: InstallPackages = _no_install,
     ) -> None:
         self.current = current
-        self.catalog = catalog
-        self.found = dict(found)
-        self._helper = helper
+        # The built-in features (their ids and names; a panel's route where one has a card).
+        self.built_in = built_in
         self._approvals = approvals
         self._audit = audit
         self._live = live
-        self._stop = stop
-        self._changing: dict[str, str] | None = None
-        # extensions.json: the preinstalled ones the user removed (never brought back) and the bring-backs
-        # tried, by version (never twice).
-        self._record = record
-        # Each on extension's panel (its PANEL route): the card and Settings draw what it answers.
-        self.panels = dict(panels or {})
         # The library's folder extensions (read live: New extension, Remove and Load again change them), their
         # packages installed into the app's Python, and their routes mounted and unmounted in the running app
         # (server/app.py sets mount and unmount: mount answers the error of a routes() that failed, or "").
@@ -142,154 +98,36 @@ class Extensions:
     # ===== reading =====
 
     def listing(self) -> list[dict[str, Any]]:
-        found = self._folders.found() | self.found  # a package wins over a folder of its id
-        listed = rules.listed(self.catalog, found, self.current)
-        shadowed = self._folders.shadowed()
-        for entry in listed:
-            if entry["id"] in self.panels:
-                entry["panel"] = self.panels[entry["id"]]
-            if entry["id"] in shadowed:
-                entry["note"] = shadowed[entry["id"]]
-        return listed
+        return rules.listed(self.built_in, self._folders.found(), self.current)
 
-    def _folder(self, body: Any) -> dict[str, Any] | None:
-        """The listing's entry of the folder extension the body names, or None (it is a package's)."""
+    def _folder(self, body: Any, action: str) -> dict[str, Any]:
+        """The listing's entry of the folder extension the body names. A built-in feature's id is refused in
+        one sentence: there is nothing of it to install or remove."""
         ident = rules.check_id(body.get("id") if isinstance(body, dict) else None)
-        entry = next((e for e in self.listing() if e["id"] == ident), None)
-        return entry if entry is not None and entry.get("source") == "folder" else None
+        entry = next((e for e in self.listing() if e["id"] == ident and e.get("source") == "folder"), None)
+        if entry is not None:
+            return entry
+        feature = next((f for f in self.built_in if f.id == ident), None)
+        if feature is not None and action != "show":
+            raise Conflict(rules.built_in_words(feature.name or ident, action))
+        if action == "show":
+            raise NotFound("Only a folder extension has a folder to show.")
+        raise NotFound(f"There is no extension {ident!r}.")
 
     def state(self) -> dict[str, Any]:
-        return {
-            "extensions": self.listing(),
-            "installable": self._helper.installable(),
-            "changing": self._changing,
-        }
-
-    def changing(self) -> dict[str, str] | None:
-        """An Install or Remove handed to the helper (the app stops for it): what it is, else None."""
-        return self._changing
+        return {"extensions": self.listing()}
 
     def names(self) -> list[str]:
-        """The extensions this install has, by name (the version mark's tooltip)."""
-        return [str(e["name"]) for e in self.listing() if e["status"] in ("preinstalled", "installed")]
+        """The folder extensions that are on, by name (the version mark's tooltip)."""
+        return [str(e["name"]) for e in self.listing() if e.get("source") == "folder" and e.get("on")]
 
-    def installed_ids(self) -> list[str]:
-        """The extensions installed as packages of the catalog's (the ones each update keeps, `--with`)."""
-        ours = {e.id for e in self.catalog if e.package}
-        return [str(e["id"]) for e in self.listing() if e["status"] == "installed" and e["id"] in ours]
-
-    def kept_wheels(self, version: str) -> list[str]:
-        """Each installed extension's wheel at `version`: what an update of the base installs with it."""
-        return rules.kept_wheels(self.catalog, self.installed_ids(), version)
-
-    def _entry(self, body: Any) -> tuple[Extension, dict[str, Any]]:
-        ident = rules.check_id(body.get("id") if isinstance(body, dict) else None)
-        listed = {e["id"]: e for e in self.listing()}
-        if ident not in listed:
-            raise NotFound(f"There is no extension {ident!r}.")
-        known = next((e for e in self.catalog if e.id == ident), None)
-        said = listed[ident]
-        ext = known or Extension(
-            ident, str(said["name"]), str(said["description"]), package=str(said["package"])
-        )
-        return ext, said
-
-    # ===== Install and Remove =====
+    # ===== Install and Remove: a folder extension's only =====
 
     async def install(self, body: Any, who: str) -> dict[str, Any]:
-        folder = self._folder(body)
-        if folder is not None:
-            return await self._load_folder(folder, who)
-        ext, said = self._entry(body)
-        status = said["status"]
-        if status == "installed":
-            raise Conflict(f"{ext.name} is installed already.")
-        if status == "coming":
-            raise Conflict(f"{ext.name} is coming: it cannot be installed yet.")
-        before = self.installed_ids()
-        answer = await self._change(ext, "install", [*before, ext.id], before, who, body)
-        self._note(installed=ext.id)
-        return answer
+        return await self._load_folder(self._folder(body, "install"), who)
 
     async def remove(self, body: Any, who: str) -> dict[str, Any]:
-        folder = self._folder(body)
-        if folder is not None:
-            return await self._remove_folder(folder, body, who)
-        ext, said = self._entry(body)
-        if said["status"] != "installed":
-            raise Conflict(f"{ext.name} is not installed.")
-        before = self.installed_ids()
-        if ext.id not in before:
-            raise Conflict(
-                f"{ext.name} was not installed from here: remove its package the way it was installed."
-            )
-        answer = await self._change(ext, "remove", [i for i in before if i != ext.id], before, who, body)
-        if "changing" in answer:
-            self._note(removed=ext.id)  # a preinstalled one stays out of every bring-back
-        return answer
-
-    def _note(self, **change: Any) -> None:
-        if self._record is not None:
-            self._record.write(rules.recorded(self._record.read(), **change))
-
-    def bring_back(self) -> dict[str, Any] | None:
-        """At start: a preinstalled extension this install lacks (an update from a version that had it built
-        in), never removed by the user, is installed once (the app restarts with it). A copy that is not an
-        installed tool, or one tried at this version already, does nothing."""
-        if self._changing or self._record is None or not self._helper.installable():
-            return None
-        wanted = rules.to_bring_back(self.catalog, self.found, self._record.read(), self.current)
-        if not wanted:
-            return None
-        for ext in wanted:
-            self._note(tried=(ext.id, self.current))
-        before = self.installed_ids()
-        after = [*before, *(e.id for e in wanted)]
-        try:
-            self._helper.launch_change(
-                rules.kept_wheels(self.catalog, after, self.current),
-                rules.kept_wheels(self.catalog, before, self.current),
-            )
-        except UpdateError:
-            return None
-        self._changing = {"id": wanted[0].id, "action": "install"}
-        self._audit.write("app", "extension_install", None, extension=wanted[0].id, version=self.current)
-        asyncio.get_running_loop().call_later(STOP_AFTER_SECONDS, self._stop)
-        return self._changing
-
-    async def _change(
-        self, ext: Extension, action: str, after: list[str], before: list[str], who: str, body: Any
-    ) -> dict[str, Any]:
-        if self._changing:
-            raise Conflict("An extension is being installed or removed already.")
-        if not self._helper.installable():
-            raise Conflict(rules.development_words(ext))
-        question = rules.change_question("installs" if action == "install" else "removes", ext.name)
-        if (
-            who != "agent"
-            and action == "remove"
-            and not (isinstance(body, dict) and body.get("confirmed") is True)
-        ):
-            return {"confirm": question, "id": ext.id}
-        await self._approvals.allowed(
-            who,
-            subject=ext.id,
-            action=f"{action} the extension",
-            detail=question,
-            otherwise=f"{ext.name} was not {'installed' if action == 'install' else 'removed'}",
-        )
-        try:
-            self._helper.launch_change(
-                rules.kept_wheels(self.catalog, after, self.current),
-                rules.kept_wheels(self.catalog, before, self.current),
-            )
-        except UpdateError as error:
-            raise Conflict(str(error)) from None
-        self._changing = {"id": ext.id, "action": action}
-        self._audit.write(who, f"extension_{action}", None, extension=ext.id, version=self.current)
-        await self._live.broadcast({"type": "extensions_changing", **self._changing})
-        asyncio.get_running_loop().call_later(STOP_AFTER_SECONDS, self._stop)
-        return {"changing": self._changing}
+        return await self._remove_folder(self._folder(body, "remove"), body, who)
 
     # ===== folder extensions: the library's extensions/<id>/ (no restart) =====
 
@@ -353,9 +191,7 @@ class Extensions:
         """Show its folder in the system's file manager: the user's click only."""
         if who == "agent":
             raise Refused("Show its folder opens the user's own file manager: only the user can.")
-        entry = self._folder(body)
-        if entry is None:
-            raise NotFound("Only a folder extension has a folder to show.")
+        entry = self._folder(body, "show")
         try:
             self._folders.show(str(entry["id"]))
         except FileNotFoundError as error:
@@ -368,7 +204,7 @@ class Extensions:
         for the user's Allow (its code runs in the app's server)."""
         if not isinstance(body, dict):
             raise ValueError('Send {"id": "inventory", "name": "Inventory", "project_type"?: "inventory"}.')
-        taken = {e.id for e in self.catalog} | {str(e["id"]) for e in self.listing()}
+        taken = {f.id for f in self.built_in} | {str(e["id"]) for e in self.listing()}
         raw_name = body.get("name")
         try:
             ident = folder_rules.check_id(body.get("id"), taken)

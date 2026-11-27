@@ -1,27 +1,29 @@
-"""Extensions: optional packages that plug into this one app (Plans/editions.plan.md, the owner 2026-11-17).
+"""The built-in features and the library's folder extensions (Plans/editions.plan.md; the owner, 2026-11-27:
+"Also I think all extensions should be built in now", merged into the one package, with no Remove).
 
-An extension is a package that registers itself under the entry-point group `swissarmybench.extensions`
-(its entry point names a module: `accounting = "swissarmybench_accounting.extension"`). The base finds the
-installed ones here; nothing else in the shared code names one.
+Streamlit, Accounting, Power Apps, Power BI, Git and GitHub Copilot were packages of their own, installed and
+removed on the Extensions page. They are built in now: each still its own package in the one wheel
+(`swissarmybench_<id>`, its module `swissarmybench_<id>.extension` declaring what it adds), always on, on
+every install. BUILT_IN names them; nothing else in the shared code names one. The user's own folder
+extensions (the
+library's extensions/<id>/) plug in the same way and stay installable and removable.
 
-  extension_on(id)  the one capability check: installed (its entry point, or a folder in the library that
-                    loaded), or named in SWISSARMYBENCH_EXTENSIONS (a comma list: a checkout or a test turns
-                    one on without installing it; "-accounting" turns an installed one off)
-  load(id)          its module (None: off, or it cannot be imported)
-  enabled()         the on ones' modules, in id order
+  extension_on(id)  the one capability check: built in, or a folder in the library that loaded
+  load(id)          its module (None: not one, or it cannot be imported)
+  enabled()         the built-in features' modules in their order, then the library's folders'
   folders()         the library's folder extensions (its extensions/<id>/, Plans/folder-extensions.plan.md):
                     each loaded as the package sab_ext_<id>, or kept with why not (its error, its missing
-                    packages, a package of the same id winning); use_library(path): the server's library
+                    packages, a built-in feature of the same id winning); use_library(path): the server's
   contract(module)  its contract.json (domain/project_contract.py), the project type it adds
-  modes()           every project type's mode, as data: the base's (BI) and each on extension's MODE
-  manifest(module)  its manifest: every module attribute an extension may declare, read once into one typed
+  modes()           every project type's mode, as data: the base's (BI) and each feature's MODE
+  manifest(module)  its manifest: every module attribute a feature may declare, read once into one typed
                     record (Manifest); an upper-case name that is none of them is reported (`unknown`)
   mode_of(type)     a project type's mode (an unknown or missing type: the base's)
 
 A mode is the working set a project type sets (Plans/editions.plan.md, "Project modes"): the canvas kinds,
 the blade and function families shown first, the languages, the extra cell kinds, the agent's tool group
 and the export. It is declared, never coded: shared code reads these fields, and never asks which type it
-is. Until the manifest boundary exists the extension's MODE lives in its extension module (the entry point).
+is.
 
 Standard library and the domain's rules only (the MCP server reads it to order its tools).
 """
@@ -115,12 +117,20 @@ def manifest(module: ModuleType) -> Manifest:
     return made
 
 
-GROUP = "swissarmybench.extensions"
-VARIABLE = "SWISSARMYBENCH_EXTENSIONS"
+# The built-in features (the owner, 2026-11-27): {id: its module}. Each is its own package in the one wheel.
+# In the order their project types and rail areas are offered (Streamlit first, as when it alone came with
+# every install).
+BUILT_IN: dict[str, str] = {
+    "streamlit": "swissarmybench_streamlit.extension",
+    "accounting": "swissarmybench_accounting.extension",
+    "powerapps": "swissarmybench_powerapps.extension",
+    "git": "swissarmybench_git.extension",
+    "powerbi": "swissarmybench_powerbi.extension",
+    "copilot": "swissarmybench_copilot.extension",
+}
 
 # The base's own project type: a BI project (a notebook as its deliverable); every family shows (an empty
-# list: all). An extension that is on may add to it (its BASE_MODE_ADDS: the preinstalled Streamlit
-# extension's canvas, offered in a BI project as before it was an extension).
+# list: all). A feature may add to it (its BASE_MODE_ADDS: Streamlit's canvas, offered in a BI project too).
 BASE_MODE: dict[str, Any] = {
     "type": "bi",
     "name": "BI",
@@ -180,90 +190,53 @@ _ROUTE_FIELDS = ("name", "language", "run", "preview", "grid", "types", "install
 _MODE_FIELDS = ("canvases", "families", "languages", "cell_kinds", "tools", "export")
 
 
-def _said(environ: dict[str, str] | None = None) -> tuple[set[str], set[str]]:
-    """The variable's ids turned on, and the ones turned off ("-id")."""
-    raw = (os.environ if environ is None else environ).get(VARIABLE, "")
-    words = [w.strip().lower() for w in raw.split(",") if w.strip()]
-    return {w for w in words if not w.startswith("-")}, {w[1:] for w in words if w.startswith("-")}
+def built_in() -> list[ModuleType]:
+    """The built-in features' modules, in their order (one that cannot be imported here is left out: the
+    app starts anyway)."""
+    return [m for i in BUILT_IN if (m := _package(i)) is not None]
 
 
-# The entry points read once per process (every package's metadata is read for them: 10 ms a request), again
-# when the import path changes. An extension's Install and Remove restart the app (server/updater.py).
-_installed: tuple[tuple[str, ...], dict[str, str]] | None = None
-
-
-def installed() -> dict[str, str]:
-    """The installed extensions' entry points: {id: "module"}."""
-    global _installed
-    path = tuple(sys.path)
-    if _installed is None or _installed[0] != path:
-        try:
-            found = {ep.name.lower(): ep.value for ep in importlib.metadata.entry_points(group=GROUP)}
-        except Exception:  # a broken install never stops the app
-            found = {}
-        _installed = (path, found)
-    return dict(_installed[1])
-
-
-def forget_installed() -> None:
-    """Read the entry points again on the next ask (an install in this process: tests, development)."""
-    global _installed
-    _installed = None
-
-
-def _package_on(name: str, environ: dict[str, str] | None = None) -> bool:
-    on, off = _said(environ)
-    return name not in off and (name in on or name in installed())
-
-
-def extension_on(extension: str, environ: dict[str, str] | None = None) -> bool:
-    """Is this extension on: installed (a package, or a folder in the library that loaded) or named in
-    SWISSARMYBENCH_EXTENSIONS, and not turned off there."""
+def extension_on(extension: str) -> bool:
+    """Is this one on: a built-in feature, or a folder in the library that loaded."""
     name = extension.lower()
-    if _package_on(name, environ):
+    if name in BUILT_IN:
         return True
-    _, off = _said(environ)
     found = folders().get(name)
-    return name not in off and found is not None and found.module is not None
+    return found is not None and found.module is not None
 
 
 def _package(name: str) -> ModuleType | None:
-    if not _package_on(name):
+    if name not in BUILT_IN:
         return None
-    target = installed().get(name, f"swissarmybench_{name}.extension")
     try:
-        return importlib.import_module(target.split(":")[0])
-    except Exception:  # named but not importable here: off
+        return importlib.import_module(BUILT_IN[name])
+    except Exception:  # a broken install: without it rather than no app
         return None
 
 
 def load(extension: str) -> ModuleType | None:
-    """The extension's module when it is on (its entry point's, else `swissarmybench_<id>.extension`; else
-    the library's folder of that id)."""
+    """Its module: a built-in feature's, else the library's folder of that id (None: not on)."""
     name = extension.lower()
-    module = _package(name)
-    if module is not None or not extension_on(name):
-        return module
+    if name in BUILT_IN:
+        return _package(name)
     found = folders().get(name)
     return found.module if found is not None else None
 
 
 def enabled() -> list[ModuleType]:
-    """Every extension that is on and imports, in id order: the packages', then the library's folders'."""
-    on, off = _said()
-    packages = {i: m for i in sorted(set(installed()) | on) if (m := _package(i)) is not None}
-    for ident, found in folders().items():
-        if found.module is not None and ident not in off and ident not in packages:
-            packages[ident] = found.module
-    return [packages[i] for i in sorted(packages)]
+    """Every feature that is on and imports: the built-in ones in their order, then the library's folders' in
+    id order."""
+    on = built_in()
+    return [*on, *(f.module for i, f in folders().items() if f.module is not None and i not in BUILT_IN)]
 
 
 # ===== folder extensions: the library's extensions/<id>/ (Plans/folder-extensions.plan.md) =====
 #
-# Found at start beside the packages (the folders are read once per process, again after forget_folders: New
+# Found at start beside the built-in features (the folders are read once per process, again after
+# forget_folders: New
 # extension, Remove, Load again), each loaded as the package sab_ext_<id> (its folder that package's only
 # path). One that fails is kept with its error (never stops the app), one whose REQUIRES are missing is not
-# loaded until they are installed, and one with a package's id loses to the package. Its contract.json (when
+# loaded until they are installed, and one with a built-in feature's id loses to it. Its contract.json (when
 # it adds a project type) gives its MODE and its New project files where extension.py declares neither.
 
 FOLDERS_VARIABLE = "SWISSARMYBENCH_EXTENSION_FOLDERS"  # a folder of folder extensions: tests and development
@@ -278,7 +251,7 @@ class Folder:
     module: ModuleType | None = None
     error: str = ""
     missing: list[str] = field(default_factory=list)
-    shadowed: bool = False  # a package of the same id is on: it wins
+    shadowed: bool = False  # a built-in feature has this id: it wins
     contract: dict[str, Any] | None = None
     # Its literal NAME, VERSION... read before it loads (its card when it does not).
     manifest: dict[str, Any] = field(default_factory=dict)
@@ -355,7 +328,7 @@ def _missing(requires: list[str]) -> list[str]:
 def _load_folder(ident: str, path: Path) -> Folder:
     """One folder: its contract checked, its REQUIRES present, then extension.py imported as sab_ext_<id>."""
     found = Folder(ident, path)
-    if _package_on(ident):
+    if ident in BUILT_IN:
         found.shadowed, found.error = True, folder_rules.shadowed(ident)
         return found
     try:
@@ -589,6 +562,6 @@ def areas() -> list[dict[str, Any]]:
 
 
 def mode_of(project_type: str | None) -> dict[str, Any]:
-    """A project type's mode; the base's for no project, or a type whose extension is not on."""
+    """A project type's mode; the base's for no project, or a type nothing here adds."""
     found = modes()
     return next((m for m in found if m["type"] == project_type), found[0])

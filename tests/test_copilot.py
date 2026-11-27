@@ -17,7 +17,6 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench import extensions
 from swissarmybench.cli import api as cli_api
 from swissarmybench.cli import commands as base_commands
 from tests.conftest import AGENT, AUTH, make_client
@@ -57,7 +56,6 @@ def files(tmp_path: Path) -> dict[str, Path]:
 
 @pytest.fixture
 def switched_on(monkeypatch: pytest.MonkeyPatch, files: dict[str, Path]) -> None:
-    monkeypatch.setenv(extensions.VARIABLE, "copilot")
     monkeypatch.setenv("SWISSARMYBENCH_COPILOT_STANDIN", str(STANDIN))
     monkeypatch.setenv("COPILOT_STANDIN_LOG", str(files["log"]))
     monkeypatch.setenv("COPILOT_STANDIN_STATE", str(files["state"]))
@@ -89,25 +87,13 @@ def complete(
 # ===== off and on =====
 
 
-def test_off_nothing_of_it_is_there(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(extensions.VARIABLE, raising=False)
-    with make_client(tmp_path) as client:
-        refused = client.get("/copilot", headers=AUTH)
-        assert refused.status_code == 404 and refused.json()["extension"] == "copilot"
-        mode = ok(client.get("/app/mode", headers=AUTH))["mode"]
-        assert mode["inline_completion"] == []
-        listed = {e["id"]: e for e in ok(client.get("/extensions", headers=AUTH))["extensions"]}
-        assert listed["copilot"]["status"] == "available" and "panel" not in listed["copilot"]
-        assert all(not n.startswith("copilot_") for n in base_commands.REGISTRY)
-
-
 def test_on_its_inline_completion_and_panel_are_declared(client: TestClient) -> None:
     for mode in ok(client.get("/app/modes", headers=AUTH))["modes"]:
         provider = mode["inline_completion"][0]
         assert provider["name"] == "GitHub Copilot" and provider["complete"] == "/copilot/complete"
         assert provider["languages"] == ["python", "sql"] and provider["event"] == "/copilot/event"
     listed = {e["id"]: e for e in ok(client.get("/extensions", headers=AUTH))["extensions"]}
-    assert listed["copilot"]["status"] == "installed" and listed["copilot"]["panel"] == "/copilot/panel"
+    assert listed["copilot"]["status"] == "builtin" and listed["copilot"]["panel"] == "/copilot/panel"
 
 
 def test_before_sign_in_nothing_is_sent_and_it_is_off(client: TestClient, files: dict[str, Path]) -> None:
@@ -340,7 +326,6 @@ def test_install_puts_the_pinned_package_in_the_state_folder(
         "dist = os.path.join(prefix, 'node_modules', '@github', 'copilot-language-server', 'dist')\n"
         "os.makedirs(dist, exist_ok=True); open(os.path.join(dist, 'language-server.js'), 'w').write('')\n",
     )
-    monkeypatch.setenv(extensions.VARIABLE, "copilot")
     monkeypatch.delenv("SWISSARMYBENCH_COPILOT_STANDIN", raising=False)
     monkeypatch.setenv("PATH", str(bin_dir))
     with make_client(tmp_path) as client:
@@ -367,7 +352,6 @@ def test_install_puts_the_pinned_package_in_the_state_folder(
 def test_node_missing_is_the_missing_tool_answer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     empty = tmp_path / "empty-bin"
     empty.mkdir()
-    monkeypatch.setenv(extensions.VARIABLE, "copilot")
     monkeypatch.delenv("SWISSARMYBENCH_COPILOT_STANDIN", raising=False)
     monkeypatch.setenv("PATH", str(empty))
     with make_client(tmp_path) as client:

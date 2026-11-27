@@ -271,7 +271,7 @@ def test_no_function_of_a_one_file_module_is_over_80_lines(name: str) -> None:
 # The composition root and the command registry (craft review 2026-11-22, review B2): ceilings at their size
 # after their use cases went to the services and the commands to cli/commands_<area>.py. They only shrink:
 # lower one when a file gets shorter, and put new code in a service or an area's module, never here.
-SHRINKING = {"bootstrap.py": 2009, "cli/commands.py": 472}
+SHRINKING = {"bootstrap.py": 1976, "cli/commands.py": 464}
 
 
 @pytest.mark.parametrize("name", sorted(SHRINKING))
@@ -312,7 +312,8 @@ for module in {CLIENT_MODULES!r}:
 foreign = sorted(
     name for name in sys.modules
     if name.split(".")[0] not in sys.stdlib_module_names
-    and name.split(".")[0] not in ("swissarmybench", "__main__")
+    and name.split(".")[0] != "__main__"
+    and not name.split(".")[0].startswith("swissarmybench")  # the app's package and each built-in feature's
     and not name.startswith("_")
 )
 ours = sorted(name for name in sys.modules if name.startswith("swissarmybench"))
@@ -329,8 +330,11 @@ print(ours)
     assert result.returncode == 0, result.stderr
     foreign, ours = result.stdout.strip().splitlines()
     assert foreign == "[]"
-    # None of the server's own modules came along either.
+    # None of the server's own modules came along either, nor a built-in feature's beyond what it declares
+    # (its extension.py) and its commands: the `sab` command lists every feature's tools with no server.
     loaded = ast.literal_eval(ours)
     assert [
         m for m in loaded if m.split(".")[1:2] in (["server"], ["services"], ["mcp"], ["bootstrap"])
     ] == []
+    features = [m for m in loaded if m.split(".")[0] != "swissarmybench" and "." in m]
+    assert features and all(m.split(".")[1] in ("extension", "commands") for m in features), features

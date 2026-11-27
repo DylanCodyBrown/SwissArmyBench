@@ -37,7 +37,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_project_summary.py  Home's summary of the open project: one answer from the other services'
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_modes.py          project modes: the open project's type and its working set (canvases, families)
-  (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
+  (each feature's)         a built-in feature or a folder extension brings its own routes (extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   frontend_pages.py        an old page's address answers with its Blazor page (OldAddresses)
@@ -60,7 +60,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_script_runs.py    a script's run settings
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X
-  routes_extensions.py     the Extensions page: the catalog, Install and Remove (the updater's helper)
+  routes_extensions.py     the Extensions page: the library's folder extensions, New extension
   routes_claude.py         Launch Claude: Claude Code in a terminal, or Claude Desktop (the user's only)
   streamlit_proxy.py       live pages passed through under their own secret (the extensions' Streamlit and dev
                            servers mount it with their own prefix)
@@ -78,7 +78,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 from urllib.parse import urlencode
@@ -190,17 +190,6 @@ async def _no_such_address(request: Request, error: Exception) -> Response:
     return JSONResponse({"error": words, "where": request.url.path}, status_code=status)
 
 
-def not_installed(name: str, ident: str) -> Callable[[Request], Awaitable[Response]]:
-    """The answer of an extension's door while it is not installed here: which one, and where to add it."""
-
-    async def answer(request: Request) -> Response:
-        words = f"This is the {name} extension's, and it is not installed here: install it on the Extensions "
-        words += "page."
-        return JSONResponse({"error": words, "extension": ident}, status_code=404)
-
-    return answer
-
-
 def versioned_etag(etag: str, version: str) -> str:
     """The file's ETag with the app's version in it: another version's saved copy never answers a 304, even
     when its file's time and size happen to be the same (an update's install sets both)."""
@@ -281,9 +270,6 @@ def create_app(
     )
     for extension in ctx.switched_on:
         session_log_rules.RULES.update(manifest(extension).SESSION_RULES or {})
-    # The catalog's extensions that are not on: a call on their routes says which one it needs.
-    on_ids = {manifest(extension).ID.lower() for extension in ctx.switched_on}
-    missing = [e for e in ctx.extensions.catalog if e.id not in on_ids]
 
     async def session(request: Request) -> Response:
         # The guard let the request in (the token, or a good cookie). POST: the cookie for this start.
@@ -383,7 +369,6 @@ def create_app(
         vault_names = asyncio.create_task(
             ctx.vault_names_at_start.at_start_later(ctx.settings.catalogs_start_wait_seconds)
         )
-        ctx.extensions.bring_back()  # a preinstalled extension an update from a built-in version lacks
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
@@ -478,8 +463,6 @@ def create_app(
                     if not manifest(extension).FOLDER
                     for route in extension.routes(ctx.seams)
                 ),
-                # Each catalog extension that is not on here: its door answers which extension it is.
-                *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
                 *routes_explorer.routes(ctx.explorer),
                 *routes_navigation.routes(ctx.navigation),
                 *routes_pop_outs.routes(ctx.navigation.pop_outs),

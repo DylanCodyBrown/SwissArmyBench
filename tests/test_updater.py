@@ -68,8 +68,6 @@ class FakeOps:
         self.held -= 1
         return self.held < 0
 
-    fetch_fails = False
-
     def end(self, pid: int) -> None:
         self.did.append(f"end {pid}")
         self.ended = True
@@ -81,12 +79,6 @@ class FakeOps:
         self.did.append(f"quit {Path(record).name}")
         self.ended = self.ended or self.quits
         return self.quits
-
-    def fetch(self, url: str, folder: str) -> str:
-        if self.fetch_fails:
-            raise OSError(f"{url.rsplit('/', 1)[-1]}: HTTP Error 404: Not Found")
-        self.did.append("fetch")
-        return f"{folder}/{url.rsplit('/', 1)[-1]}"
 
 
 def plan() -> dict[str, Any]:
@@ -360,35 +352,6 @@ def test_the_helper_upgrades_a_uv_tool_and_the_new_version_starts(tmp_path: Path
         _stop_started_from(tools)
 
 
-def test_an_extension_wheel_is_downloaded_by_the_helper_and_given_to_uv_as_a_file() -> None:
-    wheel = "https://github.com/o/r/releases/download/v0.0.2/sab_ledger-0.0.2-py3-none-any.whl"
-    ran: list[list[str]] = []
-    ops = FakeOps({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
-    real_run = ops.run
-
-    def run(command: list[str], environ: dict[str, str]) -> tuple[int, str]:
-        ran.append(command)
-        return real_run(command, environ)
-
-    ops.run = run  # type: ignore[method-assign]
-    shaped = plan() | {"install": ["uv", "tool", "install", "--force", "x==0.0.2", "--with", wheel]}
-    steps: list[str] = []
-    assert updater.run(shaped, ops, steps) == "updated"
-    assert steps[:3] == ["wait", "download", "install"]
-    assert ran[0][-2] == "--with" and ran[0][-1].endswith("/sab_ledger-0.0.2-py3-none-any.whl")
-    assert not ran[0][-1].startswith("https://")
-
-
-def test_a_wheel_that_cannot_be_downloaded_is_said_and_the_old_version_starts_again() -> None:
-    wheel = "https://github.com/o/r/releases/download/v0.0.2/sab_ledger-0.0.2-py3-none-any.whl"
-    ops = FakeOps({"install": []}, ["0.0.1"])
-    ops.fetch_fails = True
-    shaped = plan() | {"install": ["uv", "tool", "install", "--force", "x==0.0.2", "--with", wheel]}
-    assert updater.run(shaped, ops) == "restored"
-    assert "install" not in ops.did
-    assert ops.notes[0]["reason"].startswith("An extension could not be downloaded: sab_ledger-0.0.2")
-
-
 def test_the_desktop_app_is_ended_and_the_install_goes_on() -> None:
     """The desktop app (desktop.json's pid) may still run when the server stops for an update: the helper
     ends it after a moment's grace, installs, and its start step starts the new version's app."""
@@ -457,7 +420,7 @@ def test_an_app_that_cannot_be_ended_is_said() -> None:
     assert ops.notes[-1]["reason"] == "The app's window did not close." and "install" not in ops.did
 
 
-def test_an_update_and_an_extension_change_keep_the_users_own_packages(tmp_path: Path) -> None:
+def test_an_update_keeps_the_users_own_packages(tmp_path: Path) -> None:
     """The owner (2026-11-18): "everytime I add an extension or update, im having to reinstall all of the
     imports" (No module named 'azure'): what Install now added goes `--with` into the new environment."""
     prefix = tmp_path / "tools" / "swissarmybench"
@@ -486,15 +449,8 @@ def test_an_update_and_an_extension_change_keep_the_users_own_packages(tmp_path:
     update = json.loads(Path(spawned[-1][-1]).read_text())
     assert update["install"][-2:] == ["--with", "azure-identity"]
     assert update["restore"][-2:] == ["--with", "azure-identity"]  # a failed update gets them back too
-    helper.launch_change(["https://example.invalid/ledger.whl"], [])
-    change = json.loads(Path(spawned[-1][-1]).read_text())
-    assert change["install"][-4:] == [
-        "--with",
-        "https://example.invalid/ledger.whl",
-        "--with",
-        "azure-identity",
-    ]
-    assert change["restore"][-2:] == ["--with", "azure-identity"]
+    # Nothing else goes with it: every feature is in the app's one wheel (no extension's wheel).
+    assert update["install"].count("--with") == 1 and not hasattr(helper, "launch_change")
     for handed in spawned:
         shutil.rmtree(Path(handed[-1]).parent)
 
@@ -502,7 +458,7 @@ def test_an_update_and_an_extension_change_keep_the_users_own_packages(tmp_path:
 def test_when_the_restore_fails_too_the_current_version_alone_is_put_back() -> None:
     """The owner, 2026-11-24: after an extension's Install the app would not open at all ("uv trampoline
     failed to canonicalize script path"): uv had taken the old environment away and neither the install nor
-    the restore (both with the extensions) put one back. The last resort is the current version alone."""
+    the restore (both with what went `--with`) put one back. The last resort is the current version alone."""
     shaped = rules.plan_update(
         version="0.0.2",
         current="0.0.1",
@@ -513,12 +469,12 @@ def test_when_the_restore_fails_too_the_current_version_alone_is_put_back() -> N
         wait_pids=[],
         info_file="server.json",
         note_file="update_failed.json",
-        wheels=("swissarmybench_git-0.0.2.whl",),
-        restore_wheels=("swissarmybench_git-0.0.1.whl",),
+        wheels=("azure-identity",),
+        restore_wheels=("azure-identity",),
     ).to_json()
     assert shaped["restore_bare"][-1] == "swissarmybench[server]==0.0.1"
     assert "--with" not in shaped["restore_bare"]
-    failed = (2, "error: the extension could not be resolved")
+    failed = (2, "error: azure-identity could not be resolved")
 
     class Ops(FakeOps):
         def run(self, command: list[str], environ: dict[str, str]) -> tuple[int, str]:
@@ -529,7 +485,7 @@ def test_when_the_restore_fails_too_the_current_version_alone_is_put_back() -> N
     ops = Ops({"with": [failed] * 4, "bare": [(0, "")]}, starts=[None, "0.0.1"])
     assert run(shaped, ops) == "restored"
     assert ops.did == ["with", "with", "with", "start", "with", "bare", "start"]
-    assert "without its extensions" in ops.notes[-1]["reason"]
+    assert "without the packages you added" in ops.notes[-1]["reason"]
 
 
 def test_a_tool_folder_still_held_stops_the_change_before_uv_touches_it() -> None:

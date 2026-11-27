@@ -29,7 +29,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
@@ -73,8 +72,6 @@ class Ops(Protocol):
 
     def free(self, folder: str) -> bool: ...
 
-    def fetch(self, url: str, folder: str) -> str: ...
-
     def end(self, pid: int) -> None: ...
 
     def quit(self, record: str) -> bool: ...
@@ -93,17 +90,6 @@ def _why(output: str) -> str:
 
 def _gone(ops: Ops, pid: int) -> bool:
     return not ops.alive(pid)
-
-
-def local_wheels(command: list[str], ops: Ops, folder: str) -> list[str]:
-    """`command` with each `--with https://...` wheel downloaded first and given to uv as a file: the
-    helper follows the release's download redirect itself (uv failed on GitHub's in a proxied network),
-    and a download that fails is said plainly. OSError when one cannot be downloaded."""
-    found = list(command)
-    for i in range(1, len(found)):
-        if found[i - 1] == "--with" and found[i].startswith("https://"):
-            found[i] = ops.fetch(found[i], folder)
-    return found
 
 
 def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
@@ -160,12 +146,6 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
             reason = "" if ops.free(folder) else IN_USE
 
     install = list(plan["install"])
-    if not reason and any(part.startswith("https://") for part in install):
-        steps.append("download")
-        try:
-            install = local_wheels(install, ops, tempfile.mkdtemp(prefix="sab-wheels-"))
-        except OSError as error:
-            reason = f"An extension could not be downloaded: {error}"
     steps.append("install")
     for attempt in range(INSTALL_ATTEMPTS if not reason else 0):
         code, output = ops.run(install, environ)
@@ -196,10 +176,6 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
             return "restored"
     steps.append("restore")
     restore = list(plan["restore"])
-    try:
-        restore = local_wheels(restore, ops, tempfile.mkdtemp(prefix="sab-wheels-"))
-    except OSError:
-        pass  # uv tries the addresses itself
     code, _ = ops.run(restore, environ)
     if code == 0:
         ops.start(list(plan["start"]), environ)
@@ -207,7 +183,7 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
             return "restored"
     bare = list(plan.get("restore_bare") or [])
     if bare and bare != restore:
-        # The last resort: the current version alone, so the app opens again (its extensions to install anew).
+        # The last resort: the current version alone, so the app opens again (the user's own packages anew).
         steps.append("restore bare")
         code, _ = ops.run(bare, environ)
         if code == 0:
@@ -217,8 +193,8 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
                     plan["note_file"],
                     {
                         "version": version,
-                        "reason": f"{reason} Swiss Army Bench {current} was put back without its extensions: "
-                        "install them again from the Extensions page.",
+                        "reason": f"{reason} Swiss Army Bench {current} was put back without the packages "
+                        "you added: install them again when something asks for one.",
                     },
                 )
                 return "restored"
@@ -391,19 +367,6 @@ class SystemOps:
             trial.rename(folder)
         return True
 
-    def fetch(self, url: str, folder: str) -> str:
-        """The wheel at `url` (this version's GitHub release) saved in `folder` under its own name."""
-        name = url.rsplit("/", 1)[-1]
-        if not name.endswith(".whl") or "/" in name or "\\" in name or name.startswith("."):
-            raise OSError(f"{url} is not a wheel's address.")
-        target = Path(folder) / name
-        try:
-            with urllib.request.urlopen(url, timeout=120) as answer, target.open("wb") as out:  # noqa: S310
-                shutil.copyfileobj(answer, out)
-        except (OSError, ValueError) as error:
-            raise OSError(f"{name}: {error}") from None
-        return str(target)
-
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
@@ -473,7 +436,6 @@ class Helper:
         spawn: Callable[[list[str]], object] = detached,
         uv: Callable[[], str | None] = find_uv,
         windows: bool = sys.platform == "win32",
-        kept: Callable[[str], list[str]] | None = None,
         own: Callable[[], list[str]] | None = None,
     ) -> None:
         self.info_file = info_file
@@ -482,8 +444,6 @@ class Helper:
         self._spawn = spawn
         self._uv = uv
         self.windows = windows
-        # The installed extensions' wheels at a version (services/extensions.py): an update keeps them.
-        self.kept: Callable[[str], list[str]] = kept or (lambda version: [])
         # The user's own packages here (what Install now added: azure-identity), kept `--with` across the new
         # environment uv makes (the owner, 2026-11-18: "im having to reinstall all of the imports").
         self.own: Callable[[], list[str]] = own or self._own_here
@@ -534,31 +494,8 @@ class Helper:
             environ={"UV_TOOL_DIR": str(self.prefix.parent)},
             # Windows: what else runs from its folder (an editor's MCP server) is stopped first.
             stop_in=str(self.prefix) if self.windows else "",
-            wheels=(*self.kept(version), *own),
-            restore_wheels=(*self.kept(__version__), *own),
-        )
-        self._hand_over(plan.to_json())
-
-    def launch_change(self, wheels: list[str], before: list[str]) -> None:
-        """Install or Remove an extension: this same version with `wheels` (`before` again on a failure)."""
-        from swissarmybench import __version__
-        from swissarmybench.domain.extensions import plan_change
-
-        uv = self._ready()
-        own = self.own()
-        plan = plan_change(
-            current=__version__,
-            uv=uv,
-            tool_python=sys.executable,
-            python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
-            wheels=[*wheels, *own],
-            before=[*before, *own],
-            wait_pids=[os.getpid()],
-            end_pids=[_app_pid(self.info_file.with_name("desktop.json"))],
-            info_file=str(self.info_file),
-            note_file=str(self.note_file),
-            environ={"UV_TOOL_DIR": str(self.prefix.parent)},
-            stop_in=str(self.prefix) if self.windows else "",
+            wheels=tuple(own),
+            restore_wheels=tuple(own),
         )
         self._hand_over(plan.to_json())
 

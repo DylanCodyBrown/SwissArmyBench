@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -15,7 +14,6 @@ public sealed partial class TeamFlowDialog
     private TeamStatus? _status;
     private Exception? _error;
     private string? _busyWords;
-    private bool _installing;
     private IReadOnlyList<TeamRepository> _repositories = [];
     private string _search = string.Empty;
     private IReadOnlyList<string> _owners = [];
@@ -34,8 +32,8 @@ public sealed partial class TeamFlowDialog
     public EventCallback OnClose { get; set; }
 
     private IReadOnlyList<(string Key, string Name)> Steps => Action == "join"
-        ? [("install", "GitHub sync"), ("sign_in", "Sign in"), ("pick", "Repository"), ("setup", "Set up")]
-        : [("install", "GitHub sync"), ("sign_in", "Sign in"), ("name", "Name"), ("setup", "Set up")];
+        ? [("sign_in", "Sign in"), ("pick", "Repository"), ("setup", "Set up")]
+        : [("sign_in", "Sign in"), ("name", "Name"), ("setup", "Set up")];
 
     private IReadOnlyList<TeamRepository> Shown
     {
@@ -57,7 +55,7 @@ public sealed partial class TeamFlowDialog
         await GuardAsync("Looking at this computer…", async () =>
         {
             _status = await Settings.TeamAsync();
-            _at = !_status.SyncOn ? "install" : !_status.SignedIn ? "sign_in" : Action == "join" ? "pick" : "name";
+            _at = !_status.SignedIn ? "sign_in" : Action == "join" ? "pick" : "name";
         });
         if (_at == "pick")
         {
@@ -71,25 +69,6 @@ public sealed partial class TeamFlowDialog
                 _owner = _owners.FirstOrDefault() ?? string.Empty;
             });
         }
-    }
-
-    /// <summary>Install GitHub sync: the step kept over the app's restart, then Settings opens here again.</summary>
-    private async Task InstallAsync()
-    {
-        await GuardAsync("Installing…", async () =>
-        {
-            await Settings.TeamPendingAsync(Action);
-            try
-            {
-                var done = await Settings.InstallExtensionAsync(_status?.Needs?.Id ?? "git");
-                _installing = done.TryGetProperty("changing", out var changing) && changing.ValueKind != JsonValueKind.Null;
-            }
-            catch (ApiException)
-            {
-                await Settings.TeamPendingAsync(null);
-                throw;
-            }
-        });
     }
 
     private async Task SearchKeyAsync(KeyboardEventArgs e)

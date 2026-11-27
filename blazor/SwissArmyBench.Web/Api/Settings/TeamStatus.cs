@@ -4,7 +4,6 @@ namespace SwissArmyBench.Web.Api.Settings;
 public sealed record TeamStatus(
     string State,
     bool SyncOn,
-    TeamNeeds? Needs,
     string LocalProjects,
     bool LocalProjectsDefault,
     string LibraryFolder,

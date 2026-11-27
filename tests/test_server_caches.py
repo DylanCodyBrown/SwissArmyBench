@@ -189,29 +189,6 @@ def test_the_grammar_is_read_on_its_first_use_and_is_duckdbs() -> None:
     assert later.parse("SELECT 1") == now.parse("SELECT 1")
 
 
-def test_the_installed_extensions_are_read_once_and_again_when_forgotten(monkeypatch: Any) -> None:
-    import importlib.metadata
-
-    from swissarmybench import extensions
-
-    calls: list[str] = []
-
-    def points(group: str) -> list[Any]:
-        calls.append(group)
-        return []
-
-    extensions.forget_installed()
-    monkeypatch.setattr(importlib.metadata, "entry_points", points)
-    try:
-        assert extensions.installed() == {} and extensions.installed() == {}
-        assert len(calls) == 1
-        extensions.forget_installed()
-        extensions.installed()
-        assert len(calls) == 2
-    finally:
-        extensions.forget_installed()
-
-
 def test_the_index_and_guide_pages_are_read_again_when_they_change(tmp_path: Path) -> None:
     from swissarmybench.adapters.claude import ClaudeFiles
 
