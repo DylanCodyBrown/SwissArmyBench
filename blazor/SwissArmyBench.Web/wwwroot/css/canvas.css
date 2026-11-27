@@ -1423,9 +1423,10 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   font-size: 0.8rem;
   min-height: 32px;
   white-space: nowrap;
-  /* Narrow, the bar wraps onto a second line rather than cutting its tools off (the classic one overflows). */
-  flex-wrap: wrap;
-  row-gap: 2px;
+  /* One line always: the bar folds its tools away as its own width shrinks (the container rules below: the sizing
+     into its "…" menu, then the buttons to their icons), whatever the rail and the panes leave it. */
+  flex-wrap: nowrap;
+  container: cvs-bottom / inline-size;
 }
 .cvs-bottom .btn {
   padding: 2px 8px;
@@ -1505,31 +1506,39 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
 .cvs-sizing-more {
   display: none;
 }
-@media (max-width: 1350px) {
-  .cvs-bottom .cvs-sizing {
+/* The bar's own width decides (a container rule, never the window's: the rail may show its names or not). Too
+   narrow for everything, the sizing goes into More sizing ("…"). */
+@container cvs-bottom (max-width: 1350px) {
+  .cvs-sizing {
     display: none;
   }
   .cvs-sizing-more {
     display: inline-flex;
   }
 }
-/* Narrower still, the panes' buttons and the layouts fold to their icons (their titles still name them), and the
-   spacer that pushes the zoom to the right gives way so the zoom wraps with the rest. */
-@media (max-width: 1000px) {
-  .cvs-bottom .cvs-toggle .btn-label {
+/* Narrower still, the panes' buttons fold to their icons (their titles still name them). */
+@container cvs-bottom (max-width: 1060px) {
+  .cvs-toggle .btn-label {
     display: none;
+  }
+}
+/* At the app's least width with the rail's names showing, Desktop and Phone fold to their icons too. */
+@container cvs-bottom (max-width: 860px) {
+  .cvs-layouts .cvs-seg-item {
+    font-size: 0;
+  }
+  .cvs-layouts .cvs-seg-item .icon-svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+/* A window under the app's least width (1,000 px): the bar wraps rather than cutting its tools off. */
+@media (max-width: 900px) {
+  .cvs-bottom {
+    flex-wrap: wrap;
   }
   .cvs-bottom .cvs-grow {
     flex-basis: 0;
-  }
-}
-@media (max-width: 640px) {
-  .cvs-bottom .cvs-layouts .cvs-seg-item {
-    font-size: 0;
-  }
-  .cvs-bottom .cvs-layouts .cvs-seg-item .icon-svg {
-    width: 16px;
-    height: 16px;
   }
 }
 .cvs-menu {
@@ -1596,15 +1605,6 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   align-items: center;
   color: var(--fg);
 }
-.cvs-landing-old {
-  display: flex;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-.cvs-bottom .cvs-toggle[aria-pressed="true"],
-.side-toggle[aria-pressed="true"] {
-  background: var(--selected);
 /* The landing page: the shared header over a card per canvas (CanvasCard): a small picture of its first page. */
 .canvas-cards {
   grid-template-columns: repeat(auto-fill, minmax(280px, 340px));
@@ -1643,6 +1643,15 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
 .canvas-card-box.widget {
   background: var(--accent-soft);
 }
+.cvs-landing-old {
+  display: flex;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cvs-bottom .cvs-toggle[aria-pressed="true"],
+.side-toggle[aria-pressed="true"] {
+  background: var(--selected);
   color: var(--fg);
   border-color: var(--border-strong);
 }

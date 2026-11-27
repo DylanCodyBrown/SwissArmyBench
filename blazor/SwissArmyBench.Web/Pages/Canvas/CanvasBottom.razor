@@ -17,7 +17,7 @@
     <span class="cvs-seg cvs-layouts" role="group" aria-label="Layout">
         @foreach (var (value, label) in _layouts)
         {
-            <button type="button" class="cvs-seg-item @(View.Layout == value ? "on" : null)" aria-pressed="@(View.Layout == value ? "true" : "false")" data-layout="@value" @onclick="() => OnLayout.InvokeAsync(value)">
+            <button type="button" class="cvs-seg-item @(View.Layout == value ? "on" : null)" aria-pressed="@(View.Layout == value ? "true" : "false")" data-layout="@value" title="@label" @onclick="() => OnLayout.InvokeAsync(value)">
                 <Icon Name="@value" />@label
             </button>
         }
