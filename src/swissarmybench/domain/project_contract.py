@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from typing import Any
 
 FORMAT = 1
@@ -294,6 +295,15 @@ def as_mode(contract: dict[str, Any]) -> dict[str, Any]:
         "areas": list(contract["areas"]),
         **contract["words"],
     }
+
+
+def shown(listed: str, names: Iterable[str], name: str) -> str:
+    """A contract's `listed` path as a person reads it, its {slug} filled in: the project's own file that
+    matches it (the first by name), else the name New project gives it (`name`: the project's)."""
+    if "{slug}" not in listed:
+        return listed
+    found = sorted(n for n in names if matches(n, listed))
+    return found[0] if found else listed.replace("{slug}", slug(name))
 
 
 def matches(path: str, listed: str) -> bool:

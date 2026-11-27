@@ -139,3 +139,16 @@ def test_readme_s_variables_list_the_documents_that_use_them() -> None:
     assert facts["variables"] == ["SHOP_KEY"]
     readme = wanted[rules.README] or ""
     assert "SHOP_KEY" in readme and "notebook data.ipynb" in readme
+
+
+def test_a_listed_path_is_shown_with_its_name_filled_in() -> None:
+    """The contract's `{slug}` never reaches the screen: the project's own file when it has one, else the
+    name New project would give it."""
+    from swissarmybench.domain import project_contract
+
+    names = ["README.md", "sales_board.canvas.json", "builds/1/app.py"]
+    assert project_contract.shown("{slug}.canvas.json", names, "Made Up") == "sales_board.canvas.json"
+    assert project_contract.shown("{slug}.canvas.json", ["README.md"], "Made Up") == "made_up.canvas.json"
+    assert project_contract.shown("workbooks/{slug}.xlsx", [], "Q3 Review!") == "workbooks/q3_review.xlsx"
+    assert project_contract.shown("builds/", names, "Made Up") == "builds/"
+    assert project_contract.shown("shelves.md", names, "Made Up") == "shelves.md"

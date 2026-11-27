@@ -137,7 +137,7 @@ def test_a_new_streamlit_project_is_scaffolded(app: Built) -> None:
     # Nothing reads a connection yet: no adapter.py, no connections.py (the scaffold grows as the user works).
     assert status["connections"] == [] and status["to_write"] == []
     assert status["deliverable"]["deliverable"] == "a Streamlit app"
-    assert [f["path"] for f in status["deliverable"]["files"]] == ["{slug}.canvas.json", "builds/"]
+    assert [f["path"] for f in status["deliverable"]["files"]] == [CANVAS, "builds/"]
     assert agent("app_mode")["mode"]["tools"] == ["canvas_", "widgets_"]
 
 
