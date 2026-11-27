@@ -601,9 +601,22 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   font-size: 1.05rem;
   font-family: var(--mono, ui-monospace, monospace);
 }
+/* The words beside the name (Saved, Prebuilt: read-only) stay on one line and give way before the buttons. */
 .wg-saved {
+  min-width: 0;
+  overflow: hidden;
   font-size: 0.8rem;
   color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wg-page .ide-title {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+.wg-page .ide-name {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .wg-grow {
   flex: 1;
@@ -633,6 +646,7 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 .wg-props {
   display: flex;
   flex-direction: column;
+  padding: 8px 12px 12px;
 }
 .wg-props-title {
   margin: 0 0 8px;
