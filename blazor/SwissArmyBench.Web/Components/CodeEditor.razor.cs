@@ -109,8 +109,9 @@ public partial class CodeEditor
             _language = Language;
             _readOnly = ReadOnly;
             _known = Value;
-            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, path = Path, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline, menu = await MenuOptionsAsync() };
+            var options = new { value = Value, language = Language, readOnly = ReadOnly, readOnlyMessage = ReadOnlyMessage, grow = Grow, minLines = MinLines, intel = Intel is not null, theme = Theme.Effective, ide = OnIde.HasDelegate, path = Path, breakpoints = OnGutter.HasDelegate, zoom = Zoom, inline = InlineDocument is null ? [] : Inline, menu = await MenuOptionsAsync(), comments = Review is not null, reviewNotes = ReviewNotes() };
             _editor = await _module.InvokeAsync<IJSObjectReference>("create", _host, _self, options);
+            AttachReview();
             if (_focusWhenMade)
             {
                 await _editor.InvokeVoidAsync("focus");
@@ -300,6 +301,7 @@ public partial class CodeEditor
     public async ValueTask DisposeAsync()
     {
         Theme.Changed -= OnThemeChanged;
+        DetachReview();
         if (_editor is not null)
         {
             try

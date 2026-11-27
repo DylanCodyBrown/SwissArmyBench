@@ -122,7 +122,11 @@ public partial class WorkbenchPage
         {
             return;
         }
-        if (!force && doc.Dirty && !await Dialogs.AskYesNoAsync("Close", $"{doc.Title} has changes that are not saved. Close it anyway?", "Close", danger: true))
+        if (!force && doc.Dirty && doc.Review.Count == 0 && !await Dialogs.AskYesNoAsync("Close", $"{doc.Title} has changes that are not saved. Close it anyway?", "Close", danger: true))
+        {
+            return;
+        }
+        if (!force && !await ReviewMayGoAsync(doc))
         {
             return;
         }

@@ -94,6 +94,17 @@ public sealed class OpenDocument
 
     public bool Dirty { get; set; }
 
+    /// <summary>Its review comments (the owner, 2026-11-27): this page's memory only, never part of its file.</summary>
+    public SwissArmyBench.Web.Components.ReviewComments Review { get; } = new();
+
+    public SwissArmyBench.Web.Components.ReviewPanel? ReviewPanel { get; set; }
+
+    /// <summary>The document as a review names it to the agent: its path, else its tab's title.</summary>
+    public string ReviewPath => Path ?? CodeFile ?? Title;
+
+    /// <summary>Its editors from the top, as the comments name them (a notebook's cells: "cell 3").</summary>
+    public IReadOnlyList<string> ReviewParts() => NotebookView?.Editors().Select(e => e.Place).ToList() ?? [];
+
     /// <summary>The file's text's hash when read or saved: a file_changed notice with the same one is this page's own.</summary>
     public string? Hash { get; set; }
 

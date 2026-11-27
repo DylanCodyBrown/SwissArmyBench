@@ -33,13 +33,21 @@ public partial class WorkbenchPage
         Screen.Hide(this);
     }
 
-    private static Dictionary<string, object?> ScreenTab(OpenDocument doc) => new()
+    private static Dictionary<string, object?> ScreenTab(OpenDocument doc)
     {
-        ["title"] = doc.Title,
-        ["path"] = doc.Path ?? doc.CodeFile,
-        ["kind"] = doc.KindLabel.ToLowerInvariant(),
-        ["dirty"] = doc.Dirty,
-    };
+        var tab = new Dictionary<string, object?>
+        {
+            ["title"] = doc.Title,
+            ["path"] = doc.Path ?? doc.CodeFile,
+            ["kind"] = doc.KindLabel.ToLowerInvariant(),
+            ["dirty"] = doc.Dirty,
+        };
+        if (doc.Review.Count > 0)
+        {
+            tab["comments"] = doc.Review.Count; // the count only: a comment's words are never part of the screen state
+        }
+        return tab;
+    }
 
     private Dictionary<string, object?> ScreenPart() => new()
     {

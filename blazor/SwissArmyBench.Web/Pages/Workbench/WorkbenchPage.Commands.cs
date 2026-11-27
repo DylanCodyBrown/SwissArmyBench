@@ -31,6 +31,7 @@ public partial class WorkbenchPage
         .. ModeCommands(),
         .. WindowCommands(),
         .. WorkbookCommands(),
+        .. ReviewCommands(),
         .. (IsNotebooks ? [] : new List<PaletteCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
     ];
 

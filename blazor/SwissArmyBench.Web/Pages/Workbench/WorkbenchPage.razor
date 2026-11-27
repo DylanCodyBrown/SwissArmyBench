@@ -246,7 +246,7 @@
         @<GroupView Group="group" Number="@(_layout.Groups.ToList().IndexOf(group) + 1)" Documents="_byKey" Focused="group == _layout.Focused" Only="_layout.Groups.Count == 1"
                     Content="DocumentFragment" Controls="ControlsFragment"
                     OnShow="ShowAsync" OnClose="CloseAsync" OnFocus="() => _layout.Focus(group)"
-                    OnNewTab="e => ShowMenuAsync(e, NewTabMenu())" OnTabMenu="t => ShowMenuAsync(t.At, TabMenu(t.Key))" OnRename="RenameTabAsync" />;
+                    OnNewTab="e => ShowMenuAsync(e, NewTabMenu())" OnTabMenu="t => ShowMenuAsync(t.At, TabMenu(t.Key))" OnRename="RenameTabAsync" OnReview="ReviewChanged" />;
 
     private RenderFragment<OpenDocument> DocumentFragment => doc =>
         @<text>

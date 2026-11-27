@@ -50,6 +50,7 @@ public abstract class AppTestContext : BunitContext
         Services.AddScoped<PageObjects>();
         Services.AddScoped<ScreenState>();
         Services.AddScoped<CollaborationState>();
+        Services.AddScoped<Api.Workbench.AgentInboxClient>();
     }
 
     /// <summary>How many handlers an event of a service holds now (a field-like event's own delegate).</summary>

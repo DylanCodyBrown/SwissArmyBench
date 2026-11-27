@@ -90,6 +90,20 @@ const TEXT_SETTLES_MS = 150;
 const LINT_SETTLES_MS = 500;
 const INTEL_LANGUAGES = ["python", "sql", "msdax"];
 
+// Review comments (the owner, 2026-11-27): each editor's count of comments waiting, so the window asks before it
+// closes with comments that were never sent (they live in this page's memory only).
+const reviewCounts = new Map();
+window.addEventListener("beforeunload", (event) => {
+  let waiting = 0;
+  for (const count of reviewCounts.values()) waiting += count;
+  if (waiting === 0) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
+// A comment's words as Monaco's hover shows them: plain text, never Markdown of the user's.
+const plainHover = (text) => text.replace(/[\\`*_{}\[\]()#+\-.!|<>~]/g, "\\$&").replace(/\n/g, "  \n");
+const REVIEW_CODE_MAX = 4000;
+
 // Each editor's model to its C# side (the context a request carries) and its last lint's problems.
 const owners = new WeakMap();
 let registered = false;
@@ -359,6 +373,9 @@ export function create(host, dotnet, options) {
     insertSpaces: true,
     quickSuggestions: { other: true, comments: false, strings: true },
     fixedOverflowWidgets: true,
+    // The right-click menu in the page itself: in a shadow root it had none of Monaco's bundled CSS (codeEditor.css
+    // is linked from the page), so it drew with no background and, in the dark theme, could hardly be read.
+    useShadowDOM: false,
     readOnly: !!options.readOnly,
     readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the Tables page: change the table's steps there." },
     placeholder: options.placeholder,
@@ -513,6 +530,98 @@ export function create(host, dotnet, options) {
     editor.addAction({ id: "sab.leaveNote", label: "Leave a note…", contextMenuGroupId: "9_beta", contextMenuOrder: 1, run: picked("leaveNote") });
   }
 
+
+  // Review comments (the owner, 2026-11-27): select, right-click, Comment… (Ctrl+Alt+M). A comment is a decoration
+  // of this editor and nothing else: never text of the model, so Save cannot write one. Monaco moves its range as
+  // lines are added above it; the places are told to C# (Components/ReviewComments) a moment after an edit.
+  const reviews = new Map(); // id -> { marks, text, agent }
+  const reviewRange = (id) => reviews.get(id)?.marks.getRange(0) ?? null;
+  const reviewPlaces = () =>
+    [...reviews.keys()].map((id) => {
+      const range = reviewRange(id);
+      const code = range.isEmpty() ? model.getLineContent(range.startLineNumber) : model.getValueInRange(range);
+      return { id, line: range.startLineNumber, column: range.startColumn, end: range.endLineNumber, endColumn: range.endColumn, code: code.slice(0, REVIEW_CODE_MAX) };
+    });
+  const reviewLook = (text, agent) => ({
+    className: agent ? "sab-comment sab-comment-agent" : "sab-comment",
+    linesDecorationsClassName: agent ? "sab-comment-mark sab-comment-agent" : "sab-comment-mark",
+    hoverMessage: { value: `**${agent ? "The agent's note" : "Comment"}**  \n${plainHover(text)}` },
+    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+  });
+  const reviewCounted = () => {
+    if (reviews.size > 0) reviewCounts.set(reviews, reviews.size);
+    else reviewCounts.delete(reviews);
+    host.dataset.comments = String(reviews.size);
+  };
+  let reviewTimer = 0;
+  const reviewAt = (line, column) =>
+    [...reviews.keys()].find((id) => {
+      const range = reviewRange(id);
+      return column === null ? range.startLineNumber <= line && line <= range.endLineNumber : range.containsPosition({ lineNumber: line, column });
+    }) ?? null;
+  // The comment box asked for: at an existing comment (its id, or the cursor inside one with nothing selected),
+  // else for the selection, else for the cursor's whole line.
+  const reviewAsk = (id) => {
+    const chosen = editor.getSelection();
+    const cursor = editor.getPosition();
+    if (id === null && cursor && (!chosen || chosen.isEmpty())) id = reviewAt(cursor.lineNumber, cursor.column);
+    let range = id === null ? null : reviewRange(id);
+    if (!range && chosen && !chosen.isEmpty()) {
+      // Whole lines dragged over end at the next line's first column: that line is not part of it.
+      const short = chosen.endColumn === 1 && chosen.endLineNumber > chosen.startLineNumber;
+      const end = short ? chosen.endLineNumber - 1 : chosen.endLineNumber;
+      range = new monaco.Range(chosen.startLineNumber, chosen.startColumn, end, short ? model.getLineMaxColumn(end) : chosen.endColumn);
+    }
+    if (!range) {
+      const line = cursor?.lineNumber ?? 1;
+      range = new monaco.Range(line, 1, line, model.getLineMaxColumn(line));
+    }
+    editor.revealRangeInCenterIfOutsideViewport(range);
+    const at = editor.getScrolledVisiblePosition({ lineNumber: range.endLineNumber, column: 1 });
+    const box = host.getBoundingClientRect();
+    const info = editor.getLayoutInfo();
+    dotnet.invokeMethodAsync("CommentAsk", {
+      id,
+      line: range.startLineNumber,
+      column: range.startColumn,
+      end: range.endLineNumber,
+      endColumn: range.endColumn,
+      x: box.left + info.contentLeft,
+      y: box.top + (at ? at.top + at.height : 0) + 2,
+      text: id === null ? "" : reviews.get(id).text,
+    }).catch(() => {});
+  };
+  if (options.comments) {
+    editor.addAction({
+      id: "sab.comment",
+      label: "Comment…",
+      keybindings: [K.CtrlCmd | K.Alt | C.KeyM],
+      contextMenuGroupId: "0_agent",
+      contextMenuOrder: 3,
+      run: () => reviewAsk(null),
+    });
+    // A click on a comment's mark in the gutter opens it.
+    editor.onMouseDown((e) => {
+      if (e.target.type !== monaco.editor.MouseTargetType.GUTTER_LINE_DECORATIONS || !e.event.leftButton) return;
+      const found = reviewAt(e.target.position?.lineNumber ?? 0, null);
+      if (found !== null) reviewAsk(found);
+    });
+    editor.onDidChangeModelContent(() => {
+      if (reviews.size === 0) return;
+      clearTimeout(reviewTimer);
+      reviewTimer = setTimeout(() => dotnet.invokeMethodAsync("CommentsMoved", reviewPlaces()).catch(() => {}), TEXT_SETTLES_MS);
+    });
+  }
+  const reviewAdd = (c) => {
+    reviews.get(c.id)?.marks.clear();
+    const last = Math.min(Math.max(c.end, c.line), model.getLineCount());
+    const first = Math.min(c.line, last);
+    const range = new monaco.Range(first, c.column || 1, last, c.endColumn || model.getLineMaxColumn(last));
+    reviews.set(c.id, { marks: editor.createDecorationsCollection([{ range, options: reviewLook(c.text, c.agent) }]), text: c.text, agent: !!c.agent });
+    reviewCounted();
+  };
+  for (const kept of options.reviewNotes ?? []) reviewAdd(kept);
+
   // The debugger's gutter (the classic workbenchDebug.ts): a click in the glyph margin toggles a breakpoint, a right
   // click there or on a line number opens its menu; both told to C# by the line.
   const breakpointDecorations = editor.createDecorationsCollection([]);
@@ -544,6 +653,41 @@ export function create(host, dotnet, options) {
   }
 
   return {
+    /** Review comments: one drawn ({id, line, column, end, endColumn, text, agent}), its words changed, one or
+     *  all taken away, each one's place and code as the edits left it, one shown, the box asked for. */
+    addComment: reviewAdd,
+    updateComment: (id, text) => {
+      const found = reviews.get(id);
+      if (!found) return;
+      const range = reviewRange(id);
+      found.text = text;
+      found.marks.set([{ range, options: reviewLook(text, found.agent) }]);
+    },
+    removeComment: (id) => {
+      reviews.get(id)?.marks.clear();
+      reviews.delete(id);
+      reviewCounted();
+    },
+    clearComments: () => {
+      for (const found of reviews.values()) found.marks.clear();
+      reviews.clear();
+      reviewCounted();
+    },
+    commentPlaces: reviewPlaces,
+    revealComment: (id) => {
+      const range = reviewRange(id);
+      if (!range) return;
+      editor.revealRangeInCenter(range);
+      editor.setPosition(range.getStartPosition());
+      editor.focus();
+    },
+    askComment: (id) => reviewAsk(id ?? null),
+    /** The whole lines from..to selected (the agent's and a test's way to a selection). */
+    selectLines: (from, to) => {
+      const last = Math.min(Math.max(to, from), model.getLineCount());
+      editor.setSelection(new monaco.Range(Math.min(from, last), 1, last, model.getLineMaxColumn(last)));
+      editor.focus();
+    },
     /** The breakpoints drawn in the gutter: [{line, kind: plain | condition | log, title}]. */
     setBreakpoints: (marks) =>
       breakpointDecorations.set(
@@ -604,7 +748,16 @@ export function create(host, dotnet, options) {
       if (text === editor.getValue()) return;
       const where = editor.getPosition();
       quiet = true;
-      editor.executeEdits("sab", [{ range: model.getFullModelRange(), text }]);
+      // Only the part that differs is replaced (what both texts start and end with stays), so what is drawn on
+      // the unchanged lines (review comments, breakpoints) stays on them instead of collapsing to the first line.
+      const old = editor.getValue();
+      const most = Math.min(old.length, text.length);
+      let head = 0;
+      while (head < most && old.charCodeAt(head) === text.charCodeAt(head)) head++;
+      let tail = 0;
+      while (tail < most - head && old.charCodeAt(old.length - 1 - tail) === text.charCodeAt(text.length - 1 - tail)) tail++;
+      const range = monaco.Range.fromPositions(model.getPositionAt(head), model.getPositionAt(old.length - tail));
+      editor.executeEdits("sab", [{ range, text: text.slice(head, text.length - tail) }]);
       quiet = false;
       if (where) editor.setPosition(where);
     },
@@ -655,6 +808,8 @@ export function create(host, dotnet, options) {
     dispose: () => {
       clearTimeout(textTimer);
       clearTimeout(lintTimer);
+      clearTimeout(reviewTimer);
+      reviewCounts.delete(reviews);
       resize?.disconnect();
       window.sabScreenEditors?.delete(onScreen);
       owners.delete(model);

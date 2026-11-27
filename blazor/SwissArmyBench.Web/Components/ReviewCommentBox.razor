@@ -1,0 +1,68 @@
+@* The small box a review comment is typed in (the owner, 2026-11-27), opened at the selection: Save (Ctrl+Enter),
+   Cancel (Escape), and Delete for one already made. Nothing typed here is ever written into the file. *@
+
+<div class="review-box" role="dialog" aria-label="@(Editing ? "Edit comment" : "Comment")" style="left: min(@(X.ToString("0", System.Globalization.CultureInfo.InvariantCulture))px, calc(100vw - 360px)); top: min(@(Y.ToString("0", System.Globalization.CultureInfo.InvariantCulture))px, calc(100vh - 170px));"
+     @onkeydown="KeyAsync" @onkeydown:stopPropagation="true">
+    <div class="review-box-head"><Icon Name="chat" /> <strong>@Where</strong></div>
+    <textarea @ref="_words" class="review-box-words" rows="3" aria-label="Comment" placeholder="What should change here?" @bind="_text" @bind:event="oninput"></textarea>
+    <div class="review-box-foot">
+        <span class="hint">Never written into the file.</span>
+        <span class="review-grow"></span>
+        @if (Editing)
+        {
+            <button type="button" class="btn small ghost review-box-delete" @onclick="() => OnDelete.InvokeAsync()">Delete</button>
+        }
+        <button type="button" class="btn small ghost review-box-cancel" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+        <button type="button" class="btn small primary review-box-save" disabled="@(_text.Trim().Length == 0)" title="Ctrl+Enter" @onclick="SaveAsync">@(Editing ? "Save" : "Comment")</button>
+    </div>
+</div>
+
+@code {
+    private ElementReference _words;
+    private string _text = string.Empty;
+
+    /// <summary>The words of the comment being changed; empty for a new one.</summary>
+    [Parameter]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Editing { get; set; }
+
+    /// <summary>"line 12", "lines 12-15".</summary>
+    [Parameter]
+    public string Where { get; set; } = string.Empty;
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnDelete { get; set; }
+
+    protected override void OnInitialized() => _text = Text;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _words.FocusAsync();
+        }
+    }
+
+    private Task SaveAsync() => _text.Trim().Length == 0 ? Task.CompletedTask : OnSave.InvokeAsync(_text.Trim());
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key switch
+    {
+        "Escape" => OnCancel.InvokeAsync(),
+        "Enter" when e.CtrlKey || e.MetaKey => SaveAsync(),
+        _ => Task.CompletedTask,
+    };
+}

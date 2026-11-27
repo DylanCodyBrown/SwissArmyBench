@@ -5,3 +5,8 @@
 
 @* An editor with its own zoom (an IDE's code) keeps Ctrl+= and Ctrl+- for itself: the page's zoom leaves it be. *@
 <div class="code-editor @(Grow ? "grow" : "fill")" @ref="_host" aria-label="@Label" role="group" data-own-zoom="@(Zoom ? "true" : null)"></div>
+@if (_asked is { } asked)
+{
+    <ReviewCommentBox @key="asked" Text="@asked.Text" Editing="asked.Id is not null" Where="@(asked.End > asked.Line ? $"Lines {asked.Line}-{asked.End}" : $"Line {asked.Line}")" X="asked.X" Y="asked.Y"
+                      OnSave="CommentSavedAsync" OnCancel="CommentClosedAsync" OnDelete="CommentDeletedAsync" />
+}

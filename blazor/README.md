@@ -137,6 +137,19 @@ blazor/
                              Icon and IconSet (the app's line icons), AgGrid, MermaidDiagram; PaneDock (a
                              page's panes the user hides, moves to the left or right and stacks: DockLayout's rules,
                              PaneDockState kept in this browser; the Widgets window's and the Canvas's)
+    Components/Review*       review comments on code (the owner, 2026-11-27): ReviewComments (one open document's
+                             comments, OpenDocument.Review: memory only, never text of the file; handed down to the
+                             document's editors as a cascading value), CodeEditor.Review.cs (an editor draws its own:
+                             IReviewSurface) with codeEditor.js's layer (Comment… in the right-click menu and
+                             Ctrl+Alt+M, each comment a Monaco decoration that follows edits, its mark in the gutter,
+                             the hover, the window's beforeunload while any waits), ReviewCommentBox (the small box at
+                             the selection: Ctrl+Enter, Escape, Delete), ReviewPanel (the document's bar and list:
+                             go to, Edit, Delete, Clear, Send to agent: POST /agent/inbox/review, then every comment
+                             cleared; a failed send keeps them), the tab's count, the panel and the cascade (GroupView,
+                             round each document), css/review.css;
+                             WorkbenchPage.Review.cs (the question before a tab closes, the palette's review.*
+                             commands, the agent's "comments", "comments.add", "comments.remove"). The editor's
+                             right-click menu is drawn in the page (useShadowDOM off): in a shadow root it had no CSS
     Pages/<Area>/            each page; logic over about 30 lines in its .razor.cs code-behind
     wwwroot/                 index.html (base /blazor/), css/tokens.css (the theme tokens), css/fluent-theme.css
                              (Fluent UI's tokens set from them), css/app.css and each area's sheet; design.html

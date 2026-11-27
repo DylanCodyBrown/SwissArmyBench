@@ -1,0 +1,84 @@
+/* Review comments on code (the owner, 2026-11-27): the commented range and its gutter mark in the editor, the small
+   box a comment is typed in, the tab's count and the document's Review comments bar and list. Theme tokens only. */
+
+/* In the editor (Monaco decorations, interop/codeEditor.js). */
+.monaco-editor .sab-comment { background: var(--highlight); border-bottom: 1px solid var(--warn); }
+.monaco-editor .sab-comment.sab-comment-agent { background: var(--agent-soft); border-bottom-color: var(--agent); }
+.monaco-editor .sab-comment-mark { width: 4px !important; margin-left: 2px; background: var(--warn); cursor: pointer; }
+.monaco-editor .sab-comment-mark.sab-comment-agent { background: var(--agent); }
+
+/* The box a comment is typed in, at the selection. */
+.review-box {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 340px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--fg);
+  box-shadow: 0 6px 20px var(--shadow);
+}
+.review-box-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.review-box-words {
+  width: 100%;
+  min-height: 60px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}
+.review-box-words:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
+.review-box-foot { display: flex; align-items: center; gap: 6px; }
+.review-grow { flex: 1 1 auto; }
+
+/* The count on the document's tab. */
+.wb-tab-comments {
+  flex: none;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--highlight);
+  color: var(--fg);
+  border: 1px solid var(--warn);
+  font-size: 10.5px;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* The document's bar and list. */
+.review-panel { flex: none; border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--fg); }
+.review-bar { display: flex; align-items: center; gap: 8px; padding: 3px 10px; }
+.review-fold { display: inline-flex; align-items: center; gap: 6px; }
+.review-count { padding: 0 6px; border-radius: 8px; background: var(--highlight); border: 1px solid var(--warn); font-size: 11.5px; }
+.review-hint { font-size: 11.5px; }
+.review-error { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--error-soft); color: var(--fg); border-top: 1px solid var(--error); font-size: 12.5px; }
+.review-error > span { flex: 1 1 auto; }
+.review-list { margin: 0; padding: 0 10px 6px; max-height: 148px; overflow: auto; list-style: none; }
+.review-item { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--border); }
+.review-item.by-agent { background: var(--agent-soft); }
+.review-go {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.review-go:hover { background: var(--row-hover); }
+.review-go:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: -2px; }
+.review-where { flex: none; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.review-by { flex: none; display: inline-flex; align-items: center; gap: 3px; color: var(--agent); font-size: 11.5px; }
+.review-words { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

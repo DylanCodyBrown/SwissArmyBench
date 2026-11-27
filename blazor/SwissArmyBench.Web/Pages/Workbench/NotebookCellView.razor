@@ -83,7 +83,7 @@
         <CodeEditor @ref="_editor" Value="@Cell.Source" Language="@EditorLanguage" ReadOnly="Cell.IsAppCell" Grow="true" MinLines="2"
                     Label="@Label" Intel="EditorIntel"
                     OnChange="TextChangedAsync" OnKey="KeyAsync" Inline="Inline" InlineDocument="InlineDocument"
-                    AgentWhere="@($"cell {Cell.Number} of {Document}")" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
+                    AgentWhere="@($"cell {Cell.Number} of {Document}")" ReviewPart="@($"cell {Cell.Number}")" MenuActions="_lineageMenu" OnMenuAction="MenuActionAsync" />
     }
     @if (Cell.Kind == "tsx" && Cell.Preview is { } drawn)
     {

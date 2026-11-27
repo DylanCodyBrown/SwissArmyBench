@@ -13,4 +13,9 @@ public sealed class AgentInboxClient
 
     public Task SendAsync(string kind, string title, string text, string note) =>
         _api.PostAsync("/agent/inbox", new { kind, title, text, note });
+
+    /// <summary>Every review comment on one document as ONE message for the agent (the server shapes it, masks a
+    /// known secret's value and caps it: domain/review_comments.py). The user's own send.</summary>
+    public Task<ReviewSent> ReviewAsync(string path, IReadOnlyList<ReviewItem> comments) =>
+        _api.PostAsync<ReviewSent>("/agent/inbox/review", new { path, comments });
 }

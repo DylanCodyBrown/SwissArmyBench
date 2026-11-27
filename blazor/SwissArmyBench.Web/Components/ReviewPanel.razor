@@ -1,0 +1,48 @@
+@* A document's Review comments (the owner, 2026-11-27): a slim bar over its code once it has one (the count, the
+   list folded out, Send to agent, Clear) and the list in the document's order, each a click to its lines with Edit
+   and Delete. Send to agent hands every comment over as one message and, once it went, clears them all: the file
+   was never touched. Logic in ReviewPanel.razor.cs. *@
+@implements IDisposable
+
+@if (Review.Count > 0 || _error is not null)
+{
+    <section class="review-panel" aria-label="Review comments">
+        <div class="review-bar">
+            <button type="button" class="btn small ghost review-fold" aria-expanded="@(_open ? "true" : "false")" title="@(_open ? "Hide the list" : "Show the list")" @onclick="() => _open = !_open">
+                <Icon Name="@(_open ? "collapse" : "expand")" /> <strong>Review comments</strong> <span class="review-count" role="status">@Review.CountWords</span>
+            </button>
+            <span class="hint review-hint">Kept on this page only, never in the file.</span>
+            <span class="review-grow"></span>
+            <button type="button" class="btn small ghost review-clear" disabled="@(_sending || Review.Count == 0)" @onclick="ClearAsync">Clear</button>
+            <button type="button" class="btn small primary review-send" disabled="@(_sending || Review.Count == 0)" title="Send every comment on this document to the agent as one message, then clear them" @onclick="SendAsync">
+                <Icon Name="agent" /> @(_sending ? "Sending…" : "Send to agent")
+            </button>
+        </div>
+        @if (_error is { } error)
+        {
+            <div class="review-error" role="alert"><Icon Name="warning" /> <span>Not sent: @error The comments are kept.</span>
+                <button type="button" class="btn small ghost icon" aria-label="Dismiss" title="Dismiss" @onclick="() => _error = null"><Icon Name="close" /></button>
+            </div>
+        }
+        @if (_open)
+        {
+            <ol class="review-list">
+                @foreach (var comment in Review.Ordered(Parts?.Invoke()))
+                {
+                    <li class="review-item @(comment.ByAgent ? "by-agent" : string.Empty)" @key="comment.Id">
+                        <button type="button" class="review-go" title="Go to @comment.Where" @onclick="() => Review.ShowAsync(comment.Id)">
+                            <span class="review-where">@comment.Where</span>
+                            @if (comment.ByAgent)
+                            {
+                                <span class="review-by"><Icon Name="agent" /> the agent's note</span>
+                            }
+                            <span class="review-words">@comment.Text</span>
+                        </button>
+                        <button type="button" class="btn small ghost icon review-edit" aria-label="@($"Edit the comment on {comment.Where}")" title="Edit" @onclick="() => Review.EditAsync(comment.Id)"><Icon Name="edit" /></button>
+                        <button type="button" class="btn small ghost icon review-delete" aria-label="@($"Delete the comment on {comment.Where}")" title="Delete" @onclick="() => Review.RemoveAsync(comment.Id)"><Icon Name="trash" /></button>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}

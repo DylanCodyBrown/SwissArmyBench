@@ -25,7 +25,7 @@ public partial class WorkbenchPage
             case "project.saveDocuments":
                 return await SaveDocumentsAsync(args);
             default:
-                return null;
+                return await ReviewAnswerAsync(command, args);
         }
     }
 

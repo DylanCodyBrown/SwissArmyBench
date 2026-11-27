@@ -18,6 +18,10 @@
                     <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsBlade ? "bolt" : doc.IsWorkbook ? "excel" : doc.CodeFile is not null ? "codeapp" : doc.IsNotebook ? "notebook" : doc.IsSql ? "sql" : doc.IsText ? (doc.Path!.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? "markdown" : "note") : "code")" /></span>
                     <span class="wb-tab-dirty" title="Unsaved changes">@(doc.Dirty ? "●" : string.Empty)</span>
                     <span class="tab-label">@doc.Title</span>
+                    @if (doc.Review.Count > 0)
+                    {
+                        <span class="wb-tab-comments" title="@($"{doc.Review.CountWords} for review")" aria-label="@doc.Review.CountWords">@doc.Review.Count</span>
+                    }
                     <button type="button" class="tab-close" aria-label="@($"Close {doc.Title}")" title="@($"Close {doc.Title}")"
                             @onclick="() => OnClose.InvokeAsync(key)" @onclick:stopPropagation="true"><Icon Name="close" /></button>
                 </div>
@@ -36,7 +40,9 @@
         @foreach (var key in Group.Tabs)
         {
             <div class="wb-doc-body kind-@(Documents[key].CodeFile is not null ? "codefile" : Documents[key].IsWorkbook ? "workbook" : Documents[key].IsNotebook ? "notebook" : Documents[key].IsSql ? "sql" : Documents[key].IsText ? "text" : "script")" hidden="@(key != Group.Active)" @key="key">
-                @Content(Documents[key])
+                @* The document's review comments: its bar over it, and the comments handed down to its editors. *@
+                <ReviewPanel @ref="Documents[key].ReviewPanel" Review="Documents[key].Review" Path="@Documents[key].ReviewPath" Parts="Documents[key].ReviewParts" OnChanged="OnReview" />
+                <CascadingValue Value="Documents[key].Review" IsFixed="true">@Content(Documents[key])</CascadingValue>
             </div>
         }
     </div>
@@ -79,6 +85,10 @@
 
     [Parameter]
     public EventCallback<(int Key, MouseEventArgs At)> OnTabMenu { get; set; }
+
+    /// <summary>A document's review comments changed (its tab's count is drawn again here).</summary>
+    [Parameter]
+    public EventCallback OnReview { get; set; }
 
     /// <summary>F2 on a focused tab: its Rename… (the tab's menu has it too).</summary>
     [Parameter]
