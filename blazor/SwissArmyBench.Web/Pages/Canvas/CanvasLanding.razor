@@ -1,32 +1,57 @@
-@* The Canvas with no canvas named (the classic canvasPage.ts landing): the project's canvases, an older app file's
-   words, and New canvas (its name asked). No project: open one first. *@
+@* The Canvas with no canvas named: the shared page header (New canvas, its name asked) over a card per canvas of
+   the project: its name, how many pages, a small picture of its first page, its layouts, when it was last
+   launched, and Open, Play and Export (each the Canvas page's own, started as the canvas opens: the agent's
+   canvas_open, canvas_play, canvas_export). An older app file's words under them. No project: open one first. *@
 @using SwissArmyBench.Web.Api
 @using SwissArmyBench.Web.Api.Canvas
 @inject CanvasClient Canvases
 @inject SwissArmyBench.Web.State.Dialogs Dialogs
 @inject NavigationManager Nav
 
-<section class="area-page">
-    <div class="cvs-landing">
-        <h1>Canvas</h1>
+<section class="area-page canvas-landing">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="page" /> Canvas</h1>
+        <div class="area-page-actions">
+            @if (_listing?.Folder is { } folder)
+            {
+                <button type="button" class="btn primary" @onclick="() => NewAsync(folder)"><Icon Name="plus" /><span class="btn-label">New canvas</span></button>
+            }
+        </div>
+    </header>
+    <div class="area-page-body">
         <ErrorNote Error="_error" OnClose="() => _error = null" />
         @if (_listing is { } listing)
         {
             @if (listing.Folder is null)
             {
-                <p>Open a project first: its canvases are its files.</p>
+                <div class="empty-state">
+                    <Icon Name="page" />
+                    <strong>No project is open</strong>
+                    <p class="muted">Open a project first: its canvases are its files.</p>
+                    <a class="btn primary" href="?view=projects"><Icon Name="folder" /> Open project…</a>
+                </div>
             }
-            @foreach (var canvas in listing.Canvases)
+            else if (listing.Canvases.Count == 0)
             {
-                <a class="cvs-landing-item" href="@($"canvas?path={Uri.EscapeDataString(canvas.Path)}")"><Icon Name="page" />@canvas.Name</a>
+                <div class="empty-state">
+                    <Icon Name="page" />
+                    <strong>No canvas yet</strong>
+                    <p class="muted">A canvas lays an app's pages out from containers and widgets. Play shows a page live; Export writes the app.</p>
+                    <button type="button" class="btn primary" @onclick="() => NewAsync(listing.Folder)"><Icon Name="plus" /> New canvas</button>
+                </div>
+            }
+            else
+            {
+                <div class="card-grid canvas-cards">
+                    @foreach (var canvas in listing.Canvases)
+                    {
+                        <CanvasCard Canvas="canvas" />
+                    }
+                </div>
             }
             @foreach (var old in listing.Old)
             {
                 <div class="cvs-landing-old"><Icon Name="info" />@old.Name: @old.Said</div>
-            }
-            @if (listing.Folder is { } folder)
-            {
-                <button type="button" class="btn primary" @onclick="() => NewAsync(folder)"><Icon Name="plus" /><span class="btn-label">New canvas</span></button>
             }
         }
         else if (_error is null)

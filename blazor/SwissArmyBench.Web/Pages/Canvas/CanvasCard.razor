@@ -1,0 +1,80 @@
+@* One canvas's card on the landing page: its name (a link that opens it), how many pages, a small picture of its
+   first page's boxes in the desktop layout (never a widget's content), its layouts, when it was last launched, and
+   Open, Play and Export: each a link to the Canvas page, which plays or exports as the canvas opens (?do=). *@
+@using SwissArmyBench.Web.Api.Canvas
+
+<article class="card canvas-card" data-canvas="@Canvas.Name" aria-label="@Canvas.Name">
+    <div class="card-title">
+        <Icon Name="page" />
+        <span><a class="canvas-card-name" href="@Href(null)" title="@Canvas.Path">@Canvas.Name</a></span>
+        <span class="chip" data-fact="pages">@PagesWords</span>
+    </div>
+    <div class="canvas-card-picture @(Canvas.Boxes.Count == 0 ? "empty" : null)" aria-hidden="true">
+        @if (Canvas.Broken)
+        {
+            <span>This file does not read as a canvas: Open says where</span>
+        }
+        else if (Canvas.Boxes.Count == 0)
+        {
+            <span>Empty page: draw a container or drag a widget</span>
+        }
+        @foreach (var box in Canvas.Boxes)
+        {
+            <span class="canvas-card-box @box.Kind" style="@Place(box)"></span>
+        }
+    </div>
+    <div class="card-meta">
+        <span data-fact="layouts">@LayoutsWords</span>
+        <span data-fact="launched" title="@LaunchedTitle">@LaunchedWords</span>
+    </div>
+    <div class="card-actions">
+        <a class="btn small primary" href="@Href(null)" aria-label="@($"Open {Canvas.Name}")">Open</a>
+        @if (!Canvas.Broken)
+        {
+            <a class="btn small" href="@Href(CanvasPage.DoPlay)" aria-label="@($"Play {Canvas.Name}")" title="Open it and play its first page">Play</a>
+            <a class="btn small ghost" href="@Href(CanvasPage.DoExport)" aria-label="@($"Export {Canvas.Name}")" title="Open it and export the app into a folder">Export</a>
+        }
+    </div>
+</article>
+
+@code {
+    /// <summary>The picture's shortest page, in the canvas's pixels: a single small widget is not blown up.</summary>
+    private const double LeastHeight = 360;
+
+    [Parameter, EditorRequired]
+    public CanvasFile Canvas { get; set; } = default!;
+
+    private string PagesWords => Canvas.Broken ? "Does not read" : $"{Canvas.Pages} page{(Canvas.Pages == 1 ? string.Empty : "s")}";
+
+    /// <summary>"Desktop and Phone layouts", "Desktop layout".</summary>
+    private string LayoutsWords
+    {
+        get
+        {
+            var names = Canvas.Layouts.Select(l => char.ToUpperInvariant(l[0]) + l[1..]).ToList();
+            return names.Count == 0 ? "No layout" : $"{string.Join(" and ", names)} layout{(names.Count == 1 ? string.Empty : "s")}";
+        }
+    }
+
+    private DateTimeOffset? LaunchedAt => Canvas.Launched?.Time is { } time && DateTimeOffset.TryParse(time, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var when) ? when : null;
+
+    private string LaunchedWords => Canvas.Launched switch
+    {
+        null => "Not launched yet",
+        var build when LaunchedAt is { } when => $"Launched {TimeAgo.Words(when, DateTimeOffset.Now)} · build {build.Number}",
+        var build => $"Launched · build {build.Number}",
+    };
+
+    private string? LaunchedTitle => Canvas.Launched is { } build && LaunchedAt is { } when
+        ? $"Build {build.Number} of {build.Builds} kept, {TimeAgo.Exact(when)}{(build.Result is { Length: > 0 } result ? $": {result}" : string.Empty)}"
+        : null;
+
+    private string Href(string? what) => $"canvas?path={Uri.EscapeDataString(Canvas.Path)}{(what is null ? string.Empty : $"&do={what}")}";
+
+    /// <summary>A box's place in the picture, in percent of the page (its height the lowest box's bottom).</summary>
+    private string Place(CanvasCardBox box)
+    {
+        var height = Math.Max(LeastHeight, Canvas.Boxes.Max(b => b.Y + b.H));
+        return FormattableString.Invariant($"left: {box.X * 100:0.##}%; width: {box.W * 100:0.##}%; top: {box.Y / height * 100:0.##}%; height: {box.H / height * 100:0.##}%;");
+    }
+}

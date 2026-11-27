@@ -35,6 +35,7 @@ from typing import Any
 from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
+from swissarmybench_streamlit.domain import builds as build_log
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_layouts as model
 from swissarmybench_streamlit.domain import canvas_wiring as wiring
@@ -169,14 +170,40 @@ class Canvases:
     # ===== open =====
 
     def listing(self, folder: str | None = None) -> dict[str, Any]:
+        """The project's canvases, each with its card's facts (pages, widgets, layouts, its first page's
+        boxes, its last build): the landing page's cards, and the agent's canvas_open with nothing named."""
         folder = folder or self._project_folder()
         names = sorted(n for n in self._list_folder(folder) if n.endswith(model.SUFFIX)) if folder else []
         old = sorted(n for n in self._list_folder(folder) if n.endswith(model.OLD_SUFFIX)) if folder else []
         return {
             "folder": folder,
-            "canvases": [{"name": n[: -len(model.SUFFIX)], "path": f"{folder}/{n}"} for n in names],
+            "canvases": [self._card(str(folder), n) for n in names],
             "old": [{"name": n, "said": model.OLD_SAID} for n in old],
         }
+
+    def _card(self, folder: str, file: str) -> dict[str, Any]:
+        stem, path = file[: -len(model.SUFFIX)], f"{folder}/{file}"
+        try:
+            text = self._files.read(path)[0]
+        except (OSError, ValueError):
+            text = ""
+        return {"name": stem, "path": path} | model.card(text) | {"launched": self._last_build(folder, stem)}
+
+    def _last_build(self, folder: str, stem: str) -> dict[str, Any] | None:
+        """The canvas's newest build (Launch's builds/<app>/<n>/build.json): its number, time and result."""
+        if self._builds is None:
+            return None
+        root = self._builds.join(folder, build_log.BUILDS, build_log.folder_name(stem))
+        numbers = self._builds.builds(root)
+        if not numbers:
+            return None
+        try:
+            text = self._builds.read_one(self._builds.join(root, numbers[-1]), build_log.BUILD_FILE)
+            kept = build_log.read_build(text or "")
+        except (build_log.BuildError, ValueError):
+            kept = {}
+        last = {"number": int(numbers[-1]), "builds": len(numbers)}
+        return last | {"time": kept.get("time"), "result": kept.get("result")}
 
     def _facts(self) -> dict[str, WidgetFacts]:
         facts: dict[str, WidgetFacts] = self._widgets.facts()

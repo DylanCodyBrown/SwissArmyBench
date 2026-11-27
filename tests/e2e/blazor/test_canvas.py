@@ -62,8 +62,8 @@ def draw_container(page: Page, x: int, y: int, w: int, h: int) -> None:
 def test_the_landing_lists_the_canvases(browser: Browser, server: dict[str, Any]) -> None:
     path = made_up_canvas(server, "Landing")
     page = open_page(browser, server, "canvas")
-    expect(page.locator(".cvs-landing h1")).to_have_text("Canvas")
-    expect(page.locator(".cvs-landing-item")).to_contain_text(Path(path).name.split(".")[0])
+    expect(page.locator(".canvas-landing h1")).to_have_text("Canvas")
+    expect(page.locator(".canvas-card")).to_contain_text(Path(path).name.split(".")[0])
     page.click("button:has-text('New canvas')")
     page.locator(".dialog input").fill("Second")
     page.keyboard.press("Enter")

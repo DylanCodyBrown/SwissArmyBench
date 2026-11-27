@@ -323,3 +323,28 @@ def test_the_agent_puts_the_canvas_page_full_screen_and_nothing_is_written(
     assert refused.status_code == 400 and "true or false" in refused.json()["error"]
     assert client.post("/streamlit/canvases/nope/full-screen", headers=AGENT, json={}).status_code == 404
     assert path.read_bytes() == before
+
+
+def test_the_listing_gives_each_canvas_its_cards_facts(served: tuple[TestClient, FakeRunner, Path]) -> None:
+    """The landing page's cards (and the agent's canvas_open with nothing named): pages, widgets, layouts, the
+    first page's boxes and the last build; a broken file still gets its card."""
+    client, _runner, project = served
+    canvas = opened(client, project)["canvas"]
+    listed = ok(client.get("/streamlit/canvases", headers=AUTH, params={"folder": str(project)}))["canvases"]
+    assert [(c["name"], c["pages"], c["widgets"], c["boxes"], c["launched"]) for c in listed] == [
+        ("sales", 1, 0, [], None)
+    ]
+    assert listed[0]["layouts"] == ["desktop", "phone"] and listed[0]["broken"] is False
+
+    ok(command(client, canvas, "add_container", x=0, y=0, w=600, h=300))
+    ok(command(client, canvas, "insert_widget", parent="c1", widget="data_table"))
+    ok(command(client, canvas, "add_page", name="Detail"))
+    ok(client.post(f"/streamlit/canvases/{canvas}/launch", headers=AUTH, json={"python": "/p"}))
+    (project / "torn.canvas.json").write_text("{not json", encoding="utf-8")
+    listed = ok(client.get("/streamlit/canvases", headers=AGENT, params={"folder": str(project)}))["canvases"]
+    sales, torn = listed
+    assert (sales["pages"], sales["widgets"]) == (2, 1)
+    assert sales["boxes"] == [{"kind": "container", "x": 0.0, "y": 0, "w": 0.5, "h": 300}]
+    assert (sales["launched"]["number"], sales["launched"]["builds"]) == (1, 1)
+    assert sales["launched"]["time"] and sales["launched"]["result"]
+    assert (torn["name"], torn["broken"], torn["pages"], torn["launched"]) == ("torn", True, 0, None)

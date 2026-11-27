@@ -108,6 +108,7 @@ public partial class CanvasPage
             await StartKeysAsync();
             await RecallFullAsync();
         }
+        await DoAskedAsync();
     }
 
     /// <summary>The page's keys and the zoom's wheel, once a canvas is open.</summary>

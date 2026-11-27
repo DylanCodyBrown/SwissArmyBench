@@ -86,6 +86,52 @@ def write(canvas: Mapping[str, Any]) -> str:
     return json.dumps(canvas, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+# ===== a canvas's card (the Canvas landing page) =====
+
+CARD_BOXES: int = 24  # the most boxes a card's small picture draws
+
+
+def card(text: str) -> dict[str, Any]:
+    """What the landing page's card says of a canvas file, read loosely (a broken file still gets its card):
+    how many pages and widgets, its layouts, and its first page's top boxes in the desktop layout (x
+    and w fractions of the page's width, y and h pixels) for a small picture. Never a value of a widget."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        data = None
+    pages = data.get("pages") if isinstance(data, dict) else None
+    if not isinstance(pages, list):
+        return {"broken": True, "pages": 0, "widgets": 0, "layouts": [], "boxes": []}
+    pages = [p for p in pages if isinstance(p, dict)]
+    first = [c for c in (pages[0].get("children") or [] if pages else []) if isinstance(c, dict)]
+    return {
+        "broken": False,
+        "pages": len(pages),
+        "widgets": sum(_widgets_in(p.get("children")) for p in pages),
+        "layouts": list(LAYOUTS),  # an older one-layout file gets its phone layout as it is read
+        "boxes": [b for b in (_card_box(c) for c in first if shown(c, "desktop")) if b][:CARD_BOXES],
+    }
+
+
+def _widgets_in(children: Any) -> int:
+    nodes = [c for c in children or [] if isinstance(c, dict)] if isinstance(children, list) else []
+    return sum((0 if n.get("kind") == "container" else 1) + _widgets_in(n.get("children")) for n in nodes)
+
+
+def _card_box(node: Mapping[str, Any]) -> dict[str, Any] | None:
+    at = node.get("at")
+    # Format 1 keeps pixels on the node itself.
+    place: Any = at.get("desktop") if isinstance(at, dict) else node
+    try:
+        x, y, w, h = (float(place[k]) for k in ("x", "y", "w", "h"))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not isinstance(at, dict):  # pixels at the design width
+        x, w = x / DESIGN["desktop"], w / DESIGN["desktop"]
+    kind = "container" if node.get("kind") == "container" else "widget"
+    return {"kind": kind, "x": round(x, 4), "y": round(y), "w": round(w, 4), "h": round(h)}
+
+
 # ===== fractions and pixels =====
 
 

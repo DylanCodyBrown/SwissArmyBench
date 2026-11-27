@@ -1605,6 +1605,44 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
 .cvs-bottom .cvs-toggle[aria-pressed="true"],
 .side-toggle[aria-pressed="true"] {
   background: var(--selected);
+/* The landing page: the shared header over a card per canvas (CanvasCard): a small picture of its first page. */
+.canvas-cards {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 340px));
+}
+.canvas-card-name {
+  color: var(--fg);
+  text-decoration: none;
+}
+.canvas-card-name:hover {
+  text-decoration: underline;
+}
+.canvas-card-picture {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.canvas-card-picture.empty {
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  border: 1px dashed var(--border-strong);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.canvas-card-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--raised);
+}
+.canvas-card-box.widget {
+  background: var(--accent-soft);
+}
   color: var(--fg);
   border-color: var(--border-strong);
 }
