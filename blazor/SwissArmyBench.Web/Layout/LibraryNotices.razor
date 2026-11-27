@@ -1,0 +1,56 @@
+@* What the library says once (services/library.py notices: this computer's older stores moved into the library, an
+   older project's blades taken in, a team library pointed at): read once as the main window opens (POST
+   /library/notices: taken, then gone) and heard as they happen (the "library_notice" notice), each a line in the
+   corner that stays until OK or its time. Nothing is drawn here. *@
+@implements IDisposable
+@inject LiveUpdates Live
+@inject ApiClient Api
+@inject Notes Notes
+@inject IJSRuntime Js
+
+@code {
+    private const string NoticeType = "library_notice";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.NoticeArrived += OnNotice;
+        if (await Js.InvokeAsync<string?>("sab.windowName") != WhatsNewState.MainWindow)
+        {
+            return;
+        }
+        try
+        {
+            var taken = await Api.PostAsync<JsonElement>("/library/notices");
+            if (taken.TryGetProperty("notices", out var notices) && notices.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var text in notices.EnumerateArray().Select(n => n.TryGetProperty("text", out var t) ? t.GetString() : null))
+                {
+                    Say(text);
+                }
+            }
+        }
+        catch (ApiException)
+        {
+            // The server's answer did not come: nothing to say.
+        }
+    }
+
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type == NoticeType)
+        {
+            Say(notice.Text("text"));
+        }
+    }
+
+    // A line with OK stays twice as long as one that goes by itself, and OK puts it away.
+    private void Say(string? text)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            _ = Notes.SayAsync(text, "OK", () => Task.CompletedTask);
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

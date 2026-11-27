@@ -106,6 +106,9 @@ blazor/
                              place as this app's address; Back and Forward the browser's own), the "snapshot_request"
                              notice has the page in front draw the area asked for and send the PNG itself
                              (interop/snapshot.js, html-to-image)
+    Layout/LibraryNotices    what the library says once (its older stores moved in, an older project's blades taken in,
+                             a team library pointed at): taken as the main window opens (POST /library/notices) and
+                             heard as it happens (library_notice), each a line in the corner with OK
     Layout/                  MainLayout (the session first), Rail, StatusBar, NoteCorner, DialogHost, ProjectSetupBar
                              (the setup bar under every page's top: what the open project needs, installed at once
                              as it opens; ProjectSetup its state service, from the project_installs notice; Hide keeps
