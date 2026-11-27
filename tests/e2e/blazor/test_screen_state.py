@@ -74,6 +74,7 @@ def test_the_tables_page_says_its_table_sort_and_selection(browser: Browser, ser
 
     # Select: one cell, by its row and column number.
     cell = page.locator(".ag-row[row-index='2'] .ag-cell[col-id=status]")
+    expect(cell).not_to_have_text("")  # the rows read again after the sort
     value = cell.inner_text().strip()
     cell.click()
     expect(cell).to_have_class(re.compile("cell-selected"))
@@ -144,7 +145,7 @@ def test_two_windows_are_told_apart_and_a_closed_one_is_gone(
     browser: Browser, server: dict[str, Any]
 ) -> None:
     grid = orders(server)
-    assert call(server, "GET", "/screen")["windows"] == []
+    said(server, "", lambda s: s["windows"] == [], 5)  # the tests before closed their windows
     tables = open_page(browser, server, f"tables?grid={grid}")
     settings = open_page(browser, server, "settings")
     both = said(server, "", lambda s: len(s["windows"]) == 2 and all(w["reported"] for w in s["windows"]), 15)
@@ -161,3 +162,39 @@ def test_two_windows_are_told_apart_and_a_closed_one_is_gone(
     assert one["windows"][0]["kind"] == "tables"
     tables.close()
     said(server, "", lambda s: s["windows"] == [] and "note" in s)
+
+
+def test_a_notebook_and_the_canvas_say_their_own_parts(browser: Browser, server: dict[str, Any]) -> None:
+    from tests.e2e.blazor.test_canvas import draw_container, made_up_canvas, open_canvas
+
+    notebook = str(server["tmp"] / "workbench" / "made_up_screen.ipynb")
+    cells = [
+        {"kind": "code", "source": f"x = '{ONLY_IN_THE_CODE}'", "number": 1, "name": "load"},
+        {"kind": "markdown", "source": "# A made-up heading", "number": 2},
+        {"kind": "sql", "source": "select 1", "number": 3},
+    ]
+    call(server, "POST", "/workbench/save", {"path": notebook, "cells": cells, "next_cell": 4})
+    page = open_page(browser, server, f"notebooks?path={notebook}")
+    page.locator("section.wb-cell[data-number='3'] .monaco-editor").click()
+    shown = said(server, "notebooks", lambda s: s.get("notebook", {}).get("focused") == 3, 15)
+    assert shown["tab"]["kind"] == "notebook" and shown["tab"]["path"] == notebook
+    assert shown["notebook"]["cells"] == 3
+    assert [(c["number"], c["kind"], c["state"]) for c in shown["notebook"]["visible"]] == [
+        (1, "code", "not run"),
+        (2, "markdown", "not run"),
+        (3, "sql", "not run"),
+    ]
+    assert shown["notebook"]["visible"][0]["name"] == "load"
+    assert ONLY_IN_THE_CODE not in json.dumps(shown) and "made-up heading" not in json.dumps(shown)
+    page.close()
+
+    path = made_up_canvas(server, "Screen")
+    canvas = open_canvas(browser, server, path)
+    opened = said(server, "canvas", lambda s: s.get("canvas", {}).get("path") == path, 15)
+    assert opened["canvas"]["layout"] == "desktop" and opened["canvas"]["full_screen"] is False
+    assert opened["canvas"]["page"] in opened["canvas"]["pages"] and opened["project"] == "Screen"
+    draw_container(canvas, 60, 60, 420, 260)
+    expect(canvas.locator(".cvs-container")).to_have_count(1)
+    drawn = said(server, "canvas", lambda s: s["canvas"].get("items") == 1, 3)
+    assert [item["kind"] for item in drawn["canvas"].get("selection", [])] in ([], ["container"])
+    canvas.close()

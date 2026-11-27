@@ -6422,3 +6422,19 @@ to the scripts page with an open script" / "sql authorship will have one place i
 - Unit suite (no e2e, four workers): 6,033 passed, 42 skipped; the 8 failures are this container's known ones (the
   four data.py export tests, test_script_export, test_connection_drivers, test_performance, test_updater). ruff and
   ruff format clean; mypy: only sab_canvas.py:622; the architecture map current.
+
+## 2026-11-27: the screen state (branch of the worktree wt-screen)
+
+- In Chromium on made-up data (tests/e2e/blazor/test_screen_state.py, 5 tests): the Tables page's table, its sort and
+  a selected cell by row and column number, a dialog's title, a script's cursor line and selected lines, a
+  notebook's cells and the Canvas's own part, each read from `GET /screen` within a second of the change; two
+  windows told apart and a closed one gone. The cell's value and the script's text are in no answer.
+- Blazor: `dotnet build -warnaserror` clean, `dotnet format --verify-no-changes` clean on both projects, bUnit 236
+  of 236 (ScreenReporterTests: 6). Browser tests (Release build, two workers): 189 passed, 7 skipped, 1 failed
+  under load (test_field_service_app's dispatch test; passes alone).
+- Unit suite (no e2e, four workers): 6,050 passed, 42 skipped. It ran while the disk was full; of its 19 failures
+  two were this change's (a urllib import in the domain, the resources' list) and are fixed, the Jedi ones came
+  from a cache file the full disk cut short (removed; they pass), and the rest are this container's known ones
+  (the four data.py export tests, test_script_export, test_connection_drivers, test_performance, test_updater,
+  test_sharing, test_catalog's and test_adapter's timings under load). The whole suite was not run again after.
+  ruff and ruff format clean; mypy: only sab_canvas.py:622; the architecture map current.

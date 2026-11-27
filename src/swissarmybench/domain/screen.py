@@ -20,9 +20,9 @@ Standard library only; no I/O, no clock.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import parse_qs
 
 # One window's state as JSON, at most (the owner's brief: "a size cap per window (say 8 KB)").
 MAX_BYTES: int = 8 * 1024
@@ -302,9 +302,24 @@ _CONNECTION_VIEWS: tuple[tuple[str, str], ...] = (
 )
 
 
+_ESCAPES = re.compile(rb"%([0-9A-Fa-f]{2})")
+
+
+def _plain(text: str) -> str:
+    """A query's key or value as typed: `+` a space, `%20` its character (the domain reads no urllib)."""
+    raw = _ESCAPES.sub(lambda found: bytes.fromhex(found.group(1).decode()), text.replace("+", " ").encode())
+    return raw.decode("utf-8", "replace")
+
+
+def _query(address: str) -> dict[str, str]:
+    """The address's query by its keys in lower case, the last of each; a key alone has an empty value."""
+    pairs = (pair.partition("=") for pair in address.partition("?")[2].partition("#")[0].split("&") if pair)
+    return {_plain(key).lower(): _plain(value) for key, _, value in pairs}
+
+
 def _from_address(kind: str, address: str) -> dict[str, Any]:
     """The parts a page keeps in its address: the Connections page's view and selected card, Home's view."""
-    asked = {key.lower(): values[-1] for key, values in parse_qs(address.partition("?")[2], True).items()}
+    asked = _query(address)
     if kind == "connections":
         view = next((word for key, word in _CONNECTION_VIEWS if key in asked), "cards")
         selected = _text(asked.get("name") or asked.get("edit") or "", NAME_LENGTH)

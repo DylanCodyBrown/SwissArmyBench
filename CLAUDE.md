@@ -166,6 +166,14 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   2026-11-17: "the agent cannot delete"), and so is a system file dialog (it opens on the user's screen; the
   agent passes paths to every command directly). Code the agent runs in a Workbench kernel can read what that Python can, which the owner
   accepted; `tests/test_cli.py` NOT_COMMANDS lists the routes without a command and why.
+  **The agent reads the screen on demand (the owner, 2026-11-27: "literally just feeding the state back to the
+  agent" / "It shouldn't send the screen every turn that will kill context. it should just be accessible when
+  needed"):** every window keeps the server told of what it shows, as text (its page, open tab and document, the
+  cursor's line, the selection, panes, dialogs, errors, the page's own part: the table in front, a notebook's
+  cells, the Canvas, Analyze, Connections, Settings); the server keeps the latest per window in memory only, and
+  `app_screen` (the resource swissarmybench://screen) answers from it at once, asking no page. Names only, never a
+  value; 8 KB a window at most. NEVER in the prompt hook nor context.md (tests/test_screen_state.py holds it);
+  `app_snapshot` stays for a picture.
 - **The original plan:** [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md).
   Follow its section 0 working agreements: typed Python, tests first for semantics, ask before
   adding a dependency the plan doesn't list. Milestone 9 (the agent running code) was the owner's
@@ -730,6 +738,13 @@ src/swissarmybench/
                          no starter; workbooks())
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
+    screen.py            the screen state (the owner, 2026-11-27): the ONE shape a window's report is read into
+                         (WINDOW and PARTS: a known key of a known type kept, the rest dropped: names, numbers and
+                         states only, no place for a cell's value, an output, code or a secret), the kind from the
+                         page, a step in words by its kind and columns (never its value), the table's sort and
+                         filter from its steps, the parts a page keeps in its address (Connections, Home), the cap
+                         (MAX_BYTES 8 KB; TRIMS in their stated order, `trimmed` says which ran), a window in
+                         brief (shows: one line)
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice; the rail's
                          names (on until turned off: rail.json)
     sample_data.py       the made-up sample store (customers, products, orders that join them): Try it with
@@ -1171,6 +1186,10 @@ src/swissarmybench/
     tieout.py            the tie-out report on a compare's two grids
     processes.py         Python sessions offering tables: the registry and the Open list
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
+    screen.py            what each window shows, kept (Screens): opened (a window's socket connected: known, not
+                         reported yet), heard and report (its report read into the shape; the stamp moves only
+                         when it changed), closed (dropped), read (every window in brief, the focused one first,
+                         or one in full by id, `focused` or kind); memory only, no page asked, never written
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
     adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `adapter`)
@@ -1333,6 +1352,8 @@ src/swissarmybench/
                          explorer, library, project_python,
                          shared_catalog, team, found_connections, script_ide, sql_files, debugger, sharing, actions,
                          call_stats, changes, collaboration). Every route serves
+                         routes_screen.py: GET /screen and /screen/{window} (app_screen); the windows report over
+                         their live socket (/ws, app.py), never by a route
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -1460,7 +1481,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (374 in the base, 405 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (375 in the base, 406 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/
@@ -1468,7 +1489,10 @@ blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; 
                          State/ the shared services, each one Changed event; Navigation/ the rail's areas; Layout/
                          the shell, rail and status bar, Layout/Collaboration/ the Collaboration panel floating over
                          every page and its buddy icon in each window's top right corner (State/PageObjects: what the
-                         page in front shows, set by each page); Components/ the shared parts: ErrorNote, Busy, AppDialog,
+                         page in front shows, set by each page); Layout/ScreenReporter with State/ScreenState and
+                         interop/screen.js (what the window shows, told to the server for the agent's app_screen: a
+                         page's Show and Touch, sent over the live socket only when it changed, four a second at
+                         most); Components/ the shared parts: ErrorNote, Busy, AppDialog,
                          Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
                          extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,
                          css/ (tokens.css: every theme token), design.html: an HTML cell's walled-off frame);
