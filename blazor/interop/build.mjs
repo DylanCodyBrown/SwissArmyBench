@@ -24,6 +24,8 @@ const entries = {
   picture: "picture.js",
   // The agent's app_snapshot: the page draws the area asked for and sends the PNG.
   snapshot: "snapshot.js",
+  // What this window shows, read for the agent's app_screen (Layout/ScreenReporter).
+  screen: "screen.js",
   // The Canvas's pointer capture, keys and zoom (Pages/Canvas).
   canvas: "canvas.js",
   // A file saved from an answer's bytes (Export to Power BI's zip).

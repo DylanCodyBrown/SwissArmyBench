@@ -157,7 +157,7 @@ public partial class WorkbenchPage
             await ReadWindowAsync();
         }
         await RevealPendingAsync();
-        Shown.Set(DocumentObjects.Of(Front));
+        ShowFront();
     }
 
     /// <summary>What an address asks for, as one key: the one the page last acted on is not acted on again.</summary>
@@ -368,7 +368,7 @@ public partial class WorkbenchPage
     public async ValueTask DisposeAsync()
     {
         Palette.WithdrawPageCommands(PageCommands);
-        Shown.Clear();
+        ClearShown();
         Session.Changed -= Redraw;
         Project.Changed -= Redraw;
         Live.NoticeArrived -= OnInlineNotice;

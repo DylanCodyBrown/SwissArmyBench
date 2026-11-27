@@ -49,6 +49,7 @@ public partial class CanvasPage
         Live.NoticeArrived -= OnNotice;
         Theme.Changed -= OnThemeChanged;
         _dock.Changed -= OnDockChanged;
+        Screen.Hide(this);
         _previews.Dispose();
         try
         {

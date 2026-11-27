@@ -127,6 +127,7 @@ public static class Program
         services.AddScoped<TourState>();
         services.AddScoped<WhatsNewState>();
         services.AddScoped<PageObjects>();
+        services.AddScoped<ScreenState>();
         services.AddScoped<CollaborationState>();
         services.AddScoped<EmojiCatalog>();
     }

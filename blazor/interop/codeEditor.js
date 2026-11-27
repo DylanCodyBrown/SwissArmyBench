@@ -400,6 +400,26 @@ export function create(host, dotnet, options) {
   });
   editor.onDidFocusEditorText(() => dotnet.invokeMethodAsync("Focused").catch(() => {}));
   lintSoon();
+  // The screen state (screen.js, the agent's app_screen) reads this editor's cursor, selected lines and problem
+  // count here: numbers only, never its text.
+  const onScreen = {
+    host,
+    at: 0,
+    read: () => {
+      const picked = editor.getSelection();
+      return {
+        focused: editor.hasTextFocus(),
+        at: onScreen.at,
+        line: picked?.positionLineNumber ?? 1,
+        column: picked?.positionColumn ?? 1,
+        from: picked?.startLineNumber ?? 1,
+        to: picked?.endLineNumber ?? 1,
+        problems: monaco.editor.getModelMarkers({ resource: model.uri }).length,
+      };
+    },
+  };
+  (window.sabScreenEditors ??= new Set()).add(onScreen);
+  editor.onDidFocusEditorText(() => (onScreen.at = Date.now()));
 
   // The keys a page acts on: told to C# by name, the text sent first so C# runs what is on screen.
   const key = (name) => () => {
@@ -636,6 +656,7 @@ export function create(host, dotnet, options) {
       clearTimeout(textTimer);
       clearTimeout(lintTimer);
       resize?.disconnect();
+      window.sabScreenEditors?.delete(onScreen);
       owners.delete(model);
       editor.dispose();
       model.dispose();

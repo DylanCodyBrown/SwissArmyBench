@@ -320,7 +320,15 @@ window.sab = {
       };
     };
     open();
-    return { stop: () => { stopped = true; socket?.close(); } };
+    return {
+      stop: () => { stopped = true; socket?.close(); },
+      /** A line this window sends the server (what it shows: Layout/ScreenReporter); false while the socket is shut. */
+      send: (text) => {
+        if (socket?.readyState !== WebSocket.OPEN) return false;
+        socket.send(text);
+        return true;
+      },
+    };
   },
 
   /** A menu's keys (the classic dom.ts showMenu): its first line takes focus, the arrows, Home and End move

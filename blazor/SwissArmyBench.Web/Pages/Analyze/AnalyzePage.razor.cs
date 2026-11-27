@@ -143,5 +143,9 @@ public partial class AnalyzePage
         }
     }
 
-    public void Dispose() => Live.NoticeArrived -= OnNotice;
+    public void Dispose()
+    {
+        Live.NoticeArrived -= OnNotice;
+        Screen.Hide(this);
+    }
 }

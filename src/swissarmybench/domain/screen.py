@@ -402,9 +402,12 @@ def shows(state: dict[str, Any]) -> str:
         said.append(
             f"{analyze.get('analysis') or 'the board'}, {_plural(len(analyze.get('cards', [])), 'card')}"
         )
-    for part, key, word in (("connections", "selected", "connection"), ("settings", "section", "section")):
-        if state.get(part, {}).get(key):
-            said.append(f"{word} {state[part][key]}")
+    connections = state.get("connections", {})
+    if connections:
+        named = f" {connections['selected']}" if connections.get("selected") else "s"
+        said.append(f"connection{named} ({connections.get('view', 'cards')})")
+    if state.get("settings", {}).get("section"):
+        said.append(f"section {state['settings']['section']}")
     if state.get("dialogs"):
         said.append("dialog " + ", ".join(state["dialogs"]))
     if state.get("errors"):

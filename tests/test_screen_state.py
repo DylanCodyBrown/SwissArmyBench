@@ -374,7 +374,10 @@ def test_the_hook_and_context_md_never_read_the_screen() -> None:
 def test_the_parts_a_page_keeps_in_its_address() -> None:
     detail = screen.clean({"page": "connections", "address": "connections?name=Finance%20Captive"})
     assert detail["connections"] == {"view": "detail", "selected": "Finance Captive"}
-    assert screen.shows(detail) == "connection Finance Captive"
+    assert screen.shows(detail) == "connection Finance Captive (detail)"
+    assert screen.shows(screen.clean({"page": "connections", "address": "connections?add=1"})) == (
+        "connections (add)"
+    )
     assert screen.clean({"page": "connections", "address": "connections"})["connections"] == {"view": "cards"}
     assert (
         screen.clean({"page": "connections", "address": "connections?add=1"})["connections"]["view"] == "add"
