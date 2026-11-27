@@ -333,7 +333,7 @@ class ConnectionTables:
     # ===== the Connections page's tree =====
 
     async def describe(self, name: str, place: Place) -> dict[str, Any]:
-        """One table of a loaded catalog for the Data page's detail side: its name in DuckDB SQL and its
+        """One table of a loaded catalog for the Catalog page's detail side: its name in DuckDB SQL and its
         columns (name, type, nulls, description), as the catalog has them. Names only."""
         saved, kind = self.kind(name)
         if await self._catalogs.places(saved) is None:

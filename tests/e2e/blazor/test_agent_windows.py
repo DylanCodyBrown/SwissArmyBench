@@ -35,7 +35,9 @@ def ask(server: dict[str, Any], path: str, body: dict[str, Any]) -> tuple[int, A
         return refused.code, json.loads(refused.read() or b"null")
 
 
-def test_the_agents_window_command_runs_on_the_open_scripts_page(browser: Browser, server: dict[str, Any]) -> None:
+def test_the_agents_window_command_runs_on_the_open_scripts_page(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     page = open_page(browser, server, "")
     expect(page.locator("h1.area-page-title")).to_be_visible()
     status, said = ask(server, "/workbench/window", {"command": "documents"})
@@ -70,7 +72,9 @@ def test_the_agents_window_command_runs_on_the_open_scripts_page(browser: Browse
     page.close()
 
 
-def test_the_agents_navigate_reaches_the_open_notebooks_page(browser: Browser, server: dict[str, Any]) -> None:
+def test_the_agents_navigate_reaches_the_open_notebooks_page(
+    browser: Browser, server: dict[str, Any]
+) -> None:
     page = open_page(browser, server, "notebooks")
     expect(page.locator(".wb-landing, .empty-state").first).to_be_visible()
     for _ in range(40):

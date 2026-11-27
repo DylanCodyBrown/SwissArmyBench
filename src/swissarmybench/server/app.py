@@ -333,7 +333,7 @@ def create_app(
     async def workbench_page(request: Request) -> Response:
         # The old address: notebooks and scripts are two pages now (the owner, 2026-11-21), /notebooks
         # and /scripts (the same page's code, each its own window); an old ?kind= goes to its page.
-        # ?panel=explorer, the popped-out Data Explorer's old address: the Data page now (open=data). The
+        # ?panel=explorer, the popped-out Data Explorer's old address: the Catalog page now (open=data). The
         # browser keeps the address's #token across the redirect.
         if request.query_params.get("panel") == "explorer":
             return RedirectResponse("/workspace?open=data", status_code=302)

@@ -207,7 +207,7 @@ def test_the_popped_out_windows_old_address_is_the_data_page(tmp_path: Path) -> 
         assert client.get("/workbench", follow_redirects=True).url.path == "/blazor/notebooks"
 
 
-# ===== the Data page's browse (the owner, 2026-11-17: "a standalone DATA rail icon and page") =====
+# ===== the Catalog page's browse (the owner, 2026-11-17: "a standalone DATA rail icon and page") =====
 
 
 def test_the_browse_rules() -> None:

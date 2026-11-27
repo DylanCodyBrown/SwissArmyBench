@@ -20,7 +20,8 @@ NOT_FOLLOWED: dict[str, str] = {
     "workbench_handoff": "the Blazor pages move a document to another window by its file (saved first), "
     "never through /workbench/handoffs: no page takes one",
     "inbox_changed": "no page shows how much waits for the agent; the prompt hook and agent_inbox read it",
-    "powerbi_live": "the Power BI page is drawn from data and follows extension_panel_changed, sent beside it",
+    "powerbi_live": "the Power BI page is drawn from data: it follows extension_panel_changed, sent "
+    "beside it",
 }
 
 

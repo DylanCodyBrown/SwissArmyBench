@@ -1,11 +1,11 @@
-"""The Data Explorer's search and the Data page's browse (services/explorer.py), for the Workbench's pane,
-the grid page's Find data dialog, the Data page and the agent (explorer_search, explorer_browse,
+"""The Data Explorer's search and the Catalog page's browse (services/explorer.py), for the Workbench's pane,
+the grid page's Find data dialog, the Catalog page and the agent (explorer_search, explorer_browse,
 explorer_table).
 
 GET  /explorer/search?q=cust&kinds=tables,columns&connection=Shop&column=customer_id&limit=25
      the results grouped by kind and counted, and the connections whose catalog could be loaded
 GET  /explorer/browse?kinds=tables&connection=Shop
-     the Data page with nothing typed: every connection (its status, its tables in groups), then the open
+     the Catalog page with nothing typed: every connection (its status, its tables in groups), then the open
      tables, Structures, the APIs' tables and the blades whose result is a table. Names only
 GET  /explorer/table?connection=Shop&database=&schema=main&table=orders
      a connection's table for the detail side: columns, where it comes from, its SQL name, its code

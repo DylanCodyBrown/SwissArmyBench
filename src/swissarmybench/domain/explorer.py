@@ -11,7 +11,7 @@ holds data. Pure rules, no I/O.
                 as (a SQL cell's and a Python cell's). Names only: never a value, a row or a secret
   the answer    grouped by kind in KINDS' order, each group counted (all the matches) and cut to the limit;
                 the connections whose catalog is not loaded offered (Load its catalog)
-  the browse    the Data page with nothing typed (the owner, 2026-11-17: "a standalone DATA rail icon and
+  the browse    the Catalog page with nothing typed (the owner, 2026-11-17: "a standalone DATA rail icon and
                 page"; the one place to browse tables): every connection with its status and its tables,
                 grouped as its tree groups them (database, schema; a Power BI workspace's datasets), then
                 the open tables with their columns, Structures' documents with their paths, the APIs'
@@ -60,7 +60,7 @@ class Query:
     connection: str | None = None  # only what belongs to this connection (the picker)
     column: str | None = None  # Show tables with this column: the column's exact name, in any case
     limit: int = DEFAULT_LIMIT
-    browse: bool = False  # the Data page's browse: every source's children too (names, never a value)
+    browse: bool = False  # the Catalog page's browse: every source's children too (names, never a value)
 
     def wants(self, kind: str) -> bool:
         return kind in self.kinds
@@ -368,7 +368,7 @@ def parent_pointer(pointer: str) -> str:
     return pointer[:at] if at > 1 else "$"
 
 
-# ===== the browse (the Data page with nothing typed) =====
+# ===== the browse (the Catalog page with nothing typed) =====
 
 BROWSE_TABLES: int = 500  # a group's tables drawn at once (the search finds the rest)
 # The sections after the connections, in order.
