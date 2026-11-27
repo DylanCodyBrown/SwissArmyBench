@@ -34,7 +34,8 @@ def test_the_same_code_gives_the_same_bytes() -> None:
 def test_it_reads_the_base_and_every_extension() -> None:
     found = set(amap.boxes(MODULES))
     assert {"domain", "services", "adapters", "server", "bootstrap", "settings"} <= found
-    extensions = {p.parent.parent.name for p in (amap.ROOT / "extensions").glob("*/src/swissarmybench_*")}
+    homes = (amap.ROOT / "src").glob("swissarmybench_*")
+    extensions = {p.name.removeprefix("swissarmybench_") for p in homes}
     assert {f"ext:{name}" for name in extensions} <= found
     assert "swissarmybench.domain.steps" in MODULES and "swissarmybench.bootstrap" in MODULES
     assert not [name for name in MODULES if name.endswith((".blade", ".widget"))]  # not modules

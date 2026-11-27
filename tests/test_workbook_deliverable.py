@@ -20,7 +20,7 @@ from swissarmybench.domain import project_contract as contracts
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples" / "forms_recon"
-STREAMLIT = ROOT / "extensions/streamlit/src/swissarmybench_streamlit/contract.json"
+STREAMLIT = ROOT / "src/swissarmybench_streamlit/contract.json"
 MONTHLY: dict[str, Any] = {
     "path": "workbooks/{slug}.xlsx",
     "owner": "app",
@@ -42,9 +42,7 @@ def test_any_project_type_may_declare_a_workbook_in_its_contract() -> None:
         "workbooks/forms_recon.xlsx" not in contracts.scaffold(contract, "Forms recon")["files"]
     )  # made later
     for ident in ("accounting", "powerbi", "powerapps"):  # every packaged type's contract takes one too
-        other = json.loads(
-            (ROOT / f"extensions/{ident}/src/swissarmybench_{ident}/contract.json").read_text()
-        )
+        other = json.loads((ROOT / f"src/swissarmybench_{ident}/contract.json").read_text())
         other["files"].append(MONTHLY)
         assert contracts.workbooks(contracts.check(other)) == ["workbooks/{slug}.xlsx"]
     with pytest.raises(contracts.ContractError, match=r"files\[\d+\] is an Excel workbook: it is made"):

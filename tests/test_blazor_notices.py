@@ -26,7 +26,7 @@ NOT_FOLLOWED: dict[str, str] = {
 
 
 def server_sources() -> list[Path]:
-    folders = [ROOT / "src" / "swissarmybench", *(ROOT / "extensions").glob("*/src")]
+    folders = [ROOT / "src"]
     return [p for folder in folders for p in folder.rglob("*.py")]
 
 

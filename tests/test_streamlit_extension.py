@@ -27,7 +27,7 @@ from swissarmybench.services.extensions import Extensions
 from tests.conftest import AGENT, AUTH, make_client
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "extensions" / "streamlit" / "src" / "swissarmybench_streamlit"
+PACKAGE = ROOT / "src" / "swissarmybench_streamlit"
 
 
 @pytest.fixture

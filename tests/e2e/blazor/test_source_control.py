@@ -54,10 +54,7 @@ def server(tmp_path_factory: pytest.TempPathFactory, hub: GitHubStandin) -> Iter
         "SWISSARMYBENCH_GITHUB_WEB": hub.url,
         "PYTHON_KEYRING_BACKEND": "tests.file_keyring.FileKeyring",
         "SAB_TEST_KEYRING_FILE": str(tmp / "keyring.json"),
-        "PYTHONPATH": os.pathsep.join(
-            [str(ROOT / "extensions" / name / "src") for name in ("git", "streamlit")]
-            + [str(ROOT), str(ROOT / "src")]
-        ),
+        "PYTHONPATH": os.pathsep.join([str(ROOT), str(ROOT / "src")]),
     }
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     info: dict[str, Any] | None = None

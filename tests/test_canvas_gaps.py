@@ -30,7 +30,7 @@ from tests import canvas_runtime
 from tests.conftest import AUTH, make_client, push
 from tests.streamlit_helpers import FakeRunner
 
-PREBUILT = Path(__file__).resolve().parents[1] / "extensions/streamlit/src/swissarmybench_streamlit/widgets"
+PREBUILT = Path(__file__).resolve().parents[1] / "src/swissarmybench_streamlit/widgets"
 ORDERS = pa.table({"order_id": [1, 2, 3], "region": ["North", "South", "West"], "amount": [12.5, 8.0, 4.25]})
 
 PRODUCER = """from typing import TypedDict

@@ -22,7 +22,7 @@ from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
 # The base's starters and the Streamlit extension's (preinstalled): one pack, as the app lists it.
-EXTENSION = Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src"
+EXTENSION = Path(__file__).resolve().parents[1] / "src"
 STREAMLIT_STARTERS = EXTENSION / "swissarmybench_streamlit" / "starters"
 FILES = sorted([*FOLDER.glob("*.blade.py"), *STREAMLIT_STARTERS.glob("*.blade.py")], key=lambda p: p.name)
 

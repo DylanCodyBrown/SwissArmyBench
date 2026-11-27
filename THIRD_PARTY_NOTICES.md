@@ -13,7 +13,7 @@ top; this file lists them and carries each licence's text.
 - `web/static/grid.css`, the section "The Source Control page": values ported from
   `src/vs/workbench/contrib/scm/browser/media/scm.css`, `src/vs/base/browser/ui/{button,actionbar,countBadge,
   splitview}/*.css` and the Dark Modern and Light Modern themes (`extensions/theme-defaults/themes`).
-- `web/src/lazy/codeEditor.ts` (`createDiffViewer`) and `extensions/git/src/swissarmybench_git/domain/sync.py`
+- `web/src/lazy/codeEditor.ts` (`createDiffViewer`) and `src/swissarmybench_git/domain/sync.py`
   (`STATUS`): the Modern themes' editor colours, and git's status letters, words and decoration colour keys
   (`extensions/git/src/repository.ts`).
 - `web/src/scmPage.ts`: the view's words, menus, letters and codicon code points as VS Code's git extension

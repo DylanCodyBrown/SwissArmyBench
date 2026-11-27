@@ -18,7 +18,7 @@ from swissarmybench.services.agent import Approvals, NoOneToAsk
 from swissarmybench.services.workspace import Refused
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = [ROOT / "src" / "swissarmybench", *sorted((ROOT / "extensions").glob("*/src"))]
+SOURCES = [ROOT / "src"]
 # The one place `ask` is called: the port's real implementation.
 THE_PORT = ROOT / "src" / "swissarmybench" / "services" / "agent.py"
 DECLARED = ROOT / "src" / "swissarmybench" / "services" / "ports.py"

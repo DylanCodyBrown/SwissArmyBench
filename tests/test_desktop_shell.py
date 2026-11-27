@@ -59,7 +59,7 @@ pytestmark = pytest.mark.skipif(bool(_WHY_NOT), reason=_WHY_NOT or "runs")
 def environment(folder: Path) -> dict[str, str]:
     (folder / "home").mkdir(parents=True, exist_ok=True)
     (folder / "state").mkdir(parents=True, exist_ok=True)
-    paths = [str(ROOT / "extensions" / "streamlit" / "src")]
+    paths = [str(ROOT / "src")]
     return os.environ | {
         "HOME": str(folder / "home"),
         "USERPROFILE": str(folder / "home"),

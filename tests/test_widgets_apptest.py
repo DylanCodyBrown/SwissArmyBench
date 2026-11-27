@@ -20,7 +20,7 @@ from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain import widgets as rules
 from swissarmybench_streamlit.server.live_runs import CHECK_RUNNER
 
-PREBUILT = Path(__file__).resolve().parents[1] / "extensions/streamlit/src/swissarmybench_streamlit/widgets"
+PREBUILT = Path(__file__).resolve().parents[1] / "src/swissarmybench_streamlit/widgets"
 
 
 def _python() -> str | None:

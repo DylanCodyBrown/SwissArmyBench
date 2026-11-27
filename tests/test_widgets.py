@@ -11,7 +11,7 @@ from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain import widgets as rules
 from swissarmybench_streamlit.domain.widgets import Widget, WidgetError
 
-PREBUILT = Path(__file__).resolve().parents[1] / "extensions/streamlit/src/swissarmybench_streamlit/widgets"
+PREBUILT = Path(__file__).resolve().parents[1] / "src/swissarmybench_streamlit/widgets"
 
 CODE = """import os
 from typing import Literal

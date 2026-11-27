@@ -34,10 +34,7 @@ def extension_server(
             "SWISSARMYBENCH_PROJECT_VENV": "off",
             "PYTHON_KEYRING_BACKEND": "tests.file_keyring.FileKeyring",
             "SAB_TEST_KEYRING_FILE": str(tmp / "keyring.json"),
-            "PYTHONPATH": os.pathsep.join(
-                [str(ROOT / "extensions" / name / "src") for name in extensions]
-                + [str(ROOT), str(ROOT / "src")]
-            ),
+            "PYTHONPATH": os.pathsep.join([str(ROOT), str(ROOT / "src")]),
         }
         | (extra or {})
     )

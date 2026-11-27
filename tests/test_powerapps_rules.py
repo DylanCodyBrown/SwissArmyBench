@@ -376,9 +376,7 @@ def test_its_starters_read_and_fill_as_typescript(tmp_path: Path) -> None:
 
 # ===== the extension's own layers (REFACTOR.md: imports point inwards) =====
 
-PACKAGE = (
-    Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src" / "swissarmybench_powerapps"
-)
+PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench_powerapps"
 INWARD = {
     "domain": ("swissarmybench_powerapps.domain", "swissarmybench.domain"),
     "services": (

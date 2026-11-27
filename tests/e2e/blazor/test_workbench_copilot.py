@@ -41,7 +41,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         "SWISSARMYBENCH_COPILOT_STANDIN": str(STANDIN),
         "COPILOT_STANDIN_LOG": str(tmp / "standin.log"),
         "COPILOT_STANDIN_STATE": str(tmp / "account.json"),
-        "PYTHONPATH": os.pathsep.join([str(ROOT / "extensions" / "copilot" / "src"), str(ROOT / "src")]),
+        "PYTHONPATH": str(ROOT / "src"),
         "SWISSARMYBENCH_NO_BROWSER": "1",
         "SWISSARMYBENCH_SYSTEM_DIALOGS": "off",
         "SWISSARMYBENCH_PROJECT_VENV": "off",

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench"
-ROOTS = [PACKAGE, *sorted((PACKAGE.parents[1] / "extensions").glob("*/src/*"))]
+ROOTS = [PACKAGE, *sorted(PACKAGE.parent.glob("swissarmybench_*"))]
 ADAPTER = PACKAGE / "adapters" / "adapter.py"
 
 DRIVERS = {
