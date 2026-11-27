@@ -152,7 +152,9 @@ def test_home_is_the_open_projects_summary(browser: Browser, server: dict[str, A
     page = open_page(browser, server, "")
     expect(page.locator(".summary-name")).to_have_text(name)
     expect(page.locator("h1.area-page-title")).to_contain_text(name)
-    expect(page.locator("[data-fact=folder]")).to_contain_text(folder)
+    # The path shown is its end; the whole of it is the hover's.
+    expect(page.locator("[data-fact=folder] code")).to_have_attribute("title", folder)
+    expect(page.locator("[data-fact=folder] code")).to_contain_text(Path(folder).name)
     expect(page).to_have_title(f"{name} · Swiss Army Bench")
 
     tables = page.locator("[data-section=tables]")
