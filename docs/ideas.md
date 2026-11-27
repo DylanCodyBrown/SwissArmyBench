@@ -9758,7 +9758,11 @@ connections from that power bi data set and the queries."
     came in, with Undo;
   - each table's Power Query query becomes something the app runs: a `.sql` file on the Scripts page in the source's
     own SQL where the query folds, else the M kept beside it and said.
+- **And a button (the owner: "And of course we can add a button to falls with an import power bi option as well";
+  "falls" read as "files": the Files pane's "+" or New file menu):** Import Power BI… picks a .pbix, .pbit or .pbip
+  and runs the same import as a drop.
 - **To settle before building:**
+  - Where the button sits: the Files pane, the New file menu, Home, or all three.
   - Does "data set" also mean a published dataset dragged from the Power BI service in a browser? A drop carries
     only a link then, so it would be read through the workspace connection.
   - What does "automatically" do with a project open: import into it, or ask once?
