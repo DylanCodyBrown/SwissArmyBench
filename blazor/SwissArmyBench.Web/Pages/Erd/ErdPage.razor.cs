@@ -151,7 +151,8 @@ public partial class ErdPage
 
     private void OnNotice(Notice notice)
     {
-        if (notice.Type is "relationships_updated" or "grid_shown" or "grid_closed" or "project_changed")
+        // relationship_sets_changed: a saved set was added, renamed or removed (the shared models offered here).
+        if (notice.Type is "relationships_updated" or "relationship_sets_changed" or "grid_shown" or "grid_closed" or "project_changed")
         {
             _ = InvokeAsync(async () =>
             {

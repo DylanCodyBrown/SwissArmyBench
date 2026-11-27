@@ -601,7 +601,8 @@ class SabProjects:
                 rows = await asyncio.to_thread(
                     self._archive.read_rows, rules_path(current.folder, table.rows_file)
                 )
-                origin = Origin("paste")
+                # The sample store's tables stay the sample's (Home says "from Sample data"), a paste a paste.
+                origin = Origin("sample" if source.extra.get("sample") is True else "paste")
                 await self._datasets.store_table(table.name, rows, "arrow", True, who, origin=origin)
             else:
                 problem = "no_rows"

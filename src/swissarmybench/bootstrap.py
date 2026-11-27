@@ -536,7 +536,7 @@ def _explorer(
 ) -> Explorer:
     """The Data Explorer: one search over the connections and their catalogs, the open tables, the
     variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
-    The Data page browses the same sources: each connection's tree (never loaded by a look: Load does)."""
+    The Catalog page browses the same sources: each connection's tree (never loaded by a look: Load does)."""
     store = ws.store
     explorer = Explorer(
         ws,

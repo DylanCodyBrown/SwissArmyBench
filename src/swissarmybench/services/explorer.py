@@ -61,7 +61,7 @@ class CatalogSearch(Protocol):
 
 @dataclass
 class BrowseSources:
-    """What the Data page's browse reads besides the providers: the connections (the Connections page's
+    """What the Catalog page's browse reads besides the providers: the connections (the Connections page's
     listing), a connection's tree (services/connection_tables.py, never loading it: Load does), and a
     catalog table's columns with its DuckDB SQL name."""
 
@@ -77,9 +77,9 @@ class Explorer:
         self.sources = sources
 
     async def browse(self, params: Any) -> dict[str, Any]:
-        """The Data page with nothing typed: every connection (its status, its tables in its tree's groups),
-        then the open tables, Structures, the APIs' tables and the blades whose result is a table, each with
-        its children. {"kinds", "connection"} as the search's. Names only."""
+        """The Catalog page with nothing typed: every connection (its status, its tables in its tree's
+        groups), then the open tables, Structures, the APIs' tables and the blades whose result is a table,
+        each with its children. {"kinds", "connection"} as the search's. Names only."""
         given = params if isinstance(params, dict) else {}
         query = rules.browse_query(given.get("kinds"), given.get("connection"))
         connections: list[dict[str, Any]] = []
@@ -115,7 +115,7 @@ class Explorer:
                 "Name the connection and the table (and its schema, and database if it has one)."
             )
         if self.sources is None:
-            raise LookupError("The Data page's tables are not in this build.")
+            raise LookupError("The Catalog page's tables are not in this build.")
         place = Place(str(given.get("database") or ""), str(given.get("schema") or ""), table)
         described = await self.sources.describe(connection, place)
         sql = str(described["sql"])

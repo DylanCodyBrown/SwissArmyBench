@@ -9562,12 +9562,7 @@ The owner: "At full screen mode for the canvas" (read as "Add a full screen mode
 - **Notices the Blazor pages did not follow.** The swap to Blazor left some of the server's notices with no listener.
   Followed now: `navigate` (the agent's app_navigate: Layout/NavigateFollower, the home window's places),
   `snapshot_request` (app_snapshot: Layout/SnapshotFollower, interop/snapshot.js) and `library_notice` with POST
-  /library/notices (Layout/LibraryNotices). Still not followed (open): `workbench_command` (the agent's
-  workbench_window: every palette command of the Notebooks and Scripts pages, a piece of work of its own), the
-  Notebooks and Scripts windows told apart for app_navigate (every page joins the socket as a workspace page, so
-  window notebooks or scripts is refused as not open), `workbench_handoff`, `code_file_moved`,
-  `relationship_sets_changed`, `project_documents_changed`, `inbox_changed`, `extensions_changing`, `scaffold_changed`,
-  `mode_changed`, `app_registration_checked`.
+  /library/notices (Layout/LibraryNotices). The rest were followed the same day ("Fix it all", below).
 - **Once at a time.** A dialog whose Enter and button run the same save checks its own busy flag first (New project,
   a step's editor, a beta note, New blade, the Environment's rename): the disabled button alone does not stop a second
   Enter before the page is drawn again.
@@ -9612,3 +9607,38 @@ Open notes:
 - A window in the background of a browser is throttled by the browser (its look runs about once a second); the
   desktop app's windows are not.
 
+## Fix it all, 2026-11-27 (the sweep's leftovers; decisions and open notes)
+
+- **A page says which window it is.** One page of the front end moves between the rail's areas on one socket, so
+  it says its window on it as it moves and when it comes to the front (`{"type": "window", "kind": "notebooks"}`:
+  the first word of its address, home for the first page; Layout/WindowPlace, adapters/live_updates.py `place`).
+  The Notebooks and Scripts pages are the Workbench windows: `app_navigate` with window notebooks, scripts or
+  workbench and `workbench_window` reach the open one the user was last in, refused only when none is open.
+- **workbench_window on the Blazor pages.** Layout/CommandFollower answers the `workbench_command` notice through
+  State/Commands.AnswerAsync: `commands` lists the palette of the page in front, a palette command runs as the
+  user's own (its WhyNot is the refusal), and the page's own answers come first for the ones that give something
+  back: `documents`, `explorer.target`, `file.openAt`, `file.openCell`, `project.saveDocuments`
+  (WorkbenchPage.Agent.cs). The classic window's other commands with arguments (`cell.insertBelow` with a source,
+  `doc.repoint`, `group.moveTab`...) are not there: they answer "This page has no command" (open: build them as
+  they are asked for). The server's own askers (the project's Save, the update's what-is-open, a connection swap's
+  repoint, Build's show) already carry on when the window refuses.
+- **Every notice is followed, or said why not** (tests/test_blazor_notices.py reads the sources). Followed now:
+  `code_file_moved` (a tab follows its moved file or says gone), `project_documents_changed` (Home, the Files
+  pane), `scaffold_changed` (Home's Deliverable), `relationship_sets_changed` (the ERD), `extensions_changing`
+  (Extensions), `mode_changed` (the rail's areas), `app_registration_checked` (a connection's Access),
+  `powerapps_run` and `powerapps_notebook` (the Code App page), `template_changed` (Templates), and Power BI's live
+  status through its panel's own `extension_panel_changed`, sent beside `powerbi_live`.
+- **No page shows these two (kept on the server, said in the test):** `workbench_handoff`: the Blazor pages move a
+  document to another window by its file (saved first, WorkbenchPage.Windows.cs), never through
+  /workbench/handoffs, so no page takes a handoff; the routes and the notice are the classic windows' (open: the
+  owner's call to remove them). `inbox_changed`: no page shows how much waits for the agent; the prompt hook and
+  agent_inbox read the inbox itself.
+- **The rail under a dialog's shade:** while a dialog of the page is open its frame sits above the rail
+  (`.page-frame:has(.dialog-shade)`), so the shade dims and covers it; the app's own dialogs (DialogHost) were
+  above it already.
+- **Sample data:** the sample store's tables carry an origin of their own (`sample`), kept in project.json as the
+  pasted source's `sample: true`, so Home, the Environment, the outline and context.md say sample data.
+- **A contract's `{slug}` on the screen:** project_contract.shown fills it (the project's own file, else its
+  name's); the scaffold's deliverable says `path` filled and `listed` as the contract has it.
+- **Background work:** services/background.py `keep(work, name)` is the one way a task is started and not waited
+  for (kept until it ends, its exception logged by the job's name).

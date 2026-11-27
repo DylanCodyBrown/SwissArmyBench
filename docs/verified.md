@@ -6438,3 +6438,23 @@ to the scripts page with an open script" / "sql authorship will have one place i
   (the four data.py export tests, test_script_export, test_connection_drivers, test_performance, test_updater,
   test_sharing, test_catalog's and test_adapter's timings under load). The whole suite was not run again after.
   ruff and ruff format clean; mypy: only sab_canvas.py:622; the architecture map current.
+## 2026-11-27: "Fix it all", the sweep's leftovers (branch fable-sweep)
+
+- Each fix proved by a test that failed first: tests/test_navigation.py (a page says which window it is),
+  tests/e2e/blazor/test_agent_windows.py (workbench_window and app_navigate on the open Notebooks or Scripts
+  page), tests/test_blazor_notices.py (every notice followed, or said why not), tests/test_page_words.py (Catalog
+  page), tests/test_first_run.py (Sample data), tests/test_scaffold.py and test_scaffold_sources.py (the
+  Deliverable's name), tests/test_background.py (kept tasks), test_accessibility.py (the rail under a dialog's
+  shade), test_layout_polish.py (an empty Files group's None), and bUnit (CommandFollowerTests,
+  NavigateFollowerTests, NoticeFollowersTests).
+- Blazor: `dotnet build -warnaserror` clean on both projects, `dotnet format --verify-no-changes` clean, bUnit 250
+  of 250. Browser tests (Release build, two workers): 189 passed, 7 skipped.
+- Unit suite (no e2e, four workers; the machine shared with three other builds, 35 minutes): 6,033 passed, 42
+  skipped, 18 failed. Eight are this container's known ones (the four data.py export tests, test_script_export,
+  test_connection_drivers, test_performance, test_updater). Of the other ten, six were Jedi's cache in
+  ~/.cache/jedi, cut short when the disk filled during the run ("pickle data was truncated": they pass with a clean
+  cache folder), two passed run again (a kernel's outputs, the adapter's streamed read), one was the desktop
+  drive (fixed: its new project is made off the window thread), and one fails the same way at e032a70 on this
+  machine today (test_a_kernels_live_names_through_jedis_interpreter: the kernel's own Jedi within its
+  one-second budget under load).
+- ruff and ruff format clean; mypy: only sab_canvas.py:622; the architecture map current.

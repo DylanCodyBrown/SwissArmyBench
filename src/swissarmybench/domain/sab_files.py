@@ -43,7 +43,7 @@ from typing import Any
 
 from swissarmybench.domain import notebooks, structures
 from swissarmybench.domain import projects as project_rules
-from swissarmybench.domain.table_cells import Origin
+from swissarmybench.domain.table_cells import SAMPLE_WORDS, Origin
 
 FORMAT: int = 1
 MARK_KEY: str = "swissarmybench"
@@ -134,6 +134,8 @@ class Source:
             return _base(self.path or self.absolute or "")
         if self.kind == "cell":
             return _base(self.notebook or "")
+        if self.kind == "pasted" and self.extra.get("sample") is True:
+            return SAMPLE_WORDS  # the made-up sample store's (Try it with sample data), never "Pasted"
         return {"query": "Query"}.get(self.kind, "Pasted")
 
 
@@ -278,6 +280,8 @@ def source_of(
         inside = near(kernel_document, project_folder)
         if inside is not None and _kind(inside) in ("notebook", "script"):
             return Source("cell", notebook=inside)
+    if origin.kind == "sample":
+        return Source("pasted", rows=rows, extra={"sample": True})
     return Source("pasted", rows=rows)
 
 

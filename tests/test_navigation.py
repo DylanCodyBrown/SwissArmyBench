@@ -4,6 +4,7 @@ the address, breadcrumbs, titles) is tests/e2e/test_navigation_page.py. Made-up 
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -168,3 +169,42 @@ def test_grids_is_the_tables_pages_old_word() -> None:
     assert rules.place("home", "tables") == {"window": "home", "to": "tables"}
     assert rules.place("home", "grids") == {"window": "home", "to": "tables"}
     assert rules.blazor_page("/g/g7", {}) == ("tables", {"grid": "g7"})
+
+
+def test_a_page_says_which_window_it_is_and_only_that_one_is_told(tmp_path: Path) -> None:
+    """Every page of the Blazor front end joins the socket the same way, so the server could not tell a
+    Notebooks page from Home: app_navigate with window notebooks or scripts was always refused as not open.
+    A page says which window it is ({"type": "window", "kind": ...}) as it moves; the Notebooks page is told,
+    and refused only when none is open."""
+    with make_client(tmp_path) as client:
+        with (
+            client.websocket_connect("/ws?workspace=1", headers=AUTH | HOST) as home,
+            client.websocket_connect("/ws?workspace=1", headers=AUTH | HOST) as moving,
+        ):
+            refused = client.post("/navigate", json={"window": "notebooks", "to": "back"}, headers=AGENT)
+            assert refused.status_code == 409 and "No Notebooks page is open" in refused.text
+
+            moving.send_text('{"type":"window","kind":"notebooks"}')
+            home.send_text('{"type":"window","kind":"home"}')
+            time.sleep(0.2)  # the sockets' words read before the next request
+            sent = client.post("/navigate", json={"window": "notebooks", "to": "connections"}, headers=AGENT)
+            assert sent.status_code == 200, sent.text
+            assert moving.receive_json() == {
+                "type": "navigate",
+                "window": "workbench",
+                "to": "connections",
+                "by": "agent",
+            }
+            refused = client.post("/navigate", json={"window": "scripts", "to": "back"}, headers=AGENT)
+            assert refused.status_code == 409 and "No Scripts page is open" in refused.text
+
+            # The page moved on to Tables: no Notebooks page is open any more.
+            moving.send_text('{"type":"window","kind":"tables"}')
+            time.sleep(0.2)
+            refused = client.post("/navigate", json={"window": "workbench", "to": "back"}, headers=AGENT)
+            assert refused.status_code == 409
+            # A kind that is not a word is not taken.
+            moving.send_text('{"type":"window","kind":"<script>"}')
+            moving.send_text("not json")
+            time.sleep(0.2)
+            assert client.post("/navigate", json={"to": "home"}, headers=AGENT).status_code == 200

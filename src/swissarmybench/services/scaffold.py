@@ -192,9 +192,13 @@ class Scaffold:
         if contract is None:
             return {"type": None, "files": []}
         names = self._files.names(folder)
+        # A path's {slug} filled in for the screen (the project's own file, else its name's): `listed` keeps
+        # the contract's own words.
+        title = folder.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
         files = [
             {
-                "path": entry["path"],
+                "path": project_contract.shown(entry["path"], names, title),
+                "listed": entry["path"],
                 "owner": entry["owner"],
                 "about": entry["about"],
                 "made_from": entry["made_from"],

@@ -1,0 +1,52 @@
+@* The agent's workbench_window (POST /workbench/window) followed: the server tells the open Notebooks or Scripts page
+   the user was last in (the page said which window it is, Layout/WindowPlace) a "workbench_command" notice; the
+   command runs as the palette runs it (State/Commands.AnswerAsync) and the page answers (POST /workbench/window/{id}):
+   its result and where it happened, or why it could not. Nothing is drawn. *@
+@implements IDisposable
+@inject LiveUpdates Live
+@inject Commands Commands
+@inject ApiClient Api
+
+@code {
+    private const string NoticeType = "workbench_command";
+
+    protected override void OnInitialized() => Live.NoticeArrived += OnNotice;
+
+    // An event handler returns nothing: the command goes on as a Task of its own.
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type == NoticeType && notice.Text("id") is { Length: > 0 } id && notice.Text("command") is { } command)
+        {
+            var args = notice.Body.TryGetProperty("args", out var sent) ? sent : default;
+            _ = InvokeAsync(() => AnswerAsync(id, command, args));
+        }
+    }
+
+    private async Task AnswerAsync(string id, string command, JsonElement args)
+    {
+        object body;
+        try
+        {
+            var done = await Commands.AnswerAsync(command, args);
+            body = new { result = done.Result, place = new { path = done.Path, title = done.Title, cell = done.Cell } };
+        }
+        catch (InvalidOperationException refused)
+        {
+            body = new { error = refused.Message };
+        }
+        catch (ApiException refused)
+        {
+            body = new { error = refused.Message };
+        }
+        try
+        {
+            await Api.PostAsync($"/workbench/window/{ApiClient.Part(id)}", body);
+        }
+        catch (ApiException)
+        {
+            // The request is over (it timed out, or another window answered first): nothing to say.
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
+}

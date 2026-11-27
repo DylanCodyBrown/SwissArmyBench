@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import traceback
 import urllib.parse
@@ -384,7 +385,11 @@ def main(folder: Path, shots: Path | None) -> int:
         # 11d. The Canvas's F11 (2026-11-26): the board alone and the window itself full screen; Escape puts
         # the window back as it was.
         project = {"name": "Drive", "type": "streamlit", "folder": str(folder / "projects")}
-        made = json.loads(post_json("/project/new", project))
+        # Off the window thread: a new project is saved, and its Save asks the open Scripts window for its
+        # unsaved documents first; that window answers only while this thread keeps drawing the app.
+        made_box: list[Any] = []
+        threading.Thread(target=lambda: made_box.append(post_json("/project/new", project)), daemon=True).start()
+        made = json.loads(wait(lambda: made_box, 60, "the new project")[0])
         canvas_path = call("GET", "/streamlit/canvases")["canvases"][0]["path"]
         results["canvas_project"] = bool(made)
         js(home, f"window.open('/blazor/canvas?path={urllib.parse.quote(canvas_path)}', 'sab-canvas'); true")

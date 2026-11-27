@@ -5,7 +5,7 @@ using SwissArmyBench.Web.Api.Catalog;
 
 namespace SwissArmyBench.Web.Pages.Catalog;
 
-/// <summary>The Catalog page's browsing (the classic dataExplorer.ts on the Data page): with nothing typed, the tree
+/// <summary>The Catalog page's browsing (the classic dataExplorer.ts on the Catalog page): with nothing typed, the tree
 /// of every connection and section (CatalogTree) instead of the grouped results; the kinds and the connection still
 /// narrow it; the sandbox's order remembered in this browser.</summary>
 public partial class DataExplorer

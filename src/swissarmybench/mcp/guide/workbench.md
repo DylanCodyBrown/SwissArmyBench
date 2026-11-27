@@ -44,7 +44,7 @@ page, and SQL is written only on the Scripts page).
   The Data Explorer (the left pane, off until opened: "view.explorer", Ctrl+Shift+E) sits beside every
   document; "documents" panes.data_explorer says open or closed. "explorer.search" searches it
   (as `explorer_search`), "explorer.insert" puts a result's insert code in the front document's cell,
-  "explorer.popOut" opens the Data page (the one place to browse tables) in a window of its own.
+  "explorer.popOut" opens the Catalog page (the one place to browse tables) in a window of its own.
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data Explorer).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;

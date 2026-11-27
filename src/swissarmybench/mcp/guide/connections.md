@@ -234,7 +234,7 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   `connections_preview_table`, Load `connections_load_catalog`, Import its relationships
   `connections_import_relationships`, Query in a notebook `workbench_window("cell.insertBelow",
   {kind: "sql", source})`, Insert `workbench_window("explorer.insert")`. The same search is the Workbench's
-  pane (Ctrl+Shift+E; "explorer.popOut" opens the Data page in a window of its own) and Ctrl+K on the
+  pane (Ctrl+Shift+E; "explorer.popOut" opens the Catalog page in a window of its own) and Ctrl+K on the
   Tables page.
 
 ## How many queries at once (each connection's slots)

@@ -11,6 +11,7 @@ Pure rules, no I/O: a request read into the notice the window acts on.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 # The windows that move: the home page (/workspace), the Notebooks and Scripts pages. "catalog", the old
@@ -139,6 +140,29 @@ def said(notice: dict[str, Any]) -> str:
     named = [str(notice[k]) for k in ("grid", "name") if k in notice]
     where = f"{notice['window']} window to {notice['to']}{' ' + '/'.join(named) if named else ''}"
     return where + (", in a new window" if notice.get("new_window") else "")
+
+
+# ===== which window a page is =====
+# One page of the front end moves between the rail's areas on one socket, so it says which window it is as
+# it moves: {"type": "window", "kind": "notebooks"}. The kind is the page's first address word (home for
+# the first page): a short plain word, anything else is not taken.
+MAX_KIND: int = 32
+
+
+def window_kind(said: str) -> str | None:
+    """The kind a page's socket message names, or None when it is not that message (or not a plain word)."""
+    if len(said) > 256:
+        return None
+    try:
+        message = json.loads(said)
+    except ValueError:
+        return None
+    if not isinstance(message, dict) or message.get("type") != "window":
+        return None
+    kind = message.get("kind")
+    if not isinstance(kind, str) or not 0 < len(kind) <= MAX_KIND:
+        return None
+    return kind if kind.replace("-", "").replace("_", "").isalnum() and kind.isascii() else None
 
 
 # ===== the rail's names (the owner, 2026-11-19) =====

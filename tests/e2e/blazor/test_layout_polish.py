@@ -147,3 +147,21 @@ def test_the_selected_rows_tab_mark_keeps_its_contrast(browser: Browser, server:
     )
     assert colours[0] == colours[1]
     page.close()
+
+
+def test_an_empty_files_group_says_none_under_its_heading(browser: Browser, server: dict[str, Any]) -> None:
+    """The Scripts page's Files pane: the None of an empty group (APIs 0, Key vaults 0) sat flush to the
+    pane's left edge; it starts where its heading's words start."""
+    call(server, "POST", "/project/new", {"name": "made_up_none"})
+    page = open_page(browser, server, "scripts")
+    none = page.locator(".files-group .wb-codex-empty").first
+    expect(none).to_be_visible()
+    lefts = none.evaluate(
+        """(none) => { const start = (node) => { const range = document.createRange();
+             range.selectNodeContents(node); return range.getClientRects()[0].left; };
+           const heading = [...none.closest('.files-group').querySelector('summary').childNodes]
+             .find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+           return [start(none), start(heading)]; }"""
+    )
+    assert abs(lefts[0] - lefts[1]) <= 3
+    page.close()

@@ -361,12 +361,13 @@ class DatasetService:
         who: str,
         dates: tuple[str, ...] = (),
         source_kind: str = "analysis",
+        origin: Origin | None = None,
     ) -> dict[str, Any]:
         """A table of rows the app itself made (an analysis result opened as a grid, a contract's made-up
         sample), in a tab of its own. `name` is taken as given: the caller picks a free one."""
         ws = self.ws
         table = await ws.workers.run(INTERACTIVE, self._reader.rows_to_arrow, columns, rows, dates)
-        return await self.store_table(name, table, source_kind, True, who)
+        return await self.store_table(name, table, source_kind, True, who, origin=origin)
 
     def free_name(self, wanted: str) -> str:
         """`wanted`, or it with a number, so that no open table has the name."""
@@ -383,7 +384,9 @@ class DatasetService:
         for table in sample_data.store():
             name = self.free_name(table.name)
             rows = [list(row) for row in table.rows]
-            stored = await self.store_rows(name, list(table.columns), rows, who, table.dates, "records")
+            stored = await self.store_rows(
+                name, list(table.columns), rows, who, table.dates, "records", Origin("sample")
+            )
             opened.append({"name": name, "grid": stored["grid"], "rows": len(rows)})
         return {"tables": opened}
 

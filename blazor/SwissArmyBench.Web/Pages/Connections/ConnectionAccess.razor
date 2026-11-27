@@ -1,6 +1,8 @@
 @* A connection's Access section (the classic connectionAccess.ts): what each app registration that signs it in
    reaches, when and where that was checked, Check again. Hidden when no registration signs it in. *@
+@implements IDisposable
 @inject ConnectionsClient Connections
+@inject LiveUpdates Live
 
 @if (_access is { Count: > 0 } access)
 {
@@ -52,7 +54,24 @@
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
 
+    protected override void OnInitialized() => Live.NoticeArrived += OnNotice;
+
     protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    // An app registration's access was checked again anywhere (Test, Check again, the agent's): read again.
+    private void OnNotice(Notice notice)
+    {
+        if (notice.Type == "app_registration_checked")
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Live.NoticeArrived -= OnNotice;
 
     private async Task LoadAsync()
     {

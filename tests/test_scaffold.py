@@ -479,8 +479,10 @@ def test_the_deliverable_is_read_from_the_types_contract(
     listed = ask(port, "GET", "/project/scaffold")["deliverable"]
     assert listed["type"] == "streamlit" and listed["deliverable"] == "a Streamlit app"
     by = {f["path"]: f for f in listed["files"]}
-    assert set(by) == {"{slug}.canvas.json", "builds/"} and by["builds/"]["grows_on"] == ["launch"]
-    assert by["{slug}.canvas.json"]["present"] and not by["builds/"]["present"]  # no Launch yet
+    # The file's own name, never the contract's unfilled {slug} (Home's Deliverable card showed it).
+    assert set(by) == {"dash.canvas.json", "builds/"} and by["builds/"]["grows_on"] == ["launch"]
+    assert by["dash.canvas.json"]["present"] and not by["builds/"]["present"]  # no Launch yet
+    assert by["dash.canvas.json"]["listed"] == "{slug}.canvas.json"
     # The base's scaffold names no extension's file: it reads them from the contract.
     base = Path(rules.__file__).read_text(encoding="utf-8") + Path(
         rules.__file__.replace("domain", "services")

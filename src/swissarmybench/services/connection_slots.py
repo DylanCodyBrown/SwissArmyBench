@@ -33,6 +33,7 @@ from swissarmybench.domain import connection_slots as rules
 from swissarmybench.domain.connection_slots import Board, Limits, Ticket
 from swissarmybench.domain.query_text import format_sql
 from swissarmybench.domain.refusals import first_sentence, try_again
+from swissarmybench.services import background
 from swissarmybench.services.agent import NoOneToAsk
 from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import Approvals, Audit, Notifier
@@ -384,7 +385,7 @@ class ConnectionSlots:
 
     def _sweep_soon(self) -> None:
         if self._sweeper is None or self._sweeper.done():
-            self._sweeper = asyncio.get_running_loop().create_task(self._sweep())
+            self._sweeper = background.keep(self._sweep(), "the connection slots' sweep")
 
     async def _sweep(self) -> None:
         """Kernels' slots whose lease ran out go back (the kernel died); it stops when none is leased."""
@@ -505,7 +506,7 @@ class ConnectionSlots:
             k: snapshot[k] for k in ("queries", "connections", "started")
         }
         message["finished"] = snapshot["finished"][:1]  # the newest, so a page knows the list moved
-        asyncio.get_running_loop().create_task(self._send(message))
+        background.keep(self._send(message), "the connection_slots notice")
 
     async def _send(self, message: dict[str, Any]) -> None:
         with contextlib.suppress(Exception):

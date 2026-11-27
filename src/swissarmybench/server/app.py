@@ -319,13 +319,16 @@ def create_app(
             ctx.screen.opened(websocket)
         try:
             while True:
-                # What a client sends: a VS Code or Workbench window saying it came to the front, and a
-                # window's report of what it shows.
-                text = await websocket.receive_text()
-                if text == '{"type":"focus"}':
+                # What a client sends: a VS Code or Workbench window saying it came to the front, a page saying
+                # which window it is now ({"type": "window", "kind": "notebooks"}), and a window's report of what
+                # it shows.
+                said = await websocket.receive_text()
+                if said == '{"type":"focus"}':
                     ctx.live.focus(websocket)
+                elif (kind := navigation_rules.window_kind(said)) is not None:
+                    ctx.live.place(websocket, kind)
                 elif window:
-                    ctx.screen.heard(websocket, text)
+                    ctx.screen.heard(websocket, said)
         except WebSocketDisconnect:
             pass
         finally:
@@ -341,7 +344,7 @@ def create_app(
     async def workbench_page(request: Request) -> Response:
         # The old address: notebooks and scripts are two pages now (the owner, 2026-11-21), /notebooks
         # and /scripts (the same page's code, each its own window); an old ?kind= goes to its page.
-        # ?panel=explorer, the popped-out Data Explorer's old address: the Data page now (open=data). The
+        # ?panel=explorer, the popped-out Data Explorer's old address: the Catalog page now (open=data). The
         # browser keeps the address's #token across the redirect.
         if request.query_params.get("panel") == "explorer":
             return RedirectResponse("/workspace?open=data", status_code=302)

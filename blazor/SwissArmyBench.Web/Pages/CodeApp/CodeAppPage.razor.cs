@@ -183,8 +183,12 @@ public partial class CodeAppPage
                 _ = InvokeAsync(StateHasChanged);
             }
         }
-        else if (notice.Type is "powerapps_project" or "powerapps_live" && _tab is "project" or "live")
+        else if ((notice.Type is "powerapps_project" or "powerapps_live" && _tab is "project" or "live")
+            || (notice.Type == "powerapps_run" && _tab == "runs")
+            || (notice.Type == "powerapps_notebook" && _tab == "project"))
         {
+            // powerapps_run: a run started or ended (the Runs tab's list); powerapps_notebook: the data notebook's
+            // kernel started (the Project tab's Data notebook).
             _ = InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
         }
     }

@@ -17,6 +17,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import debugger as rules
+from swissarmybench.services import background
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 _EVENT_POLL = 0.5
@@ -141,8 +142,8 @@ class Debugger:
         session.state, session.frames, session.reason = "running", [], ""
         session.output, session.ok, session.error = "", None, ""
         self._tasks[kernel_id] = [
-            asyncio.create_task(self._run(kernel, session, code)),
-            asyncio.create_task(self._watch(kernel, session)),
+            background.keep(self._run(kernel, session, code), "a debug run"),
+            background.keep(self._watch(kernel, session), "a debug run's events"),
         ]
         self.ws.audit.write(who, "debug_start", session.document, breakpoints=len(session.breakpoints))
         return await self._said(session)

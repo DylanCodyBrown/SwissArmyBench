@@ -905,6 +905,8 @@ src/swissarmybench/
                          way the agent asks for the user's Allow (allowed(who, subject=, action=, detail=,
                          otherwise=): the user's at once; the agent's waits, a no raises Refused "The user
                          declined (or did not answer): <otherwise>."; tests/test_approvals.py: no raw ask)
+    background.py        keep(work, name): the one way a task is started and not waited for (held until it ends,
+                         its exception logged by the job's name; tests/test_background.py: no bare create_task)
     workspace.py         Workspace (the ports every use case shares, grid lookups and queries) and the
                          outcomes Refused, NotFound, TimedOut, Conflict
     datasets.py          every way data arrives (push, file, paste, the "+" tab's query), list, close
@@ -1353,11 +1355,10 @@ src/swissarmybench/
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
                          explorer, library, project_python,
                          shared_catalog, team, found_connections, script_ide, sql_files, debugger, sharing, actions,
-                         call_stats, changes, collaboration). Every route serves
-                         routes_screen.py: GET /screen and /screen/{window} (app_screen); the windows report over
-                         their live socket (/ws, app.py), never by a route
+                         call_stats, changes, collaboration, screen). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
-                         project's Show in folder and Delete
+                         project's Show in folder and Delete. routes_screen.py: GET /screen and /screen/{window}
+                         (app_screen); the windows report over their live socket (/ws, app.py), never by a route
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`

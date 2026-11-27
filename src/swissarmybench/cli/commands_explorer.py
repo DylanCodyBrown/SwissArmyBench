@@ -45,7 +45,7 @@ def explorer_search(a: dict[str, Any]) -> Any:
 
 @command(
     "explorer_browse",
-    "The Data page with nothing typed (the one place to browse tables): every connection with its status "
+    "The Catalog page with nothing typed (the one place to browse tables): every connection with its status "
     "(its catalog: loaded, loading, none: connections_load_catalog) and its tables by database and schema "
     "(a Power BI workspace's datasets), each with its DuckDB SQL name; then the open tables with their "
     "columns, Structures' documents and paths, APIs' table-returning calls and the blades whose result is "
@@ -70,7 +70,7 @@ def explorer_browse(a: dict[str, Any]) -> Any:
 
 @command(
     "explorer_table",
-    "A connection's table as the Data page's detail side shows it: its columns (name, type, nulls), where "
+    "A connection's table as the Catalog page's detail side shows it: its columns (name, type, nulls), where "
     "it comes from, its DuckDB SQL name, the code that reads it (a %%sql cell's, a Python cell's) and "
     "whether its relationships import (connections_import_relationships). Its catalog must be loaded.",
     req("connection", "The connection's name."),

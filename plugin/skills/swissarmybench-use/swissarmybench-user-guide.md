@@ -227,7 +227,7 @@ terminal (it starts the app when it is not running).
   - **Advanced** (folded): the Team library folder and the Shared projects folder as their own paths, for a team
     that keeps them in two repositories or a folder synced another way; Set up this computer.
   - The shared catalog (`catalog/`: each connection's tables, columns, keys, relationships and the projects
-    using them; never a value) brings a teammate's tables to the Data page after a Pull ("From the shared
+    using them; never a value) brings a teammate's tables to the Catalog page after a Pull ("From the shared
     catalog: not connected here").
   - The agent: `team_status`, `team_join`, `team_start`, `team_leave` (each waits for your Allow); signing in is
     yours only.
@@ -618,7 +618,7 @@ their own, run in an IPython kernel on this computer.
   **Pop out** opens the **Data** page (below, under "Data: browse and find tables") in a window of its
   own (on another screen, say) with your search, and closes the pane here; its Insert still goes into the
   Workbench's selected cell, and a drag from it drops into a cell there. On the Tables page, **Ctrl+K**
-  (Find data…) opens the same search in a dialog, with **Open the Data page** to take it there.
+  (Find data…) opens the same search in a dialog, with **Open the Catalog page** to take it there.
 - **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
   the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the

@@ -980,11 +980,17 @@ def _leading(lines: Sequence[str]) -> Iterable[str]:
 # ===== a table's cell as text =====
 
 
+# Where a table of Try it with sample data came from, in the words every page says.
+SAMPLE_WORDS: str = "Sample data"
+
+
 @dataclass(frozen=True)
 class Origin:
     """Where a table came from, for the load its cell starts with when no code made it."""
 
-    kind: str = "unknown"  # python, file, dropped, paste, connection, query, structure, sandbox, unknown
+    # python, file, dropped, paste, sample (the made-up sample store), connection, query, structure, sandbox,
+    # unknown
+    kind: str = "unknown"
     kernel: str | None = None  # the Workbench kernel that pushed it
     path: str | None = None
     sheet: str | None = None
@@ -1016,7 +1022,8 @@ class Origin:
             return " · ".join(filter(None, [self.filename, self.sql]))
         if self.kind == "sandbox":  # its designation and origin (services/sandbox.py _designation)
             return self.filename or "Sandbox"
-        return {"python": "Python", "paste": "Pasted", "query": "Query"}.get(self.kind, "")
+        words = {"python": "Python", "paste": "Pasted", "query": "Query", "sample": SAMPLE_WORDS}
+        return words.get(self.kind, "")
 
 
 def _comment(text: str) -> str:

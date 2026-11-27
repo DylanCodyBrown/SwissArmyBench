@@ -345,7 +345,7 @@ project asks where.
 store folder**): connections, key vaults, variables and the **shared catalog** (`catalog/<connection>.json`:
 each connection's tables, columns, keys, relationships and which projects use them; names and types only, never
 a value or a secret). The app keeps the catalog as connections are saved and listed and projects are saved, and
-reads it again when your `git pull` changes it, so a teammate's tables are findable on the Data page before
+reads it again when your `git pull` changes it, so a teammate's tables are findable on the Catalog page before
 anything is loaded. **Set up from the meta store** lists what a new computer still needs (each key vault's
 sign-in, values to type once, each connection's status). The app never runs git.
 

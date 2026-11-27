@@ -106,6 +106,21 @@ class LiveUpdates:
         if websocket in self._openers:
             self._openers.remove(websocket)
 
+    def place(self, websocket: WebSocket, kind: str) -> None:
+        """A page says which window it is now (home, notebooks, scripts, tables, canvas...): one page of the
+        front end moves between them on one socket, so it says so as it moves. The Notebooks and Scripts
+        pages are the Workbench windows (the agent's workbench_window and app_navigate reach the open one,
+        the one the user was last in); any other page is not one."""
+        if websocket not in self._sockets:
+            return
+        self.changes += 1  # context.md's Windows
+        if websocket in self._workbenches:
+            self._workbenches.remove(websocket)
+        self._page_of.pop(websocket, None)
+        if kind in ("notebooks", "scripts"):
+            self._workbenches.append(websocket)
+            self._page_of[websocket] = kind
+
     def focus(self, websocket: WebSocket) -> None:
         """A VS Code window came to the front: it shows the next grid that needs a window. A Workbench
         window came to the front: the agent's commands go to it."""

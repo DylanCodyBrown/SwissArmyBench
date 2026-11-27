@@ -27,9 +27,16 @@ public static class AgentPlace
         ["new_sql"] = "scripts?new=sql",
     };
 
-    /// <summary>The notice is for this window: the home window's (the Notebooks and Scripts pages' own are told apart).</summary>
+    public const string WorkbenchWindow = "workbench";
+
+    /// <summary>The notice is for the home window (every page hears it: the main window follows).</summary>
     public static bool IsForMainWindow(Notice notice) =>
         notice.Type == NoticeType && (notice.Text("window") ?? HomeWindow) == HomeWindow;
+
+    /// <summary>The notice is for the Notebooks or Scripts page: the server told only the open one the user was
+    /// last in (the page said which window it is, Layout/WindowPlace), so the page that hears it follows.</summary>
+    public static bool IsForThisWorkbench(Notice notice) =>
+        notice.Type == NoticeType && notice.Text("window") == WorkbenchWindow;
 
     public static bool IsHistory(string to) => to is Back or Forward;
 

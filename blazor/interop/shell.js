@@ -309,10 +309,21 @@ window.sab = {
   live(listener, query) {
     let socket = null;
     let stopped = false;
+    // Which window this page is now (home, notebooks, scripts, tables...): said as the socket opens and as the
+    // page moves, so the agent's commands reach the open Notebooks or Scripts page; and when the window comes to
+    // the front (the one the user was last in is the one told).
+    let kind = null;
+    const say = (message) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    };
+    const front = () => say({ type: "focus" });
     const open = () => {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       socket = new WebSocket(`${scheme}://${location.host}/ws${query ? `?${query}` : ""}`, ["swissarmybench"]);
-      socket.onopen = () => listener.invokeMethodAsync("Opened");
+      socket.onopen = () => {
+        if (kind) say({ type: "window", kind });
+        listener.invokeMethodAsync("Opened");
+      };
       socket.onmessage = (event) => listener.invokeMethodAsync("Notice", String(event.data));
       socket.onclose = () => {
         listener.invokeMethodAsync("Closed");
@@ -320,13 +331,26 @@ window.sab = {
       };
     };
     open();
+    window.addEventListener("focus", front);
+    // A window that is going away (closed; the desktop app keeps its page a moment longer) lets go of its socket at
+    // once, so the server never asks a window that can no longer answer (the project's Save waited a minute for
+    // one). A page that comes back (the browser's Back cache) opens it again by itself.
+    window.addEventListener("pagehide", () => socket?.close());
     return {
-      stop: () => { stopped = true; socket?.close(); },
+      place: (now) => {
+        kind = now;
+        say({ type: "window", kind });
+      },
       /** A line this window sends the server (what it shows: Layout/ScreenReporter); false while the socket is shut. */
       send: (text) => {
         if (socket?.readyState !== WebSocket.OPEN) return false;
         socket.send(text);
         return true;
+      },
+      stop: () => {
+        stopped = true;
+        window.removeEventListener("focus", front);
+        socket?.close();
       },
     };
   },

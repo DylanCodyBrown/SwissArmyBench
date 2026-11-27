@@ -61,6 +61,41 @@ public sealed class NavigateFollowerTests : AppTestContext
     }
 
     [Fact]
+    public void TheNotebooksOrScriptsPageTheServerToldFollowsEvenPoppedOut()
+    {
+        JSInterop.Setup<string?>("sab.windowName").SetResult("sab-scripts");
+        var nav = Get<NavigationManager>();
+        var follower = Render<NavigateFollower>();
+
+        Get<LiveUpdates>().Notice("""{"type":"navigate","window":"workbench","to":"blade","name":"made_up","by":"agent"}""");
+
+        follower.WaitForAssertion(() => Assert.EndsWith("/scripts?blade=made_up", nav.Uri, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("", "home")]
+    [InlineData("notebooks?path=x.ipynb", "notebooks")]
+    [InlineData("scripts", "scripts")]
+    [InlineData("grids?grid=g1", "tables")]
+    [InlineData("x-scm", "x-scm")]
+    public void APageSaysWhichWindowItIs(string address, string kind)
+    {
+        Assert.Equal(kind, WindowPlace.KindOf(address));
+    }
+
+    [Fact]
+    public void ThePageSaysItsWindowAsItMoves()
+    {
+        var nav = Get<NavigationManager>();
+        var place = Render<WindowPlace>();
+        place.WaitForAssertion(() => Assert.Equal("home", Get<LiveUpdates>().Kind));
+
+        nav.NavigateTo("scripts?new=1");
+
+        place.WaitForAssertion(() => Assert.Equal("scripts", Get<LiveUpdates>().Kind));
+    }
+
+    [Fact]
     public void BackIsTheBrowsersOwn()
     {
         JSInterop.Setup<string?>("sab.windowName").SetResult(WhatsNewState.MainWindow);
