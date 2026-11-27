@@ -1,7 +1,7 @@
 @* The connections as cards (the classic connectionsWindow.ts showList), grouped: Databases, Lakes and SharePoint,
    Files, Your own code, and the project's Sandbox. Each its type's icon, name, type, status in a word, calls this
-   session, what the server said it is, the amber Only works on your machine, the live slot line; its colour its
-   border and tint. Key vaults are their own section under these (KeyVaultsSection); APIs are the APIs page's. Live: drawn again on a
+   session, what the server said it is, the short amber Only works on your machine badge (LocalOnlyBadge: the whole
+   sentence on hover and for screen readers), the live slot line; its colour its border and tint. Key vaults are their own section under these (KeyVaultsSection); APIs are the APIs page's. Live: drawn again on a
    connection's change and as catalogs load. *@
 @implements IDisposable
 @inject ConnectionsClient Connections
@@ -42,9 +42,9 @@
                                 {
                                     <span class="connection-card-about">@about</span>
                                 }
-                                @if (card.Local is [var local, ..])
+                                @if (card.Local is { Count: > 0 } local)
                                 {
-                                    <span class="connection-card-local"><span class="error-mark warning" title="@string.Join("\n", card.Local.Select(n => n.Words))"><Icon Name="warning" /> @local.Words</span></span>
+                                    <LocalOnlyBadge Notes="local" />
                                 }
                                 <SlotLine Name="@card.Name" />
                             </a>

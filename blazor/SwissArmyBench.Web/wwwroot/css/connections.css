@@ -575,12 +575,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Only works on your machine (domain/portability.py): amber, on the card, the form and the detail. */
-.connection-card-local {
-  display: flex;
+/* Only works on your machine (domain/portability.py): on the card a short amber badge, its whole sentence on hover
+   and for screen readers (LocalOnlyBadge); the form and the detail keep the sentence. */
+.local-only-badge {
   grid-column: 1 / -1;
-  min-width: 0;
+  justify-self: start;
+  max-width: 100%;
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
   font-size: 12px;
+  white-space: nowrap;
+}
+.local-only-badge .icon-svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
 }
 /* A username-and-password sign-in's one line: it cannot do multi-factor sign-in, and which way can. */
 .sign-in-note {

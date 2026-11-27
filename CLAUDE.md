@@ -90,7 +90,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   that works only here (an installed ODBC driver, Windows integrated sign-in, Entra "as you", the keyring, a path on
   this disk, a desktop app) is advised against, never the default, and carries the amber "Only works on your
   machine: <reason>. On a Function App or hosted Streamlit app use <alternative>." wherever it is chosen or shown
-  (the form, the card, the starters, an export), and the agent sees the same.
+  (the form, the starters, an export), and the agent sees the same. On a connection's card alone (the owner,
+  2026-11-27) it is a short amber badge, "Only works on your machine", with the whole sentence on hover and for
+  screen readers.
 - **The front end and the back end (the owner, 2026-11-17): "set a boundary on what is front end and what is back
   end ... a rule that we can never modify the front end of this app" / "including the edition right in this repo and
   a separated install command".** **Editions never modify the front end.** The front end (`blazor/`) is one, shared

@@ -1,0 +1,19 @@
+@* A connection card's short amber badge (the owner, 2026-11-27, for the card only): "Only works on your machine",
+   with the whole sentence (why, and what to use on a Function App or a hosted Streamlit app instead) on hover and
+   for screen readers. The form, the starters, an export and the agent keep the whole sentence in view. *@
+
+<span class="chip local-only-badge" title="@Whole">
+    <Icon Name="warning" />
+    <span aria-hidden="true">@Short</span>
+    <span class="sr-only">@Whole</span>
+</span>
+
+@code {
+    public const string Short = "Only works on your machine";
+
+    /// <summary>What only this computer has, each with its whole sentence (domain/portability.py).</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<LocalNote> Notes { get; set; } = [];
+
+    private string Whole => string.Join("\n", Notes.Select(n => n.Words));
+}
