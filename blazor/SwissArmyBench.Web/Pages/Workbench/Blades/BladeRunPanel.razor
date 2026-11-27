@@ -45,6 +45,7 @@
                 }
                 else if (Table is { } table)
                 {
+                    <ErrorNote Error="_error" OnClose="() => _error = null" />
                     <p class="hint">It made a table: @table.Total row@(table.Total == 1 ? string.Empty : "s")@(table.Rows.Count < table.Total ? $" (the first {table.Rows.Count} shown)" : string.Empty).
                         <button type="button" class="btn small" @onclick="OpenAsGridAsync">Open as table</button></p>
                     <div class="ide-result-table">
@@ -95,6 +96,8 @@
     [Parameter]
     public EventCallback<int> OnGoTo { get; set; }
 
+    private Exception? _error;
+
     private string Printed => Run?.Output is { ValueKind: JsonValueKind.Array } output
         ? string.Concat(output.EnumerateArray().Select(o => o.TryGetProperty("text", out var t) ? t.GetString() : string.Empty))
         : string.Empty;
@@ -106,9 +109,17 @@
                r.TryGetProperty("total", out var t) && t.TryGetInt64(out var n) ? n : 0)
             : null;
 
+    // A refusal (the result gone since the server restarted, no room for the table) is said here.
     private async Task OpenAsGridAsync()
     {
-        await Blades.OpenResultAsync(Name);
-        Nav.NavigateTo("tables");
+        try
+        {
+            await Blades.OpenResultAsync(Name);
+            Nav.NavigateTo("tables");
+        }
+        catch (ApiException error)
+        {
+            _error = error;
+        }
     }
 }
