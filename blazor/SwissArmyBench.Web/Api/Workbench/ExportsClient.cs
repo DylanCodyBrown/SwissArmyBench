@@ -23,5 +23,5 @@ public sealed class ExportsClient
 
     public Task<ProjectCopy> CopyProjectAsync(string path, bool data) => _api.PostAsync<ProjectCopy>("/project/copy", new { path, data });
 
-    public Task<ProjectOutline> OutlineAsync() => _api.PostAsync<ProjectOutline>("/project/outline", new { });
+    public Task<ProjectOutline> OutlineAsync(bool replace = false) => _api.PostAsync<ProjectOutline>("/project/outline", new { replace });
 }

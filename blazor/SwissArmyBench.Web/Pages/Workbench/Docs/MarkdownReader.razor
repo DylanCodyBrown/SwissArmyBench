@@ -1,0 +1,49 @@
+@* A Markdown file read (the owner, 2026-11-27: "Our markdown reader and inline editor would be a great addition"): the
+   file drawn block by block (the server's splitting: POST /workbench/markdown), each block by the app's own Markdown
+   renderer (Components/MarkdownText: what a notebook's Markdown cell and the Collaboration panel use), a ```mermaid
+   block as its diagram. With Editable (the Read view) a click on a block turns it into its source text in place;
+   Escape or a click away draws it again, written back into only that block's characters. A task box ticks in the
+   file; a link to another file of the project opens it; pictures beside the file are shown. Logic in
+   MarkdownReader.razor.cs. *@
+@using SwissArmyBench.Web.Api.Workbench
+@implements IAsyncDisposable
+
+<div class="md-reader note-body-host" @ref="_host" data-editable="@(Editable ? "true" : "false")" data-blocks="@_blocks.Count" aria-label="@Label" role="document">
+    @if (_problem is not null)
+    {
+        <p class="wb-preview-error" role="alert">@_problem</p>
+    }
+    @foreach (var block in _blocks)
+    {
+        if (_editing == block.Index)
+        {
+            <div class="md-block md-block-editing kind-@block.Kind" data-block="@block.Index" data-line="@block.Line" @key="@($"edit-{block.Index}")">
+                <textarea class="md-block-edit" @ref="_box" aria-label="@($"Block {block.Index + 1}: its Markdown")" spellcheck="false" rows="@(block.Lines + 1)"
+                          @bind="_draft" @bind:event="oninput" @onkeydown="KeyAsync" @onblur="CommitAsync"></textarea>
+                <span class="hint md-block-hint">Escape or click away to finish</span>
+            </div>
+        }
+        else
+        {
+            <div class="md-block kind-@block.Kind" data-block="@block.Index" data-line="@block.Line" tabindex="@(Editable ? "0" : null)" @key="@($"{block.Index}-{block.Text.GetHashCode()}")"
+                 title="@(Editable ? "Click to edit this block" : null)">
+                @if (block.Kind == "diagram")
+                {
+                    <DiagramPreview Text="@FencedCode(block.Text)" />
+                }
+                else if (block.Kind == "front_matter")
+                {
+                    <pre class="md-code md-front"><code>@block.Text</code></pre>
+                }
+                else
+                {
+                    @((MarkupString)Html(block))
+                }
+            </div>
+        }
+    }
+    @if (_blocks.Count == 0 && _problem is null && _read)
+    {
+        <p class="hint md-empty">The file is empty: switch to Source to write it.</p>
+    }
+</div>

@@ -10,7 +10,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.blazor.conftest import call, choose_path, open_page
+from tests.e2e.blazor.conftest import call, choose_path, loose_file, name_new_file, open_page
 
 
 def made_up_notebook(server: dict[str, Any], name: str) -> str:
@@ -69,9 +69,16 @@ def test_a_sql_cell_and_the_tables_group(browser: Browser, server: dict[str, Any
 
 
 def test_a_script_runs_its_file_and_a_console_line(browser: Browser, server: dict[str, Any]) -> None:
+    # A new script is named first (the New file dialog: ?new=1 asks; no project open: the Workbench's folder).
     page = open_page(browser, server, "scripts?new=1")
-    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("Untitled script")
+    name_new_file(page, "made_up_first")
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_first.py")
+    expect(page.locator(".wb-script-editor .view-lines")).to_contain_text(
+        "def main() -> None:"
+    )  # its starter
+    assert (server["tmp"] / "workbench" / "made_up_first.py").is_file()
     page.click(".wb-script-editor .monaco-editor .view-lines")
+    page.keyboard.press("Control+A")
     page.keyboard.type("answer = 6 * 7\nprint('made up script', answer)\n")
     page.click("button:has-text('Run file')")
     expect(page.locator(".wb-console-body")).to_contain_text("made up script 42", timeout=60_000)
@@ -90,7 +97,7 @@ def test_a_script_runs_its_file_and_a_console_line(browser: Browser, server: dic
 
 
 def test_the_blades_pane_inserts_a_line(browser: Browser, server: dict[str, Any]) -> None:
-    page = open_page(browser, server, "scripts?new=1")
+    page = open_page(browser, server, f"scripts?path={loose_file(server, 'made_up_blades', text='')}")
     page.click(".wb-status button:has-text('Blades')")
     pane = page.locator(".blades-pane")
     expect(pane).to_be_visible()
@@ -108,8 +115,8 @@ def test_a_scripts_name_shows_once_and_a_click_makes_no_new_script(
     browser: Browser, server: dict[str, Any]
 ) -> None:
     """The owner, 2026-11-23: a script's full path showed twice (the bar and its tab), and every click on a
-    script made another Untitled script. The bar names the page, the tab names the file, and moving between
-    an untitled script and a saved one opens nothing new."""
+    script made another one. The bar names the page, the tab names the file, and moving between a new script
+    and a saved one opens nothing new."""
     folder = server["tmp"] / "workbench"
     folder.mkdir(exist_ok=True)
     saved = folder / "made_up_once.py"
@@ -117,12 +124,13 @@ def test_a_scripts_name_shows_once_and_a_click_makes_no_new_script(
     page = open_page(browser, server, f"scripts?path={saved}")
     tabs = page.locator(".wb-tab")
     expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_once.py")
-    page.click(".wb-top-new")  # New file: its types (2026-11-27); no project open, a script starts untitled
+    page.click(".wb-top-new")  # New file: its types (2026-11-27); its name first, then its tab
     page.click(".context-menu [role=menuitem]:has-text('Python script')")
+    name_new_file(page, "made_up_twice")
     expect(tabs).to_have_count(2)
     expect(page.locator(".wb-doc-title")).to_have_text("Scripts")
     for _ in range(3):
-        tabs.filter(has_text="Untitled script").click()
+        tabs.filter(has_text="made_up_twice.py").click()
         tabs.filter(has_text="made_up_once.py").click()
     page.wait_for_timeout(500)
     expect(tabs).to_have_count(2)

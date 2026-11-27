@@ -58,6 +58,39 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `grid`), the guide topic `grids`, the rail area's id `grids`, SQL's `grid` view, Python and C# names
   (`Pages/Grids`, `GridsPage`, `Api/Grids`), CSS classes, data.py's `structures read as grids` marker. AG Grid the
   library, the Canvas's layout grid and the Analyze board's 12-column grid keep the word.
+- **Every new file is named first and written by the server (the owner, 2026-11-27: "Everything should get a name
+  or the file is not created and yes every file should go scaffolding file on the back. The list of follow-ups
+  available should change with projects").** There is no untitled document anywhere. Every way to make a file (the
+  Scripts page's New file dropdown and its tab strip's "+", the landing page's New script, the Files pane's "+", the
+  palette, the Notebooks page's New notebook, New Excel workbook, the Tables page's "+", Ctrl+T, Ctrl+N and New
+  query, the Structures page's New, an address `?new=<type>`) opens the ONE New file dialog with the type preset:
+  its name, its folder, a SQL file's connection, a diagram's kind. Create has the server write the type's starter
+  (domain/new_files.py), then the tab opens; Cancel makes nothing. With no project open the dialog asks a folder
+  of this computer (Browse…: the file picker) and the file is written there, a loose file as before. **The list
+  follows the project:** GET /scripts/files/new is the base's types plus the open project's type's own, declared
+  in its extension's MODE (`new_files`) and made by that extension's own "new" path (services/hooks.py
+  new_file_makers): Streamlit a widget and a canvas, Accounting a workbook design, a Power Apps code app a page.
+  The front end draws whatever the list says and names no type. The agent: `workbench_file` new always names its
+  file (`to`); a call with no name is refused in one sentence; `types` follows the project.
+- **Project documentation (the owner, 2026-11-27: "The idea is the context documentation for a project can be
+  created and edited").** A project's docs (Markdown, HTML, SVG, Mermaid diagrams, wherever they sit) are written
+  and kept up to date inside the app, by the user and by the agent with the same commands. The Scripts page's
+  Files pane lists them in **Docs** (README.md and ARCHITECTURE.md first); New file has the documentation starters
+  (a README, a decision record in docs/decisions/, a data dictionary of the open tables by name and type only, an
+  HTML page, a Mermaid diagram of six UML kinds in docs/diagrams/); context.md's Documents lists the docs by path
+  and title only, NEVER their text (nor in the prompt hook: the screen state's reasoning). **A text document's
+  tab has one Preview toggle** ("html, markdown, and renderable code should get a preview toggle"): Read or
+  Preview, Split (source beside preview, scrolling together, following typing) and Source, remembered by the
+  tab. Markdown opens read, block by block ("Our markdown reader and inline editor would be a great addition"):
+  a click turns one block into its source, Escape or a click away writes it back into only that block's
+  characters (domain/markdown_blocks.py) and saves; a task box ticks in the file; ```mermaid draws. An HTML page
+  and an SVG picture are drawn ONLY in the HTML cells' walled-off frame (wwwroot/design.html), never in the app's
+  page: its policy loads nothing from the disk or the network, so files beside an HTML page are not loaded, and
+  the preview says so. Mermaid (.mmd, .mermaid; a mistake shows Mermaid's message and its line, never a blank;
+  the drawing saved beside the file as SVG or PNG on the user's click) and Vega or Vega-Lite specs (.vl.json,
+  .vg.json) use the bundled renderers. No new package. PlantUML is out (it needs Java or an outside server).
+  **ARCHITECTURE.md stays the app's generated outline:** one edited by hand since the app wrote it is kept and
+  said, replaced only on the user's word (`.sab/outline.json`: the hash of what the app last wrote).
 - **SQL is written only on the Scripts page (the owner, 2026-11-24: "sql authorship will have one place in scripts
   and not on the grid menu"; "also we should allow .sql files" / "clicking the + in grids menu jumps to the scripts
   page with an open script" / "then when you run the file, it adds the table and opens the grid back on the grid
@@ -66,7 +99,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   file (F5) or the statement under the cursor (Ctrl+Enter) becomes the open table named after the file, run again
   replaced, and the Tables page comes forward on its tab (domain/sql_files.py, services/sql_files.py over the
   "+" tab's server paths; `workbench_sql`). The Tables page's "+", Ctrl+T, Ctrl+N and its empty state's New query
-  open a new .sql file there; its New query page and query tray went; a query's table shows its query read-only
+  ask a new .sql file's name there (the New file dialog), then open it; its New query page and query tray went; a query's table shows its query read-only
   with Edit in Scripts. A tab's right click has Rename… (F2: a module with its imports, a notebook, a SQL file or
   an untitled one's Save as; `workbench_file` rename).
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
@@ -228,6 +261,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   project's `.sab/sandbox/`, Git-ignored) only on the user's Add to sandbox or Make a sandbox variant (and its
   grid's edits), and the sandbox mirror beside it (`sandbox_data.py`, `sandbox_connections.py`: names only; Remove
   the sandbox deletes the three, nothing else),
+  `.sab/outline.json` (the hash of the ARCHITECTURE.md the app last wrote, so one edited by hand is kept), a
+  diagram's picture beside its file (`<name>.svg`, `<name>.png`) on the user's Save SVG or PNG (the agent's
+  `workbench_file` export), a new file's starter where New file names it,
   `.sab/stats.json` (the calls' running figures: names, times, sizes) and `.sab/changes.jsonl` (the change log: names,
   types, fingerprints), both Git-ignored and never a value (Plans/stats.plan.md, Plans/changes.plan.md, 2026-11-22),
   `.sab/collaboration/` (the Collaboration panel, the owner 2026-11-25: the team's notes, one small file per message,
@@ -699,7 +735,8 @@ src/swissarmybench/
                          library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (one list,
                          data.ipynb first); both pages' Structures (structure_group: the project's top and its
                          structures/ folder)
-                         ; the Scripts page's SQL files (sql_group) and Text files (text_group: .md, .txt)
+                         ; the Scripts page's SQL files (sql_group) and Docs (text_group; docs: every text
+                         document wherever it sits, README.md and ARCHITECTURE.md first)
     script_ide.py        the Scripts IDE's rules: search and replace across the scripts (regex, case, word), a
                          rename's plan and preview that never writes a made file, a Python name checked; a
                          module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
@@ -709,15 +746,26 @@ src/swissarmybench/
     sql_files.py         a .sql file (2026-11-24): its `-- connection:` header read and written, its statements
                          (split outside strings and comments), the one at the cursor, Run file's one query, the
                          table named after the file, the line an error points at (DuckDB's LINE n, a quoted name)
-    new_files.py         New file on the Scripts page (the owner, 2026-11-27: "a drop down combo that asks what file
-                         type you wanna create ... then scaffolds it for you"): the file types as data (TYPES: Python,
-                         SQL, JSON, YAML, TOML, XML, Markdown, plain text, a notebook; each one's ending, the folder
-                         it starts in, the page it opens on, how its tab is drawn), a name's ending filled in and
-                         checked (named), the folder inside the project (folder_of), a taken name refused in one
-                         sentence (place), and one starter function a type (python_starter: a docstring, the future
-                         import, a typed main() under the main guard; sql_starter: its `-- connection:` line and
-                         the first rows of an open table, else a hint; a valid empty JSON, YAML, TOML and XML
-                         document; a Markdown heading; empty text; the Notebooks page's empty notebook)
+    new_files.py         New file (the owner, 2026-11-27: "a drop down combo that asks what file type you wanna
+                         create ... then scaffolds it for you"; "Everything should get a name or the file is not
+                         created"): the file types as data (TYPES: Python, SQL, JSON, YAML, TOML, XML, Markdown,
+                         plain text, an HTML page, a diagram with its kinds, a README, a decision record, a data
+                         dictionary, a notebook; each one's ending, folder, page, tab, what its dialog asks,
+                         whether it is made loose), a project type's own (from_extension: its mode's `new_files`;
+                         offered: with no project only the loose ones), a name's ending filled in and checked
+                         (named; NO_NAME), the folder inside the project (folder_of) or a whole folder with no
+                         project (loose_place), a taken name refused in one sentence (place), and one starter
+                         function a type (a typed main(); a `-- connection:` line and an open table's first rows;
+                         valid empty structures; a valid HTML5 page; DIAGRAMS: flowchart, class, sequence, state,
+                         entity-relationship, Gantt; the open tables' columns by name and type, never a value)
+    text_documents.py    text documents of the Scripts page (2026-11-27): ONE table (KINDS) of the endings that
+                         open as a text tab, each with its editor's language, the preview its toggle draws
+                         (markdown, html, svg, mermaid, vega; none for .txt) and the view it opens in; the three
+                         views (preview, split, source); .vl.json and .vg.json never a structure's tab
+    markdown_blocks.py   a Markdown file as blocks (front matter, heading, paragraph, list with its nested items,
+                         table, quote, fenced code with its blank lines, a ```mermaid diagram, rule): each one's
+                         place and text; replace (only that block's characters, the file's line ends kept),
+                         insert_after, tick (a task box: one character), title (the first heading)
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
@@ -1100,9 +1148,15 @@ src/swissarmybench/
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
                          (rename, replace, duplicate and delete in the change log too)
-                         ; New file (new_file_options: the types and the project's folders; new_file: a
-                         type's starter written inside the open project, never over a file that is there; check:
-                         only where it would go; GET and POST /scripts/files/new; `workbench_file` new, types)
+                         ; New file (new_file_options: the types, the base's and the open project's type's own,
+                         and the project's folders; new_file: a named file with its type's starter, in the open
+                         project or, with none open, the folder named; a project type's own by its extension's
+                         maker; never over a file that is there; check: only where it would go; GET and POST
+                         /scripts/files/new; `workbench_file` new, types)
+    text_documents.py    text documents (Workbench.text): markdown (a text's or a file's blocks; one replaced,
+                         added or its task ticked; a path alone saves the file: `workbench_file` blocks,
+                         edit_block), picture (a picture beside a document, pictures only), export_picture (a
+                         diagram's drawing saved beside its file as .svg or .png)
     sql_files.py         a .sql file's run (the statement as the open table named after the file, through
                          datasets.build_from_query or connection_swap.new_query: no SQL runner of its own; a
                          failure's line) and Edit in Scripts (a query's table as scripts/<table>.sql, made once)
@@ -1135,7 +1189,8 @@ src/swissarmybench/
                          2 s), written once a change settled; what the agent last read (launch, prompt,
                          app_context) and the sections changed since; SEAM for APIs and Structures
     project_outline.py   the outline gathered (build) and written as ARCHITECTURE.md at the project's top, only
-                         when its bytes change (write); seams: UsedTables.used(project) (the tables the project
+                         when its bytes change (write; one edited by hand since the app wrote it is kept and
+                         said, `replace` takes the new one; .sab/outline.json its hash); seams: UsedTables.used(project) (the tables the project
                          uses) and Portability.verdict(connection) (default: "Not checked yet")
     project_summary.py   Home's summary gathered (GET /project/summary, `project_summary`): the project (type,
                          Local or Shared, unsaved, Autosave), its Python, tables, documents, the connections it
@@ -1511,7 +1566,10 @@ blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; 
                          interop/screen.js (what the window shows, told to the server for the agent's app_screen: a
                          page's Show and Touch, sent over the live socket only when it changed, four a second at
                          most); Components/ the shared parts: ErrorNote, Busy, AppDialog,
-                         Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
+                         Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/Workbench/Ide/ the ONE New file
+                         dialog and its list; Pages/Workbench/Docs/ a text document's parts (TextFiles, the
+                         PreviewToggle, MarkdownReader, DiagramPreview, FramePreview) with interop/documents.js;
+                         Pages/<Area>/ every page, the
                          extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,
                          css/ (tokens.css: every theme token), design.html: an HTML cell's walled-off frame);
                          SwissArmyBench.Web.Tests/ (xUnit v3 and bUnit); interop/ (one JavaScript file per widget,

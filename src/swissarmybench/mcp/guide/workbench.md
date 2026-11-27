@@ -132,11 +132,13 @@ page, and SQL is written only on the Scripts page).
   module's outline), `workbench_outline`, `workbench_definition` (`source=true`: a library's file text, read-only),
   `workbench_references`, `workbench_rename` (a
   plan; `apply` writes it, never a made file), `workbench_search` (with `to`: replace), `workbench_format`,
-  `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (new: a file of a `type` with its starter written
-  inside the open project: python (a typed main()), sql (its `-- connection:` line from `connection`, the first
-  rows of an open table), json, yaml, toml, xml (a valid empty document, a structure's tab), markdown, text or
-  notebook; `to` its name, the ending filled in, `path` the folder inside the project; a name already taken is
-  refused; types: the types and the project's folders; move: rename a module or
+  `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (new: a file is always NAMED and written by the server with its type's starter: `to` its name
+  (none: refused in one sentence), `type` an id from `types`, `path` the folder inside the open project, or the
+  folder's whole path with no project open; `types`: the list, which follows the open project's type (python, sql,
+  json, yaml, toml, xml, markdown, text, html, diagram with `variant` flowchart, class, sequence, state, er or
+  gantt, readme, decision, dictionary, notebook; a Streamlit project adds widget and canvas, an Accounting one
+  workbook, a code app page) and the project's folders; a name already taken is refused;
+  move: rename a module or
   package, its imports in the project following, a plan until `apply`; package: a new one; duplicate; rename:
   a notebook, a .sql file or a loose script renamed in its folder, a tab's Rename…). `workbench_sql`: run a .sql
   file (path, or text; line: the statement there, Run selection) as the open table named after the file, a
@@ -148,3 +150,25 @@ page, and SQL is written only on the Scripts page).
   `search.scripts`.
 - Every code file changed anywhere is said with the `file_changed` notice; data.py edited by hand is kept
   (`project_export_data` with `replace` to write it again).
+
+## Project documentation (Markdown, HTML, diagrams)
+
+The owner, 2026-11-27: "The idea is the context documentation for a project can be created and edited." A
+project's docs are ordinary files you make and edit with the file commands, as the user does on the Scripts page.
+
+- context.md's Documents lists the docs by path and title only, never their text: `workbench_open(path)` reads the
+  one you need. README.md comes first; ARCHITECTURE.md is the app's own outline (`project_outline`; with `write`,
+  one edited by hand is kept and said, `replace` takes the new outline).
+- Make one: `workbench_file(action="new", type="readme" | "decision" | "dictionary" | "markdown" | "html" |
+  "diagram", to=<name>)`. A decision record goes in docs/decisions/, a diagram in docs/diagrams/ (`variant`:
+  flowchart, class, sequence, state, er, gantt: Mermaid's UML kinds), the data dictionary lists the open tables'
+  columns by name and type.
+- Edit a Markdown file block by block: `workbench_file(action="blocks", path)` gives each block's index, kind,
+  line and text; `action="edit_block", path, block, to` replaces only that block's characters (the rest of the
+  file byte for byte, its line ends kept); `after=true` adds `to` as a new block after it (`block=-1`: at the
+  top); `task=<n>` ticks that task box (`done` true or false). Or save the whole text with `workbench_save`.
+- A tab's view: `workbench_file(action="view", path, to="preview" | "split" | "source")` (the Scripts page open);
+  `app_screen` says which view a tab is in. `action="export", path, format="svg" | "png"` saves a Mermaid
+  diagram's drawing beside its file.
+- An HTML page's preview runs in a walled-off frame that loads nothing from the disk or the network: write its
+  styles and scripts inline. PlantUML is not drawn (Mermaid is).

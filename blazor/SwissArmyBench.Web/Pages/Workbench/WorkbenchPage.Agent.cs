@@ -24,6 +24,8 @@ public partial class WorkbenchPage
                 return await OpenAtAsync(args);
             case "project.saveDocuments":
                 return await SaveDocumentsAsync(args);
+            case "view.preview" or "view.split" or "view.source" or "preview.saveSvg" or "preview.savePng":
+                return await TextAnswerAsync(command, args);
             default:
                 return null;
         }

@@ -9662,3 +9662,37 @@ New file dropdown and its dialog.
   file list left .sql out); they are listed now (and so travel with Copy project to).
 - **Open (the owner's):** whether a new Markdown file should be drawn (a preview beside the text); whether the Files
   pane's "+" and the Notebooks page's New notebook should ask a name and folder the same way; a line in What's New.
+
+## Named files, project documentation, the Markdown reader (the owner, 2026-11-27)
+
+"Everything should get a name or the file is not created and yes every file should go scaffolding file on the back.
+The list of follow-ups available should change with projects. Our markdown reader and inline editor would be a great
+addition." / "Html would be a great addition, html, markdown, and renderable code should get a preview toggle" /
+"Mermaid support and uml support" / "The idea is the context documentation for a project can be created and edited."
+It answers the New file notes above: no untitled tab is left, with or without a project.
+
+- **Decided while building:**
+  - With no project open the dialog asks a folder of this computer (it starts in the Workbench's own folder, made
+    the first time a file goes in it); the server refuses a folder that is not there.
+  - A project type's own file types are data in its extension's MODE (`new_files`), each made by a maker the
+    extension registers (hooks.new_file_makers), so the base never names one. Only what an extension already makes
+    was added: Streamlit's widget (into the project's widgets/) and canvas, Accounting's workbook design, Power
+    Apps' page. Accounting's templates (imported from a workbook: no starter) and plain TypeScript or TSX files
+    (no starter in the extension) were left out.
+  - The Structures page's New (an untitled in-memory object or list) became a new JSON file through the dialog.
+  - A block edited in place and a ticked task box save the file at once (only changed bytes); typing in Source or
+    Split is saved with Ctrl+S as any tab.
+  - Split view's preview only shows (its source is beside it); Read view is where a click edits.
+  - A web picture in Markdown is not loaded (nothing leaves the computer for a preview): its words link to it.
+  - An HTML page's files beside it are not loaded: the walled-off frame's policy is `default-src 'none'` with
+    inline scripts and styles and data: pictures only. Loosening it for one folder would let a script in the page
+    read those files, so it stays shut and the preview says so.
+  - .vl.json and .vg.json are text documents with a preview, no longer structure tabs.
+  - ARCHITECTURE.md with no hash kept (an older project's) is taken as someone's own: kept until Replace.
+- **Considered for the Preview toggle and left out:** PlantUML (.puml: Java and plantuml.jar, or an outside server:
+  the owner's call); Graphviz .dot, LaTeX and reStructuredText (no renderer in the app); CSV (a table: the Tables
+  page); Plotly JSON (no file convention to recognise it by); PDF and pictures (not text documents).
+- **Open (the owner's):** a wiki-style `[[link]]` between docs; a Docs page of its own on the rail; PlantUML;
+  Preview for a Python script's docstring or a notebook as a document; whether TypeScript and TSX get starters in
+  the Power Apps extension so they can join New file; inlining a page's relative pictures as data: addresses.
+

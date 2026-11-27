@@ -1,0 +1,30 @@
+@* The one Preview toggle on a tab's bar (the owner, 2026-11-27: "html, markdown, and renderable code should get a
+   preview toggle"): the same three choices for every file the app can draw. Preview (a Markdown file's Read view),
+   Split (source beside preview) and Source. The tab remembers its view. *@
+
+<span class="wb-view-toggle" role="group" aria-label="View">
+    @foreach (var (view, words, title) in Choices)
+    {
+        <button type="button" class="btn small wb-view-@view" aria-pressed="@(View == view ? "true" : "false")" title="@title" @onclick="() => OnView.InvokeAsync(view)">@words</button>
+    }
+</span>
+
+@code {
+    /// <summary>preview, split or source.</summary>
+    [Parameter, EditorRequired]
+    public string View { get; set; } = TextFiles.Source;
+
+    /// <summary>What the file's preview draws (markdown: its first choice says Read).</summary>
+    [Parameter]
+    public string Preview { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnView { get; set; }
+
+    private (string View, string Words, string Title)[] Choices =>
+    [
+        (TextFiles.Preview, Preview == "markdown" ? "Read" : "Preview", Preview == "markdown" ? "Read it: click a block to edit it in place" : "The file drawn"),
+        (TextFiles.Split, "Split", "Source beside the preview, scrolling together"),
+        (TextFiles.Source, "Source", "The file's text"),
+    ];
+}

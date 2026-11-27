@@ -76,22 +76,6 @@ public partial class WorkbenchPage
         _layout.Add(doc.Key);
     }
 
-    private int NextUntitled(bool sql = false) =>
-        _documents.Where(d => d.Path is null && d.NewSql == sql).Select(d => d.Untitled).DefaultIfEmpty(0).Max() + 1;
-
-    // A new SQL file's first text: a SELECT to finish (the dropdown beside Run file says where it runs).
-    private const string SqlStarter = "SELECT *\nFROM ";
-
-    private OpenDocument NewSqlDocument() => new(++_nextKey, false) { Untitled = NextUntitled(sql: true), NewSql = true, ScriptText = SqlStarter };
-
-    /// <summary>New ▸ SQL file: an untitled .sql tab on the Scripts page (DuckDB over the open tables until a
-    /// connection is chosen beside Run file).</summary>
-    private Task NewSqlAsync()
-    {
-        AddDocument(NewSqlDocument());
-        return FollowAddressAsync();
-    }
-
     /// <summary>A tab brought to the front: the address follows it (replaced, so Back leaves the page).</summary>
     private async Task ShowAsync(int key)
     {
@@ -104,12 +88,9 @@ public partial class WorkbenchPage
     private async Task FollowAddressAsync()
     {
         var path = Front?.Path;
-        var fresh = BladeAddress is null && CodeFileAddress is null && path is null && Front is not null;
-        var freshKind = Front is { NewSql: true } ? "sql" : "1";
-        // The address this writes is the page's own: read back, it must not open or make anything again (a
-        // shown untitled script's ?new=1 made another one on every click: the owner, 2026-11-23).
-        _shownFor = AddressKey(BladeAddress is null && CodeFileAddress is null ? path : null, fresh ? freshKind : string.Empty, Front?.Blade, null, null, Front?.CodeFile);
-        Nav.NavigateTo(BladeAddress ?? CodeFileAddress ?? (path is null ? (Front is null ? Page : $"{Page}?new={freshKind}") : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
+        // The address this writes is the page's own: read back, it must not open or ask anything again.
+        _shownFor = AddressKey(BladeAddress is null && CodeFileAddress is null ? path : null, string.Empty, Front?.Blade, null, null, Front?.CodeFile);
+        Nav.NavigateTo(BladeAddress ?? CodeFileAddress ?? (path is null ? Page : $"{Page}?path={Uri.EscapeDataString(path)}"), replace: true);
         await Js.InvokeVoidAsync("sab.setTitle", Title);
     }
 
@@ -145,12 +126,6 @@ public partial class WorkbenchPage
             return;
         }
         await Task.CompletedTask;
-    }
-
-    private Task NewAsync()
-    {
-        AddDocument(new OpenDocument(++_nextKey, IsNotebooks) { Untitled = NextUntitled() });
-        return FollowAddressAsync();
     }
 
     private async Task OpenAsync()
@@ -226,7 +201,7 @@ public partial class WorkbenchPage
         }
         var home = await Workbench.HomeAsync();
         var start = doc.Path is null ? home.Folder : FilePaths.Folder(doc.Path);
-        if (await Files.ChooseAsync("save", "Save as", start, Kind, name: doc.Path is null ? SuggestedName(doc) : null) is not { } chosen)
+        if (await Files.ChooseAsync("save", "Save as", start, Kind) is not { } chosen)
         {
             return;
         }

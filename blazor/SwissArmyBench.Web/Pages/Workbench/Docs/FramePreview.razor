@@ -1,0 +1,53 @@
+@* A page drawn in the HTML cells' walled-off frame (wwwroot/design.html: sandboxed without the app's origin, its
+   Content-Security-Policy letting nothing load over the network; interop/documents.js frame): an HTML file's
+   preview, an SVG file as a picture. Never drawn in the app's own page: a script in the file cannot reach the app,
+   its cookie, its storage or the user's data. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+<div class="wb-preview-stage" @ref="_stage" data-framed="true"></div>
+
+@code {
+    private ElementReference _stage;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _frame;
+    private string? _shown;
+
+    /// <summary>The page's HTML, whole.</summary>
+    [Parameter, EditorRequired]
+    public string Html { get; set; } = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await Js.InvokeAsync<IJSObjectReference>("import", "./js/documents.js");
+            _frame = await _module.InvokeAsync<IJSObjectReference>("frame", _stage);
+        }
+        if (_frame is not null && Html != _shown)
+        {
+            _shown = Html;
+            await _frame.InvokeVoidAsync("show", Html);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_frame is not null)
+            {
+                await _frame.InvokeVoidAsync("stop");
+                await _frame.DisposeAsync();
+            }
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // the page is going
+        }
+    }
+}

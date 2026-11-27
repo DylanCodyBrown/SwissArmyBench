@@ -31,6 +31,7 @@ public partial class WorkbenchPage
         .. ModeCommands(),
         .. WindowCommands(),
         .. WorkbookCommands(),
+        .. TextCommands(),
         .. (IsNotebooks ? [] : new List<PaletteCommand> { new("find.scripts", "Find", "Search in scripts…", () => Toggle(() => _searching = true), "Ctrl+Shift+F") }),
     ];
 
@@ -38,8 +39,9 @@ public partial class WorkbenchPage
 
     private List<PaletteCommand> FileCommands() =>
     [
-        new("file.new", "File", $"New {KindWord}", NewAsync),
-        new("file.newSql", "File", "New SQL file", NewSqlAsync, WhyNot: IsNotebooks ? "SQL files are the Scripts page's" : null),
+        new("file.new", "File", $"New {KindWord}… (its name first)", AskNewAsync),
+        new("file.newSql", "File", "New SQL file… (its name first)", () => AskNewAsync("sql"), WhyNot: IsNotebooks ? "SQL files are the Scripts page's" : null),
+        new("file.newFile", "File", "New file… (pick its type)", () => _newFileButton?.OpenList() ?? Task.CompletedTask),
         new("file.open", "File", "Open a notebook or script…", OpenAsync, "Ctrl+O"),
         new("file.save", "File", "Save", SaveFrontAsync, "Ctrl+S", Front is null && Project.Current is null ? NothingSaves : null),
         new("file.saveAs", "File", "Save a copy as…", () => SaveAsAsync(Front), "Ctrl+Shift+S", NeedsDocument),

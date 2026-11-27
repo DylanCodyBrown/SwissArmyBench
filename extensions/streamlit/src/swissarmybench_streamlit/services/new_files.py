@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from typing import Any
-from urllib.parse import quote
 
+from swissarmybench.domain.new_files import address_part
 from swissarmybench.services.workspace import Conflict
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_model as model
@@ -43,7 +43,7 @@ def makers(
         made = {
             "path": f"{folder}/{relative}",
             "relative": relative,
-            "address": f"widgets?name={quote(name)}",
+            "address": f"widgets?name={address_part(name)}",
         }
         if not body.get("check"):
             await widgets.new({"name": name, "where": "project"}, who)
@@ -60,6 +60,6 @@ def makers(
             raise Conflict(f"{relative} is there already: pick another name.")
         if not body.get("check"):
             path = (await canvases.open({"name": name, "folder": folder}, who))["path"]
-        return {"path": path, "relative": relative, "address": f"canvas?path={quote(path, safe='')}"}
+        return {"path": path, "relative": relative, "address": f"canvas?path={address_part(path)}"}
 
     return {"widget": widget, "canvas": canvas}

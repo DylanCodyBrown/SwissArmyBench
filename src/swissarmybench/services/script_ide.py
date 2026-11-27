@@ -103,6 +103,9 @@ class ScriptIde:
         # New file's project-type types (the open project's mode's `new_files`) and their makers, each an
         # extension's own "new" path (services/hooks.py new_file_makers); set by the composition root.
         self.extra_types: Callable[[], list[Any]] = list
+        # The Workbench's own folder (where a loose file starts) and its maker: made the first time a file
+        # goes in it.
+        self.home: tuple[str, Callable[[], str]] | None = None
         self.makers: Mapping[str, NewFileMaker] = {}
 
     # ===== the project's scripts =====
@@ -392,6 +395,18 @@ class ScriptIde:
             ],
         }
 
+    def _loose_folder(self, folder: str, make: bool) -> None:
+        """With no project open a new file's folder must be there; only the Workbench's own folder, where a
+        loose file starts, is made (the first time a file goes in it)."""
+        if self._code.is_folder(folder):
+            return
+        plain = folder.replace("\\", "/").rstrip("/")
+        if self.home is not None and plain == self.home[0].replace("\\", "/").rstrip("/"):
+            if make:
+                self.home[1]()
+            return
+        raise Refused(f"There is no folder {folder}: pick one that is there.")
+
     async def new_file(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{type?, name, folder?, connection?, table?, variant?, check?}: a new file, named and written with
         its type's starter (domain/new_files.py) before any tab opens: in the open project (folder: inside
@@ -429,8 +444,7 @@ class ScriptIde:
             else:
                 full = new_files.loose_place(kind, body.get("name"), body.get("folder"), self._code.exists)
                 relative = full.rsplit("/", 1)[-1]
-                if not self._code.is_folder(full.rsplit("/", 1)[0]):
-                    raise Refused(f"There is no folder {full.rsplit('/', 1)[0]}: pick one that is there.")
+                self._loose_folder(full.rsplit("/", 1)[0], make=not checking)
         except new_files.NameTaken as error:
             raise Conflict(str(error)) from None
         made = {"path": full, "relative": relative, "type": kind.id, "kind": kind.kind, "page": kind.page}

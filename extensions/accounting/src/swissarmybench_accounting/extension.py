@@ -135,8 +135,7 @@ def routes(seams: Seams) -> list[Any]:
 
     async def new_workbook(body: dict[str, Any], who: str) -> dict[str, Any]:
         """New file's Workbook design: ({name, folder, check}, who) -> where it is, the address it opens at."""
-        from urllib.parse import quote
-
+        from swissarmybench.domain.new_files import address_part
         from swissarmybench.services.workspace import Conflict
 
         ending = ".design.json"
@@ -154,7 +153,7 @@ def routes(seams: Seams) -> list[Any]:
         return {
             "path": path,
             "relative": f"{stem}{ending}",
-            "address": f"notebooks?path={quote(path, safe='')}",
+            "address": f"notebooks?path={address_part(path)}",
         }
 
     seams.hooks.new_file_makers["workbook"] = new_workbook

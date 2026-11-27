@@ -290,6 +290,33 @@ export function colorize(text, language, theme) {
   return monaco.editor.colorize(text, LANGUAGES[language] ?? language, { tabSize: 4 });
 }
 
+function editorIn(host) {
+  return monaco.editor.getEditors().find((editor) => host.contains(editor.getContainerDomNode())) ?? null;
+}
+
+/**
+ * The editor inside `host` and a preview beside it (interop/documents.js): `told(part)` as the editor scrolls
+ * (0 its top, 1 its end), `to(part)` scrolls it there.
+ */
+export function scrollLink(host, told) {
+  const editor = editorIn(host);
+  if (!editor) return null;
+  const most = () => Math.max(0, editor.getScrollHeight() - editor.getLayoutInfo().height);
+  const heard = editor.onDidScrollChange((event) => {
+    if (event.scrollTopChanged) told(most() > 0 ? editor.getScrollTop() / most() : 0);
+  });
+  return { to: (part) => editor.setScrollTop(part * most()), stop: () => heard.dispose() };
+}
+
+/** A preview's problem on its source's line in the editor inside `host` (line 0: none). */
+export function previewProblem(host, line, message) {
+  const model = editorIn(host)?.getModel();
+  if (!model) return;
+  const at = Math.min(Math.max(1, line), model.getLineCount());
+  const marks = line > 0 ? [{ startLineNumber: at, endLineNumber: at, startColumn: 1, endColumn: model.getLineMaxColumn(at), message, severity: monaco.MarkerSeverity.Error }] : [];
+  monaco.editor.setModelMarkers(model, "preview", marks);
+}
+
 /** The page's theme for every editor (Monaco has one theme at a time). */
 export function setTheme(theme) {
   monaco.editor.setTheme(THEMES[theme] ?? "vs");

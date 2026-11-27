@@ -12,7 +12,7 @@
     <header class="area-page-head">
         <h1 class="area-page-title">Structures</h1>
         <div class="area-page-actions">
-            <button type="button" class="btn primary" @onclick='() => NewAsync("object")'><Icon Name="plus" /> New</button>
+            <a class="btn primary structures-new" href="@NewAddress" title="A new JSON file: its name first"><Icon Name="plus" /> New</a>
             <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="folder" /> Open…</button>
             <button type="button" class="btn" @onclick="() => _pasting = true"><Icon Name="copy" /> Paste</button>
         </div>
@@ -60,8 +60,7 @@
                     <div class="structures-empty">
                         <p class="empty-note">Nothing open.</p>
                         <div class="structures-empty-actions">
-                            <button type="button" class="btn" @onclick='() => NewAsync("object")'><Icon Name="plus" /> New object</button>
-                            <button type="button" class="btn" @onclick='() => NewAsync("list")'><Icon Name="plus" /> New list</button>
+                            <a class="btn structures-new" href="@NewAddress" title="A new JSON file: its name first"><Icon Name="plus" /> New</a>
                             <button type="button" class="btn" @onclick="OpenFileAsync"><Icon Name="folder" /> Open…</button>
                         </div>
                     </div>

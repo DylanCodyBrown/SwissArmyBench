@@ -36,9 +36,6 @@ public sealed class OpenDocument
     /// <summary>A workbook's design on the Excel canvas (the Accounting extension's; the classic tab kind workbook).</summary>
     public bool IsWorkbook { get; init; }
 
-    /// <summary>A new workbook's title (the first sheet's heading), until it is saved.</summary>
-    public string? WorkbookTitle { get; init; }
-
     public SwissArmyBench.Web.Pages.Accounting.WorkbookPage? WorkbookView { get; set; }
 
     /// <summary>A code app's file (the Power Apps extension's; the classic tab kind codefile): its path in the app.</summary>
@@ -46,16 +43,24 @@ public sealed class OpenDocument
 
     public CodeFileView? CodeFileView { get; set; }
 
-    /// <summary>A new SQL file's tab (New ▸ SQL file), until it is saved; a saved one is a .sql file.</summary>
-    public bool NewSql { get; init; }
-
     /// <summary>A .sql file (the owner, 2026-11-24): SQL run on its connection, its result an open table.</summary>
-    public bool IsSql => NewSql || (Path is { } path && path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
+    public bool IsSql => Path is { } path && path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase);
 
     public SqlFileView? SqlView { get; set; }
 
-    /// <summary>A Markdown or plain text file (New file, the owner 2026-11-27): a plain editor, nothing runs.</summary>
-    public bool IsText => Path is { } path && (path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
+    /// <summary>A text document (the owner, 2026-11-27): Markdown, an HTML page, an SVG picture, a Mermaid diagram,
+    /// a chart's spec or plain text (Docs/TextFiles): an editor and, where the app can draw it, its preview. Nothing runs.</summary>
+    public bool IsText => TextKind is not null;
+
+    public Docs.TextFileKind? TextKind => Docs.TextFiles.KindOf(Path);
+
+    /// <summary>A text document's view, chosen on its tab's bar (preview, split, source); null until chosen: its
+    /// kind's own (Markdown opens read). The tab remembers it while it is open.</summary>
+    public string? TextViewChosen { get; set; }
+
+    public string TextViewNow => TextViewChosen ?? TextKind?.First ?? Docs.TextFiles.Source;
+
+    public TextFileView? TextView { get; set; }
 
     /// <summary>A notebook or a script: code that runs in the session (not a blade, structure, workbook, SQL or text file).</summary>
     public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && !IsSql && !IsText && CodeFile is null;
@@ -103,9 +108,6 @@ public sealed class OpenDocument
     /// <summary>Drawn again from the file (a notebook read again in place): its view's key.</summary>
     public int Version { get; set; }
 
-    /// <summary>The number its new untitled kind gets ("Untitled notebook 2").</summary>
-    public int Untitled { get; init; }
-
     public NotebookKept Kept { get; } = new();
 
     /// <summary>A script's console, kept with it.</summary>
@@ -115,14 +117,13 @@ public sealed class OpenDocument
 
     public ScriptView? ScriptView { get; set; }
 
-    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : IsText ? "text file" : "script";
+    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : IsText ? "document" : "script";
 
-    public string Title => Blade ?? (CodeFile is { } file ? FilePaths.Name(file) : Path is { } path
-        ? FilePaths.Name(path)
-        : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
+    /// <summary>Its tab's words: the blade's name, else its file's (every document is a named file).</summary>
+    public string Title => Blade ?? FilePaths.Name(CodeFile ?? Path ?? KindWord);
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : IsText ? "Text file" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : IsText ? "Document" : "Script";
 
     /// <summary>Renamed from its tab (Rename…): a notebook, a script, a SQL file or a text file; a blade, a
     /// structure, a workbook and a code app's file keep their own ways.</summary>

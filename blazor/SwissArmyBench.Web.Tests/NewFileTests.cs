@@ -18,10 +18,10 @@ namespace SwissArmyBench.Web.Tests;
 /// connection and makes the file once.</summary>
 public sealed class NewFileTests : AppTestContext
 {
-    private static readonly NewFileType _python = new("python", "Python script", ".py", [".py"], "scripts", "scripts", "script", "python", "A module with a typed main().", "untitled");
-    private static readonly NewFileType _sql = new("sql", "SQL file", ".sql", [".sql"], "scripts", "scripts", "sql", "sql", "Run file builds the open table named after the file.", "query");
+    private static readonly NewFileType _python = new("python", "Python script", ".py", [".py"], "scripts", "scripts", "script", "python", "A module with a typed main().", "script");
+    private static readonly NewFileType _sql = new("sql", "SQL file", ".sql", [".sql"], "scripts", "scripts", "sql", "sql", "Run file builds the open table named after the file.", "query", ["name", "folder", "connection"]);
     private static readonly NewFileType _json = new("json", "JSON", ".json", [".json"], "structures", "scripts", "structure", "json", "An empty object.", "data");
-    private static readonly NewFileType _notebook = new("notebook", "Notebook", ".ipynb", [".ipynb"], string.Empty, "notebooks", "notebook", "notebook", "An empty notebook.", "untitled");
+    private static readonly NewFileType _notebook = new("notebook", "Notebook", ".ipynb", [".ipynb"], string.Empty, "notebooks", "notebook", "notebook", "An empty notebook.", "notebook");
     private static readonly IReadOnlyList<NewFileType> _types = [_python, _sql, _json, _notebook];
 
     private readonly CannedServer _server = new();
@@ -55,14 +55,89 @@ public sealed class NewFileTests : AppTestContext
     }
 
     [Fact]
-    public void With_no_project_open_only_the_types_that_start_untitled_can_be_picked()
+    public void Every_line_the_server_lists_can_be_picked()
     {
-        var entries = NewFileMenus.Entries(_types, project: false, _ => Task.CompletedTask);
-        Assert.Null(entries[0].Disabled);
-        Assert.Null(entries[1].Disabled);
-        Assert.Equal(NewFileMenus.NeedsProject, entries[2].Disabled);
-        Assert.Null(entries[3].Disabled);
-        Assert.All(NewFileMenus.Entries(_types, project: true, _ => Task.CompletedTask), e => Assert.Null(e.Disabled));
+        // The server lists only what can be made now (with no project open, the types made in any folder).
+        Assert.All(NewFileMenus.Entries(_types, _ => Task.CompletedTask), e => Assert.Null(e.Disabled));
+    }
+
+    [Fact]
+    public void The_list_is_the_servers_data_and_a_type_of_the_projects_own_is_drawn_as_any_other()
+    {
+        // A type this page has never heard of (a project type's own, from its extension's mode): its line, its
+        // icon, what its dialog asks. Nothing here names it.
+        var gadget = new NewFileType("gadget", "Gadget", ".gadget.py", [".gadget.py"], "gadgets", "gadgets", "gadget", "sliders", "A made-up gadget.", "my_gadget", ["name"], [], false);
+        NewFileType? picked = null;
+        var button = Render<NewFileButton>(p => p.Add(b => b.Types, [.. _types, gadget]).Add(b => b.HasProject, true).Add(b => b.OnPick, t => picked = t));
+        button.Find(".wb-top-new").Click();
+        var last = button.FindAll("[role=menuitem]")[^1];
+        Assert.Equal("Gadget (.gadget.py)", last.TextContent.Trim());
+        last.Click();
+        Assert.Same(gadget, picked);
+
+        _server.Answer("POST /scripts/files/new", Made("gadgets/my_gadget.gadget.py", "gadget", made: false));
+        var dialog = Render<NewFileDialog>(p => p.Add(d => d.Type, gadget).Add(d => d.HasProject, true));
+        Assert.Equal("New Gadget", dialog.Find("[role=dialog]").GetAttribute("aria-label"));
+        Assert.Equal("my_gadget.gadget.py", dialog.Find("input.new-file-name").GetAttribute("value"));
+        Assert.Empty(dialog.FindAll("input.new-file-folder")); // it asks a name only
+        Assert.Empty(dialog.FindAll("select"));
+    }
+
+    [Fact]
+    public void One_type_is_one_plain_button_that_asks_its_name()
+    {
+        NewFileType? picked = null;
+        var button = Render<NewFileButton>(p => p.Add(b => b.Types, [_notebook]).Add(b => b.OnPick, t => picked = t));
+        Assert.Equal("New notebook", button.Find(".wb-top-new").TextContent.Trim());
+        Assert.False(button.Find(".wb-top-new").HasAttribute("aria-haspopup"));
+        button.Find(".wb-top-new").Click();
+        Assert.Same(_notebook, picked);
+    }
+
+    [Fact]
+    public async Task With_no_project_open_the_dialog_asks_a_folder_of_this_computerAsync()
+    {
+        _server.Answer("POST /scripts/files/new", """{"path": "/made/up/loose/script.py", "relative": "script.py", "type": "python", "kind": "script", "page": "scripts", "made": true}""");
+        NewFileMade? made = null;
+        var dialog = Render<NewFileDialog>(p => p.Add(d => d.Type, _python).Add(d => d.HasProject, false).Add(d => d.StartFolder, "/made/up/loose").Add(d => d.OnMade, m => made = m));
+
+        Assert.Equal("Folder on this computer", dialog.Find("label.field:has(input.new-file-folder) > span").TextContent);
+        Assert.Equal("/made/up/loose", dialog.Find("input.new-file-folder").GetAttribute("value"));
+        Assert.Contains("Browse", dialog.Find(".new-file-browse").TextContent, StringComparison.Ordinal);
+        Assert.Contains("No project is open", dialog.Find(".new-file-loose").TextContent, StringComparison.Ordinal);
+        Assert.Empty(dialog.FindAll("datalist")); // no project's folders to offer
+        dialog.WaitForAssertion(() => Assert.Equal("Makes /made/up/loose/script.py", dialog.Find(".new-file-check").TextContent));
+
+        await dialog.Find(".new-file-create").ClickAsync(new MouseEventArgs());
+        Assert.Equal("/made/up/loose/script.py", made?.Path);
+        using var sent = JsonDocument.Parse(_server.Asked[^1].Body);
+        Assert.Equal("/made/up/loose", sent.RootElement.GetProperty("folder").GetString()); // the folder's whole path
+        Assert.Equal("script", sent.RootElement.GetProperty("name").GetString()?.Replace(".py", string.Empty, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_type_with_kinds_asks_which_and_sends_itAsync()
+    {
+        var diagram = new NewFileType("diagram", "Diagram", ".mmd", [".mmd", ".mermaid"], "docs/diagrams", "scripts", "text", "chart", "A Mermaid diagram.", "diagram",
+            ["name", "folder", "variant"], [new("flowchart", "Flowchart (activity)"), new("class", "Class diagram"), new("sequence", "Sequence diagram")]);
+        _server.Answer("POST /scripts/files/new", Made("docs/diagrams/diagram.mmd", "text", made: true));
+        var dialog = Render<NewFileDialog>(p => p.Add(d => d.Type, diagram).Add(d => d.HasProject, true));
+        Assert.Equal(["Flowchart (activity)", "Class diagram", "Sequence diagram"], dialog.FindAll("select.new-file-variant option").Select(o => o.TextContent));
+        dialog.Find("select.new-file-variant").Change("sequence");
+        await dialog.Find(".new-file-create").ClickAsync(new MouseEventArgs());
+        using var sent = JsonDocument.Parse(_server.Asked[^1].Body);
+        Assert.Equal("sequence", sent.RootElement.GetProperty("variant").GetString());
+    }
+
+    [Fact]
+    public async Task Cancel_makes_nothingAsync()
+    {
+        _server.Answer("POST /scripts/files/new", Made("scripts/query.sql", "sql", made: false));
+        var (closed, handed) = (0, 0);
+        var dialog = Render<NewFileDialog>(p => p.Add(d => d.Type, _sql).Add(d => d.OnClose, () => closed++).Add(d => d.OnMade, _ => handed++));
+        await dialog.Find(".new-file-cancel").ClickAsync(new MouseEventArgs());
+        Assert.Equal((1, 0), (closed, handed));
+        Assert.All(_server.Asked, asked => Assert.Contains("\"check\":true", asked.Body.Replace(" ", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal)); // only the check: nothing written
     }
 
     [Fact]
@@ -128,14 +203,14 @@ public sealed class NewFileTests : AppTestContext
     }
 
     [Fact]
-    public void A_markdown_or_text_file_is_its_own_kind_of_tab()
+    public void A_text_document_is_its_own_kind_of_tab()
     {
         var notes = new OpenDocument(1, false) { Path = "/made/up/shop/notes.md" };
         var todo = new OpenDocument(2, false) { Path = "/made/up/shop/TODO.TXT" };
         Assert.True(notes.IsText);
         Assert.True(todo.IsText);
         Assert.False(notes.IsCode); // nothing runs: no Python session, no Run file
-        Assert.Equal("Text file", notes.KindLabel);
+        Assert.Equal("Document", notes.KindLabel);
         Assert.True(notes.CanRename);
         Assert.False(new OpenDocument(3, false) { Path = "/made/up/shop/load.py" }.IsText);
     }

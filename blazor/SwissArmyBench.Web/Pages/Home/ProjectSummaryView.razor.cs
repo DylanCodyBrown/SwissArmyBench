@@ -138,8 +138,7 @@ public partial class ProjectSummaryView : IDisposable
     /// <summary>ARCHITECTURE.md written at the project's top (only when its bytes change); Download saves a copy.</summary>
     private Task OutlineAsync() => GuardAsync(async () =>
     {
-        var done = await Exports.OutlineAsync();
-        var words = $"{done.File} {(done.Written ? "written" : "is up to date")}";
+        var (done, words) = await OutlineExport.RunAsync(Exports, Dialogs);
         await Notes.SayAsync(words, "Download", () => Js.InvokeVoidAsync("sab.saveText", done.File, done.Text).AsTask());
     });
 

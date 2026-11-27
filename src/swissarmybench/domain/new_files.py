@@ -305,6 +305,15 @@ def type_of(value: Any, extra: Any = (), project: bool = True) -> FileType:
     return found
 
 
+def address_part(text: str) -> str:
+    """A value written into a page's address (?path=...): everything but letters, digits and - _ . ~ as its
+    UTF-8 bytes in %XX (a maker's `address` for the file it made)."""
+    return "".join(
+        c if (c.isascii() and c.isalnum()) or c in "-_.~" else "".join(f"%{b:02X}" for b in c.encode("utf-8"))
+        for c in text
+    )
+
+
 NO_NAME = "Give the file a name: a new file is made only once it is named."
 
 

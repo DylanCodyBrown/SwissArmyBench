@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, expect
 
-from tests.e2e.blazor.conftest import open_page
+from tests.e2e.blazor.conftest import loose_file, open_page
 
 ROOT = Path(__file__).resolve().parents[3]
 STANDIN = ROOT / "tests" / "copilot_standin.py"
@@ -63,7 +63,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
 
 
 def test_ghost_text_in_a_cell_and_a_script_and_the_switch(browser: Browser, server: dict[str, Any]) -> None:
-    page = open_page(browser, server, "notebooks?new=1")
+    page = open_page(browser, server, f"notebooks?path={loose_file(server, 'made_up_ghost', 'notebook')}")
     page.click(".wb-gcontrols button[aria-label='Add cell']")
     page.click(".context-menu [role=menuitem]:has-text('Python')")
     cell = page.locator(".wb-cell").first
@@ -83,7 +83,7 @@ def test_ghost_text_in_a_cell_and_a_script_and_the_switch(browser: Browser, serv
     expect(item).to_have_attribute("data-on", "true")
     page.close()
 
-    page = open_page(browser, server, "scripts?new=1")
+    page = open_page(browser, server, f"scripts?path={loose_file(server, 'made_up_ghost', text='')}")
     page.click(".wb-script-editor .monaco-editor .view-lines")
     page.keyboard.type("total = 1")
     page.keyboard.press("Enter")

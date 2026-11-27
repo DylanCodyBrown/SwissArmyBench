@@ -1,9 +1,11 @@
-"""A Markdown file as blocks (domain/markdown_blocks.py; the owner, 2026-11-27: "Our markdown reader and inline
-editor would be a great addition"): the splitting (front matter, fenced code holding blank lines, nested
-lists, tables), and an edit written back into only its block's characters (byte for byte outside it, the
-file's CRLF kept), a task box ticked by one character."""
+"""A Markdown file as blocks (domain/markdown_blocks.py; the owner, 2026-11-27: "Our markdown reader and
+inline editor would be a great addition"): the splitting (front matter, fenced code holding blank lines,
+nested lists, tables), and an edit written back into only its block's characters (byte for byte outside it,
+the file's CRLF kept), a task box ticked by one character."""
 
 from __future__ import annotations
+
+import itertools
 
 import pytest
 
@@ -74,7 +76,7 @@ def test_the_blocks_of_a_document_in_order() -> None:
     # Each block's text is exactly its characters of the file, and no two overlap.
     for block in found:
         assert DOC[block.start : block.end] == block.text
-    assert all(a.end <= b.start for a, b in zip(found, found[1:], strict=False))
+    assert all(a.end <= b.start for a, b in itertools.pairwise(found))
     front, heading, paragraph, items, code, table = found[:6]
     assert front.text == "---\ntitle: A made-up plan\n---" and front.line == 1 and front.lines == 3
     assert heading.text == "# Plan" and heading.line == 5

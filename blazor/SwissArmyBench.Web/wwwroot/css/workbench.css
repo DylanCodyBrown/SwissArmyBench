@@ -212,3 +212,59 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .wb-sql-output .sql-status { color: var(--muted); }
 .wb-sql-error { margin: 6px 10px; }
 .wb-sql-error pre { margin: 4px 0 0; white-space: pre-wrap; }
+
+/* ===== A text document's tab (Pages/Workbench/TextFileView): its source, its preview, or both side by side ===== */
+.wb-text-panes { display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.wb-text-source { flex: 1 1 50%; min-width: 0; min-height: 0; }
+.wb-text-preview { flex: 1 1 50%; min-width: 0; min-height: 0; overflow: auto; padding: 18px 28px 40px; background: var(--bg); }
+.view-split .wb-text-preview { border-left: 1px solid var(--border); padding: 14px 20px 32px; }
+.wb-view-toggle { display: inline-flex; }
+.wb-view-toggle .btn { border-radius: 0; margin-left: -1px; }
+.wb-view-toggle .btn:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.wb-view-toggle .btn:last-child { border-radius: 0 4px 4px 0; }
+.wb-view-toggle .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); font-weight: 600; position: relative; }
+.wb-preview-note { margin: 0 0 10px; padding: 6px 10px; border-left: 3px solid var(--border-strong); background: var(--surface); }
+.wb-preview-error { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--error); border-radius: 4px; background: var(--error-soft); color: var(--fg); }
+.wb-preview-error-words { margin: 6px 0 0; font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+/* An HTML page and an SVG picture: the walled-off frame fills the pane. */
+.preview-html .wb-text-preview, .preview-svg .wb-text-preview { display: flex; flex-direction: column; padding: 0; }
+.preview-html .wb-preview-note { margin: 8px 12px; }
+.wb-preview-stage { flex: 1 1 auto; min-height: 240px; }
+.wb-preview-frame { display: block; width: 100%; height: 100%; min-height: 240px; border: 0; background: #fff; }
+.wb-diagram-host { display: flex; justify-content: center; }
+.wb-diagram-host svg { max-width: 100%; height: auto; }
+
+/* The Markdown reader (Docs/MarkdownReader): the file as a page, each block its own box to click. */
+.md-reader { max-width: 880px; margin: 0 auto; font-size: 14.5px; line-height: 1.6; }
+.md-block { margin: 0 -10px; padding: 1px 10px; border-radius: 4px; border: 1px solid transparent; }
+.md-reader[data-editable="true"] .md-block:not(.md-block-editing) { cursor: text; }
+.md-reader[data-editable="true"] .md-block:not(.md-block-editing):hover { background: var(--row-hover); }
+.md-block:focus-visible { outline: var(--focus-width, 2px) solid var(--focus); outline-offset: 1px; }
+.md-block-editing { border-color: var(--accent); background: var(--surface); padding: 6px 10px; margin-top: 6px; margin-bottom: 6px; }
+.md-block-edit { display: block; width: 100%; min-height: 28px; padding: 4px 6px; border: 0; outline: 0; resize: none; overflow: hidden; background: transparent; color: var(--fg); font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; tab-size: 4; }
+.md-block-hint { display: block; text-align: right; }
+.md-reader .note-body h1 { margin: 18px 0 8px; font-size: 26px; line-height: 1.25; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.md-reader .note-body h2 { margin: 18px 0 6px; font-size: 20px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.md-reader .note-body h3 { margin: 14px 0 4px; font-size: 16.5px; }
+.md-reader .note-body h4 { margin: 12px 0 4px; font-size: 14.5px; }
+.md-reader .note-body p { margin: 8px 0; }
+.md-reader .note-body ul, .md-reader .note-body ol { margin: 6px 0; padding-left: 26px; }
+.md-reader .note-body li > ul, .md-reader .note-body li > ol { margin: 2px 0; }
+.md-reader .note-body li.md-task { list-style: none; margin-left: -20px; }
+.md-reader .note-body li.md-task input { margin: 0 6px 0 0; vertical-align: middle; cursor: pointer; }
+.md-reader .note-body blockquote { margin: 8px 0; padding: 2px 14px; border-left: 3px solid var(--border-strong); color: var(--muted); }
+.md-reader .note-body hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
+.md-reader .note-body code { padding: 1px 4px; border-radius: 3px; background: var(--surface-2); font-size: 12.5px; }
+.md-reader .md-code { margin: 8px 0; padding: 10px 12px; border-radius: 4px; font-size: 12.5px; line-height: 1.5; }
+.md-reader .md-code code { padding: 0; background: transparent; }
+.md-reader .md-front { color: var(--muted); }
+.md-reader .md-table-wrap { margin: 8px 0; overflow-x: auto; }
+.md-reader .md-table { border-collapse: collapse; }
+.md-reader .md-table th, .md-reader .md-table td { padding: 4px 12px; border: 1px solid var(--border); }
+.md-reader .md-table th { background: var(--surface); }
+.md-reader .align-right { text-align: right; }
+.md-image { max-width: 100%; height: auto; }
+.md-anchor { color: var(--accent); }
+.md-empty { margin: 24px 0; }
+.new-file-place { flex-wrap: nowrap; }
+.new-file-place .new-file-folder { flex: 1 1 auto; min-width: 0; }

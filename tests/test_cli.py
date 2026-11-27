@@ -150,7 +150,7 @@ NOT_COMMANDS = {
     "/workbench/kernels/{}/complete": "IPython's own completion in a kernel (a SQL cell's names): the "
     "agent asks workbench_complete, which reads the kernel's names through Jedi",
     "/workbench/window/{}": "the Workbench window's own answer to workbench_window (not the agent's)",
-    "/workbench/picture": "a picture beside a document, drawn in its preview (the page's; files are the agent's)",
+    "/workbench/picture": "a picture beside a document, drawn in its preview (the page's own)",
     "/workbench/export-picture": (
         "the page's own drawing of a diagram saved beside its file: the agent's is workbench_file export, "
         "which has the page draw and save it"

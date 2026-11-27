@@ -39,6 +39,8 @@ public partial class WorkbenchPage
         ["path"] = doc.Path ?? doc.CodeFile,
         ["kind"] = doc.KindLabel.ToLowerInvariant(),
         ["dirty"] = doc.Dirty,
+        // A text document's view (preview, split, source): which of them the tab is in.
+        ["view"] = doc.TextKind is { HasPreview: true } ? doc.TextViewNow : null,
     };
 
     private Dictionary<string, object?> ScreenPart() => new()
@@ -51,7 +53,7 @@ public partial class WorkbenchPage
             .ToList(),
         ["session"] = Session.Words,
         ["script"] = Front is { IsNotebook: false, IsBlade: false, IsStructure: false, IsWorkbook: false } script
-            ? new Dictionary<string, object?> { ["language"] = script.IsSql ? "sql" : "python", ["running"] = script.SqlView?.Running ?? Session.Busy }
+            ? new Dictionary<string, object?> { ["language"] = script.IsSql ? "sql" : script.TextKind?.Language ?? "python", ["running"] = script.SqlView?.Running ?? Session.Busy }
             : null,
     };
 }

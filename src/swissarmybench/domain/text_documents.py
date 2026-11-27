@@ -1,7 +1,7 @@
 """Text documents of the Scripts page (the owner, 2026-11-27: "Our markdown reader and inline editor would
 be a great addition" / "Html would be a great addition, html, markdown, and renderable code should get a
-preview toggle"): the files that open as a plain editor's tab, each with its editor's language and, where the app
-has a renderer for it, the preview its tab's toggle draws.
+preview toggle"): the files that open as a plain editor's tab, each with its editor's language and, where
+the app has a renderer for it, the preview its tab's toggle draws.
 
 ONE table (KINDS: the first ending that matches a file's lower-cased name): Markdown (its Read view the
 default), HTML and SVG (drawn in the HTML cells' walled-off frame), Mermaid (.mmd, .mermaid), Vega-Lite and

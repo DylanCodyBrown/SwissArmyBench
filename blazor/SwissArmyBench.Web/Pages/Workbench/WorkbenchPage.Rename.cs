@@ -4,7 +4,7 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 
 // A tab's Rename… (its right click, F2 on the tab, the document's "…"; the owner, 2026-11-24: "we should allow renaming
 // here"): a project's module the way the Files pane renames it (its imports following, with the preview), a notebook,
-// a SQL file or a loose script renamed in its folder; an untitled one named and saved (Save as, its name first). The
+// a SQL file or a loose script renamed in its folder (every document has its file: there is no untitled one). The
 // tab, its title, the address and the recent list follow. Unsaved changes are saved first only on the user's word.
 public partial class WorkbenchPage
 {
@@ -16,7 +16,6 @@ public partial class WorkbenchPage
         }
         if (doc.Path is null)
         {
-            await SaveAsAsync(doc); // its name box first, in the folder a new document saves to
             return;
         }
         if (doc.Dirty)
@@ -79,9 +78,6 @@ public partial class WorkbenchPage
         await LoadTreeAsync();
         await FollowAddressAsync();
     }
-
-    /// <summary>A new document's file name for Save as: the page's kind's ending.</summary>
-    private static string SuggestedName(OpenDocument doc) => doc.IsSql ? "query.sql" : doc.IsNotebook ? "untitled.ipynb" : "untitled.py";
 
     /// <summary>The chosen path with the document's kind's ending.</summary>
     private static string WithEnding(OpenDocument doc, string chosen)

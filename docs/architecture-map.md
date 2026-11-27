@@ -17,9 +17,9 @@ below the picture).
 ```mermaid
 flowchart TB
     subgraph base["swissarmybench (the base)"]
-        domain["domain<br/>130 modules"]
+        domain["domain<br/>132 modules"]
         settings["settings<br/>1 module"]
-        services["services<br/>92 modules"]
+        services["services<br/>93 modules"]
         adapters["adapters<br/>46 modules"]
         cli["cli<br/>42 modules"]
         client["client<br/>24 modules"]
@@ -34,9 +34,9 @@ flowchart TB
         ext_git["git<br/>9 modules"]
         ext_powerapps["powerapps<br/>20 modules"]
         ext_powerbi["powerbi<br/>18 modules"]
-        ext_streamlit["streamlit<br/>31 modules"]
+        ext_streamlit["streamlit<br/>32 modules"]
     end
-    adapters -->|53| domain
+    adapters -->|54| domain
     adapters -->|1| root
     adapters -->|3| services
     bootstrap -->|43| adapters
@@ -58,7 +58,7 @@ flowchart TB
     ext_accounting -->|2| domain
     ext_accounting -->|2| root
     ext_accounting -->|1| server
-    ext_accounting -->|3| services
+    ext_accounting -->|4| services
     ext_copilot -->|1| adapters
     ext_copilot -->|2| cli
     ext_copilot -->|1| domain
@@ -83,7 +83,7 @@ flowchart TB
     ext_streamlit -->|2| cli
     ext_streamlit -->|6| domain
     ext_streamlit -->|4| server
-    ext_streamlit -->|13| services
+    ext_streamlit -->|14| services
     mcp -->|2| cli
     mcp -->|1| domain
     root -->|9| client
@@ -96,7 +96,7 @@ flowchart TB
     server -->|10| root
     server -->|88| services
     server -->|2| settings
-    services -->|368| domain
+    services -->|371| domain
     services -->|3| settings
     settings -->|1| domain
 ```
@@ -125,10 +125,10 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 130 | 168 | 0 | 0.00 | 345 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 132 | 170 | 0 | 0.00 | 349 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 92 | 96 | 115 | 0.55 | 333 | 178 | 0.53 | 0.08 |
-| adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 38 | 0.63 | 111 | 2 | 0.02 | 0.35 |
+| services | the use cases | 93 | 97 | 117 | 0.55 | 335 | 179 | 0.53 | 0.08 |
+| adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 39 | 0.64 | 111 | 2 | 0.02 | 0.34 |
 | cli | the agent's commands | 42 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 4 | 0 | 0.00 | 0.47 |
@@ -140,13 +140,13 @@ low by design and its D says little; the measure bites for the components that h
 | git | an extension | 9 | 0 | 8 | 1.00 | 17 | 4 | 0.24 | 0.24 |
 | powerapps | an extension | 20 | 0 | 21 | 1.00 | 39 | 15 | 0.38 | 0.38 |
 | powerbi | an extension | 18 | 0 | 24 | 1.00 | 50 | 9 | 0.18 | 0.18 |
-| streamlit | an extension | 31 | 0 | 16 | 1.00 | 58 | 3 | 0.05 | 0.05 |
+| streamlit | an extension | 32 | 0 | 16 | 1.00 | 58 | 3 | 0.05 | 0.05 |
 
 ### The modules most depended on
 
 | Module | Modules that import it |
 |---|---:|
-| `swissarmybench.services.workspace` | 90 |
+| `swissarmybench.services.workspace` | 93 |
 | `swissarmybench.server.http` | 76 |
 | `swissarmybench.services.ports` | 59 |
 | `swissarmybench.domain.datasets` | 53 |

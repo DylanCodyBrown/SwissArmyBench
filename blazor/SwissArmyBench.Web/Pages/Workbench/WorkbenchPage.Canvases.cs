@@ -30,14 +30,9 @@ public partial class WorkbenchPage
     // The Canvas in a window of its own (the classic opens /streamlit/canvas there): its landing offers New canvas.
     private Task NewCanvasAsync() => Js.InvokeVoidAsync("open", "canvas", "_blank").AsTask();
 
-    /// <summary>New Excel workbook: an untitled design as a tab (its title the project's name, else the tab's).</summary>
-    private Task NewWorkbookAsync()
-    {
-        var untitled = NextUntitled();
-        var tab = untitled > 1 ? $"Untitled workbook {untitled}" : "Untitled workbook";
-        AddDocument(new OpenDocument(++_nextKey, false) { IsWorkbook = true, Untitled = untitled, WorkbookTitle = Project.Current?.Name ?? tab });
-        return Task.CompletedTask;
-    }
+    /// <summary>New Excel workbook: named first, as every new file is (the type the project's type adds; the
+    /// server makes its design's file, and it opens as a tab).</summary>
+    private Task NewWorkbookAsync() => AskNewAsync("workbook");
 
     /// <summary>A workbook's design (a .design.json file) opened as a tab, or brought to the front.</summary>
     private void OpenWorkbook(string path)

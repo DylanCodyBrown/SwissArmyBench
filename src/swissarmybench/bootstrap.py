@@ -1705,6 +1705,7 @@ def _editors_and_claude(b: Built) -> None:
     # New file's types the open project's type adds, each made by its extension's own "new" path.
     b.script_ide.extra_types = lambda: b.modes.active()["mode"].get("new_files") or []
     b.script_ide.makers = b.hooks.new_file_makers
+    b.script_ide.home = (str(b.settings.workbench_dir), b.documents.made_default_folder)
     b.context_md = context_md = ContextMd(
         ws,
         b.claude_files,

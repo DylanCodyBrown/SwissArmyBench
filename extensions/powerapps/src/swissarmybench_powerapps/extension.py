@@ -222,7 +222,7 @@ def routes(seams: Seams) -> list[Any]:
 
     async def new_page(body: dict[str, Any], who: str) -> dict[str, Any]:
         """New file's Page: ({name, check}, who) -> its page file, the address it opens at."""
-        from urllib.parse import quote
+        from swissarmybench.domain.new_files import address_part
 
         name = str(body.get("name") or "").strip()
         name = name[:-4] if name.lower().endswith(".tsx") else name
@@ -230,7 +230,7 @@ def routes(seams: Seams) -> list[Any]:
             opened = service.page_place(name)
         else:
             opened = (await service.new_page({"name": name}, who))["open"]
-        return {"path": opened, "relative": opened, "address": f"scripts?codefile={quote(opened, safe='')}"}
+        return {"path": opened, "relative": opened, "address": f"scripts?codefile={address_part(opened)}"}
 
     seams.hooks.new_file_makers["page"] = new_page
     # Its own place on the record: its stop, and tests.

@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from swissarmybench.domain import text_documents
+
 Stamp = tuple[int, int]
 MAX_WATCHED = 4000
 _ENDINGS = (".py", ".ipynb", ".sql")  # a .sql file (2026-11-24) follows its changes too
@@ -34,7 +36,8 @@ def stamp(path: str) -> Stamp | None:
 
 def code_files_in(folder: str | None, structures: bool = False) -> list[str]:
     """A folder's code files (.py, .ipynb and .sql), hidden folders, caches and environments left out; with
-    `structures` (the open project's folder) its structure files too, at its top and in its structures/."""
+    `structures` (the open project's folder) its structure files too, at its top and in its structures/, and
+    its text documents (Markdown, HTML, diagrams: domain/text_documents.py) anywhere in it."""
     if not folder:
         return []
     root = Path(folder)
@@ -55,6 +58,11 @@ def code_files_in(folder: str | None, structures: bool = False) -> list[str]:
             if entry.is_dir():
                 stack.append(entry)
             elif entry.suffix.lower() in _ENDINGS or (
+                # The open project's docs, wherever they sit (a Markdown file's tab follows its file too).
+                structures and entry.name.lower().endswith(text_documents.ENDINGS)
+            ):
+                found.append(str(entry))
+            elif (
                 structures
                 and entry.suffix.lower() in _STRUCTURE_ENDINGS
                 and (here in (root, root / "structures") or root / "structures" in here.parents)

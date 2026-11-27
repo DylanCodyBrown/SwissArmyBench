@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -523,3 +524,42 @@ def test_an_outline_edited_by_hand_is_kept_and_said(tmp_path: Path) -> None:
         outline.write_text("# Older\n", encoding="utf-8")
         assert ok(client.post("/project/outline", json={}, headers=AUTH))["edited"] is True
         assert outline.read_text(encoding="utf-8") == "# Older\n"
+
+
+# ===== the front end: the server's data, no copy of its own =====
+
+BLAZOR = Path(__file__).resolve().parents[1] / "blazor" / "SwissArmyBench.Web"
+
+
+def test_the_front_ends_text_kinds_are_the_servers() -> None:
+    """Docs/TextFiles.cs is held to domain/text_documents.py KINDS: the same endings in the same order, each
+    with its language, preview, first view and icon."""
+    text = (BLAZOR / "Pages" / "Workbench" / "Docs" / "TextFiles.cs").read_text(encoding="utf-8")
+    found = re.findall(r'new\("([^"]+)", "([^"]+)", "([^"]*)", (\w+), "([^"]+)"\)', text)
+    assert [(e, lang, preview, first.lower(), icon) for e, lang, preview, first, icon in found] == [
+        (k.ending, k.language, k.preview, k.first, k.icon) for k in text_documents.KINDS
+    ]
+
+
+def test_the_front_end_names_no_file_type() -> None:
+    """The New file list and its dialog draw what GET /scripts/files/new says: no type's id or label is
+    written in them (a project type's own least of all)."""
+    from swissarmybench import extensions
+
+    ids = {t.id for t in new_files.TYPES} | {"widget", "canvas", "workbook", "page"}
+    for module in extensions.enabled():
+        mode = extensions.manifest(module).MODE or {}
+        ids |= {str(t.get("id")) for t in mode.get("new_files") or []}
+    assert {"widget", "canvas"} <= ids
+    workbench = BLAZOR / "Pages" / "Workbench"
+    files = [*sorted((workbench / "Ide").glob("NewFile*")), workbench / "WorkbenchPage.NewFiles.cs"]
+    assert len(files) >= 5
+    for file in files:
+        code = "\n".join(
+            line
+            for line in file.read_text(encoding="utf-8").splitlines()
+            if not line.lstrip().startswith(("//", "@*", "///"))
+        )
+        code = code.replace('type="text"', "")  # an input's own attribute
+        named = sorted(i for i in ids if re.search(rf'"{re.escape(i)}"', code))
+        assert named == [], f"{file.name} names the file type(s) {named}"
