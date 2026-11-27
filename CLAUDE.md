@@ -176,20 +176,26 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `app_screen` (the resource swissarmybench://screen) answers from it at once, asking no page. Names only, never a
   value; 8 KB a window at most. NEVER in the prompt hook nor context.md (tests/test_screen_state.py holds it);
   `app_snapshot` stays for a picture.
-- **Review comments on code (the owner, 2026-11-27: "any script to have an option to highlight a part by draging
+- **Annotations on code (the owner, 2026-11-27: "any script to have an option to highlight a part by draging
   mouse over that section right click then make a comment, then a send to agent button to send all comments to and
-  agent then reset the file so no comments are retained").** In every editor of a Notebooks or Scripts tab (a
-  script, a .sql file, a structure's text, Markdown and text, a blade's IDE, a code app's file, a notebook's cells):
-  select, right-click, **Comment…** (Ctrl+Alt+M; nothing selected: the cursor's line). A comment is a Monaco
-  decoration and a record in the page's memory (OpenDocument.Review), NEVER text of the file: Save cannot write
-  one, and it follows edits. The range is highlighted with a mark in the gutter, hovering shows it, the tab shows
-  the count, and the document's Review comments bar lists them in order (go to, Edit, Delete). **Send to agent**
-  sends them all as ONE inbox item (POST /agent/inbox/review; domain/review_comments.py: the path, then each
-  comment's lines, selected code and words; a known secret's value masked; 50 comments and 20,000 characters a
-  send, stated when it bites) and, once it went, clears every comment; a failed send keeps them and says why. A
-  tab or window with unsent comments asks before it closes. The agent reads the waiting ones and leaves notes of
-  its own on lines, marked as the agent's (`workbench_window` "comments", "comments.add", "comments.remove"); sending and clearing are the user's only
-  (tests/test_cli.py NOT_COMMANDS); `app_screen` gives each tab's count, never a comment's words.
+  agent then reset the file so no comments are retained"; then, 2026-11-27: "Comment should at the top of the menu.
+  And let's call it annotate instead").** Every word a person or the agent reads says annotation (Annotate…, the
+  Annotations bar, "3 annotations", the message's "Annotations on <path>" and "Annotation:"). Internal names kept
+  the old word: the C# and Python types and files (ReviewComments, domain/review_comments.py), CSS classes, the
+  route `POST /agent/inbox/review`, the inbox kind `review`, workbench_window's "comments", "comments.add" and
+  "comments.remove" with their JSON keys, the screen state's `comments`. In every editor of a Notebooks or Scripts
+  tab (a script, a .sql file, a structure's text, Markdown and text, a blade's IDE, a code app's file, a
+  notebook's cells): select, right-click, **Annotate…** at the very top of the menu (Ctrl+Alt+M; nothing
+  selected: the cursor's line). An annotation is a Monaco decoration and a record in the page's memory
+  (OpenDocument.Review), NEVER text of the file: Save cannot write one, and it follows edits. The range is
+  highlighted with a mark in the gutter, hovering shows it, the tab shows the count, and the document's
+  Annotations bar lists them in order (go to, Edit, Delete). **Send to agent** sends them all as ONE inbox item
+  (the path, then each one's lines, selected code and words; a known secret's value masked; 50 annotations and
+  20,000 characters a send, stated when it bites) and, once it went, clears every one; a failed send keeps them
+  and says why. A tab or window with unsent annotations asks before it closes. The agent reads the waiting ones
+  and leaves notes of its own on lines, marked as the agent's (`workbench_window` "comments", "comments.add",
+  "comments.remove"); sending and clearing are the user's only (tests/test_cli.py NOT_COMMANDS); `app_screen`
+  gives each tab's count, never the words.
 - **The original plan:** [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md).
   Follow its section 0 working agreements: typed Python, tests first for semantics, ask before
   adding a dependency the plan doesn't list. Milestone 9 (the agent running code) was the owner's
@@ -732,7 +738,7 @@ src/swissarmybench/
                          import, a typed main() under the main guard; sql_starter: its `-- connection:` line and
                          the first rows of an open table, else a hint; a valid empty JSON, YAML, TOML and XML
                          document; a Markdown heading; empty text; the Notebooks page's empty notebook)
-    review_comments.py   review comments as the one message the agent reads (the owner, 2026-11-27): a send read
+    review_comments.py   annotations (the code's review comments) as the one message the agent reads (2026-11-27): a send read
                          and checked, the document's order (a notebook's cells as given, lines within), each
                          comment's lines, fenced code and words, a known secret's value masked (mask), the caps
                          (MAX_COMMENTS 50, MAX_MESSAGE 20,000; code past its share cut and said), the agent's own
@@ -1533,7 +1539,7 @@ blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; 
                          page's Show and Touch, sent over the live socket only when it changed, four a second at
                          most); Components/ReviewComments (a document's review comments, memory only), CodeEditor.Review,
                          ReviewCommentBox and ReviewPanel with interop/codeEditor.js's comments layer and
-                         css/review.css (Comment… on a selection, Send to agent, then cleared);
+                         css/review.css (Annotate… on a selection, Send to agent, then cleared);
                          Components/ the shared parts: ErrorNote, Busy, AppDialog,
                          Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
                          extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,

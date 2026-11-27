@@ -11,7 +11,7 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 // sending and clearing are the user's only.
 public partial class WorkbenchPage
 {
-    private const string OnlyTheUserSends = "Only the user sends review comments (Send to agent on the document): what they send reaches you through agent_inbox.";
+    private const string OnlyTheUserSends = "Only the user sends annotations (Send to agent on the document): what they send reaches you through agent_inbox.";
 
     private void ReviewChanged()
     {
@@ -28,17 +28,17 @@ public partial class WorkbenchPage
             return true;
         }
         var unsaved = doc.Dirty ? "changes that are not saved and " : string.Empty;
-        return await Dialogs.AskYesNoAsync("Close", $"{doc.Title} has {unsaved}{doc.Review.CountWords} for review not yet sent to the agent. Close it and throw them away?", "Close", danger: true);
+        return await Dialogs.AskYesNoAsync("Close", $"{doc.Title} has {unsaved}{doc.Review.CountWords} not yet sent to the agent. Close it and throw them away?", "Close", danger: true);
     }
 
     private List<PaletteCommand> ReviewCommands()
     {
-        var none = Front is null ? NoDocument : Front.Review.Count == 0 ? "This document has no review comments" : null;
+        var none = Front is null ? NoDocument : Front.Review.Count == 0 ? "This document has no annotations" : null;
         return
         [
-            new("review.comment", "Review", "Comment on the selection…", () => Front is { } doc ? doc.Review.AskAsync(ReviewPartInFront(doc)) : Task.CompletedTask, "Ctrl+Alt+M", NeedsDocument),
-            new("review.send", "Review", "Send the review comments to the agent", () => Front?.ReviewPanel?.SendAsync() ?? Task.CompletedTask, WhyNot: none),
-            new("review.clear", "Review", "Clear the review comments", () => Front?.ReviewPanel?.ClearAsync() ?? Task.CompletedTask, WhyNot: none),
+            new("review.comment", "Annotations", "Annotate the selection…", () => Front is { } doc ? doc.Review.AskAsync(ReviewPartInFront(doc)) : Task.CompletedTask, "Ctrl+Alt+M", NeedsDocument),
+            new("review.send", "Annotations", "Send the annotations to the agent", () => Front?.ReviewPanel?.SendAsync() ?? Task.CompletedTask, WhyNot: none),
+            new("review.clear", "Annotations", "Clear the annotations", () => Front?.ReviewPanel?.ClearAsync() ?? Task.CompletedTask, WhyNot: none),
         ];
     }
 
@@ -106,11 +106,11 @@ public partial class WorkbenchPage
     {
         if (NumberOf(args, "id") is not { } id || doc.Review.Find(id) is not { } found)
         {
-            throw new InvalidOperationException("id is one of this document's comments: \"comments\" lists them.");
+            throw new InvalidOperationException("id is one of this document's annotations: \"comments\" lists them.");
         }
         if (!found.ByAgent)
         {
-            throw new InvalidOperationException("That comment is the user's: you take back only notes of your own.");
+            throw new InvalidOperationException("That annotation is the user's: you take back only notes of your own.");
         }
         await doc.Review.RemoveAsync(id);
         return ReviewAt(doc, null);

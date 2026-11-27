@@ -6515,3 +6515,7 @@ to the scripts page with an open script" / "sql authorship will have one place i
   background before this (Monaco's shadow root got none of the bundled CSS): now drawn in the page.
 - Not tested by a test: the window's own beforeunload question (Playwright closes a page without it), and a
   structure's comments drawn again when its Text view comes back.
+- Renamed on screen to annotations and moved to the top of the menu (the owner, 2026-11-27): the unit (10),
+  bUnit (312 of 312) and browser tests (3, Release build; the menu's first line is Annotate…) run again with the
+  new words; ruff, ruff format, mypy (only sab_canvas.py:622), tests/test_cli.py and tests/test_agent_index.py,
+  `dotnet format --verify-no-changes`. The menu (light and dark) and two annotations with the list looked at again.

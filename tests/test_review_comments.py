@@ -1,4 +1,5 @@
-"""Review comments (the owner, 2026-11-27): the one message the agent reads, and its send through the inbox.
+"""Annotations, review comments in the code (the owner, 2026-11-27): the one message the agent reads, and
+its send through the inbox.
 
 Made-up code and a made-up secret only.
 """
@@ -26,13 +27,13 @@ def test_the_message_names_the_file_then_each_comment_in_line_order() -> None:
             Comment(12, 15, "for row in rows:\n    total += row", "Use sum() here."),
         ],
     )
-    assert made.title == "Review comments on scripts/load.py (2)"
+    assert made.title == "Annotations on scripts/load.py (2)"
     assert made.count == 2 and made.masked == 0
-    assert made.text.startswith("Review comments on scripts/load.py: 2 comments. ")
+    assert made.text.startswith("Annotations on scripts/load.py: 2 annotations. ")
     first, second = made.text.index("1. lines 12-15"), made.text.index("2. line 20")
-    assert first < made.text.index("Comment: Use sum() here.") < second
+    assert first < made.text.index("Annotation: Use sum() here.") < second
     assert "```\nfor row in rows:\n    total += row\n```" in made.text
-    assert made.text.index("    return rows") < made.text.index("Comment: Return a DataFrame instead.")
+    assert made.text.index("    return rows") < made.text.index("Annotation: Return a DataFrame instead.")
 
 
 def test_a_notebooks_cells_stay_in_the_order_given_and_lines_within_a_cell() -> None:
@@ -46,11 +47,11 @@ def test_a_notebooks_cells_stay_in_the_order_given_and_lines_within_a_cell() -> 
 
 
 def test_one_comment_is_singular_and_an_agents_note_is_marked() -> None:
-    assert ": 1 comment. " in rules.message("a.py", [Comment(1, 1, "x = 1", "Why one?")]).text
+    assert ": 1 annotation. " in rules.message("a.py", [Comment(1, 1, "x = 1", "Why one?")]).text
     made = rules.message(
         "a.py", [Comment(1, 1, "x = 1", "Why?"), Comment(3, 3, "y = 2", "Look here.", by_agent=True)]
     )
-    assert "2 comments (1 from the user, 1 your own notes)" in made.text
+    assert "2 annotations (1 from the user, 1 your own notes)" in made.text
     assert "Your own note: Look here." in made.text
 
 
@@ -77,13 +78,13 @@ def test_code_past_its_share_is_cut_and_the_cap_is_stated() -> None:
 
 
 def test_what_cannot_be_sent_says_why() -> None:
-    with pytest.raises(rules.ReviewError, match="no comments"):
+    with pytest.raises(rules.ReviewError, match="no annotations"):
         rules.read({"path": "a.py", "comments": []})
     with pytest.raises(rules.ReviewError, match="path is the document"):
         rules.read({"path": " ", "comments": [{"line": 1, "comment": "x"}]})
     with pytest.raises(rules.ReviewError, match="more than one send holds"):
         rules.read({"path": "a.py", "comments": [{"line": 1, "comment": "x"}] * (rules.MAX_COMMENTS + 1)})
-    with pytest.raises(rules.ReviewError, match="Comment 1 says nothing"):
+    with pytest.raises(rules.ReviewError, match="Annotation 1 says nothing"):
         rules.read({"path": "a.py", "comments": [{"line": 1, "comment": "  "}]})
     with pytest.raises(rules.ReviewError, match="end is its last line"):
         rules.read({"path": "a.py", "comments": [{"line": 4, "end": 2, "comment": "x"}]})
@@ -116,18 +117,18 @@ def test_the_send_is_one_inbox_item_the_agent_reads_once(client: TestClient) -> 
     taken = client.get("/agent/inbox?take=1", headers=AGENT).json()
     assert len(taken["items"]) == 1
     item = taken["items"][0]
-    assert item["kind"] == "review" and item["title"] == "Review comments on scripts/load.py (2)"
+    assert item["kind"] == "review" and item["title"] == "Annotations on scripts/load.py (2)"
     assert item["text"].index("1. line 3") < item["text"].index("2. lines 12-15")
-    assert "Comment: Use sum()." in item["text"] and "import os" in item["text"]
-    assert "Review comments on scripts/load.py (2)" in sent(taken)  # the prompt hook's text
+    assert "Annotation: Use sum()." in item["text"] and "import os" in item["text"]
+    assert "Annotations on scripts/load.py (2)" in sent(taken)  # the prompt hook's text
     assert client.get("/agent/inbox?take=1", headers=AGENT).json() == {"items": [], "waiting": 0}
 
 
 def test_only_the_user_sends_and_a_bad_send_keeps_nothing(client: TestClient) -> None:
     refused = client.post("/agent/inbox/review", json=body(), headers=AGENT)
-    assert refused.status_code == 403 and "Only the user sends review comments" in refused.json()["error"]
+    assert refused.status_code == 403 and "Only the user sends annotations" in refused.json()["error"]
     empty = client.post("/agent/inbox/review", json={"path": "a.py", "comments": []}, headers=AUTH)
-    assert empty.status_code == 400 and "no comments" in empty.json()["error"]
+    assert empty.status_code == 400 and "no annotations" in empty.json()["error"]
     assert client.get("/agent/inbox?all=1", headers=AGENT).json() == {"items": [], "waiting": 0}
 
 

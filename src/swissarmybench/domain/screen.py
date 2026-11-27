@@ -76,7 +76,7 @@ STEP: dict[str, Any] = {
     "directions": NAMES,
 }
 
-# `comments`: how many review comments wait on it (the count only, never a comment's words).
+# `comments`: how many annotations wait on it (the count only, never an annotation's words).
 DOCUMENT: dict[str, Any] = {"title": NAME, "path": NAME, "kind": NAME, "dirty": FLAG, "comments": COUNT}
 
 # The page-specific parts, by name: each a page's own hook (blazor: ScreenState.Show).
@@ -407,7 +407,7 @@ def shows(state: dict[str, Any]) -> str:
         dirty = " (unsaved)" if tab.get("dirty") else ""
         said.append(f"{tab.get('kind') or 'document'} {tab.get('path') or tab.get('title')}{dirty}")
         if tab.get("comments"):
-            said.append(f"{tab['comments']} review comment{'s' if tab['comments'] != 1 else ''} waiting")
+            said.append(f"{tab['comments']} annotation{'s' if tab['comments'] != 1 else ''} waiting")
     if "cursor" in state:
         said.append(f"cursor at line {state['cursor'].get('line', 0)}")
     if state.get("notebook", {}).get("focused"):

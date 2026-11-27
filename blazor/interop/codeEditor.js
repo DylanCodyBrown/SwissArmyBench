@@ -531,7 +531,7 @@ export function create(host, dotnet, options) {
   }
 
 
-  // Review comments (the owner, 2026-11-27): select, right-click, Comment… (Ctrl+Alt+M). A comment is a decoration
+  // Review comments (the owner, 2026-11-27): select, right-click, Annotate… (Ctrl+Alt+M; "annotations" on screen, the owner 2026-11-27: the code kept "comment"). A comment is a decoration
   // of this editor and nothing else: never text of the model, so Save cannot write one. Monaco moves its range as
   // lines are added above it; the places are told to C# (Components/ReviewComments) a moment after an edit.
   const reviews = new Map(); // id -> { marks, text, agent }
@@ -545,7 +545,7 @@ export function create(host, dotnet, options) {
   const reviewLook = (text, agent) => ({
     className: agent ? "sab-comment sab-comment-agent" : "sab-comment",
     linesDecorationsClassName: agent ? "sab-comment-mark sab-comment-agent" : "sab-comment-mark",
-    hoverMessage: { value: `**${agent ? "The agent's note" : "Comment"}**  \n${plainHover(text)}` },
+    hoverMessage: { value: `**${agent ? "The agent's note" : "Annotation"}**  \n${plainHover(text)}` },
     stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
   });
   const reviewCounted = () => {
@@ -594,10 +594,11 @@ export function create(host, dotnet, options) {
   if (options.comments) {
     editor.addAction({
       id: "sab.comment",
-      label: "Comment…",
+      label: "Annotate…",
       keybindings: [K.CtrlCmd | K.Alt | C.KeyM],
-      contextMenuGroupId: "0_agent",
-      contextMenuOrder: 3,
+      // The very top of the menu (the owner, 2026-11-27): Monaco draws the "navigation" group first.
+      contextMenuGroupId: "navigation",
+      contextMenuOrder: 0,
       run: () => reviewAsk(null),
     });
     // A click on a comment's mark in the gutter opens it.

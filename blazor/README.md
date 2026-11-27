@@ -137,10 +137,11 @@ blazor/
                              Icon and IconSet (the app's line icons), AgGrid, MermaidDiagram; PaneDock (a
                              page's panes the user hides, moves to the left or right and stacks: DockLayout's rules,
                              PaneDockState kept in this browser; the Widgets window's and the Canvas's)
-    Components/Review*       review comments on code (the owner, 2026-11-27): ReviewComments (one open document's
+    Components/Review*       annotations on code (the owner, 2026-11-27; "annotate" on screen, the code kept "review
+                             comments"): ReviewComments (one open document's
                              comments, OpenDocument.Review: memory only, never text of the file; handed down to the
                              document's editors as a cascading value), CodeEditor.Review.cs (an editor draws its own:
-                             IReviewSurface) with codeEditor.js's layer (Comment… in the right-click menu and
+                             IReviewSurface) with codeEditor.js's layer (Annotate… at the top of the right-click menu and
                              Ctrl+Alt+M, each comment a Monaco decoration that follows edits, its mark in the gutter,
                              the hover, the window's beforeunload while any waits), ReviewCommentBox (the small box at
                              the selection: Ctrl+Enter, Escape, Delete), ReviewPanel (the document's bar and list:

@@ -76,14 +76,15 @@ def comment_by_menu(page: Page, first: str, last: str, words: str) -> None:
     drag_over(page, first, last)
     at = line(page, last)
     page.mouse.click(at["x"] + 30, at["y"] + at["height"] / 2, button="right")
-    item = page.locator(".monaco-menu .action-label", has_text="Comment…")
+    item = page.locator(".monaco-menu .action-label", has_text="Annotate…")
+    expect(page.locator(".monaco-menu .action-label").first).to_have_text("Annotate…")  # the top of the menu
     expect(item).to_be_visible()
     page.wait_for_timeout(300)  # Monaco's menu takes no click in its first moment (the right click's release)
     item.click()
     box = page.locator(".review-box")
     expect(box).to_be_visible()
     box.locator("textarea").fill(words)
-    box.get_by_role("button", name="Comment", exact=True).click()
+    box.get_by_role("button", name="Annotate", exact=True).click()
     expect(box).to_have_count(0)
 
 
@@ -115,7 +116,7 @@ def test_two_comments_are_sent_in_one_go_and_the_file_is_untouched(
     # Drag over two lines, right-click, Comment…, type.
     comment_by_menu(page, "for row in rows:", "total += row", "Use sum() here.")
     expect(page.locator(".wb-tab.active .wb-tab-comments")).to_have_text("1")
-    expect(page.locator(".review-count")).to_have_text("1 comment")
+    expect(page.locator(".review-count")).to_have_text("1 annotation")
     expect(page.locator(".review-where")).to_have_text("lines 6-7")
     expect(page.locator(".wb-script-editor .sab-comment").first).to_be_visible()  # the range, highlighted
     expect(page.locator(".wb-script-editor .sab-comment-mark").first).to_be_visible()  # its gutter mark
@@ -129,13 +130,14 @@ def test_two_comments_are_sent_in_one_go_and_the_file_is_untouched(
     box.locator("textarea").fill("Is this import used?")
     box.locator("textarea").press("Control+Enter")
     expect(page.locator(".wb-tab.active .wb-tab-comments")).to_have_text("2")
-    expect(page.locator(".wb-tab.active .wb-tab-comments")).to_have_attribute("aria-label", "2 comments")
+    expect(page.locator(".wb-tab.active .wb-tab-comments")).to_have_attribute("aria-label", "2 annotations")
     expect(page.locator(".review-where")).to_have_text(["line 2", "lines 6-7"])  # in the file's order
     expect(page.locator(".review-words")).to_have_text(["Is this import used?", "Use sum() here."])
 
     # Hovering the commented code shows the comment.
     hovered = line(page, "for row in rows:")
     page.mouse.move(hovered["x"] + 40, hovered["y"] + hovered["height"] / 2)
+    expect(page.locator(".monaco-hover-content").first).to_contain_text("Annotation")
     expect(page.locator(".monaco-hover-content").first).to_contain_text("Use sum")
 
     # A click in the list goes to its lines; Edit opens its words again.
@@ -166,7 +168,7 @@ def test_two_comments_are_sent_in_one_go_and_the_file_is_untouched(
     ]
     with pytest.raises(urllib.error.HTTPError) as refused:
         agent(server, "review.send", {})
-    assert "Only the user sends review comments" in refused.value.read().decode()
+    assert "Only the user sends annotations" in refused.value.read().decode()
 
     # Save (Ctrl+S) writes no comment: the file is as it was.
     page.locator(".wb-script-editor .view-lines").click()
@@ -177,7 +179,7 @@ def test_two_comments_are_sent_in_one_go_and_the_file_is_untouched(
     # A send that fails keeps every comment and says why.
     page.route("**/agent/inbox/review", lambda route: route.fulfill(status=500, json={"error": "It broke."}))
     page.get_by_role("button", name="Send to agent").click()
-    expect(page.locator(".review-error")).to_contain_text("Not sent: It broke. The comments are kept.")
+    expect(page.locator(".review-error")).to_contain_text("Not sent: It broke. The annotations are kept.")
     expect(page.locator(".review-item")).to_have_count(2)
     expect(page.locator(".wb-tab.active .wb-tab-comments")).to_have_text("2")
     assert call(server, "GET", "/agent/inbox")["items"] == []
@@ -189,17 +191,17 @@ def test_two_comments_are_sent_in_one_go_and_the_file_is_untouched(
     expect(page.locator(".wb-tab-comments")).to_have_count(0)
     expect(page.locator(".wb-script-editor .sab-comment")).to_have_count(0)
     expect(page.locator(".wb-script-editor .sab-comment-mark")).to_have_count(0)
-    expect(page.locator(".note-corner")).to_contain_text("Sent 2 comments to the agent")
+    expect(page.locator(".note-corner")).to_contain_text("Sent 2 annotations to the agent")
 
     items = call(server, "GET", "/agent/inbox?take=1")["items"]  # what agent_inbox reads
     assert len(items) == 1 and items[0]["kind"] == "review"
     text = items[0]["text"]
-    assert items[0]["title"] == f"Review comments on {made} (2)"
-    assert text.startswith(f"Review comments on {made}: 2 comments.")
+    assert items[0]["title"] == f"Annotations on {made} (2)"
+    assert text.startswith(f"Annotations on {made}: 2 annotations.")
     first, second = text.index("1. line 2\n"), text.index("2. lines 6-7\n")
-    assert first < text.index("import os") < text.index("Comment: Is this import used?") < second
+    assert first < text.index("import os") < text.index("Annotation: Is this import used?") < second
     code = text.index("for row in rows:\n    total += row")
-    assert second < code < text.index("Comment: Use sum(rows) here.")
+    assert second < code < text.index("Annotation: Use sum(rows) here.")
 
     # The file on disk is byte for byte what it was.
     assert made.read_bytes() == before
@@ -235,7 +237,7 @@ def test_comments_follow_edits_and_a_tab_asks_before_it_throws_them_away(
 
     # Closing the tab asks first: the comments live only on this page.
     page.locator(".wb-tab.active .tab-close").click()
-    asked = page.locator(".dialog", has_text="1 comment for review not yet sent to the agent")
+    asked = page.locator(".dialog", has_text="1 annotation not yet sent to the agent")
     expect(asked).to_contain_text("changes that are not saved and")  # one question for both
     asked.get_by_role("button", name="Cancel").click()
     expect(page.locator(".review-item")).to_have_count(1)
@@ -320,9 +322,9 @@ def test_every_editor_of_the_pages_takes_a_comment(browser: Browser, server: dic
 
     texts = [item["text"] for item in call(server, "GET", "/agent/inbox?take=1")["items"]]
     assert len(texts) == 4
-    assert "totals.sql: 1 comment." in texts[0] and "Comment: Name the column." in texts[0]
-    assert "notes.md: 1 comment." in texts[1] and "# Made-up notes" in texts[1]
-    assert "Review comments on made_up_reviewed: 1 comment." in texts[2]
-    assert "1. cell 2, line 1\n```\ntotal = sum(rows)\n```\nComment: Print it with a label." in texts[3]
+    assert "totals.sql: 1 annotation." in texts[0] and "Annotation: Name the column." in texts[0]
+    assert "notes.md: 1 annotation." in texts[1] and "# Made-up notes" in texts[1]
+    assert "Annotations on made_up_reviewed: 1 annotation." in texts[2]
+    assert "1. cell 2, line 1\n```\ntotal = sum(rows)\n```\nAnnotation: Print it with a label." in texts[3]
     assert query.read_text(encoding="utf-8") == "SELECT 1 AS made_up;\n"
     assert notes.read_text(encoding="utf-8") == "# Made-up notes\n"

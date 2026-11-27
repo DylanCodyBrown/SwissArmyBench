@@ -1,10 +1,10 @@
 @* The small box a review comment is typed in (the owner, 2026-11-27), opened at the selection: Save (Ctrl+Enter),
    Cancel (Escape), and Delete for one already made. Nothing typed here is ever written into the file. *@
 
-<div class="review-box" role="dialog" aria-label="@(Editing ? "Edit comment" : "Comment")" style="left: min(@(X.ToString("0", System.Globalization.CultureInfo.InvariantCulture))px, calc(100vw - 360px)); top: min(@(Y.ToString("0", System.Globalization.CultureInfo.InvariantCulture))px, calc(100vh - 170px));"
+<div class="review-box" role="dialog" aria-label="@(Editing ? "Edit annotation" : "Annotate")" style="left: min(@(X.ToString("0", System.Globalization.CultureInfo.InvariantCulture))px, calc(100vw - 360px)); top: min(@(Y.ToString("0", System.Globalization.CultureInfo.InvariantCulture))px, calc(100vh - 170px));"
      @onkeydown="KeyAsync" @onkeydown:stopPropagation="true">
     <div class="review-box-head"><Icon Name="chat" /> <strong>@Where</strong></div>
-    <textarea @ref="_words" class="review-box-words" rows="3" aria-label="Comment" placeholder="What should change here?" @bind="_text" @bind:event="oninput"></textarea>
+    <textarea @ref="_words" class="review-box-words" rows="3" aria-label="Annotation" placeholder="Annotate these lines: what should change here?" @bind="_text" @bind:event="oninput"></textarea>
     <div class="review-box-foot">
         <span class="hint">Never written into the file.</span>
         <span class="review-grow"></span>
@@ -13,7 +13,7 @@
             <button type="button" class="btn small ghost review-box-delete" @onclick="() => OnDelete.InvokeAsync()">Delete</button>
         }
         <button type="button" class="btn small ghost review-box-cancel" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
-        <button type="button" class="btn small primary review-box-save" disabled="@(_text.Trim().Length == 0)" title="Ctrl+Enter" @onclick="SaveAsync">@(Editing ? "Save" : "Comment")</button>
+        <button type="button" class="btn small primary review-box-save" disabled="@(_text.Trim().Length == 0)" title="Ctrl+Enter" @onclick="SaveAsync">@(Editing ? "Save" : "Annotate")</button>
     </div>
 </div>
 

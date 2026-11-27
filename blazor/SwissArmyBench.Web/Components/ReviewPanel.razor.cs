@@ -64,7 +64,7 @@ public partial class ReviewPanel
             var sent = await Inbox.ReviewAsync(Path, items);
             await Review.ClearAsync();
             var masked = sent.Masked > 0 ? $" ({sent.Masked} secret value{(sent.Masked == 1 ? string.Empty : "s")} masked)" : string.Empty;
-            await Notes.SayAsync($"Sent {sent.Comments} comment{(sent.Comments == 1 ? string.Empty : "s")} to the agent{masked}. The file is unchanged.");
+            await Notes.SayAsync($"Sent {sent.Comments} annotation{(sent.Comments == 1 ? string.Empty : "s")} to the agent{masked}. The file is unchanged.");
         }
         catch (ApiException error)
         {
@@ -83,7 +83,7 @@ public partial class ReviewPanel
     /// <summary>Every comment thrown away, asked first.</summary>
     public async Task ClearAsync()
     {
-        if (Review.Count > 0 && await Dialogs.AskYesNoAsync("Review comments", $"Throw away {Review.CountWords} on {Path}? They were not sent.", "Clear", danger: true))
+        if (Review.Count > 0 && await Dialogs.AskYesNoAsync("Annotations", $"Throw away {Review.CountWords} on {Path}? They were not sent.", "Clear", danger: true))
         {
             await Review.ClearAsync();
         }

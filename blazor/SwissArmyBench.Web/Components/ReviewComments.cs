@@ -17,8 +17,8 @@ public sealed class ReviewComments
 
     public int Count => _items.Count;
 
-    /// <summary>"3 comments", "1 comment".</summary>
-    public string CountWords => Count == 1 ? "1 comment" : $"{Count} comments";
+    /// <summary>"3 annotations", "1 annotation" (the word on screen, the owner 2026-11-27).</summary>
+    public string CountWords => Count == 1 ? "1 annotation" : $"{Count} annotations";
 
     /// <summary>The comments in the document's order: its editors as `parts` names them (a notebook's cells from
     /// the top; none: as first commented), lines within each.</summary>
@@ -64,7 +64,7 @@ public sealed class ReviewComments
     {
         if (!_surfaces.TryGetValue(part, out var surface) || await surface.LinesAsync(line, end) is not { } place)
         {
-            throw new InvalidOperationException(part.Length > 0 ? $"This document has no {part} to comment on." : "This document's code is not on screen to comment on.");
+            throw new InvalidOperationException(part.Length > 0 ? $"This document has no {part} to annotate." : "This document's code is not on screen to annotate.");
         }
         return await AddAsync(part, place, text, byAgent);
     }

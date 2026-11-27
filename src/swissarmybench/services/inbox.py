@@ -69,7 +69,7 @@ class Inbox:
         """Every review comment on one document, sent as one item: {"path", "comments": [{"line", "end",
         "code", "comment", "part", "by"}]}. The user's own send (the agent's is refused)."""
         if who == "agent":
-            raise Refused("Only the user sends review comments: they are the user's words to you.")
+            raise Refused("Only the user sends annotations: they are the user's words to you.")
         path, comments = review_comments.read(body)
         try:
             known = self._secrets()

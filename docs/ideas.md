@@ -9703,3 +9703,8 @@ Open:
 - A comment on a structure's text is lost from view while its Tree view is in front (it is drawn again from
   memory when Text comes back, at its last known lines; no test covers that yet).
 
+
+The owner, the same day: "Comment should at the top of the menu. And let's call it annotate instead." The menu's
+line is Annotate…, first in the menu (Monaco's "navigation" group, order 0, above Go to Definition); every word
+on screen and in the agent's message says annotation. The names in the code, the route, the inbox kind and
+workbench_window's "comments" commands and keys kept the old word (the tool list has no room for longer names).

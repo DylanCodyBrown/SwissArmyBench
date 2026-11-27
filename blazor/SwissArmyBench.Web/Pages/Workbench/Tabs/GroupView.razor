@@ -20,7 +20,7 @@
                     <span class="tab-label">@doc.Title</span>
                     @if (doc.Review.Count > 0)
                     {
-                        <span class="wb-tab-comments" title="@($"{doc.Review.CountWords} for review")" aria-label="@doc.Review.CountWords">@doc.Review.Count</span>
+                        <span class="wb-tab-comments" title="@($"{doc.Review.CountWords} to send to the agent")" aria-label="@doc.Review.CountWords">@doc.Review.Count</span>
                     }
                     <button type="button" class="tab-close" aria-label="@($"Close {doc.Title}")" title="@($"Close {doc.Title}")"
                             @onclick="() => OnClose.InvokeAsync(key)" @onclick:stopPropagation="true"><Icon Name="close" /></button>

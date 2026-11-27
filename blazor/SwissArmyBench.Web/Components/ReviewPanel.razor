@@ -6,21 +6,21 @@
 
 @if (Review.Count > 0 || _error is not null)
 {
-    <section class="review-panel" aria-label="Review comments">
+    <section class="review-panel" aria-label="Annotations">
         <div class="review-bar">
             <button type="button" class="btn small ghost review-fold" aria-expanded="@(_open ? "true" : "false")" title="@(_open ? "Hide the list" : "Show the list")" @onclick="() => _open = !_open">
-                <Icon Name="@(_open ? "collapse" : "expand")" /> <strong>Review comments</strong> <span class="review-count" role="status">@Review.CountWords</span>
+                <Icon Name="@(_open ? "collapse" : "expand")" /> <strong>Annotations</strong> <span class="review-count" role="status">@Review.CountWords</span>
             </button>
             <span class="hint review-hint">Kept on this page only, never in the file.</span>
             <span class="review-grow"></span>
             <button type="button" class="btn small ghost review-clear" disabled="@(_sending || Review.Count == 0)" @onclick="ClearAsync">Clear</button>
-            <button type="button" class="btn small primary review-send" disabled="@(_sending || Review.Count == 0)" title="Send every comment on this document to the agent as one message, then clear them" @onclick="SendAsync">
+            <button type="button" class="btn small primary review-send" disabled="@(_sending || Review.Count == 0)" title="Send every annotation on this document to the agent as one message, then clear them" @onclick="SendAsync">
                 <Icon Name="agent" /> @(_sending ? "Sending…" : "Send to agent")
             </button>
         </div>
         @if (_error is { } error)
         {
-            <div class="review-error" role="alert"><Icon Name="warning" /> <span>Not sent: @error The comments are kept.</span>
+            <div class="review-error" role="alert"><Icon Name="warning" /> <span>Not sent: @error The annotations are kept.</span>
                 <button type="button" class="btn small ghost icon" aria-label="Dismiss" title="Dismiss" @onclick="() => _error = null"><Icon Name="close" /></button>
             </div>
         }
@@ -38,8 +38,8 @@
                             }
                             <span class="review-words">@comment.Text</span>
                         </button>
-                        <button type="button" class="btn small ghost icon review-edit" aria-label="@($"Edit the comment on {comment.Where}")" title="Edit" @onclick="() => Review.EditAsync(comment.Id)"><Icon Name="edit" /></button>
-                        <button type="button" class="btn small ghost icon review-delete" aria-label="@($"Delete the comment on {comment.Where}")" title="Delete" @onclick="() => Review.RemoveAsync(comment.Id)"><Icon Name="trash" /></button>
+                        <button type="button" class="btn small ghost icon review-edit" aria-label="@($"Edit the annotation on {comment.Where}")" title="Edit" @onclick="() => Review.EditAsync(comment.Id)"><Icon Name="edit" /></button>
+                        <button type="button" class="btn small ghost icon review-delete" aria-label="@($"Delete the annotation on {comment.Where}")" title="Delete" @onclick="() => Review.RemoveAsync(comment.Id)"><Icon Name="trash" /></button>
                     </li>
                 }
             </ol>

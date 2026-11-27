@@ -48,7 +48,7 @@ public sealed class ReviewCommentsTests : AppTestContext
         var changes = 0;
         review.Changed += () => changes++;
 
-        Assert.Equal("2 comments", review.CountWords);
+        Assert.Equal("2 annotations", review.CountWords);
         Assert.Equal(["Is this used?", "Use sum() here."], review.Ordered().Select(c => c.Text));
         Assert.Equal(["line 1", "lines 4-5"], review.Ordered().Select(c => c.Where));
         Assert.Equal(2, editor.Drawn.Count);
@@ -59,7 +59,7 @@ public sealed class ReviewCommentsTests : AppTestContext
         Assert.Equal(1, changes);
 
         await review.RemoveAsync(review.Ordered()[0].Id);
-        Assert.Equal("1 comment", review.CountWords);
+        Assert.Equal("1 annotation", review.CountWords);
         Assert.Single(editor.Drawn);
     }
 
@@ -92,6 +92,7 @@ public sealed class ReviewCommentsTests : AppTestContext
         Assert.Contains("Lines 4-5", box.Find(".review-box-head").TextContent);
         Assert.True(box.Find(".review-box-save").HasAttribute("disabled")); // nothing typed: nothing to save
         Assert.Empty(box.FindAll(".review-box-delete"));
+        Assert.Equal("Annotate", box.Find(".review-box-save").TextContent.Trim());
 
         box.Find("textarea").Input("  Use sum() here.  ");
         box.Find(".review-box").KeyDown(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
@@ -122,7 +123,7 @@ public sealed class ReviewCommentsTests : AppTestContext
         var (review, editor) = await TwoCommentsAsync();
         var panel = Render<ReviewPanel>(p => p.Add(r => r.Review, review).Add(r => r.Path, "scripts/load.py"));
 
-        Assert.Equal("2 comments", panel.Find(".review-count").TextContent);
+        Assert.Equal("2 annotations", panel.Find(".review-count").TextContent);
         Assert.Equal(["line 1", "lines 4-5"], panel.FindAll(".review-where").Select(e => e.TextContent));
         Assert.Equal(["Is this used?", "Use sum() here."], panel.FindAll(".review-words").Select(e => e.TextContent));
 
@@ -132,7 +133,7 @@ public sealed class ReviewCommentsTests : AppTestContext
         Assert.Equal([2], editor.Asked);
 
         panel.FindAll(".review-delete")[0].Click();
-        panel.WaitForAssertion(() => Assert.Equal("1 comment", panel.Find(".review-count").TextContent));
+        panel.WaitForAssertion(() => Assert.Equal("1 annotation", panel.Find(".review-count").TextContent));
     }
 
     [Fact]
@@ -165,7 +166,7 @@ public sealed class ReviewCommentsTests : AppTestContext
         Assert.Equal("for row in rows:\n    total += row", comments[1].GetProperty("code").GetString());
         Assert.Equal("Use sum() here.", comments[1].GetProperty("comment").GetString());
         Assert.Equal("user", comments[1].GetProperty("by").GetString());
-        Assert.Contains("Sent 2 comments to the agent", Services.GetRequiredService<Notes>().Shown.Single().Words);
+        Assert.Contains("Sent 2 annotations to the agent", Services.GetRequiredService<Notes>().Shown.Single().Words);
     }
 
     [Fact]
@@ -176,7 +177,7 @@ public sealed class ReviewCommentsTests : AppTestContext
 
         panel.Find(".review-send").Click();
 
-        panel.WaitForAssertion(() => Assert.Contains("Not sent: Not here. The comments are kept.", panel.Find(".review-error").TextContent));
+        panel.WaitForAssertion(() => Assert.Contains("Not sent: Not here. The annotations are kept.", panel.Find(".review-error").TextContent));
         Assert.Equal(2, review.Count);
         Assert.Equal(2, editor.Drawn.Count);
         Assert.Equal(2, panel.FindAll(".review-item").Count);
@@ -202,6 +203,6 @@ public sealed class ReviewCommentsTests : AppTestContext
 
         var count = Assert.Single(view.FindAll(".wb-tab-comments"));
         Assert.Equal("2", count.TextContent);
-        Assert.Equal("2 comments", count.GetAttribute("aria-label"));
+        Assert.Equal("2 annotations", count.GetAttribute("aria-label"));
     }
 }
