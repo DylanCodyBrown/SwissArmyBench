@@ -1,0 +1,45 @@
+@* New file (the owner, 2026-11-27: "a drop down combo that asks what file type you wanna create ... then scaffolds it
+   for you"): the type picked in the dropdown, its name with the ending filled in and checked as typing settles, the
+   folder inside the open project and, for a SQL file, where it runs; Create (Enter too) writes its starter
+   (domain/new_files.py) and hands the new file back to the page. Logic in NewFileDialog.razor.cs. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<AppDialog Title="@($"New {Type.Label}")" Class="new-file" OnClose="OnClose">
+    <ChildContent>
+        <p class="hint new-file-words">@Type.Words</p>
+        <label class="field"><span>Name</span>
+            <input type="text" class="new-file-name" aria-label="Name" spellcheck="false" autocomplete="off" data-no-variables @bind="_name" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
+        </label>
+        <label class="field"><span>Folder in @(ProjectName.Length > 0 ? ProjectName : "the project")</span>
+            <input type="text" class="new-file-folder" aria-label="Folder" list="new-file-folders" placeholder="The project's top" spellcheck="false" autocomplete="off" data-no-variables @bind="_folder" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
+            <datalist id="new-file-folders">
+                @foreach (var folder in Folders.Where(f => f.Length > 0))
+                {
+                    <option value="@folder"></option>
+                }
+            </datalist>
+        </label>
+        @if (IsSql)
+        {
+            <label class="field"><span>Query from</span>
+                <select class="new-file-connection" aria-label="Query from" @bind="_connection">
+                    <option value="">Open tables (DuckDB)</option>
+                    @if (Connections.Count > 0)
+                    {
+                        <optgroup label="Connections">
+                            @foreach (var connection in Connections)
+                            {
+                                <option value="@connection">@connection</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+            </label>
+        }
+        <div class="table-name-check new-file-check @(_why is null ? "ok" : "error")" role="status" aria-live="polite">@(_why ?? _makes)</div>
+    </ChildContent>
+    <Foot>
+        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn primary new-file-create" disabled="@_making" @onclick="CreateAsync">@(_making ? "Creating…" : "Create")</button>
+    </Foot>
+</AppDialog>

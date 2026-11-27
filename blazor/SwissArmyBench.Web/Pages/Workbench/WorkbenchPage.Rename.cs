@@ -86,6 +86,10 @@ public partial class WorkbenchPage
     /// <summary>The chosen path with the document's kind's ending.</summary>
     private static string WithEnding(OpenDocument doc, string chosen)
     {
+        if (doc.IsText)
+        {
+            return chosen; // a text file keeps the ending it was given
+        }
         var ending = doc.IsNotebook ? ".ipynb" : doc.IsSql ? ".sql" : ".py";
         return chosen.EndsWith(ending, StringComparison.OrdinalIgnoreCase) ? chosen : chosen + ending;
     }
