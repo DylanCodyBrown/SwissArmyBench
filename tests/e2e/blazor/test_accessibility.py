@@ -71,3 +71,22 @@ def test_the_grid_page_keyboard_paths(browser: Browser, server: dict[str, Any]) 
     assert page.evaluate("document.activeElement.dataset.tool") == "filter"
     assert page.evaluate("getComputedStyle(document.activeElement).outlineStyle") != "none"
     page.close()
+
+
+def test_escape_still_closes_a_dialog_after_a_click_beside_it(browser: Browser, server: dict[str, Any]) -> None:
+    """A click on the dimmed page beside a dialog (a double click on the button that opened it lands there)
+    took the focus out of the dialog: Escape and Enter then reached nothing and Tab walked the page behind.
+    The focus stays in the dialog."""
+    made = call(server, "POST", "/samples/store", {})
+    grid = next(t["grid"] for t in made["tables"] if t["name"].startswith("orders"))
+    page = open_page(browser, server, f"tables?grid={grid}")
+    expect(page.locator(".ag-row").first).to_be_visible()
+    page.click("[data-tool=sort]")
+    expect(page.locator(".dialog")).to_be_visible()
+    shade = page.locator(".dialog-shade").bounding_box()
+    assert shade is not None
+    page.mouse.click(shade["x"] + shade["width"] - 6, shade["y"] + shade["height"] / 2)  # the shade, not the dialog
+    assert page.evaluate("() => !!document.activeElement?.closest('.dialog')")
+    page.keyboard.press("Escape")
+    expect(page.locator(".dialog")).to_have_count(0)
+    page.close()

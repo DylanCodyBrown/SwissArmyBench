@@ -345,6 +345,11 @@ window.sab = {
     const first = fields.find((f) => f instanceof HTMLInputElement && !f.value) ?? fields[0];
     const target = first ?? dialog.querySelector(".dialog-foot button, .dialog button:not([aria-label=Close])") ?? dialog;
     target.focus();
+    // A press on the dimmed page beside the dialog keeps the focus where it is (it used to go to the page, and
+    // Escape, Enter and Tab no longer reached the dialog).
+    dialog.parentElement?.addEventListener("mousedown", (event) => {
+      if (!dialog.contains(event.target)) event.preventDefault();
+    });
   },
 
   /** A page's full screen (the Notebooks and Scripts pages' F11, the Canvas's): `kind` on the body (the page's own
