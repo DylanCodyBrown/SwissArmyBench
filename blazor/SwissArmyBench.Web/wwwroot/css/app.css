@@ -207,7 +207,7 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 /* ===== cards (the Project Explorer's, the Connections page's) ===== */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .card {
-  position: relative; display: grid; gap: 6px; align-content: start; padding: 12px 14px; border: 1px solid var(--border);
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; padding: 12px 14px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--raised); color: var(--fg); text-align: left; font: inherit;
 }
 .card:hover { border-color: var(--border-strong); }
@@ -223,6 +223,10 @@ label.check { display: inline-flex; align-items: center; gap: 6px; }
 .section-head h2 { flex: 1; font-size: 15px; }
 .toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 
+/* A project's folder: a long path breaks inside its card, never past its edge. */
+.explorer-folder { display: flex; align-items: baseline; gap: 6px; overflow-wrap: anywhere; }
+.explorer-folder > svg { flex: none; align-self: center; }
+.explorer-folder > span { min-width: 0; }
 /* ===== Home's summary of the open project (Pages/Home/SummarySections) ===== */
 .project-summary { overflow: auto; }
 .summary-head { align-items: flex-start; padding-top: 18px; padding-bottom: 16px; }
