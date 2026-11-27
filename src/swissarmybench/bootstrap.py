@@ -184,6 +184,7 @@ from swissarmybench.services.sandbox import Sandbox, SandboxAlias
 from swissarmybench.services.sandbox_sources import AppSources
 from swissarmybench.services.scaffold import Scaffold
 from swissarmybench.services.scaffold import Sources as ScaffoldSources
+from swissarmybench.services.screen import Screens
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
@@ -258,6 +259,7 @@ class Services:
     compares: Compares
     tie_out: TieOut
     snapshots: Snapshots
+    screen: Screens
     workbench_window: WorkbenchWindow
     intellisense: Intellisense
     script_ide: ScriptIde
@@ -743,6 +745,7 @@ class Built:
     folders: Folders
     finder: Finder
     snapshots: Snapshots
+    screen: Screens
     debugger: Debugger
     switched_on: list[Any]
     export_writer: Any
@@ -1923,6 +1926,7 @@ def _doors(b: Built) -> None:
     )
     b.finder = Finder(ws, b.models)
     b.snapshots = Snapshots(ws)
+    b.screen = Screens(lambda: datetime.now(UTC))  # what each window shows, in memory
     b.debugger = Debugger(
         ws,
         lambda kernel: cast("DebugKernel | None", workbench.kernel_or_none(kernel)),  # server/kernels.py's
@@ -1943,14 +1947,9 @@ def _doors(b: Built) -> None:
     )  # fmt: skip
     b.sab_projects.opened.append(b.collaboration.opened)
     b.lineage = Lineage(
-        ws,
-        b.hooks,
-        b.datasets.origins,
-        b.documents.read,
-        b.project_files,
-        workbench.lineage_values,
+        ws, b.hooks, b.datasets.origins, b.documents.read, b.project_files, workbench.lineage_values,
         kernel_for=workbench.kernel_for,
-    )
+    )  # fmt: skip
 
 
 def _seams(b: Built) -> Seams:

@@ -96,6 +96,25 @@ def open_now() -> str:
     return str(answer.get("text", "")) if isinstance(answer, dict) else str(answer)
 
 
+SCREEN_URI = "swissarmybench://screen"
+
+
+@server.resource(
+    SCREEN_URI,
+    name="screen",
+    title="What the user is looking at now",
+    description="Every window's page, open tab, cursor, selection, dialogs and errors as text (names only).",
+    mime_type="application/json",
+    annotations=Annotations(audience=["assistant"], priority=0.6),
+)
+def screen_now() -> str:
+    """Each window's screen state from the app's memory (app_screen): read when needed, never pushed."""
+    try:
+        return str(execute_result("app_screen", {}))
+    except CommandError as error:
+        return f"Swiss Army Bench did not answer: {error}"
+
+
 CONTRACTS_URI = "swissarmybench://analyze/contracts"
 
 

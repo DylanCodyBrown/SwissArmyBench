@@ -56,6 +56,15 @@ steps strip counts the table's steps; Edit steps opens them in a tab of their ow
   Workbench (topic workbench).
 
 ## The page
+- `app_screen(window)`: what the user is looking at right now, as text, read from the app's memory (no page
+  is asked, nothing waits): every window in brief, the focused one first, or one in full by its id, `focused`
+  or its kind. Its page and address, the open tab and document (path, kind, unsaved), the cursor's line and
+  the selected lines, the open panes and dialogs by title, a showing error's or notice's words, and the page's
+  own part: the table in front (name, columns, steps by kind and column, sort, filter, the selected cells by
+  row and column number, the rows on screen, the row count), a notebook's cell in focus and the cells on
+  screen, the Canvas's page, selection and layout, Analyze's form and cards, the selected connection, the
+  Settings section. Names only, never a cell's value: read values with `row_read`. Read it when you need to
+  know what the user sees, instead of asking for a snapshot; also the resource swissarmybench://screen.
 - `app_snapshot(area)`: a PNG of what the user sees (app, ribbon, grid, steps, analyze or projects:
   the Projects page while it is open); the page's tab must be visible. It shows real values and is audited.
 - `app_rail(labels)`: the rail's names on or off (kept). `files_list`: a folder's files (`hidden` too); `files_new_folder`: a new folder in one. A system file dialog is the user's click only: pass paths to commands directly.

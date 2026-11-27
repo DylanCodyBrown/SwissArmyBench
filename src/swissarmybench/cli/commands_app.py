@@ -37,6 +37,21 @@ def app_snapshot(a: dict[str, Any]) -> Any:
     return ImageResult(data, meta)
 
 
+@command(
+    "app_screen",
+    "What the user is looking at right now, as text: every window in brief (the focused one first), or one in "
+    "full (its page, open tab and document, cursor line, selection, dialogs, errors, the table in front). "
+    "Instant: read from memory, no page is asked. Names only, never a cell's value; app_snapshot for a picture",
+    opt(
+        "window", "One window in full: its id from the list (w1), focused, or its kind (tables, scripts...)."
+    ),
+)
+def app_screen(a: dict[str, Any]) -> Any:
+    if a.get("window"):
+        return api.call("GET", f"/screen/{quote(str(a['window']), safe='')}")
+    return api.call("GET", "/screen")
+
+
 # widgets on the Canvas (the Streamlit extension's canvas_* and widgets_*; app notebooks went, 2026-11-21).
 @command(
     "app_mode",
