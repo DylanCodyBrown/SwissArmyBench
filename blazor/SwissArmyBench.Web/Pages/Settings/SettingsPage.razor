@@ -1,5 +1,7 @@
-@* Settings (the classic settingsWindow.ts): everything applies as you change it, so the page has no Save. Theme,
-   Team, Front end, the project type's gates, Session, Updates, Claude, Beta, Connect an agent. *@
+@* Settings (the classic settingsWindow.ts): everything applies as you change it, so the page has no Save. One
+   column of boxes (Theme, Team, Collaboration, the project type's gates, Session, Updates, Claude, Beta, Connect an
+   agent) with the list of them on the left: a click jumps to a box, and the one in view is marked
+   (interop/settings.js; SettingsPage.Sections.cs). *@
 @page "/settings"
 
 <section class="area-page">
@@ -7,56 +9,72 @@
         <h1 class="area-page-title">Settings</h1>
     </header>
     <div class="area-page-body">
-        <div class="settings-page settings-grid">
-            <ErrorNote Error="_error" OnClose="() => _error = null" />
+        <div class="settings-page settings-layout" @ref="_layout">
+            <nav class="settings-nav" aria-label="Settings sections">
+                @foreach (var section in Listed)
+                {
+                    <button type="button" class="files-item settings-nav-item @(section.Id == _current ? "current" : null)" data-jump="@section.Id" aria-current="@(section.Id == _current ? "true" : null)" @onclick="() => JumpAsync(section.Id)"><Icon Name="@section.Icon" /> @section.Title</button>
+                }
+            </nav>
+            <div class="settings-sections">
+                <ErrorNote Error="_error" OnClose="() => _error = null" />
 
-            <fieldset class="fieldset">
-                <legend><Icon Name="sun" /> Theme</legend>
-                <div class="form-grid" role="radiogroup" aria-label="Theme">
-                    @foreach (var (value, label) in ThemeState.Choices)
+                <div class="settings-section" data-section="@SettingsSection.Theme">
+                    <fieldset class="fieldset">
+                        <legend><Icon Name="sun" /> Theme</legend>
+                        <div class="form-grid" role="radiogroup" aria-label="Theme">
+                            @foreach (var (value, label) in ThemeState.Choices)
+                            {
+                                <label class="check">
+                                    <input type="radio" name="theme" value="@value" checked="@(Theme.Choice == value)" @onchange="() => Theme.SetAsync(value)" />
+                                    @label
+                                </label>
+                            }
+                        </div>
+                    </fieldset>
+                </div>
+
+                <div class="settings-section" data-section="@SettingsSection.Team"><TeamBox OnError="Failed" /></div>
+
+                <div class="settings-section" data-section="@SettingsSection.Collaboration"><CollaborationNameBox OnError="Failed" /></div>
+
+                <div class="settings-section" data-section="@SettingsSection.Project">
+                    @if (_gates is { Gated: true } gates)
                     {
-                        <label class="check">
-                            <input type="radio" name="theme" value="@value" checked="@(Theme.Choice == value)" @onchange="() => Theme.SetAsync(value)" />
-                            @label
-                        </label>
+                        <fieldset class="fieldset gates-fieldset">
+                            <legend><Icon Name="project" /> This project</legend>
+                            <label class="autosave-switch check">
+                                <input type="checkbox" role="switch" class="switch-input" id="open-every-feature" checked="@gates.Every" @onchange="EveryFeatureAsync" />
+                                <span>Open every feature in this project</span>
+                            </label>
+                        </fieldset>
                     }
                 </div>
-            </fieldset>
 
-            <TeamBox OnError="Failed" />
+                <div class="settings-section" data-section="@SettingsSection.Session">
+                    <fieldset class="fieldset follow-fieldset">
+                        <legend><Icon Name="session" /> Session</legend>
+                        <label class="check">
+                            <input type="checkbox" role="switch" checked="@_follow" @onchange="FollowAsync" />
+                            Follow the agent
+                        </label>
+                    </fieldset>
+                </div>
 
-            <CollaborationNameBox OnError="Failed" />
+                <div class="settings-section" data-section="@SettingsSection.Updates"><UpdateFlow /></div>
 
-            @if (_gates is { Gated: true } gates)
-            {
-                <fieldset class="fieldset gates-fieldset">
-                    <legend><Icon Name="project" /> This project</legend>
-                    <label class="autosave-switch check">
-                        <input type="checkbox" role="switch" class="switch-input" id="open-every-feature" checked="@gates.Every" @onchange="EveryFeatureAsync" />
-                        <span>Open every feature in this project</span>
-                    </label>
-                </fieldset>
-            }
+                <div class="settings-section" data-section="@SettingsSection.Claude"><ClaudeSection /></div>
 
-            <fieldset class="fieldset follow-fieldset">
-                <legend><Icon Name="session" /> Session</legend>
-                <label class="check">
-                    <input type="checkbox" role="switch" checked="@_follow" @onchange="FollowAsync" />
-                    Follow the agent
-                </label>
-            </fieldset>
+                <div class="settings-section" data-section="@SettingsSection.Beta"><BetaSection /></div>
 
-            <UpdateFlow />
-
-            <ClaudeSection />
-
-            <BetaSection />
-
-            <fieldset class="fieldset">
-                <legend><Icon Name="agent" /> Connect an agent</legend>
-                <pre class="mono mcp-prompt">@McpPrompt</pre>
-                <button type="button" class="btn" @onclick="CopyPromptAsync"><Icon Name="copy" /> Copy the setup prompt</button>
-            </fieldset>
+                <div class="settings-section" data-section="@SettingsSection.Agent">
+                    <fieldset class="fieldset">
+                        <legend><Icon Name="agent" /> Connect an agent</legend>
+                        <pre class="mono mcp-prompt">@McpPrompt</pre>
+                        <button type="button" class="btn" @onclick="CopyPromptAsync"><Icon Name="copy" /> Copy the setup prompt</button>
+                    </fieldset>
+                </div>
+            </div>
         </div>
     </div>
 </section>

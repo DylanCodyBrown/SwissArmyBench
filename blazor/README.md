@@ -66,6 +66,7 @@ blazor/
     workbook.js              the Excel canvas's built sheet (charts over their anchor cells), its pointer and keys
     agGrid.js                AG Grid: the infinite row model asking /grids/{id}/rows itself (rows never pass C#)
     mermaid.js               Mermaid: the ERD (strict security, the app's colours)
+    settings.js              Settings' section list: the jump to a box, the mark on the one in view, which boxes are drawn
     collaboration.js         the Collaboration panel: its place (moved, resized, kept per kind of window in this
                              browser's storage, try/catch round every read and write), Ctrl+Shift+M, the composer's
                              keys (Enter sends, Ctrl+B/I, Ctrl+Shift+X/C, Ctrl+Alt+C, Ctrl+K, Ctrl+Shift+7/8/9), a

@@ -37,6 +37,8 @@ const entries = {
   appKeys: "appKeys.js",
   // The Collaboration panel: its place, Ctrl+Shift+M, the composer's keys and pictures, code blocks coloured.
   collaboration: "collaboration.js",
+  // Settings' section list: the jump to a box and the mark on the one in view.
+  settings: "settings.js",
   // Monaco's own worker (the editor's tokens and folding off the page's thread), beside codeEditor.js.
   "editor.worker": path.join(modules, "monaco-editor", "esm", "vs", "editor", "editor.worker.js"),
   // TypeScript's language service (a code app's files, a data notebook's TypeScript cells), beside it.

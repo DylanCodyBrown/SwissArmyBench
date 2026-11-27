@@ -1,7 +1,20 @@
-/* Settings' own styles (the classic grid.css's rules for the same classes and tokens): the two columns of boxes,
+/* Settings' own styles (the classic grid.css's rules for the same classes and tokens): the one column of boxes and its section list,
    the Team box and its flow, Set up this computer, Claude, Beta, the update mark, the agent's approvals. */
-.settings-page.settings-grid { max-width: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; align-items: start; }
-.settings-grid > .fieldset { margin: 0; }
+/* One column of boxes with the list of them on the left (SettingsPage): the list stays in view as the page scrolls,
+   a click jumps to its box and the box in view is marked. Each box sits in a .settings-section wrapper that takes
+   no space of its own, so a box that is not drawn (no update to install) leaves no gap. */
+.settings-page.settings-layout { max-width: none; display: grid; grid-template-columns: 190px minmax(0, 720px); gap: 24px; align-items: start; }
+.settings-nav { position: sticky; top: 0; display: grid; gap: 2px; }
+.settings-nav-item { width: 100%; padding: 6px 10px; border: 0; border-radius: 6px; background: none; font: inherit; text-align: left; cursor: pointer; }
+.settings-nav-item .icon-svg { flex: none; }
+.settings-sections { display: grid; gap: 16px; min-width: 0; }
+.settings-section { display: contents; }
+.settings-section > .fieldset { margin: 0; min-width: 0; scroll-margin-top: 12px; }
+@media (max-width: 860px) {
+  .settings-page.settings-layout { grid-template-columns: minmax(0, 1fr); }
+  .settings-nav { position: static; display: flex; flex-wrap: wrap; }
+  .settings-nav-item { width: auto; }
+}
 .approval {
   display: grid;
   gap: 8px;
