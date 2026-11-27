@@ -78,7 +78,14 @@ STEP: dict[str, Any] = {
 
 # A tab's document; `view`: a text document's view (preview, split or source: its tab's Preview toggle);
 # `comments`: how many annotations wait on it (the count only, never an annotation's words).
-DOCUMENT: dict[str, Any] = {"title": NAME, "path": NAME, "kind": NAME, "dirty": FLAG, "view": NAME, "comments": COUNT}
+DOCUMENT: dict[str, Any] = {
+    "title": NAME,
+    "path": NAME,
+    "kind": NAME,
+    "dirty": FLAG,
+    "view": NAME,
+    "comments": COUNT,
+}
 
 # The page-specific parts, by name: each a page's own hook (blazor: ScreenState.Show).
 PARTS: dict[str, dict[str, Any]] = {

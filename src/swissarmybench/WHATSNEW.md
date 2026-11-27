@@ -11,9 +11,26 @@
 - HTML page preview in a walled-off frame
 - Mermaid diagrams: UML starters, SVG and PNG
 - Docs group, README and decision record starters
+- New file menu: pick a type, get a starter
+- Annotate code, then send it all to the agent
+- The agent can read what is on screen when asked
+- Home shows figure tiles for the open project
+- Settings in one column with a section list
+- Canvas landing page with a card per canvas
+- Project cards with counts and a relative time
+- ERD has the shared header and empty state
+- Short "Only works on your machine" badge on cards
 
 ### Bug fixes
 - Fixed: a hand-edited ARCHITECTURE.md was replaced
+- Fixed: the agent's palette commands did nothing
+- Fixed: the agent could not reach Notebooks or Scripts
+- Fixed: the rail stayed clickable under a dialog
+- Fixed: sample tables said "from Pasted"
+- Fixed: the deliverable card showed {slug}
+- Fixed: the editor's right-click menu in dark theme
+- Fixed: pages missed some changes made elsewhere
+- Fixed: Canvas bottom bar wrapped to two lines
 
 ## 0.0.40 · 2026-11-26 20:37 UTC
 
