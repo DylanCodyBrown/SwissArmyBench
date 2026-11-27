@@ -19,7 +19,7 @@ flowchart TB
     subgraph base["swissarmybench (the base)"]
         domain["domain<br/>128 modules"]
         settings["settings<br/>1 module"]
-        services["services<br/>90 modules"]
+        services["services<br/>91 modules"]
         adapters["adapters<br/>46 modules"]
         cli["cli<br/>42 modules"]
         client["client<br/>24 modules"]
@@ -64,7 +64,7 @@ flowchart TB
     ext_copilot -->|1| domain
     ext_copilot -->|1| root
     ext_copilot -->|1| server
-    ext_copilot -->|3| services
+    ext_copilot -->|4| services
     ext_git -->|2| adapters
     ext_git -->|2| cli
     ext_git -->|1| server
@@ -94,7 +94,7 @@ flowchart TB
     server -->|10| client
     server -->|51| domain
     server -->|10| root
-    server -->|86| services
+    server -->|87| services
     server -->|2| settings
     services -->|366| domain
     services -->|3| settings
@@ -127,16 +127,16 @@ low by design and its D says little; the measure bites for the components that h
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | domain | the model and its rules | 128 | 167 | 0 | 0.00 | 338 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 90 | 95 | 113 | 0.54 | 331 | 178 | 0.54 | 0.08 |
+| services | the use cases | 91 | 95 | 113 | 0.54 | 331 | 178 | 0.54 | 0.08 |
 | adapters | the driven edge: DuckDB, files, the keyring | 46 | 22 | 38 | 0.63 | 111 | 2 | 0.02 | 0.35 |
 | cli | the agent's commands | 42 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |
 | root | the package's own modules: its public face, stats, sab_excel, extensions | 4 | 16 | 18 | 0.53 | 4 | 0 | 0.00 | 0.47 |
-| server | the HTTP door and what starts a process | 92 | 12 | 133 | 0.92 | 43 | 2 | 0.05 | 0.04 |
+| server | the HTTP door and what starts a process | 92 | 12 | 134 | 0.92 | 43 | 2 | 0.05 | 0.04 |
 | bootstrap | the composition root | 1 | 1 | 160 | 0.99 | 2 | 0 | 0.00 | 0.01 |
 | mcp | the MCP server | 2 | 0 | 3 | 1.00 | 1 | 0 | 0.00 | 0.00 |
 | accounting | an extension | 9 | 0 | 10 | 1.00 | 5 | 1 | 0.20 | 0.20 |
-| copilot | an extension | 9 | 0 | 9 | 1.00 | 16 | 5 | 0.31 | 0.31 |
+| copilot | an extension | 9 | 0 | 10 | 1.00 | 16 | 5 | 0.31 | 0.31 |
 | git | an extension | 9 | 0 | 8 | 1.00 | 17 | 4 | 0.24 | 0.24 |
 | powerapps | an extension | 20 | 0 | 21 | 1.00 | 39 | 15 | 0.38 | 0.38 |
 | powerbi | an extension | 18 | 0 | 24 | 1.00 | 50 | 9 | 0.18 | 0.18 |
