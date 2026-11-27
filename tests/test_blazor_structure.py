@@ -133,3 +133,14 @@ def test_wide_records_list_one_parameter_a_line() -> None:
         and len(line) > 118
     ]
     assert not wide, wide
+
+
+def test_the_browsers_tab_wears_the_apps_icon() -> None:
+    """A page in a browser had no icon: the browser asked the server for /favicon.ico on every first load
+    (a 401, then a 404, in its console). index.html names the app's own mark, the launcher's icon as a PNG."""
+    from swissarmybench.domain import desktop
+
+    assert '<link rel="icon" type="image/png" href="favicon.png" />' in (WEB / "wwwroot" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    assert (WEB / "wwwroot" / "favicon.png").read_bytes() == desktop.icon_png(64)
