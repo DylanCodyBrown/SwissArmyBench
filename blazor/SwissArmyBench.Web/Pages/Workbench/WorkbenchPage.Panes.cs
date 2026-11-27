@@ -126,7 +126,7 @@ public partial class WorkbenchPage
         new("view.previousPane", "View", "Previous pane", () => CyclePaneAsync(-1), "Shift+F6"),
         new("explorer.search", "Data", "Search the Data Explorer (it opens): its results as data", SearchExplorerAsync),
         new("explorer.target", "Data", "Where the Data Explorer's Insert goes: the focused document and its cell", () => ShowHelp("Where Insert goes", ExplorerTarget)),
-        new("explorer.popOut", "Data", "Pop the Data Explorer out: the Data page in a window of its own, with its search", PopExplorerAsync),
+        new("explorer.popOut", "Data", "Pop the Data Explorer out: the Catalog page in a window of its own, with its search", PopExplorerAsync),
         new("data.openFile", "Data", "Open a file as a table…", OpenFileAsTableAsync),
         new("data.tables", "Data", "The open tables and the blades' variables (the Data Explorer's)", OpenTablesAsync),
         new("tables.transformations", "Tables", "Show a table's transformations (its read-only cell, wherever it lives)", () => Go("environment?at=tables")),

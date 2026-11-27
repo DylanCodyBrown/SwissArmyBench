@@ -12,7 +12,7 @@
         <span class="spacer"></span>
         <button type="button" class="btn small ghost" title="Add a table" aria-haspopup="menu" @onclick="OnAddTable"><Icon Name="table" /> Table</button>
         <button type="button" class="btn small ghost" title="Blades and connections" aria-pressed="@(_flyout ? "true" : "false")" @onclick="() => _flyout = !_flyout"><Icon Name="blade" /> Blade</button>
-        <button type="button" class="btn small ghost icon" aria-label="Pop out" title="Open the Data page in a window of its own" @onclick="OnPopOut"><Icon Name="popout" /></button>
+        <button type="button" class="btn small ghost icon" aria-label="Pop out" title="Open the Catalog page in a window of its own" @onclick="OnPopOut"><Icon Name="popout" /></button>
         <button type="button" class="btn small ghost icon" aria-label="Close the Data Explorer" title="Close (Ctrl+Shift+E)" @onclick="OnClose"><Icon Name="close" /></button>
     </div>
     <input type="search" class="wb-explorer-search" placeholder="Search tables, columns, connections…" aria-label="Search the data" value="@Text" @oninput="SearchAsync" />
