@@ -359,7 +359,11 @@ class ProjectOutline:
         if origin.kind == "python":
             document = _relative(self._kernel_document(origin.kernel), folder, self._files.real)
             return (f"made by Python in {code(document)}" if document else "made by Python"), "python", None
-        words = {"paste": "pasted into the app", "query": "from a query in the app's + tab"}
+        words = {
+            "paste": "pasted into the app",
+            "sample": "the app's made-up sample data",
+            "query": "from a query in the app's + tab",
+        }
         return words.get(origin.kind, "where it came from is not known"), origin.kind, None
 
     async def _tables(self, project: Mapping[str, Any], folder: str) -> list[rules.TableFacts]:

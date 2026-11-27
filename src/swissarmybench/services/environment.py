@@ -61,6 +61,7 @@ SETTLE_SECONDS: float = 0.3
 MAX_COLUMNS_LOOKED: int = 200
 ORIGIN_WORDS: dict[str, str] = {
     "paste": "Made in the app · pasted",
+    "sample": "Made in the app · sample data",
     "query": "Made in the app · a query",
     "dropped": "A file dropped here",
     "structure": "Made in the app · from a structure",

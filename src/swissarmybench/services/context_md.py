@@ -97,7 +97,8 @@ def origin_words(origin: Origin) -> str:
     if origin.kind in ("file", "dropped"):
         name = _file_name(origin.path or origin.filename)
         return f"file {rules.code(name)}" + (f", sheet {rules.code(origin.sheet)}" if origin.sheet else "")
-    return {"python": "Python", "paste": "pasted", "query": "a query (the + tab)"}.get(origin.kind, "")
+    words = {"python": "Python", "paste": "pasted", "sample": "sample data", "query": "a query (the + tab)"}
+    return words.get(origin.kind, "")
 
 
 def _when(iso: str) -> str:
