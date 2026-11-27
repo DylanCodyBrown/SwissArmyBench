@@ -176,6 +176,20 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `app_screen` (the resource swissarmybench://screen) answers from it at once, asking no page. Names only, never a
   value; 8 KB a window at most. NEVER in the prompt hook nor context.md (tests/test_screen_state.py holds it);
   `app_snapshot` stays for a picture.
+- **Review comments on code (the owner, 2026-11-27: "any script to have an option to highlight a part by draging
+  mouse over that section right click then make a comment, then a send to agent button to send all comments to and
+  agent then reset the file so no comments are retained").** In every editor of a Notebooks or Scripts tab (a
+  script, a .sql file, a structure's text, Markdown and text, a blade's IDE, a code app's file, a notebook's cells):
+  select, right-click, **Comment…** (Ctrl+Alt+M; nothing selected: the cursor's line). A comment is a Monaco
+  decoration and a record in the page's memory (OpenDocument.Review), NEVER text of the file: Save cannot write
+  one, and it follows edits. The range is highlighted with a mark in the gutter, hovering shows it, the tab shows
+  the count, and the document's Review comments bar lists them in order (go to, Edit, Delete). **Send to agent**
+  sends them all as ONE inbox item (POST /agent/inbox/review; domain/review_comments.py: the path, then each
+  comment's lines, selected code and words; a known secret's value masked; 50 comments and 20,000 characters a
+  send, stated when it bites) and, once it went, clears every comment; a failed send keeps them and says why. A
+  tab or window with unsent comments asks before it closes. The agent reads the waiting ones and leaves notes of
+  its own on lines, marked as the agent's (`workbench_window` "comments", "comments.add", "comments.remove"); sending and clearing are the user's only
+  (tests/test_cli.py NOT_COMMANDS); `app_screen` gives each tab's count, never a comment's words.
 - **The original plan:** [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md).
   Follow its section 0 working agreements: typed Python, tests first for semantics, ask before
   adding a dependency the plan doesn't list. Milestone 9 (the agent running code) was the owner's
@@ -718,6 +732,11 @@ src/swissarmybench/
                          import, a typed main() under the main guard; sql_starter: its `-- connection:` line and
                          the first rows of an open table, else a hint; a valid empty JSON, YAML, TOML and XML
                          document; a Markdown heading; empty text; the Notebooks page's empty notebook)
+    review_comments.py   review comments as the one message the agent reads (the owner, 2026-11-27): a send read
+                         and checked, the document's order (a notebook's cells as given, lines within), each
+                         comment's lines, fenced code and words, a known secret's value masked (mask), the caps
+                         (MAX_COMMENTS 50, MAX_MESSAGE 20,000; code past its share cut and said), the agent's own
+                         notes marked
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
@@ -1198,7 +1217,9 @@ src/swissarmybench/
                          never on a timer; audited: Power BI, and each Microsoft connection signing in with it), a
                          connection's Access section
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
-                         prompt hook (client/context_hook.py) and the agent_inbox tool
+                         prompt hook (client/context_hook.py) and the agent_inbox tool; review: a document's review
+                         comments as one item (the user's only: 403 for the agent), the secrets this computer
+                         knows (Variables.secret_values) masked first
     relationships.py     the Key Finder, compares, the current model and its library
     relationship_scope.py the tables the open project uses (open, its own, named in its documents' code):
                          what the ERD and the Relationships window draw by default (scope project or all)
@@ -1510,7 +1531,10 @@ blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; 
                          page in front shows, set by each page); Layout/ScreenReporter with State/ScreenState and
                          interop/screen.js (what the window shows, told to the server for the agent's app_screen: a
                          page's Show and Touch, sent over the live socket only when it changed, four a second at
-                         most); Components/ the shared parts: ErrorNote, Busy, AppDialog,
+                         most); Components/ReviewComments (a document's review comments, memory only), CodeEditor.Review,
+                         ReviewCommentBox and ReviewPanel with interop/codeEditor.js's comments layer and
+                         css/review.css (Comment… on a selection, Send to agent, then cleared);
+                         Components/ the shared parts: ErrorNote, Busy, AppDialog,
                          Icon and IconSet, AgGrid, CodeEditor, FilePicker...; Pages/<Area>/ every page, the
                          extensions' too: Canvas, Widgets, Scm, CodeApp, PowerBi, Accounting; wwwroot/ index.html,
                          css/ (tokens.css: every theme token), design.html: an HTML cell's walled-off frame);

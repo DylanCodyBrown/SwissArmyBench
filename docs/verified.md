@@ -6479,3 +6479,39 @@ to the scripts page with an open script" / "sql authorship will have one place i
   (2,013 lines).
 - Looked at in Chromium at deviceScaleFactor 2, light and dark, on a made-up project: the open dropdown and the
   dialog (a SQL file, a refused name, JSON).
+## Review comments on code (2026-11-27)
+
+- tests/test_review_comments.py (10): the message's shape (the file, then each comment numbered in line order
+  with its lines, fenced code and words; a notebook's cells in the order given; one comment singular; the agent's
+  note marked), a known secret masked in the code and in the comment and counted (a value under four characters
+  masks nothing), code past its share cut with the cap stated, what cannot be sent said in one sentence, a fence
+  in the code that cannot close its block, the send as ONE inbox item the agent takes once (the prompt hook's
+  text too), 403 for the agent, a bad send keeping nothing, the inbox masking what its secrets say.
+- bUnit (ReviewCommentsTests, 9): the comments in the document's order and following an edit, a notebook's cells
+  from the top and the agent's note, the box (Ctrl+Enter saves, Escape cancels, nothing typed saves nothing; an
+  edited one shows its words and offers Delete), the panel's count and list (go to, Edit, Delete), no bar with no
+  comments, Send to agent's one request in order and everything cleared after, a failed send keeping them with
+  its reason, the tab's count. 312 of 312; `dotnet build -warnaserror` and `dotnet format --verify-no-changes`
+  clean on both projects.
+- Browser (tests/e2e/blazor/test_review_comments.py, 3; Release build): the mouse dragged over two lines,
+  right-click, Comment…, typed; a second one on the cursor's line with Ctrl+Alt+M; the range highlighted, its
+  gutter mark, the hover, the tab's count, the list in the file's order, Edit; app_screen's count and no comment
+  text in it; the agent reading the two and refused the send; Ctrl+S leaving the file's bytes as they were; a
+  send answered 500 keeping both with "Not sent: ..."; Send to agent, then agent_inbox's one item with both in
+  order (lines, code, words), no comment left in the editor and the file byte for byte as before. Then: two lines
+  typed above move a comment from lines 6-7 to 8-9, the agent's note marked and taken back (the user's refused),
+  the one question before the tab closes, Delete. Then a .sql file, a Markdown file, a blade's IDE and a
+  notebook's cell ("cell 2, line 1") each taking and sending one.
+- The whole browser suite, two workers: 205 passed, 7 skipped, 2 failed in the loaded run and passed alone
+  (test_upgrades' canvas landing, test_project_installs' bar).
+- Unit suite (no e2e, four workers): 6,094 passed, 43 skipped, 12 failed: this container's known eight (the four
+  data.py export tests, test_script_export, test_connection_drivers, test_performance, test_updater) and four of
+  this change, fixed and run again (the tool list over its 100,000 characters: the new tool taken out, the agent
+  uses workbench_window; tests/test_blazor_structure.py's three: a subscription's undo, WorkbenchPage.razor at
+  400 lines, a wide record a parameter a line). ruff and ruff format clean; mypy: only sab_canvas.py:622;
+  tests/test_architecture.py passes, the architecture map is current, bootstrap.py is unchanged in length.
+- Looked at in Chromium at deviceScaleFactor 2, light and dark, on a made-up script: the right-click menu, a
+  comment being typed, two comments with the list, a comment's hover, and the editor after Send. The menu had no
+  background before this (Monaco's shadow root got none of the bundled CSS): now drawn in the page.
+- Not tested by a test: the window's own beforeunload question (Playwright closes a page without it), and a
+  structure's comments drawn again when its Text view comes back.

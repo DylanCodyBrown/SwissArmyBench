@@ -9662,3 +9662,44 @@ New file dropdown and its dialog.
   file list left .sql out); they are listed now (and so travel with Copy project to).
 - **Open (the owner's):** whether a new Markdown file should be drawn (a preview beside the text); whether the Files
   pane's "+" and the Notebooks page's New notebook should ask a name and folder the same way; a line in What's New.
+
+## Review comments on code (the owner, 2026-11-27; decisions and open notes)
+
+"I would also like for any script to have an option to highlight a part by draging mouse over that section right
+click then make a comment, then a send to agent button to send all comments to and agent then reset the file so no
+comments are retained."
+
+Decided while building:
+
+- **Where the comments live.** One `ReviewComments` per open document (OpenDocument.Review), handed down to the
+  document's editors as a cascading value by GroupView, so every editor inside a Notebooks or Scripts tab has
+  Comment… without each view being changed (a notebook's cell names itself: `ReviewPart="cell 3"`). An editor
+  outside a tab (a connection's Python boxes, the Widgets window, a dialog) has no document and no Comment….
+- **Never in the file.** A comment is a Monaco decoration plus a record in memory; the model's text is never
+  touched, so Save, Autosave, Format and Export cannot carry one. The browser test compares the file's bytes.
+- **One message.** domain/review_comments.py shapes it; the caps are 50 comments and 20,000 characters (the
+  inbox's own limit for one item), a comment's words 2,000, its code 2,000 or less when many share the send
+  (never under 120), each cut said in the message. A send over the whole cap is refused in one sentence and the
+  comments stay.
+- **Secrets.** The inbox masked nothing before this. A review masks every value this computer keeps in its
+  keyring (the keyring variables and each connection's saved secrets, Variables.secret_values), four characters
+  or longer, in the code and in the comment, and says how many. A key vault's values are not read for it (that
+  would run the vault on every send). The older single sends (Send to the agent on a selection or an error)
+  still mask nothing: the same mask could be put on them.
+- **The agent.** It reads the waiting comments and leaves notes of its own on whole lines, marked as the
+  agent's, through `workbench_window` ("comments", "comments.add", "comments.remove": only its own). No tool
+  of its own: the tool list is at its 100,000 character ceiling. Sending and clearing are refused for it.
+  Its own notes go along in the user's send, marked "Your own note".
+- **The right-click menu.** Monaco drew its menu in a shadow root, where none of the bundled codeEditor.css
+  reached it: no background, and in the dark theme hardly readable. `useShadowDOM: false` draws it in the page.
+- **Text put in from C#** (a file read again, Format) replaced the whole model, which collapsed every decoration
+  to line 1; setValue now replaces only the part that differs.
+
+Open:
+
+- The path in the message is the document's full path (what the agent can open). A path relative to the
+  project would be shorter.
+- What's New has no line for this yet (left out so two branches do not both edit the same heading).
+- A comment on a structure's text is lost from view while its Tree view is in front (it is drawn again from
+  memory when Text comes back, at its last known lines; no test covers that yet).
+
