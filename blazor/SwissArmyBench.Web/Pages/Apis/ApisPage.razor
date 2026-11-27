@@ -52,7 +52,7 @@
             <LocalApiSection />
             @if (_cards is { Apis.Count: 0, Older.Count: 0 })
             {
-                <div class="apis-empty"><p class="empty-note">No imported APIs yet.</p></div>
+                <div class="empty-state apis-none"><Icon Name="apis" /><p>No imported APIs yet. Add one from its OpenAPI document or a form: its calls become tables and actions.</p><a class="btn primary" href="apis?add=1"><Icon Name="plus" /> Add API</a></div>
             }
             <div class="apis-cards" role="list">
                 @foreach (var c in _cards?.Apis ?? [])

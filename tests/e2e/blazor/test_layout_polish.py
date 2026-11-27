@@ -98,3 +98,15 @@ def test_a_narrow_status_bar_keeps_to_one_line(browser: Browser, server: dict[st
     )
     assert tall == []
     page.close()
+
+
+def test_the_apis_page_with_no_api_is_the_shared_empty_state(browser: Browser, server: dict[str, Any]) -> None:
+    """With no API imported the page said one grey line; it is the shared empty state now: the area's icon,
+    one sentence and Add API, which opens the form."""
+    page = open_page(browser, server, "apis")
+    empty = page.locator(".empty-state.apis-none")
+    expect(empty).to_contain_text("No imported APIs yet.")
+    expect(empty.locator("svg[data-icon=apis]")).to_be_visible()
+    empty.get_by_role("link", name="Add API").click()
+    expect(page.locator("h1.area-page-title")).to_contain_text("Add API")
+    page.close()
