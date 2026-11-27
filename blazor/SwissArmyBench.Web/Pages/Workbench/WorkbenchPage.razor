@@ -18,7 +18,7 @@
         <div class="area-page-actions" role="toolbar" aria-label="Document">
             <button type="button" class="btn small" disabled="@(Front is null && Project.Current is null)" title="@(Front is null && Project.Current is null ? NothingSaves : "Save (Ctrl+S)")" @onclick="SaveFrontAsync"><Icon Name="save" /> Save</button>
             <button type="button" class="btn small" disabled="@(Front is null)" title="@(Front is null ? NothingSaves : "Save as (Ctrl+Shift+S)")" @onclick="() => SaveAsAsync(Front)"><Icon Name="save" /> Save as…</button>
-            <button type="button" class="btn small wb-top-new" @onclick="NewAsync"><Icon Name="plus" /> New @KindWord</button>
+            <SwissArmyBench.Web.Pages.Workbench.Ide.NewFileButton @ref="_newFileButton" Plain="@(IsNotebooks ? $"New {KindWord}" : null)" OnPlain="NewAsync" Types="NewFileTypes" HasProject="@(Project.Current is not null)" Folders="@(_newFileOptions?.Folders ?? [])" Connections="_sqlConnections" ProjectName="@(Project.Current?.Name ?? string.Empty)" OnPick="PickNewFileAsync" OnMade="NewFileMadeAsync" />
             <button type="button" class="btn small" title="Open a notebook or script (Ctrl+O)" @onclick="OpenAsync"><Icon Name="folder" /> Open…</button>
             <button type="button" class="btn small ghost icon" aria-label="Workbench menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, TopMenu())"><Icon Name="more" /></button>
         </div>
@@ -308,6 +308,10 @@
                               OnChanged="() => MarkDirty(doc)" OnPageKey="EditorPageKeyAsync" OnLineage="n => ShowLineageAsync(doc, n)" />
                 </div>
             }
+            else if (doc.IsText)
+            {
+                <div class="wb-script-host"><TextFileView Text="@doc.ScriptText" Path="@doc.Path" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" /></div>
+            }
             else if (doc.IsSql)
             {
                 <div class="wb-script-host"><SqlFileView @ref="doc.SqlView" Text="@doc.ScriptText" Path="@doc.Path" Table="@SqlHeader.TableOf(doc.Path)" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="SqlBuiltAsync" OnOpenTable="r => ShowTableAsync(r.Grid)" /></div>
@@ -341,11 +345,7 @@
             {
                 @* The Excel canvas's own bar holds its Save, Play and the rest. *@
             }
-            else if (doc.CodeFile is not null)
-            {
-                <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
-            }
-            else if (doc.IsStructure)
+            else if (doc.CodeFile is not null || doc.IsStructure || doc.IsText)
             {
                 <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             }

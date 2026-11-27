@@ -49,6 +49,17 @@ public sealed class ScriptIdeClient
 
     public Task<FilePlace> NewPackageAsync(string name, string? parent) => _api.PostAsync<FilePlace>("/scripts/files/package", new { name, parent });
 
+    /// <summary>New file's types and the open project's folders.</summary>
+    public Task<NewFileOptions> NewFileOptionsAsync() => _api.GetAsync<NewFileOptions>("/scripts/files/new");
+
+    /// <summary>Where a new file would go, or the one sentence why not (a taken name, a wrong ending): nothing written.</summary>
+    public Task<NewFileMade> CheckNewFileAsync(NewFileRequest request, CancellationToken cancel = default) =>
+        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, check = true }, cancel);
+
+    /// <summary>A new file of the open project, its type's starter written.</summary>
+    public Task<NewFileMade> NewFileAsync(NewFileRequest request) =>
+        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection });
+
     /// <summary>A .sql file run: its text as on screen, where it runs ("" the open tables), and with a line, Run
     /// selection there (the selected text, else the statement at the line).</summary>
     public Task<SqlRun> RunSqlAsync(SqlRunRequest request, CancellationToken cancel = default) =>

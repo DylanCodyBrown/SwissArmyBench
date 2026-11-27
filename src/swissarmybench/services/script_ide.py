@@ -21,7 +21,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import changes as change_rules
-from swissarmybench.domain import code_tree
+from swissarmybench.domain import code_tree, new_files
 from swissarmybench.domain import script_ide as rules
 from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, Refused, Workspace
@@ -344,6 +344,59 @@ class ScriptIde:
         await self._touched(init, who)
         self.ws.audit.write(who, "script_new_package", init)
         return {"path": init, "package": code_tree.module_name(self._inside(init, folder)[1])}
+
+    # ===== New file (the owner, 2026-11-27): a type, a name, a folder; its starter written =====
+
+    def new_file_options(self) -> dict[str, Any]:
+        """What the New file dropdown and its dialog draw: the types as data, the folders of the open project
+        (none open: no folders; the page then makes an untitled tab instead)."""
+        files, folder = self._files()
+        inside = [self._inside(p, folder)[1] for p in files] if folder else []
+        return {
+            "project": bool(folder),
+            "types": new_files.types(),
+            "default": new_files.DEFAULT_TYPE,
+            "folders": new_files.folders(inside) if folder else [],
+        }
+
+    async def new_file(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{type?, name, folder?, connection?, table?, check?}: a new file of the open project, its starter
+        written (domain/new_files.py): a Python script, a SQL file (its `-- connection:` line; the first rows
+        of an open table), a JSON, YAML, TOML or XML structure, Markdown, plain text or a notebook. A name
+        already taken is refused. {path, relative, type, kind, page, made}: the page opens it there; with
+        `check`, only where it would go (or why not): nothing written."""
+        if not isinstance(body, dict):
+            raise ValueError('Send {"type": "sql", "name": "orders_by_month", "folder": "scripts"}.')
+        _, folder = self._files()
+        if not folder:
+            raise Refused("Open a project first: a new file goes in its folder.")
+        kind = new_files.type_of(body.get("type"))
+        root = str(folder).replace("\\", "/").rstrip("/")
+        try:
+            relative = new_files.place(
+                kind,
+                body.get("name"),
+                body.get("folder"),
+                lambda inside: self._code.exists(f"{root}/{inside}"),
+            )
+        except new_files.NameTaken as error:
+            raise Conflict(str(error)) from None
+        full = self._inside(relative, folder)[0]
+        made = {"path": full, "relative": relative, "type": kind.id, "kind": kind.kind, "page": kind.page}
+        if body.get("check"):
+            return made | {"made": False}  # the dialog's live check: where it would go, nothing written
+        table = body.get("table") if isinstance(body.get("table"), str) and body["table"].strip() else None
+        if kind.id == "sql" and table is None:
+            table = min((i.name for i in self.ws.store.all()), key=str.casefold, default=None)
+        text = new_files.starter(
+            kind, relative.rsplit("/", 1)[-1], {"connection": body.get("connection"), "table": table}
+        )
+        await asyncio.to_thread(self._code.write, full, text)
+        await self._touched(full, who)
+        if kind.id == "python":
+            self._changed(who, full, None, text)
+        self.ws.audit.write(who, "script_new_file", relative, type=kind.id)
+        return made | {"made": True}
 
     async def move(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Rename (or move) a module or a package: {path, to, apply?}. `to` is the new name in the same folder

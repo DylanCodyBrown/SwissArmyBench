@@ -128,15 +128,26 @@ def workbench_debug(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_file",
-    "Project modules: move (rename, imports follow; a plan until apply), package, duplicate; rename: a "
-    "notebook, a .sql file or a loose script renamed in its folder (a tab's Rename…)",
-    req("action", "move, package, duplicate or rename."),
-    opt("path", "The module (package: its parent); rename: the document."),
-    opt("to", "The new name."),
+    "Project files: new (a file of a type with its starter: python, sql, json, yaml, toml, xml, markdown, "
+    "text, notebook; a taken name refused; types: the types and the project's folders); modules: move "
+    "(rename, imports follow; a plan until apply), package, duplicate; rename: a notebook, a .sql file or a "
+    "loose script renamed in its folder (a tab's Rename…)",
+    req("action", "new, types, move, package, duplicate or rename."),
+    opt(
+        "path", "The module (package: its parent; new: the folder inside the project); rename: the document."
+    ),
+    opt("to", "The new name (new: the file's name, its ending filled in)."),
     opt("apply", "move: do it.", "bool"),
+    opt("type", "new: python (the default), sql, json, yaml, toml, xml, markdown, text or notebook."),
+    opt("connection", "new, a sql file: where it runs (none: DuckDB over the open tables)."),
 )
 def workbench_file(a: dict[str, Any]) -> Any:
     act = a["action"]
+    if act == "types":
+        return api.call("GET", "/scripts/files/new")
+    if act == "new":
+        body = {"type": a.get("type"), "name": a.get("to"), "folder": a.get("path")}
+        return api.call("POST", "/scripts/files/new", body | {"connection": a.get("connection")})
     if act == "rename":
         return api.call("POST", "/workbench/rename", {"path": a.get("path"), "to": a.get("to")})
     if act == "package":

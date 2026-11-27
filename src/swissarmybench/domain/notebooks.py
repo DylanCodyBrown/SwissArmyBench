@@ -403,6 +403,9 @@ def write_notebook(
     return json.dumps(notebook, indent=1, ensure_ascii=False) + "\n"
 
 
+TEXT_SUFFIXES: tuple[str, ...] = (".md", ".txt")
+
+
 def kind_of(path: str) -> str:
     """ "notebook", "script", "sql" (a .sql file) or "app" (a Streamlit app: sales.stapp.json), by the file's
     ending."""
@@ -420,6 +423,15 @@ def kind_of(path: str) -> str:
     raise NotebookError(
         "The Notebooks and Scripts pages open notebooks (.ipynb), Python scripts (.py) and SQL files (.sql)."
     )
+
+
+def opened_kind_of(path: str) -> str:
+    """What the Workbench opens a file as: kind_of's kinds, and "text" for Markdown and plain text (New file,
+    2026-11-27: a plain editor's tab on the Scripts page; never one of a project's documents, which stay
+    kind_of's)."""
+    if path.lower().endswith(TEXT_SUFFIXES):
+        return "text"
+    return kind_of(path)
 
 
 def quote_path(path: str) -> str:

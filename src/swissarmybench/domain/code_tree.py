@@ -182,6 +182,27 @@ def sql_group(paths: Iterable[str]) -> dict[str, Any] | None:
     return {"id": SQL, "name": "SQL files", "files": files, "kind": SQL}
 
 
+TEXT = "text"
+_TEXT_ENDINGS: tuple[str, ...] = (".md", ".txt")
+
+
+def text_group(paths: Iterable[str]) -> dict[str, Any] | None:
+    """The Scripts page's Text files group (New file, 2026-11-27): the project's Markdown and plain text
+    files, by folder then name, each a plain editor's tab. None when there are none."""
+    files = []
+    for relative in paths:
+        relative = relative.replace("\\", "/")
+        if not relative.lower().endswith(_TEXT_ENDINGS) or not listed(relative):
+            continue
+        files.append(
+            {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
+        )
+    if not files:
+        return None
+    files.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
+    return {"id": TEXT, "name": "Text files", "files": files, "kind": TEXT}
+
+
 def structure_group(paths: Iterable[str]) -> dict[str, Any] | None:
     """Both pages' Structures group (2026-11-22, the owner: "I want it beside the ide so you can search and
     explore"): the project's JSON, YAML, XML and TOML files at its top and in its structures/ folder, each

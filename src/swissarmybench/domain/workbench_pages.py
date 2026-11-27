@@ -26,6 +26,7 @@ _KIND_PAGE: dict[str, str] = {
     "app": "notebooks",
     "script": "scripts",
     "sql": "scripts",
+    "text": "scripts",  # Markdown and plain text (New file, 2026-11-27)
 }
 # A structure's tab opens on either page (the one it was opened from): it has no page of its own.
 _KIND_WORDS: dict[str, str] = {
@@ -33,6 +34,7 @@ _KIND_WORDS: dict[str, str] = {
     "app": "A Streamlit app",
     "script": "A script",
     "sql": "A SQL file",
+    "text": "A text file",
 }
 
 
@@ -41,6 +43,8 @@ _KIND_WORDS: dict[str, str] = {
 _PATH_PAGES: tuple[tuple[str, str], ...] = (
     (".py", "scripts"),
     (".sql", "scripts"),  # a SQL file (domain/sql_files.py, the owner 2026-11-24)
+    (".md", "scripts"),  # Markdown and plain text: a plain editor's tab (New file, 2026-11-27)
+    (".txt", "scripts"),
     (".ipynb", "notebooks"),
     (".stapp.json", "notebooks"),
     (".design.json", "notebooks"),
@@ -51,6 +55,8 @@ _PATH_KINDS: tuple[tuple[str, str], ...] = (
     (".ipynb", "notebook"),
     (".py", "script"),
     (".sql", "sql"),
+    (".md", "text"),
+    (".txt", "text"),
 )
 _WRONG_PAGE: str = "{kind} opens on the {page} page, not here."
 _STATE_FOLDER: str = ".sab"
@@ -132,7 +138,7 @@ def rules() -> dict[str, Any]:
     }
 
 
-_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql")
+_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql", ".md", ".txt")
 
 
 def renamed(path: str, to: Any) -> str:

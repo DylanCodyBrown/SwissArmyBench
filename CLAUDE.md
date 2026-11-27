@@ -692,11 +692,14 @@ src/swissarmybench/
                          a structure's file (.json, .yaml, .yml, .xml, .toml; never a canvas, a .design.json nor
                          .sab/: is_structure_path) a tab on the page it was opened from, from outside the Scripts
                          page (home_of_path; 2026-11-22)
+                         ; a Markdown or plain text file (.md, .txt: kind "text", 2026-11-27) a plain
+                         editor's tab on the Scripts page, nothing runs
     code_tree.py         the pages' explorers: a .py's module (scripts/etl/load.py is etl.load), its outline by ast,
                          the groups (Your scripts, Project code, made files and what they are made from, the
                          library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (one list,
                          data.ipynb first); both pages' Structures (structure_group: the project's top and its
                          structures/ folder)
+                         ; the Scripts page's SQL files (sql_group) and Text files (text_group: .md, .txt)
     script_ide.py        the Scripts IDE's rules: search and replace across the scripts (regex, case, word), a
                          rename's plan and preview that never writes a made file, a Python name checked; a
                          module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
@@ -706,6 +709,15 @@ src/swissarmybench/
     sql_files.py         a .sql file (2026-11-24): its `-- connection:` header read and written, its statements
                          (split outside strings and comments), the one at the cursor, Run file's one query, the
                          table named after the file, the line an error points at (DuckDB's LINE n, a quoted name)
+    new_files.py         New file on the Scripts page (the owner, 2026-11-27: "a drop down combo that asks what file
+                         type you wanna create ... then scaffolds it for you"): the file types as data (TYPES: Python,
+                         SQL, JSON, YAML, TOML, XML, Markdown, plain text, a notebook; each one's ending, the folder
+                         it starts in, the page it opens on, how its tab is drawn), a name's ending filled in and
+                         checked (named), the folder inside the project (folder_of), a taken name refused in one
+                         sentence (place), and one starter function a type (python_starter: a docstring, the future
+                         import, a typed main() under the main guard; sql_starter: its `-- connection:` line and
+                         the first rows of an open table, else a hint; a valid empty JSON, YAML, TOML and XML
+                         document; a Markdown heading; empty text; the Notebooks page's empty notebook)
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
@@ -1088,6 +1100,9 @@ src/swissarmybench/
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
                          (rename, replace, duplicate and delete in the change log too)
+                         ; New file (new_file_options: the types and the project's folders; new_file: a
+                         type's starter written inside the open project, never over a file that is there; check:
+                         only where it would go; GET and POST /scripts/files/new; `workbench_file` new, types)
     sql_files.py         a .sql file's run (the statement as the open table named after the file, through
                          datasets.build_from_query or connection_swap.new_query: no SQL runner of its own; a
                          failure's line) and Edit in Scripts (a query's table as scripts/<table>.sql, made once)

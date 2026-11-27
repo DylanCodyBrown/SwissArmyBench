@@ -9642,3 +9642,23 @@ Open notes:
   name's); the scaffold's deliverable says `path` filled and `listed` as the contract has it.
 - **Background work:** services/background.py `keep(work, name)` is the one way a task is started and not waited
   for (kept until it ends, its exception logged by the job's name).
+
+## New file on the Scripts page (the owner, 2026-11-27)
+
+"turn the + new script on the scripts into a drop down combo that asks what file type you wanna create. SQL python
+json etc. then scaffolds it for you". Built: domain/new_files.py (the types as data, one starter a type), the Scripts
+IDE's new_file (GET and POST /scripts/files/new), `workbench_file(action="new", type, to, path, connection)`, the
+New file dropdown and its dialog.
+
+- **Decided while building:** a new file is a file of the open project at once (named, in a folder, its starter on
+  disk), not an untitled tab; with no project open a Python script and a SQL file still start untitled (the old
+  behaviour, and Ctrl+N's and the palette's New script) and the other types say Open a project first. The folders
+  the types start in: scripts/ (Python, SQL), structures/ (JSON, YAML, TOML, XML), the project's top (Markdown, text,
+  a notebook). A Python script's name is a module's name, so it can be imported.
+- **Markdown and plain text had no tab before:** the Scripts page now opens .md and .txt in a plain editor (Markdown's
+  colours for .md; Save, Rename; nothing runs), and its Files pane lists them (Text files: README.md and
+  requirements.txt among them).
+- **Found on the way:** a project's .sql files were never in the Files pane's SQL files group (the project's own
+  file list left .sql out); they are listed now (and so travel with Copy project to).
+- **Open (the owner's):** whether a new Markdown file should be drawn (a preview beside the text); whether the Files
+  pane's "+" and the Notebooks page's New notebook should ask a name and folder the same way; a line in What's New.

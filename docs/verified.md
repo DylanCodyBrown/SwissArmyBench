@@ -6458,3 +6458,24 @@ to the scripts page with an open script" / "sql authorship will have one place i
   machine today (test_a_kernels_live_names_through_jedis_interpreter: the kernel's own Jedi within its
   one-second budget under load).
 - ruff and ruff format clean; mypy: only sab_canvas.py:622; the architecture map current.
+## New file on the Scripts page (2026-11-27)
+
+- tests/test_new_files.py (11: each starter by itself: the Python one compiles with a typed main(); JSON, YAML,
+  TOML and XML load, YAML with PyYAML where it is there; the SQL one parses with sqlglot and names where it runs;
+  a name's ending, the folder inside the project, a taken name's one sentence; the route for every type, its check
+  that writes nothing, and the agent's `workbench_file` new and types).
+- bUnit (NewFileTests, 7): the dropdown's lines and its pick, what can be picked with no project open, the dialog's
+  ending and where the file goes, a SQL file's Query from, Create's request, a refusal said in the dialog, a text
+  file's tab. 237 of 237; `dotnet build -warnaserror` and `dotnet format --verify-no-changes` clean on both projects.
+- Browser (tests/e2e/blazor/test_workbench_new_file.py, 3; Release build): SQL picked and named opens a .sql tab
+  with its connection line and the first rows of an open table, the same name again refused in the dialog; JSON
+  picked opens a structure's tab; Markdown from a group's "+", a Python script, a notebook on the Notebooks page;
+  with no project open a script and a SQL file start untitled. The whole browser suite, two workers: 188 passed,
+  7 skipped.
+- Unit suite (no e2e, four workers): 6,045 passed, 43 skipped; the failures are this container's known eight (the
+  four data.py export tests, test_script_export, test_connection_drivers, test_performance, test_updater) and, in
+  that loaded run only, test_api_editor's completion (it passes alone). ruff and ruff format clean; mypy: only
+  sab_canvas.py:622; tests/test_architecture.py passes, the architecture map is current, bootstrap.py is unchanged
+  (2,013 lines).
+- Looked at in Chromium at deviceScaleFactor 2, light and dark, on a made-up project: the open dropdown and the
+  dialog (a SQL file, a refused name, JSON).

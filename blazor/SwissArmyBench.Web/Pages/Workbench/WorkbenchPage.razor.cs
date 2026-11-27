@@ -133,7 +133,7 @@ public partial class WorkbenchPage
         Live.NoticeArrived += OnInlineNotice;
         Live.NoticeArrived += OnFileNotice;
         Live.NoticeArrived += OnPythonNotice;
-        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadSqlConnectionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync(), LoadVaultsAsync());
+        await Task.WhenAll(LoadTreeAsync(), LoadConnectionsAsync(), LoadSqlConnectionsAsync(), LoadNewFileOptionsAsync(), LoadBetaAsync(), LoadInlineAsync(), LoadPythonsAsync(), LoadVaultsAsync());
     }
 
     private async Task LoadBetaAsync()

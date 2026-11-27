@@ -117,7 +117,8 @@ def test_a_scripts_name_shows_once_and_a_click_makes_no_new_script(
     page = open_page(browser, server, f"scripts?path={saved}")
     tabs = page.locator(".wb-tab")
     expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_once.py")
-    page.click(".wb-top-new")
+    page.click(".wb-top-new")  # New file: its types (2026-11-27); no project open, a script starts untitled
+    page.click(".context-menu [role=menuitem]:has-text('Python script')")
     expect(tabs).to_have_count(2)
     expect(page.locator(".wb-doc-title")).to_have_text("Scripts")
     for _ in range(3):

@@ -1,0 +1,83 @@
+@* The top bar's New button. On the Scripts page it is the New file dropdown (the owner, 2026-11-27: "turn the + new
+   script on the scripts into a drop down combo that asks what file type you wanna create"): the list of file types
+   opens under it, a pick is handed to the page, and the page asks its name and folder through Ask (the New file
+   dialog drawn here; the tab strip's "+" asks the same way). With Plain (the Notebooks page) it is one button. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+@if (Plain is { } plain)
+{
+    <button type="button" class="btn small wb-top-new" @onclick="OnPlain"><Icon Name="plus" /> @plain</button>
+}
+else
+{
+    <button type="button" class="btn small wb-top-new" aria-haspopup="menu" aria-expanded="@(_at is null ? "false" : "true")" title="A new file: pick its type" @onclick="Open"><Icon Name="plus" /> New file <Icon Name="down" /></button>
+}
+@if (_at is { } at)
+{
+    <ContextMenu Title="New file" Entries="NewFileMenus.Entries(Types, HasProject, PickAsync)" X="at.X" Y="at.Y" OnClose="() => _at = null" />
+}
+@if (_asked is { } asked)
+{
+    <NewFileDialog @key="asked.Id" Type="asked" Folders="Folders" Connections="Connections" ProjectName="@ProjectName" OnClose="() => _asked = null" OnMade="MadeAsync" />
+}
+
+@code {
+    // The list opens this far under the pointer.
+    private const double Below = 4;
+
+    private (double X, double Y)? _at;
+    private NewFileType? _asked;
+
+    /// <summary>One plain button with these words (New notebook) instead of the dropdown.</summary>
+    [Parameter]
+    public string? Plain { get; set; }
+
+    [Parameter]
+    public EventCallback OnPlain { get; set; }
+
+    /// <summary>The file types, in the list's order.</summary>
+    [Parameter]
+    public IReadOnlyList<NewFileType> Types { get; set; } = [];
+
+    /// <summary>A project is open: every type can be made in it.</summary>
+    [Parameter]
+    public bool HasProject { get; set; }
+
+    /// <summary>The open project's folders and name, and the connections that run SQL: the dialog's.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Folders { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<string> Connections { get; set; } = [];
+
+    [Parameter]
+    public string ProjectName { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<NewFileType> OnPick { get; set; }
+
+    /// <summary>The dialog made the file.</summary>
+    [Parameter]
+    public EventCallback<NewFileMade> OnMade { get; set; }
+
+    /// <summary>The New file dialog for this type (the page's answer to a pick while a project is open).</summary>
+    public void Ask(NewFileType type)
+    {
+        _asked = type;
+        StateHasChanged();
+    }
+
+    private void Open(MouseEventArgs e) => _at = (e.ClientX, e.ClientY + Below);
+
+    private Task PickAsync(NewFileType type)
+    {
+        _at = null;
+        return OnPick.InvokeAsync(type);
+    }
+
+    private Task MadeAsync(NewFileMade made)
+    {
+        _asked = null;
+        return OnMade.InvokeAsync(made);
+    }
+}

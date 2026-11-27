@@ -54,8 +54,11 @@ public sealed class OpenDocument
 
     public SqlFileView? SqlView { get; set; }
 
-    /// <summary>A notebook or a script: code that runs in the session (not a blade, structure, workbook or SQL file).</summary>
-    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && !IsSql && CodeFile is null;
+    /// <summary>A Markdown or plain text file (New file, the owner 2026-11-27): a plain editor, nothing runs.</summary>
+    public bool IsText => Path is { } path && (path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A notebook or a script: code that runs in the session (not a blade, structure, workbook, SQL or text file).</summary>
+    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && !IsSql && !IsText && CodeFile is null;
 
     /// <summary>A project's data.ipynb's view: cells, lineage or dictionary.</summary>
     public string DataView { get; set; } = "cells";
@@ -112,16 +115,16 @@ public sealed class OpenDocument
 
     public ScriptView? ScriptView { get; set; }
 
-    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : "script";
+    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : IsText ? "text file" : "script";
 
     public string Title => Blade ?? (CodeFile is { } file ? FilePaths.Name(file) : Path is { } path
         ? FilePaths.Name(path)
         : Untitled > 1 ? $"Untitled {KindWord} {Untitled}" : $"Untitled {KindWord}");
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : IsText ? "Text file" : "Script";
 
-    /// <summary>Renamed from its tab (Rename…): a notebook, a script or a SQL file; a blade, a structure, a workbook
-    /// and a code app's file keep their own ways.</summary>
-    public bool CanRename => IsCode || IsSql;
+    /// <summary>Renamed from its tab (Rename…): a notebook, a script, a SQL file or a text file; a blade, a
+    /// structure, a workbook and a code app's file keep their own ways.</summary>
+    public bool CanRename => IsCode || IsSql || IsText;
 }

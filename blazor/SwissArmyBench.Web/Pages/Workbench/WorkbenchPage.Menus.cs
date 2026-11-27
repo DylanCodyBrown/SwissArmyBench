@@ -73,8 +73,7 @@ public partial class WorkbenchPage
     /// <summary>What a group's "+" and the top bar's "…" make: the page's kind, the project's entries, Open.</summary>
     private List<MenuEntry> NewEntries() =>
     [
-        new($"New {KindWord}", IsNotebooks ? "notebook" : "code", NewAsync),
-        .. SqlEntries(),
+        .. NewFileEntries(),
         .. CanvasEntries(),
         .. LanguageEntries(),
         MenuEntry.Separator,
@@ -86,9 +85,6 @@ public partial class WorkbenchPage
     ];
 
     private (string, IReadOnlyList<MenuEntry>) NewTabMenu() => ("New tab", NewEntries());
-
-    /// <summary>New SQL file (the Scripts page only: SQL is written here, the owner 2026-11-24).</summary>
-    private IEnumerable<MenuEntry> SqlEntries() => IsNotebooks ? [] : [new("New SQL file", "sql", NewSqlAsync)];
 
     private (string, IReadOnlyList<MenuEntry>) ProjectMenu() => ("Project", ProjectEntries());
 

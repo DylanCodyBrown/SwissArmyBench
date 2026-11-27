@@ -196,7 +196,7 @@ class Workbench:
     def open(self, path: Any) -> dict[str, Any]:
         if not isinstance(path, str) or not path.strip():
             raise ValueError('Send {"path": "C:\\\\...\\\\analysis.ipynb"}.')
-        kind = rules.kind_of(path)
+        kind = rules.opened_kind_of(path)
         if kind == "app":
             self._app_document()  # said before the file is read or remembered
         try:
@@ -242,7 +242,7 @@ class Workbench:
         if not isinstance(body, dict) or not isinstance(body.get("path"), str):
             raise ValueError('Send {"path": "...", "cells": [...]} or {"path": "...", "text": "..."}.')
         path = body["path"]
-        kind = rules.kind_of(path)
+        kind = rules.opened_kind_of(path)
         if kind == "notebook":
             following = body.get("next_cell")
             text = rules.write_notebook(
@@ -292,7 +292,7 @@ class Workbench:
         if not isinstance(body, dict) or not isinstance(body.get("path"), str) or not body["path"].strip():
             raise ValueError('Send {"path": "...", "to": "new name"}.')
         path = body["path"]
-        rules.kind_of(path)  # a notebook, a script or a SQL file
+        rules.opened_kind_of(path)  # a notebook, a script, a SQL file or a text file
         target = workbench_pages.renamed(path, body.get("to"))
         project = self.project()
         if project is not None:

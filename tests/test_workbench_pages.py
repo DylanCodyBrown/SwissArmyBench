@@ -23,7 +23,9 @@ from tests.conftest import AGENT, AUTH, make_client
         ("/home/u/sales/workbook.design.json", "notebooks"),
         ("/home/u/sales/scripts/etl/load.py", "scripts"),
         ("functions.py", "scripts"),
-        ("/home/u/sales/readme.md", None),
+        ("/home/u/sales/readme.md", "scripts"),  # Markdown and plain text: a plain editor's tab (2026-11-27)
+        ("/home/u/sales/notes.TXT", "scripts"),
+        ("/home/u/sales/orders.csv", None),
         ("", None),
     ],
 )

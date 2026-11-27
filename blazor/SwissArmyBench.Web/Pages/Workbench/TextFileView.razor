@@ -1,0 +1,35 @@
+@* A Markdown or plain text file as a tab of the Scripts page (New file, the owner 2026-11-27): a plain editor, in
+   Markdown for a .md file; nothing runs. Save (Ctrl+S) is the page's. *@
+
+<div class="wb-script wb-textfile" data-path="@Path">
+    <div class="wb-script-editor">
+        <CodeEditor Value="@Text" Language="@Language" Label="@(Path is { } named ? FilePaths.Name(named) : "Text file")" OnChange="t => OnTextChanged.InvokeAsync(t)" OnKey="KeyAsync" />
+    </div>
+</div>
+
+@code {
+    /// <summary>The file's text as the page knows it.</summary>
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Path { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnTextChanged { get; set; }
+
+    /// <summary>A key the page acts on (save).</summary>
+    [Parameter]
+    public EventCallback<string> OnPageKey { get; set; }
+
+    private string Language => Path is { } path && path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? "markdown" : "plaintext";
+
+    private async Task KeyAsync(EditorKey key)
+    {
+        await OnTextChanged.InvokeAsync(key.Text);
+        if (key.Name is "save" or "saveAs")
+        {
+            await OnPageKey.InvokeAsync(key.Name);
+        }
+    }
+}
