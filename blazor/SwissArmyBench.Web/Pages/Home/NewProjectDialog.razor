@@ -100,7 +100,8 @@
     private async Task CreateAsync()
     {
         var name = _name.Trim();
-        if (name.Length == 0)
+        // Enter twice (or a double click) before the first answer came made the project twice: once at a time.
+        if (name.Length == 0 || _making)
         {
             return;
         }
