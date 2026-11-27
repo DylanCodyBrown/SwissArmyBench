@@ -39,9 +39,6 @@ public sealed class StructuresClient
 
     public Task<StructureShown> ShownAsync(string id) => _api.GetAsync<StructureShown>($"/structures/{ApiClient.Part(id)}");
 
-    /// <summary>New: an empty object or list.</summary>
-    public Task<StructureShown> NewOfAsync(string kind) => _api.PostAsync<StructureShown>("/structures", new { kind, name = "Untitled" });
-
     public Task<StructureShown> OpenShownAsync(string path) => _api.PostAsync<StructureShown>("/structures/open", new { path });
 
     /// <summary>Pasted text, its format found (none named) and its name.</summary>

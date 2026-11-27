@@ -57,9 +57,15 @@ def test_the_agents_window_command_runs_on_the_open_scripts_page(
     listed = {c["id"]: c for c in said["result"]["commands"]}
     assert "file.new" in listed and listed["file.close"]["why_not"] == "Open a notebook or a script first"
 
-    # A palette command, as the user's own: a new script's tab.
+    # A new script: named, as every new file is. With no name the agent is told to pass one (the dialog is
+    # the user's); with one the server writes the file and its tab opens.
     status, said = ask(server, "/workbench/window", {"command": "file.new"})
-    assert status == 200 and said["result"] == {"ran": "file.new"}
+    assert status == 409 and "Give the file a name" in said["error"]
+    expect(page.locator(".dialog.new-file")).to_have_count(0)
+    named = {"command": "file.new", "args": {"name": "made_up_agent"}}
+    status, said = ask(server, "/workbench/window", named)
+    assert status == 200 and said["result"]["ran"] == "file.new"
+    assert said["result"]["relative"] == "made_up_agent.py"
     expect(page.locator(".monaco-editor").first).to_be_visible()
     status, said = ask(server, "/workbench/window", {"command": "documents", "page": "scripts"})
     assert [d["kind"] for d in said["result"]["documents"]] == ["script"]

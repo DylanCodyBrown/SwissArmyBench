@@ -176,7 +176,9 @@ public partial class StructuresPage
         await LoadAsync();
     }
 
-    private Task NewAsync(string kind) => GuardAsync(async () => await GoAsync((await Structures.NewOfAsync(kind)).Id));
+    // New: a new JSON file through the one New file dialog (the Scripts page's: its name first, written by the
+    // server, opened there as a structure's tab). There is no untitled structure.
+    private const string NewAddress = "scripts?new=json";
 
     private async Task OpenFileAsync()
     {

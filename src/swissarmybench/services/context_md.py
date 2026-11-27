@@ -350,10 +350,12 @@ class ContextMd:
         )
 
     def _documents_facts(self) -> tuple[rules.DocumentFacts, ...]:
-        listed = self._documents().get("documents") or []
+        found = self._documents()
+        listed = found.get("documents") or []
+        docs = found.get("docs") or []
         return tuple(
             rules.DocumentFacts(str(d.get("kind")), str(d.get("path"))) for d in listed if not d.get("made")
-        )
+        ) + tuple(rules.DocumentFacts("doc", str(d.get("path")), str(d.get("title") or "")) for d in docs)
 
     def _windows_lines(self, folder: str | None) -> tuple[str, ...]:
         w = self._windows()

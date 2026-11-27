@@ -96,11 +96,10 @@ public partial class WorkbenchPage
     [Parameter]
     public bool New { get; set; }
 
-    /// <summary>What ?new= asks for: "sql" a new SQL file (the Scripts page), else the page's kind.</summary>
+    /// <summary>What ?new= asks for: a file type's id ("sql": the Tables page's "+"), else the page's own kind. The
+    /// New file dialog opens for it: its name first.</summary>
     [Parameter]
     public string? NewKind { get; set; }
-
-    private bool NewIsSql => !IsNotebooks && NewKind == "sql";
 
     /// <summary>The script's line to reveal (its cursor there), or the notebook's cell to select (the classic file.openCell).</summary>
     [Parameter]
@@ -159,6 +158,7 @@ public partial class WorkbenchPage
         }
         await RevealPendingAsync();
         ShowFront();
+        await AskOnceDrawnAsync();
     }
 
     /// <summary>What an address asks for, as one key: the one the page last acted on is not acted on again.</summary>
@@ -187,12 +187,9 @@ public partial class WorkbenchPage
             await OpenPathAsync(path);
             RevealAfterOpen(path);
         }
-        else if (New)
-        {
-            AddDocument(NewIsSql ? NewSqlDocument() : new OpenDocument(++_nextKey, IsNotebooks) { Untitled = NextUntitled() });
-        }
         else
         {
+            AskOnceDrawn(); // ?new=<type>: the New file dialog for it, once the page is drawn
             _recent = await RecentAsync();
         }
         await Js.InvokeVoidAsync("sab.setTitle", Title);

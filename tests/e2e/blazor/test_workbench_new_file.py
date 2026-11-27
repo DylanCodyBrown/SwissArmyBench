@@ -2,8 +2,8 @@
 combo that asks what file type you wanna create. SQL python json etc. then scaffolds it for you"), in the
 browser on a made-up project: the dropdown's types, SQL picked and named (an open .sql tab with its connection
 line), JSON picked (a structure tab), a taken name said in the dialog, a notebook made on the Notebooks page,
-the tab strip's "+" with the same choices, and with no project open a Python script and a SQL file starting
-untitled as before."""
+the tab strip's "+" with the same choices, and with no project open the same dialog asking a folder of this
+computer (tests/e2e/blazor/test_named_files.py: every entry point, a project type's own types)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.blazor.conftest import call, open_page
+from tests.e2e.blazor.conftest import call, choose_path, open_page
 
 TYPES = [
     "Python script (.py)",
@@ -23,6 +23,11 @@ TYPES = [
     "XML (.xml)",
     "Markdown (.md)",
     "Plain text (.txt)",
+    "HTML page (.html)",
+    "Diagram (.mmd)",
+    "README (.md)",
+    "Decision record (.md)",
+    "Data dictionary (.md)",
     "Notebook (.ipynb)",
 ]
 
@@ -103,16 +108,18 @@ def test_json_picked_opens_a_structure_tab(browser: Browser, server: dict[str, A
     expect(page.locator(".structure-doc")).to_be_visible()
     assert (folder / "structures" / "made_up_settings.json").read_text(encoding="utf-8") == "{}\n"
 
-    # Markdown: a plain editor's tab with the file's name as its heading; the tab strip's "+" lists the same.
+    # Markdown: read as a document, the file's name its heading; the tab strip's "+" lists the same.
     page.click(".wb-tab-new")
     expect(page.locator(".context-menu [role=menuitem]").first).to_contain_text("Python script (.py)")
     for line in TYPES:
-        expect(page.locator(f".context-menu [role=menuitem]:has-text('{line}')")).to_have_count(1)
+        expect(page.locator(".context-menu [role=menuitem]").get_by_text(line, exact=True)).to_have_count(1)
     page.click(".context-menu [role=menuitem]:has-text('Markdown')")
     notes = page.locator(".dialog[aria-label='New Markdown']")
     notes.get_by_label("Name").fill("month end")
     notes.get_by_role("button", name="Create").click()
     expect(page.locator(".wb-tab.active .tab-label")).to_have_text("month end.md")
+    expect(page.locator(".wb-textfile .md-reader h1")).to_have_text("month end")  # it opens read
+    page.click(".wb-view-source")
     expect(page.locator(".wb-textfile .view-lines")).to_contain_text("# month end")
     expect(page.locator(".wb-run-file")).to_have_count(0)  # nothing runs
     assert (folder / "month end.md").read_text(encoding="utf-8") == "# month end\n"
@@ -139,17 +146,40 @@ def test_json_picked_opens_a_structure_tab(browser: Browser, server: dict[str, A
     page.close()
 
 
-def test_with_no_project_open_a_script_and_a_sql_file_start_untitled(
+def test_with_no_project_open_the_dialog_asks_a_folder_and_the_file_is_written_there(
     browser: Browser, server: dict[str, Any]
 ) -> None:
+    loose = server["tmp"] / "made up loose"
+    loose.mkdir()
     page = open_page(browser, server, "scripts")
     page.click(".wb-top-new")
-    blocked = page.locator(".context-menu [role=menuitem]:has-text('JSON')")
-    expect(blocked).to_be_disabled()
-    expect(blocked).to_have_attribute("title", "Open a project first: a new file goes in its folder")
+    lines = page.locator(".context-menu [role=menuitem]")
+    for at, line in enumerate(TYPES):  # every base type is made loose: none says Open a project first
+        expect(lines.nth(at)).to_have_text(line)
+        expect(lines.nth(at)).to_be_enabled()
     page.click(".context-menu [role=menuitem]:has-text('Python script')")
-    expect(page.locator(".dialog")).to_have_count(0)
-    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("Untitled script")
+    dialog = page.locator(".dialog[aria-label='New Python script']")
+    expect(dialog.locator(".new-file-loose")).to_contain_text("No project is open")
+    folder = dialog.get_by_label("Folder", exact=True)
+    expect(folder).to_have_value(str(server["tmp"] / "workbench"))  # where a loose file starts
+    expect(page.locator(".wb-tab")).to_have_count(0)  # no untitled tab: nothing until it is named
+
+    # Browse…: the app's file picker (no system dialog in a test) picks the folder.
+    dialog.get_by_role("button", name="Browse…").click()
+    choose_path(page, loose, folder=True)
+    expect(folder).to_have_value(str(loose))
+    dialog.get_by_label("Name").fill("made_up_tidy")
+    expect(dialog.locator(".new-file-check")).to_have_text(f"Makes {loose / 'made_up_tidy.py'}")
+    dialog.get_by_role("button", name="Create").click()
+    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_tidy.py")
+    expect(page.locator(".wb-script-editor .view-lines")).to_contain_text("def main() -> None:")
+    compile((loose / "made_up_tidy.py").read_text(encoding="utf-8"), "made_up_tidy.py", "exec")
+
+    # A folder that is not there is said; nothing is made.
     pick(page, "SQL file")
-    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("Untitled SQL file")
+    sql = page.locator(".dialog[aria-label='New SQL file']")
+    sql.get_by_label("Folder", exact=True).fill(str(loose / "nowhere"))
+    expect(sql.locator(".new-file-check.error")).to_contain_text("There is no folder")
+    sql.get_by_role("button", name="Cancel").click()
+    assert sorted(p.name for p in loose.iterdir()) == ["made_up_tidy.py"]
     page.close()

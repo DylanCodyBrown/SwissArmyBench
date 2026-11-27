@@ -113,6 +113,28 @@ class Documents:
         write_atomic(file, data, mode=mode)
         return str(file), file.stat().st_mtime
 
+    @staticmethod
+    def read_bytes(path: str, most: int) -> bytes:
+        """A file's bytes (a picture beside a document); one over `most` is refused."""
+        file = Path(path).expanduser()
+        if not file.is_file():
+            raise FileNotFoundError(path)
+        if file.stat().st_size > most:
+            raise ValueError(f"{file.name} is over {most // 1_000_000} MB: not shown here.")
+        return file.read_bytes()
+
+    @staticmethod
+    def write_bytes(path: str, data: bytes) -> tuple[str, bool]:
+        """Bytes written beside a document (a diagram's picture), only when they differ; its folder must be
+        there. (the whole path, whether it was written)"""
+        file = Path(path).expanduser().resolve()
+        if not file.parent.is_dir():
+            raise FileNotFoundError(f"The folder {file.parent} is not there.")
+        if file.is_file() and file.read_bytes() == data:
+            return str(file), False
+        write_atomic(file, data)
+        return str(file), True
+
     def exists(self, path: str) -> bool:
         try:
             return Path(path).expanduser().is_file()

@@ -55,6 +55,22 @@ MODE: dict[str, Any] = {
         "then push it to your environment. You get a code app's folder with power.config.json."
     ),
     "example": "Example: an expense approval app for your team.",
+    # New file's type a code app adds (the base's domain/new_files.py): a page, made by this extension's own
+    # New page (its folder: page, components, hooks, state, types, and its line in src/pages.ts).
+    "new_files": [
+        {
+            "id": "page",
+            "label": "Page",
+            "ending": ".tsx",
+            "folder": "src/pages",
+            "page": "scripts",
+            "kind": "codefile",
+            "icon": "codeapp",
+            "words": "A page of the code app: its folder of page, components, hooks, state and types.",
+            "suggested": "Orders",
+            "asks": ["name"],
+        },
+    ],
     # The project's files a person edits, for the Workbench's project files (domain/shown.py).
     "project_files": "/powerapps/project/files",
     "cell_routes": {
@@ -203,6 +219,20 @@ def routes(seams: Seams) -> list[Any]:
         environment_id=lambda: str(service.project_state().get("app", {}).get("environment_id") or ""),
         sources=lambda: list(service.project_state().get("sources") or []),
     )
+
+    async def new_page(body: dict[str, Any], who: str) -> dict[str, Any]:
+        """New file's Page: ({name, check}, who) -> its page file, the address it opens at."""
+        from swissarmybench.domain.new_files import address_part
+
+        name = str(body.get("name") or "").strip()
+        name = name[:-4] if name.lower().endswith(".tsx") else name
+        if body.get("check"):
+            opened = service.page_place(name)
+        else:
+            opened = (await service.new_page({"name": name}, who))["open"]
+        return {"path": opened, "relative": opened, "address": f"scripts?codefile={address_part(opened)}"}
+
+    seams.hooks.new_file_makers["page"] = new_page
     # Its own place on the record: its stop, and tests.
     seams.extension[ID] = Own(service, notebook)
     return door.routes(service, notebook)

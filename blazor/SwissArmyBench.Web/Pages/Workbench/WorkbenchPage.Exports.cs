@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.JSInterop;
 
 using SwissArmyBench.Web.Api.Workbench;
+using SwissArmyBench.Web.State;
 
 namespace SwissArmyBench.Web.Pages.Workbench;
 
@@ -49,8 +50,8 @@ public partial class WorkbenchPage
     /// <summary>ARCHITECTURE.md written at the project's top (only when its bytes change), then downloaded.</summary>
     private async Task ExportOutlineAsync()
     {
-        var done = await Exports.OutlineAsync();
-        await Notes.SayAsync($"{done.File} {(done.Written ? "written" : "is up to date")}");
+        var (done, words) = await OutlineExport.RunAsync(Exports, Dialogs);
+        await Notes.SayAsync(words);
         var data = $"data:text/markdown;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(done.Text))}";
         await Js.InvokeVoidAsync("sab.download", data);
     }

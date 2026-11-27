@@ -54,11 +54,11 @@ public sealed class ScriptIdeClient
 
     /// <summary>Where a new file would go, or the one sentence why not (a taken name, a wrong ending): nothing written.</summary>
     public Task<NewFileMade> CheckNewFileAsync(NewFileRequest request, CancellationToken cancel = default) =>
-        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, check = true }, cancel);
+        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, variant = request.Variant, check = true }, cancel);
 
-    /// <summary>A new file of the open project, its type's starter written.</summary>
+    /// <summary>A new file, named and written with its type's starter (in the open project, else the folder named).</summary>
     public Task<NewFileMade> NewFileAsync(NewFileRequest request) =>
-        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection });
+        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, variant = request.Variant });
 
     /// <summary>A .sql file run: its text as on screen, where it runs ("" the open tables), and with a line, Run
     /// selection there (the selected text, else the statement at the line).</summary>

@@ -74,6 +74,34 @@ MODE: dict[str, Any] = {
         "properties. A filter widget sets a value the other widgets read."
     ),
     "example": "A sales dashboard with a region filter, a chart by month and a table of the top customers.",
+    # New file's types a Streamlit project adds (the base's domain/new_files.py), made by this extension's
+    # own "new" path (services/new_files.py makers): the same data as that module's TYPES.
+    "new_files": [
+        {
+            "id": "widget",
+            "label": "Widget",
+            "ending": ".widget.py",
+            "folder": "widgets",
+            "page": "widgets",
+            "kind": "widget",
+            "icon": "sliders",
+            "words": "A widget of this project: Streamlit code with properties, in the Widgets window.",
+            "suggested": "my_widget",
+            "asks": ["name"],
+        },
+        {
+            "id": "canvas",
+            "label": "Canvas",
+            "ending": ".canvas.json",
+            "folder": "",
+            "page": "canvas",
+            "kind": "canvas",
+            "icon": "page",
+            "words": "An app's canvas: pages of containers and widgets, opened on the Canvas page.",
+            "suggested": "App",
+            "asks": ["name"],
+        },
+    ],
 }
 # The base's own mode while this is on: today's app offers the Streamlit canvas in a BI project too.
 BASE_MODE_ADDS: dict[str, list[str]] = {"canvases": ["streamlit"]}
@@ -250,6 +278,9 @@ def routes(seams: Seams) -> list[Any]:
     hooks.canvas_put = canvases.put  # Build's widget on the APIs page
     hooks.api_uses = canvases.api_uses  # the local sandbox API's Payload shapes
     hooks.project_code = canvases.code_placed  # what a project's canvases need installed as it opens
+    from swissarmybench_streamlit.services import new_files
+
+    hooks.new_file_makers.update(new_files.makers(widgets, canvases, project_folder))  # New file's two
     # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
     from swissarmybench_streamlit.services import sharing_target
 

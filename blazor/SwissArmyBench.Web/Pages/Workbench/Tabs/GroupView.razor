@@ -15,7 +15,7 @@
                      aria-selected="@(on ? "true" : "false")" tabindex="@(on ? 0 : -1)" data-key="@key" title="@($"{doc.KindLabel}: {doc.Path ?? doc.Title}")"
                      @onclick="() => OnShow.InvokeAsync(key)" @onmouseup="e => AuxAsync(e, key)"
                      @oncontextmenu="e => OnTabMenu.InvokeAsync((key, e))" @oncontextmenu:preventDefault="true">
-                    <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsBlade ? "bolt" : doc.IsWorkbook ? "excel" : doc.CodeFile is not null ? "codeapp" : doc.IsNotebook ? "notebook" : doc.IsSql ? "sql" : doc.IsText ? (doc.Path!.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? "markdown" : "note") : "code")" /></span>
+                    <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsBlade ? "bolt" : doc.IsWorkbook ? "excel" : doc.CodeFile is not null ? "codeapp" : doc.IsNotebook ? "notebook" : doc.IsSql ? "sql" : doc.TextKind is { } text ? text.Icon : "code")" /></span>
                     <span class="wb-tab-dirty" title="Unsaved changes">@(doc.Dirty ? "●" : string.Empty)</span>
                     <span class="tab-label">@doc.Title</span>
                     @if (doc.Review.Count > 0)

@@ -113,6 +113,29 @@ def open_page(browser: Browser, info: dict[str, Any], path: str = "", dark: bool
     return page
 
 
+def loose_file(info: dict[str, Any], name: str, kind: str = "python", text: str | None = None) -> Path:
+    """A named file in the server's Workbench folder (no project open), made as New file makes one (the
+    server writes its starter); with `text`, holding that instead. Its path."""
+    folder = Path(info["tmp"]) / "workbench"
+    folder.mkdir(exist_ok=True)
+    made = call(info, "POST", "/scripts/files/new", {"type": kind, "name": name, "folder": str(folder)})
+    path = Path(made["path"])
+    if text is not None:
+        path.write_text(text, encoding="utf-8")
+    return path
+
+
+def name_new_file(page: Page, name: str, folder: Any = None) -> None:
+    """The New file dialog answered: its name typed (its folder too), then Create; the dialog goes."""
+    dialog = page.locator(".dialog.new-file")
+    dialog.get_by_label("Name").fill(name)
+    if folder is not None:
+        dialog.get_by_label("Folder", exact=True).fill(str(folder))
+    expect(dialog.locator(".new-file-check")).to_contain_text("Makes")
+    dialog.locator(".new-file-create").click()
+    expect(dialog).to_have_count(0)
+
+
 def choose_path(page: Page, path: Any, folder: bool = False, save: bool = False) -> None:
     """A pick in the page's own file picker (no system dialog opens in a test: the classic fileChooser.ts
     choosePage): the folder typed in its path box and Enter, then the file's row opened, Choose this

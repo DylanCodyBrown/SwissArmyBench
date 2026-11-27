@@ -99,13 +99,15 @@ def project_scaffold(a: dict[str, Any]) -> Any:
 @command(
     "project_outline",
     "The open project's outline as markdown (ARCHITECTURE.md: sources, tables, steps, lineage, "
-    "deliverables, running it, open issues)",
+    "deliverables, running it, open issues). write: one edited by hand is kept and said (edited) until replace",
     opt("write", "true: write ARCHITECTURE.md at the project's top, as Export outline does.", "bool"),
+    opt("replace", "With write: take the new outline over one edited by hand.", "bool"),
 )
 def project_outline(a: dict[str, Any]) -> Any:
     if a.get("write"):
-        done = api.call("POST", "/project/outline", {})
-        return {k: done[k] for k in ("file", "path", "written")} | {"text": done["text"]}
+        done = api.call("POST", "/project/outline", {"replace": bool(a.get("replace"))})
+        said = {k: done[k] for k in ("file", "path", "written", "edited", "said") if k in done}
+        return said | {"text": done["text"]}
     payload, _ = api.fetch_bytes("GET", "/project/outline")
     return payload.decode("utf-8")
 

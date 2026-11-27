@@ -15,7 +15,7 @@ import openpyxl
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.blazor.conftest import call, choose_path, open_page
+from tests.e2e.blazor.conftest import call, choose_path, name_new_file, open_page
 from tests.e2e.blazor.extension_server import extension_server
 
 
@@ -151,7 +151,10 @@ def test_new_excel_workbook_is_a_notebooks_tab(browser: Browser, server: dict[st
     opened(browser, server).close()
     page = open_page(browser, server, "notebooks")
     page.locator(".xc-landing button", has_text="New Excel workbook").click()
-    expect(page.locator(".wb-tab.active")).to_contain_text("Untitled workbook")
+    # Named first, as every new file is: the server makes its design's file, then its tab opens.
+    expect(page.locator(".dialog[aria-label='New Workbook design']")).to_be_visible()
+    name_new_file(page, "made_up_quarter")
+    expect(page.locator(".wb-tab.active")).to_contain_text("made_up_quarter.design.json")
     expect(page.locator(".xc-sheet")).to_have_count(1)
 
     # The palette's Workbook commands act on the workbook tab in front.

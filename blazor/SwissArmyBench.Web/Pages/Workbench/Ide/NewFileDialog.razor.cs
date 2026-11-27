@@ -14,6 +14,7 @@ public partial class NewFileDialog : IDisposable
     private string _name = string.Empty;
     private string _folder = string.Empty;
     private string _connection = string.Empty;
+    private string _variant = string.Empty;
     private string _makes = string.Empty;
     private string? _why;
     private bool _making;
@@ -21,6 +22,17 @@ public partial class NewFileDialog : IDisposable
 
     [Inject]
     private ScriptIdeClient Ide { get; set; } = default!;
+
+    [Inject]
+    private SwissArmyBench.Web.Api.Files.FileChooser Files { get; set; } = default!;
+
+    /// <summary>A project is open: the folder is one inside it. None: a folder of this computer, its whole path.</summary>
+    [Parameter]
+    public bool HasProject { get; set; } = true;
+
+    /// <summary>With no project open: the folder the dialog starts in (where the Workbench saves).</summary>
+    [Parameter]
+    public string StartFolder { get; set; } = string.Empty;
 
     /// <summary>The type picked in the dropdown.</summary>
     [Parameter, EditorRequired]
@@ -44,15 +56,29 @@ public partial class NewFileDialog : IDisposable
     [Parameter]
     public EventCallback<NewFileMade> OnMade { get; set; }
 
-    private bool IsSql => Type.Kind == "sql";
-
-    private NewFileRequest Request => new(Type.Id, _name.Trim(), _folder.Trim(), IsSql && _connection.Length > 0 ? _connection : null);
+    private NewFileRequest Request => new(
+        Type.Id,
+        _name.Trim(),
+        _folder.Trim(),
+        Type.AsksFor("connection") && _connection.Length > 0 ? _connection : null,
+        _variant.Length > 0 ? _variant : null);
 
     protected override async Task OnInitializedAsync()
     {
         _name = Type.Suggested + Type.Ending;
-        _folder = Type.Folder;
+        _folder = HasProject ? Type.Folder : StartFolder;
+        _variant = Type.Variants is { Count: > 0 } variants ? variants[0].Id : string.Empty;
         await CheckAsync(CancellationToken.None);
+    }
+
+    /// <summary>Browse…: the folder picked with the app's file picker (the system's own dialog where it runs).</summary>
+    private async Task BrowseAsync()
+    {
+        if (await Files.ChooseAsync("folder", "Where the new file goes", _folder.Trim().Length > 0 ? _folder.Trim() : null, "new-file") is { } folder)
+        {
+            _folder = folder;
+            await CheckAsync(CancellationToken.None);
+        }
     }
 
     private async Task LaterAsync()
@@ -77,7 +103,7 @@ public partial class NewFileDialog : IDisposable
         try
         {
             var would = await Ide.CheckNewFileAsync(Request, cancel);
-            (_makes, _why) = ($"Makes {would.Relative}", null);
+            (_makes, _why) = ($"Makes {(HasProject ? would.Relative : would.Path)}", null);
         }
         catch (ApiException error)
         {

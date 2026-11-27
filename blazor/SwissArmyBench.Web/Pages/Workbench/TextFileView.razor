@@ -1,35 +1,55 @@
-@* A Markdown or plain text file as a tab of the Scripts page (New file, the owner 2026-11-27): a plain editor, in
-   Markdown for a .md file; nothing runs. Save (Ctrl+S) is the page's. *@
+@* A text document as a tab of the Scripts page (the owner, 2026-11-27: "Our markdown reader and inline editor would
+   be a great addition" / "html, markdown, and renderable code should get a preview toggle"): its source in the
+   editor, its preview beside or instead of it, by the tab's View (the one Preview toggle on its bar: preview, split,
+   source). Markdown is read block by block (Docs/MarkdownReader: a click edits a block in place); an HTML page and
+   an SVG picture are drawn in the HTML cells' walled-off frame (Docs/FramePreview), never in the app's own page; a
+   Mermaid diagram and a Vega or Vega-Lite spec by the app's own renderers. The preview follows typing after a short
+   pause; in Split view it scrolls with the source. Plain text has no preview. Nothing runs. Save (Ctrl+S) is the
+   page's. Logic in TextFileView.razor.cs. *@
+@using SwissArmyBench.Web.Pages.Workbench.Docs
+@implements IAsyncDisposable
 
-<div class="wb-script wb-textfile" data-path="@Path">
-    <div class="wb-script-editor">
-        <CodeEditor Value="@Text" Language="@Language" Label="@(Path is { } named ? FilePaths.Name(named) : "Text file")" OnChange="t => OnTextChanged.InvokeAsync(t)" OnKey="KeyAsync" />
+<div class="wb-script wb-textfile view-@Shown preview-@(Kind?.Preview is { Length: > 0 } drawn ? drawn : "none")" data-path="@Path" data-view="@Shown">
+    <div class="wb-text-panes">
+        @if (Shown != TextFiles.Preview)
+        {
+            <div class="wb-script-editor wb-text-source" @ref="_source">
+                <CodeEditor Value="@Text" Language="@(Kind?.Language ?? "plaintext")" Label="@(Path is { } named ? FilePaths.Name(named) : "Text file")" OnChange="TypedAsync" OnKey="KeyAsync" />
+            </div>
+        }
+        @if (Shown != TextFiles.Source && Kind is { HasPreview: true } kind)
+        {
+            <div class="wb-text-preview" @ref="_preview" aria-label="Preview">
+                @if (Note is { } note)
+                {
+                    <p class="hint wb-preview-note" role="note">@note</p>
+                }
+                @switch (kind.Preview)
+                {
+                    case "markdown":
+                        <MarkdownReader @ref="_reader" Text="@_drawn" Path="@Path" Editable="@(Shown == TextFiles.Preview)" Label="@(Path is { } file ? FilePaths.Name(file) : "Markdown")" OnEdited="EditedAsync" OnOpenFile="OnOpenFile" />
+                        break;
+                    case "html":
+                        <FramePreview Html="@_drawn" />
+                        break;
+                    case "svg":
+                        <FramePreview Html="@PictureFrame.Of(_drawn, Dark)" />
+                        break;
+                    case "mermaid":
+                        <DiagramPreview @ref="_diagram" Text="@_drawn" OnProblem="DiagramProblemAsync" />
+                        break;
+                    default:
+                        @if (SpecProblem is { } wrong)
+                        {
+                            <p class="wb-preview-error" role="alert">@wrong</p>
+                        }
+                        else
+                        {
+                            <VegaChart Spec="@_drawn" Label="Chart" Large="true" />
+                        }
+                        break;
+                }
+            </div>
+        }
     </div>
 </div>
-
-@code {
-    /// <summary>The file's text as the page knows it.</summary>
-    [Parameter, EditorRequired]
-    public string Text { get; set; } = string.Empty;
-
-    [Parameter]
-    public string? Path { get; set; }
-
-    [Parameter]
-    public EventCallback<string> OnTextChanged { get; set; }
-
-    /// <summary>A key the page acts on (save).</summary>
-    [Parameter]
-    public EventCallback<string> OnPageKey { get; set; }
-
-    private string Language => Path is { } path && path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? "markdown" : "plaintext";
-
-    private async Task KeyAsync(EditorKey key)
-    {
-        await OnTextChanged.InvokeAsync(key.Text);
-        if (key.Name is "save" or "saveAs")
-        {
-            await OnPageKey.InvokeAsync(key.Name);
-        }
-    }
-}

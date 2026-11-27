@@ -66,7 +66,8 @@ MAX_TABLES: int = 200
 PACKED_SUFFIXES: frozenset[str] = frozenset(
     {
         ".ipynb", ".py", ".md", ".txt", ".toml", ".cfg", ".ini", ".yaml", ".yml", ".css", ".js",
-        ".html", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".tang", ".sql",
+        ".html", ".htm", ".mmd", ".mermaid", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+        ".tang", ".sql",
     }
 )  # fmt: skip
 # Folders that are never the project's own: environments, caches, version control.

@@ -1,5 +1,20 @@
 # What's new in Swiss Army Bench
 
+## 0.0.41 · 2026-11-27 18:05 UTC
+
+### New features
+- Every new file is named first; no untitled tabs
+- New file with no project open: pick a folder
+- New file types follow the project's type
+- Markdown reader: click a block to edit it
+- Preview toggle: Read or Preview, Split, Source
+- HTML page preview in a walled-off frame
+- Mermaid diagrams: UML starters, SVG and PNG
+- Docs group, README and decision record starters
+
+### Bug fixes
+- Fixed: a hand-edited ARCHITECTURE.md was replaced
+
 ## 0.0.40 · 2026-11-26 20:37 UTC
 
 ### New features

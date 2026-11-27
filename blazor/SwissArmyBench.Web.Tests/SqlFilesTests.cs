@@ -49,12 +49,11 @@ public sealed class SqlFilesTests : AppTestContext
     public void A_sql_file_is_its_own_kind_of_document()
     {
         var saved = new OpenDocument(1, false) { Path = "/made/up/q.sql" };
-        var fresh = new OpenDocument(2, false) { NewSql = true };
         Assert.True(saved.IsSql);
         Assert.False(saved.IsCode); // no Python session
         Assert.Equal("SQL file", saved.KindLabel);
-        Assert.Equal("Untitled SQL file", fresh.Title);
-        Assert.True(fresh.CanRename);
+        Assert.Equal("q.sql", saved.Title); // every document is a named file: there is no untitled one
+        Assert.True(saved.CanRename);
     }
 
     [Fact]

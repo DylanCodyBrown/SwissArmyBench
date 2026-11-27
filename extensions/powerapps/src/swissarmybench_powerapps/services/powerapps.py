@@ -493,6 +493,19 @@ class PowerApps:
             "registry": pages.REGISTRY,
         }
 
+    def page_place(self, name: Any) -> str:
+        """Where New page would put a page's file (New file's check): nothing written; a taken or bad name
+        refused as New page refuses it."""
+        folder = self._open_folder()
+        try:
+            names = pages.names_of(name)
+        except pages.PageError as error:
+            raise ValueError(str(error)) from None
+        page_folder = f"{pages.PAGES}/{names['folder']}"
+        if any(p.startswith(page_folder + "/") for p in self._files.listing(folder)):
+            raise Conflict(f"{page_folder} is there already: choose another name.")
+        return f"{page_folder}/{names['component']}.tsx"
+
     async def new_page(self, body: Any, who: str) -> dict[str, Any]:
         """New page: its folder (page, components, hooks, state, types, index) and its line in src/pages.ts;
         its hook reads a data source's generated service when one is named."""

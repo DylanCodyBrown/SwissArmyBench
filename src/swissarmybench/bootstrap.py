@@ -13,7 +13,6 @@ import asyncio
 import os
 import platform
 import sys
-import sysconfig
 import tempfile
 import time
 from collections.abc import Callable
@@ -63,7 +62,7 @@ from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSett
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
 from swissarmybench.adapters.scaffold import ScaffoldFiles
-from swissarmybench.adapters.script_ide import ScriptCode
+from swissarmybench.adapters.script_ide import ScriptCode, python_roots
 from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
     AuditLog,
@@ -1692,13 +1691,7 @@ def _editors_and_claude(b: Built) -> None:
         ),
         tables=b.table_cells.listing,
         trash=file_manager.trash,  # Delete: the system's trash, the user's own
-        library_roots=lambda: tuple(  # Python's own folders: a library's source, read-only
-            dict.fromkeys(
-                p
-                for k in ("stdlib", "platstdlib", "purelib", "platlib")
-                if (p := sysconfig.get_paths().get(k))
-            )
-        ),
+        library_roots=python_roots,  # Python's own folders: a library's source, read-only
     )
     b.blades.lint = b.intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     b.modes = Modes(
@@ -1709,6 +1702,10 @@ def _editors_and_claude(b: Built) -> None:
         sab_projects.setting,
         sab_projects.set_setting,
     )
+    # New file's types the open project's type adds, each made by its extension's own "new" path.
+    b.script_ide.extra_types = lambda: b.modes.active()["mode"].get("new_files") or []
+    b.script_ide.makers = b.hooks.new_file_makers
+    b.script_ide.home = (str(b.settings.workbench_dir), b.documents.made_default_folder)
     b.context_md = context_md = ContextMd(
         ws,
         b.claude_files,

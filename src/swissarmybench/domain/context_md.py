@@ -248,8 +248,9 @@ class VariableFacts:
 
 @dataclass(frozen=True)
 class DocumentFacts:
-    kind: str  # notebook, script, app
+    kind: str  # notebook, script, app; doc: a documentation file (Markdown, HTML, a diagram)
     path: str  # in the project's folder
+    title: str = ""  # a doc's title (its first heading): never its text
 
 
 @dataclass(frozen=True)
@@ -438,10 +439,26 @@ def _variables(s: State, trims: set[str]) -> list[str]:
 def _documents(s: State, trims: set[str]) -> list[str]:
     if not s.documents:
         return ["None." if s.project else "No project is open (`project_new`, `project_open`)."]
+    code_files = [d for d in s.documents if d.kind != "doc"]
     out = [
-        f"- {code(d.path)}: {d.kind}" for d in sorted(s.documents, key=lambda d: (d.kind, d.path.casefold()))
+        f"- {code(d.path)}: {d.kind}" for d in sorted(code_files, key=lambda d: (d.kind, d.path.casefold()))
     ]
-    return _cut(out, "lists" in trims, "`project_documents`")
+    out = _cut(out, "lists" in trims, "`project_documents`") if out else []
+    # The project's documentation, by path and title only (in the order given: README.md first): the agent
+    # opens the ones it needs (`workbench_open`), their text is never here.
+    docs = [
+        f"- {code(d.path)}: doc" + (f", {code(d.title)}" if d.title else "")
+        for d in s.documents
+        if d.kind == "doc"
+    ]
+    if docs:
+        out += [
+            "",
+            "Documentation (path and title only; read one with `workbench_open`, edit a Markdown block with "
+            "`workbench_file` blocks and edit_block):",
+            *_cut(docs, "lists" in trims, "`project_documents`"),
+        ]
+    return out or ["None."]
 
 
 def _windows(s: State) -> list[str]:

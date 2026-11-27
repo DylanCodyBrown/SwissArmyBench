@@ -76,8 +76,9 @@ STEP: dict[str, Any] = {
     "directions": NAMES,
 }
 
+# A tab's document; `view`: a text document's view (preview, split or source: its tab's Preview toggle);
 # `comments`: how many annotations wait on it (the count only, never an annotation's words).
-DOCUMENT: dict[str, Any] = {"title": NAME, "path": NAME, "kind": NAME, "dirty": FLAG, "comments": COUNT}
+DOCUMENT: dict[str, Any] = {"title": NAME, "path": NAME, "kind": NAME, "dirty": FLAG, "view": NAME, "comments": COUNT}
 
 # The page-specific parts, by name: each a page's own hook (blazor: ScreenState.Show).
 PARTS: dict[str, dict[str, Any]] = {
@@ -405,7 +406,8 @@ def shows(state: dict[str, Any]) -> str:
     tab = state.get("tab", {})
     if tab.get("path") or tab.get("title"):
         dirty = " (unsaved)" if tab.get("dirty") else ""
-        said.append(f"{tab.get('kind') or 'document'} {tab.get('path') or tab.get('title')}{dirty}")
+        view = f", {tab['view']} view" if tab.get("view") else ""
+        said.append(f"{tab.get('kind') or 'document'} {tab.get('path') or tab.get('title')}{dirty}{view}")
         if tab.get("comments"):
             said.append(f"{tab['comments']} annotation{'s' if tab['comments'] != 1 else ''} waiting")
     if "cursor" in state:

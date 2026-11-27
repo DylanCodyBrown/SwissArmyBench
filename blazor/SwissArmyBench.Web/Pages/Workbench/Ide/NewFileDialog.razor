@@ -1,25 +1,52 @@
 @* New file (the owner, 2026-11-27: "a drop down combo that asks what file type you wanna create ... then scaffolds it
-   for you"): the type picked in the dropdown, its name with the ending filled in and checked as typing settles, the
-   folder inside the open project and, for a SQL file, where it runs; Create (Enter too) writes its starter
-   (domain/new_files.py) and hands the new file back to the page. Logic in NewFileDialog.razor.cs. *@
+   for you"; "Everything should get a name or the file is not created"): the ONE dialog every way to make a file
+   opens. Its type (picked in a list, or preset by where it was asked from), its name with the ending filled in and
+   checked as typing settles, where it goes (a folder inside the open project; with no project open a folder of
+   this computer, picked with Browse…), a SQL file's connection, a diagram's kind. Create (Enter too) has the server
+   write its starter (domain/new_files.py) and hands the new file back to the page; Cancel makes nothing. What it
+   asks is the type's own data (Asks, Variants): no type is named here. Logic in NewFileDialog.razor.cs. *@
 @using SwissArmyBench.Web.Api.Workbench
 
 <AppDialog Title="@($"New {Type.Label}")" Class="new-file" OnClose="OnClose">
     <ChildContent>
         <p class="hint new-file-words">@Type.Words</p>
+        @if (Type.Variants is { Count: > 0 } variants)
+        {
+            <label class="field"><span>Kind</span>
+                <select class="new-file-variant" aria-label="Kind" @bind="_variant">
+                    @foreach (var variant in variants)
+                    {
+                        <option value="@variant.Id">@variant.Label</option>
+                    }
+                </select>
+            </label>
+        }
         <label class="field"><span>Name</span>
             <input type="text" class="new-file-name" aria-label="Name" spellcheck="false" autocomplete="off" data-no-variables @bind="_name" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
         </label>
-        <label class="field"><span>Folder in @(ProjectName.Length > 0 ? ProjectName : "the project")</span>
-            <input type="text" class="new-file-folder" aria-label="Folder" list="new-file-folders" placeholder="The project's top" spellcheck="false" autocomplete="off" data-no-variables @bind="_folder" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
-            <datalist id="new-file-folders">
-                @foreach (var folder in Folders.Where(f => f.Length > 0))
-                {
-                    <option value="@folder"></option>
-                }
-            </datalist>
-        </label>
-        @if (IsSql)
+        @if (!HasProject)
+        {
+            <label class="field"><span>Folder on this computer</span>
+                <span class="form-row new-file-place">
+                    <input type="text" class="new-file-folder" aria-label="Folder" placeholder="The folder's whole path" spellcheck="false" autocomplete="off" data-no-variables @bind="_folder" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
+                    <button type="button" class="btn small new-file-browse" @onclick="BrowseAsync"><Icon Name="folder" /> Browse…</button>
+                </span>
+            </label>
+            <p class="hint new-file-loose">No project is open: the file is written in this folder.</p>
+        }
+        else if (Type.AsksFor("folder"))
+        {
+            <label class="field"><span>Folder in @(ProjectName.Length > 0 ? ProjectName : "the project")</span>
+                <input type="text" class="new-file-folder" aria-label="Folder" list="new-file-folders" placeholder="The project's top" spellcheck="false" autocomplete="off" data-no-variables @bind="_folder" @bind:event="oninput" @bind:after="LaterAsync" @onkeydown="KeyAsync" />
+                <datalist id="new-file-folders">
+                    @foreach (var folder in Folders.Where(f => f.Length > 0))
+                    {
+                        <option value="@folder"></option>
+                    }
+                </datalist>
+            </label>
+        }
+        @if (Type.AsksFor("connection"))
         {
             <label class="field"><span>Query from</span>
                 <select class="new-file-connection" aria-label="Query from" @bind="_connection">
@@ -39,7 +66,7 @@
         <div class="table-name-check new-file-check @(_why is null ? "ok" : "error")" role="status" aria-live="polite">@(_why ?? _makes)</div>
     </ChildContent>
     <Foot>
-        <button type="button" class="btn ghost" @onclick="OnClose">Cancel</button>
+        <button type="button" class="btn ghost new-file-cancel" @onclick="OnClose">Cancel</button>
         <button type="button" class="btn primary new-file-create" disabled="@_making" @onclick="CreateAsync">@(_making ? "Creating…" : "Create")</button>
     </Foot>
 </AppDialog>

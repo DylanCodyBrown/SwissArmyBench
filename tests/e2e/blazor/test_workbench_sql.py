@@ -13,7 +13,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.blazor.conftest import call, choose_path, open_page
+from tests.e2e.blazor.conftest import call, name_new_file, open_page
 
 
 def folder_of(server: dict[str, Any]) -> Path:
@@ -35,15 +35,14 @@ def test_the_plus_opens_a_sql_file_whose_run_lands_on_the_tables_page(
     call(server, "POST", "/samples/store", {})
     page = open_page(browser, server, "tables")
     page.click("a.new-tab[aria-label='New query']")
-    expect(page).to_have_url(re.compile(r"/blazor/scripts\?new=sql"))
-    expect(page.locator(".wb-tab.active .tab-label")).to_have_text("Untitled SQL file")
-    expect(page.get_by_label("Query from")).to_have_value("")  # Open tables (DuckDB)
-
-    # Rename… on an untitled tab: Save as, its name first.
-    page.locator(".wb-tab.active").click(button="right")
-    page.click(".context-menu [role=menuitem]:has-text('Rename…')")
-    choose_path(page, folder_of(server) / "made_up_big_orders", save=True)
+    # The "+" asks the new SQL file's name on the Scripts page (the one New file dialog): no untitled tab.
+    expect(page).to_have_url(re.compile(r"/blazor/scripts"))
+    dialog = page.locator(".dialog[aria-label='New SQL file']")
+    expect(dialog.get_by_label("Query from")).to_have_value("")  # Open tables (DuckDB)
+    expect(page.locator(".wb-tab")).to_have_count(0)  # nothing is made until it is named
+    name_new_file(page, "made_up_big_orders", folder_of(server))
     expect(page.locator(".wb-tab.active .tab-label")).to_have_text("made_up_big_orders.sql")
+    expect(page.get_by_label("Query from")).to_have_value("")
 
     type_sql(page, "SELECT * FROM orders WHERE amount > 100")
     page.keyboard.press("Control+S")

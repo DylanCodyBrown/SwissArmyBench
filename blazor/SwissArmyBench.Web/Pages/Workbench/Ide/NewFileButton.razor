@@ -1,12 +1,14 @@
-@* The top bar's New button. On the Scripts page it is the New file dropdown (the owner, 2026-11-27: "turn the + new
-   script on the scripts into a drop down combo that asks what file type you wanna create"): the list of file types
-   opens under it, a pick is handed to the page, and the page asks its name and folder through Ask (the New file
-   dialog drawn here; the tab strip's "+" asks the same way). With Plain (the Notebooks page) it is one button. *@
+@* The top bar's New button and the ONE New file dialog (the owner, 2026-11-27: "turn the + new script on the scripts
+   into a drop down combo that asks what file type you wanna create"; "Everything should get a name or the file is
+   not created"). With several types it is the New file dropdown: the list opens under it and a pick is handed to
+   the page; with one (the Notebooks page's) it is one plain button. Either way the page asks through Ask: the
+   dialog is drawn here, and every other way to make a file (the tab strip's "+", the landing page, the Files
+   pane, the palette, an address) asks the same way. *@
 @using SwissArmyBench.Web.Api.Workbench
 
-@if (Plain is { } plain)
+@if (Types.Count == 1)
 {
-    <button type="button" class="btn small wb-top-new" @onclick="OnPlain"><Icon Name="plus" /> @plain</button>
+    <button type="button" class="btn small wb-top-new" title="@($"A new {Types[0].Label}: its name first")" @onclick="() => PickAsync(Types[0])"><Icon Name="plus" /> New @Types[0].Label.ToLowerInvariant()</button>
 }
 else
 {
@@ -14,11 +16,11 @@ else
 }
 @if (_at is { } at)
 {
-    <ContextMenu Title="New file" Entries="NewFileMenus.Entries(Types, HasProject, PickAsync)" X="at.X" Y="at.Y" OnClose="() => _at = null" />
+    <ContextMenu Title="New file" Entries="NewFileMenus.Entries(Types, PickAsync)" X="at.X" Y="at.Y" OnClose="() => _at = null" />
 }
 @if (_asked is { } asked)
 {
-    <NewFileDialog @key="asked.Id" Type="asked" Folders="Folders" Connections="Connections" ProjectName="@ProjectName" OnClose="() => _asked = null" OnMade="MadeAsync" />
+    <NewFileDialog @key="asked.Id" Type="asked" HasProject="HasProject" StartFolder="@StartFolder" Folders="Folders" Connections="Connections" ProjectName="@ProjectName" OnClose="() => _asked = null" OnMade="MadeAsync" />
 }
 
 @code {
@@ -28,20 +30,17 @@ else
     private (double X, double Y)? _at;
     private NewFileType? _asked;
 
-    /// <summary>One plain button with these words (New notebook) instead of the dropdown.</summary>
-    [Parameter]
-    public string? Plain { get; set; }
-
-    [Parameter]
-    public EventCallback OnPlain { get; set; }
-
-    /// <summary>The file types, in the list's order.</summary>
+    /// <summary>The file types this button offers, in the list's order.</summary>
     [Parameter]
     public IReadOnlyList<NewFileType> Types { get; set; } = [];
 
-    /// <summary>A project is open: every type can be made in it.</summary>
+    /// <summary>A project is open: a new file goes in a folder of it. None: in a folder of this computer.</summary>
     [Parameter]
     public bool HasProject { get; set; }
+
+    /// <summary>With no project open: the folder the dialog starts in.</summary>
+    [Parameter]
+    public string StartFolder { get; set; } = string.Empty;
 
     /// <summary>The open project's folders and name, and the connections that run SQL: the dialog's.</summary>
     [Parameter]
@@ -60,11 +59,27 @@ else
     [Parameter]
     public EventCallback<NewFileMade> OnMade { get; set; }
 
-    /// <summary>The New file dialog for this type (the page's answer to a pick while a project is open).</summary>
+    /// <summary>The New file dialog for this type (the page's answer to every way a file is asked for).</summary>
     public void Ask(NewFileType type)
     {
         _asked = type;
         StateHasChanged();
+    }
+
+    // Where the list opens when it is asked for by a key or the palette: under the top bar.
+    private const double ListX = 240;
+    private const double ListY = 84;
+
+    /// <summary>The list of types opened without a click (the palette's New file…); one type: its dialog.</summary>
+    public Task OpenList()
+    {
+        if (Types.Count == 1)
+        {
+            return PickAsync(Types[0]);
+        }
+        _at = (ListX, ListY);
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private void Open(MouseEventArgs e) => _at = (e.ClientX, e.ClientY + Below);

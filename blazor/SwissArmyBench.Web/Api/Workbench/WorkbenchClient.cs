@@ -94,6 +94,25 @@ public sealed class WorkbenchClient
     public Task RestartAsync(string kernel) => _api.PostAsync($"/workbench/kernels/{ApiClient.Part(kernel)}/restart");
 
     /// <summary>An HTML cell's design: its names filled from its run's values (each as the kernel gave it).</summary>
+    /// <summary>A Markdown text's blocks (nothing written: the page's own text).</summary>
+    public Task<MarkdownAnswer> MarkdownAsync(string text, CancellationToken cancel = default) =>
+        _api.PostAsync<MarkdownAnswer>("/workbench/markdown", new { text }, cancel);
+
+    /// <summary>One block's text replaced: only its characters change (the file's line ends kept).</summary>
+    public Task<MarkdownAnswer> EditBlockAsync(string text, int block, string to) =>
+        _api.PostAsync<MarkdownAnswer>("/workbench/markdown", new { text, block, to });
+
+    /// <summary>A block's task box ticked or cleared: one character changes.</summary>
+    public Task<MarkdownAnswer> TickAsync(string text, int block, int task) =>
+        _api.PostAsync<MarkdownAnswer>("/workbench/markdown", new { text, block, task });
+
+    /// <summary>A picture beside a document, for its preview (pictures only; the page's cookie reads it).</summary>
+    public static string PictureAddress(string path) => $"/workbench/picture?path={Uri.EscapeDataString(path)}";
+
+    /// <summary>A diagram's drawn picture saved beside its file (svg: its text; png: base64).</summary>
+    public Task<SavedPicture> ExportPictureAsync(string path, string format, string data) =>
+        _api.PostAsync<SavedPicture>("/workbench/export-picture", new { path, format, data });
+
     public Task<FilledHtml> FillHtmlAsync(string html, JsonElement values) => _api.PostAsync<FilledHtml>("/workbench/html/fill", new { html, values });
 
     /// <summary>A notebook's run order and Outline, from its cells as they are on screen.</summary>

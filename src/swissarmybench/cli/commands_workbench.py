@@ -126,28 +126,53 @@ def workbench_debug(a: dict[str, Any]) -> Any:
     return api.call("POST", routes[act], body)
 
 
+def _scripts_window(command_id: str, path: Any) -> Any:
+    """A command of the Scripts page's window on a file's tab (its tab brought forward first)."""
+    body = {"command": command_id, "args": {"path": path} if path else {}, "page": "scripts"}
+    return api.call("POST", "/workbench/window", body)["result"]
+
+
 @command(
     "workbench_file",
-    "Project files: new (a file of a type with its starter: python, sql, json, yaml, toml, xml, markdown, "
-    "text, notebook; a taken name refused; types: the types and the project's folders); modules: move "
-    "(rename, imports follow; a plan until apply), package, duplicate; rename: a notebook, a .sql file or a "
-    "loose script renamed in its folder (a tab's Rename…)",
-    req("action", "new, types, move, package, duplicate or rename."),
-    opt(
-        "path", "The module (package: its parent; new: the folder inside the project); rename: the document."
-    ),
-    opt("to", "The new name (new: the file's name, its ending filled in)."),
+    "Files. new: a named file with its type's starter (types: the list, by the project's type; no project: "
+    "path is a whole folder). blocks, edit_block: a Markdown file's blocks, one replaced, added or its task "
+    "ticked. view, export: a Scripts tab's preview, split or source; its diagram saved as svg or png. "
+    "Modules: move (a plan until apply), package, duplicate. rename: in its folder",
+    req("action", "new, types, blocks, edit_block, view, export, move, package, duplicate or rename."),
+    opt("path", "The file (new: its folder; package: its parent)."),
+    opt("to", "The new name; edit_block: the block's text; view: preview, split or source."),
     opt("apply", "move: do it.", "bool"),
-    opt("type", "new: python (the default), sql, json, yaml, toml, xml, markdown, text or notebook."),
-    opt("connection", "new, a sql file: where it runs (none: DuckDB over the open tables)."),
+    opt("type", "new: a type's id (default python)."),
+    opt("connection", "new sql: where it runs (none: DuckDB)."),
+    opt("variant", "new diagram: flowchart, class, sequence, state, er, gantt."),
+    opt("block", "edit_block: the block's index.", "int"),
+    opt("task", "edit_block: tick this task box (from 0).", "int"),
+    opt("done", "With task: ticked or cleared (none: switched).", "bool"),
+    opt("after", "edit_block: add `to` after the block (-1: top).", "bool"),
+    opt("format", "export: svg or png."),
 )
 def workbench_file(a: dict[str, Any]) -> Any:
     act = a["action"]
     if act == "types":
         return api.call("GET", "/scripts/files/new")
     if act == "new":
+        if not str(a.get("to") or "").strip():
+            return {"error": "Give the file a name (to): a new file is made only once it is named."}
         body = {"type": a.get("type"), "name": a.get("to"), "folder": a.get("path")}
-        return api.call("POST", "/scripts/files/new", body | {"connection": a.get("connection")})
+        more = {k: a[k] for k in ("variant",) if a.get(k)}
+        return api.call("POST", "/scripts/files/new", body | {"connection": a.get("connection")} | more)
+    if act == "blocks":
+        found = api.call("POST", "/workbench/markdown", {"path": a.get("path")})
+        return {"title": found["title"], "blocks": found["blocks"]}
+    if act == "edit_block":
+        keys = ("path", "block", "to", "task", "done", "after")
+        done = api.call("POST", "/workbench/markdown", {k: a[k] for k in keys if a.get(k) is not None})
+        return {k: done[k] for k in ("changed", "written", "blocks")}
+    if act == "view":
+        return _scripts_window("view." + str(a.get("to") or "preview"), a.get("path"))
+    if act == "export":
+        name = "preview.savePng" if a.get("format") == "png" else "preview.saveSvg"
+        return _scripts_window(name, a.get("path"))
     if act == "rename":
         return api.call("POST", "/workbench/rename", {"path": a.get("path"), "to": a.get("to")})
     if act == "package":
@@ -155,7 +180,11 @@ def workbench_file(a: dict[str, Any]) -> Any:
     body = {"path": a.get("path"), "to": a.get("to"), "apply": bool(a.get("apply"))}
     if act == "move":
         return api.call("POST", "/scripts/files/move", body)
-    return api.call("POST", "/scripts/files/duplicate", body)
+    if act == "duplicate":
+        return api.call("POST", "/scripts/files/duplicate", body)
+    return {
+        "error": "action: new, types, blocks, edit_block, view, export, move, package, duplicate or rename."
+    }
 
 
 @command(
