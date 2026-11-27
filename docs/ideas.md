@@ -9577,3 +9577,38 @@ The owner: "At full screen mode for the canvas" (read as "Add a full screen mode
   the sample store's tables; the words "the Data page" remain in the agent's command descriptions and the guide (the
   pages say Catalog); a connection card's amber sentence as a short badge is a mock-up only (the owner's rule puts
   the sentence on the card).
+
+## The screen state, 2026-11-27 (decisions and open notes)
+
+The owner: "what if the app always get a version of what is rendered on screen available to the agent at all times
+... Instead of a snapshot it's literally just feeding the state back to the agent." Then: "It shouldn't send the
+screen every turn that will kill context. it should just be accessible when needed."
+
+Decisions:
+- **Read on demand, never pushed.** `app_screen` and the resource swissarmybench://screen answer from the server's
+  memory; nothing of it is in the prompt hook, context.md or any notice. One pointer line in the index and a
+  paragraph in the guide's `grids` topic and `privacy`.
+- **Over the live socket, not a POST.** A window's report is a `{"type":"screen","state":{...}}` line on the socket
+  it already holds, so the server knows whose it is and drops it the moment that socket closes; there is no route
+  to report by (POST /screen is 405), and the agent's own event socket and VS Code's opener are no windows.
+- **Names only, by the shape.** domain/screen.py reads a report into one declared shape: a key it does not know or
+  a wrong type is dropped. A step says its kind and its columns ("Keep rows where region is a value (not shown)"):
+  the Tables page's own step words carry the value typed or picked from a cell, so they are not used here.
+- **An error's and a notice's sentence are kept** (the brief asked for the text): the refusal's one sentence and a
+  failed run's error type, never its Details nor a traceback. A server's sentence can quote a name the user typed.
+- **Who reads what.** The window itself (interop/screen.js) reads what every page says the same way and what only
+  the page's layout knows (the cells on screen, the Settings section in view); a page's own hook (ScreenState.Show)
+  gives what only its model knows (the table in front, the tab's document, the Canvas, Analyze's form). The
+  Connections page's view and Home's are read from the address by the server, so those pages were not touched.
+- **Window ids** are the server's (w1, w2, in the order the sockets connected); `focused` and a kind (tables,
+  scripts) name a window too.
+
+Open notes:
+- The owner's to decide: a `screen_changed` event for `agent_events` (off today: nothing is pushed), and whether
+  a filter's typed value may be said (today never).
+- Not reported yet (their pages say only the shared part: address, title, dialogs, errors): the ERD's selection,
+  the Catalog's tree, the Environment's tab and row, the Session page, the APIs page, the Widgets window's widget,
+  the extensions' pages. Each is one Show in its page.
+- A window in the background of a browser is throttled by the browser (its look runs about once a second); the
+  desktop app's windows are not.
+

@@ -40,6 +40,24 @@ public sealed class LiveUpdates : IAsyncDisposable
         _socket = await _js.InvokeAsync<IJSObjectReference>("sab.live", _self, "workspace=1");
     }
 
+    /// <summary>A line this window sends the server over its socket (what it shows: Layout/ScreenReporter). False
+    /// while the socket is shut: the sender sends again once it opens.</summary>
+    public async Task<bool> SendAsync(string text)
+    {
+        if (_socket is null || !Connected)
+        {
+            return false;
+        }
+        try
+        {
+            return await _socket.InvokeAsync<bool>("send", text);
+        }
+        catch (JSException)
+        {
+            return false;
+        }
+    }
+
     [JSInvokable]
     public void Notice(string text)
     {

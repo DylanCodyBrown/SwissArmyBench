@@ -67,6 +67,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
   routes_snapshots.py      a PNG of the page the user sees, drawn by the page, for an agent
+  routes_screen.py         what each window shows, as text, kept in memory for the agent to read
 plus here: the WebSocket for live updates and the front end's files (the Blazor front end, at /blazor/).
 
 All DuckDB work runs on the priority worker pool (adapters/database.py), never on the event loop.
@@ -146,6 +147,7 @@ from swissarmybench.server import (
     routes_sab_projects,
     routes_sandbox,
     routes_scaffold,
+    routes_screen,
     routes_script_export,
     routes_script_ide,
     routes_script_runs,
@@ -310,14 +312,24 @@ def create_app(
             # The agent's event socket is not a window of the app (the server's life counts windows).
             page=websocket.query_params.get("agent") != "1",
         )
+        # One of the app's own windows (never VS Code's opener nor the agent's event socket): what it shows is
+        # kept from its reports (services/screen.py) and dropped as it closes.
+        window = not any(websocket.query_params.get(k) == "1" for k in ("agent", "opener"))
+        if window:
+            ctx.screen.opened(websocket)
         try:
             while True:
-                # The only message a client sends: a VS Code or Workbench window saying it came to the front.
-                if await websocket.receive_text() == '{"type":"focus"}':
+                # What a client sends: a VS Code or Workbench window saying it came to the front, and a
+                # window's report of what it shows.
+                text = await websocket.receive_text()
+                if text == '{"type":"focus"}':
                     ctx.live.focus(websocket)
+                elif window:
+                    ctx.screen.heard(websocket, text)
         except WebSocketDisconnect:
             pass
         finally:
+            ctx.screen.closed(websocket)
             ctx.live.discard(websocket)
 
     async def catalog_page(request: Request) -> Response:
@@ -490,6 +502,7 @@ def create_app(
                 *routes_tieout.routes(ctx.tie_out),
                 *routes_processes.routes(ctx.sessions),
                 *routes_snapshots.routes(ctx.snapshots),
+                *routes_screen.routes(ctx.screen),
                 WebSocketRoute("/ws", live),
                 # The bare address goes to the app's page; the browser keeps the #token fragment across it.
                 Route("/", lambda request: RedirectResponse(navigation_rules.HOME, status_code=307)),

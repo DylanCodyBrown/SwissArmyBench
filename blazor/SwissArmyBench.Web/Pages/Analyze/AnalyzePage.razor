@@ -53,7 +53,7 @@
             }
             else if (_analysis is { } analysis && _toolbar is { } toolbar)
             {
-                <AnalyzeForm Analysis="@analysis" Table="@(TableParameter ?? toolbar.Current ?? toolbar.Tables.FirstOrDefault()?.Grid)" Again="_again" Tables="toolbar.Tables" OnRan="RanAsync" />
+                <AnalyzeForm @ref="_form" Analysis="@analysis" Table="@(TableParameter ?? toolbar.Current ?? toolbar.Tables.FirstOrDefault()?.Grid)" Again="_again" Tables="toolbar.Tables" OnRan="RanAsync" />
             }
             else if (_toolbar is { Tables.Count: 0 })
             {

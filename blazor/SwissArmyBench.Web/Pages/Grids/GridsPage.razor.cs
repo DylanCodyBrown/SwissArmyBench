@@ -113,6 +113,7 @@ public partial class GridsPage : IDisposable
     {
         Live.NoticeArrived += OnNotice;
         OfferCommands();
+        Screen.Show(this, ScreenPart);
         var kept = await Js.InvokeAsync<string?>("sab.recall", OrderKey);
         _profilesOn = await Js.InvokeAsync<string?>("sab.recall", ProfilesKey) == "1";
         _order = kept is { Length: > 0 } ? kept.Split(',', StringSplitOptions.RemoveEmptyEntries) : [];
@@ -278,6 +279,7 @@ public partial class GridsPage : IDisposable
         Status.Set(null);
         Status.SetRows(null);
         OnPage.Clear();
+        Screen.Hide(this);
         _scrollLock?.InvokeVoidAsync("release");
         _drop?.Dispose();
         _pasteListener?.InvokeVoidAsync("stop");

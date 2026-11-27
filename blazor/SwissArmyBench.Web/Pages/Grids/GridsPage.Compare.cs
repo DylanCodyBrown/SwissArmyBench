@@ -51,6 +51,7 @@ public partial class GridsPage
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        Screen.Touch();
         // The two aligned grids are locked together once both are drawn (a render or two after the split).
         if (_lockWanted && _scrollLock is null && SplitPair is { } pair && Panes.TryGetValue(pair.Left.Grid, out var left) && Panes.TryGetValue(pair.Right.Grid, out var right)
             && left.Grid is { } a && right.Grid is { } b)

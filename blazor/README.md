@@ -60,6 +60,7 @@ blazor/
   publish.py                 the build (interop bundles, then dotnet publish)
   interop/                   one plain JavaScript file per widget, bundled by build.mjs (esbuild, web's packages)
     shell.js                 the session, the theme, storage, the clipboard, the live-updates socket
+    screen.js                what this window shows, read for the agent's app_screen (Layout/ScreenReporter)
     canvas.js                the Canvas's pointer capture, keys (F11 and Escape for full screen too), zoom and windows;
                              the Widgets window's keys
     files.js                 a file saved from an answer's bytes (Export to Power BI's zip, a built workbook)
@@ -107,6 +108,19 @@ blazor/
                              place as this app's address; Back and Forward the browser's own), the "snapshot_request"
                              notice has the page in front draw the area asked for and send the PNG itself
                              (interop/snapshot.js, html-to-image)
+    Layout/ScreenReporter    what this window shows, told to the server for the agent's app_screen (the owner,
+                             2026-11-27), in MainLayout and WindowLayout; nothing drawn. Three parts: State/ScreenState
+                             (a page's hook: Show(this, reader) once, its reader giving its own keys of the server's
+                             shape, domain/screen.py, names only; Touch() as it draws: as cheap as raising an event;
+                             Hide(this) as it leaves: the Tables page's table, the Workbench's tab and panes, the
+                             Canvas, Analyze); interop/screen.js (what every page says the same way, read from the
+                             window a few times a second and once the hands rest after a click or a key: the address,
+                             size, focus, dialogs, menus, panes, a showing error's or notice's words, the cursor's
+                             line and the problems' count from the editors codeEditor.js lists, a notebook's cells on
+                             screen, the Settings section; it calls C# only when what it read changed); the reporter
+                             (changes gathered for 250 ms, the state put together, sent over the live socket,
+                             LiveUpdates.SendAsync, only when it differs from the last one sent; whole again when the
+                             socket opens again). No value, output or code is ever read: no page slows down for it
     Layout/LibraryNotices    what the library says once (its older stores moved in, an older project's blades taken in,
                              a team library pointed at): taken as the main window opens (POST /library/notices) and
                              heard as it happens (library_notice), each a line in the corner with OK

@@ -30,6 +30,8 @@ password.
 
 ## Seeing and telling
 - You see what the page shows: schemas, profiles, steps and rows (up to 1,048,576 a read).
+- `app_screen` says what each window shows by name (tables, columns, files, titles, line numbers): never
+  a cell's value, an output, code or a secret; it is kept in memory only and never sent to you unasked.
 - `app_snapshot` shows real values and is recorded in the audit log. `app_audit` reads the log (who
   did what, never cell values); Settings shows the user your activity.
 - Keep the data on the machine: open or filter a table for the user rather than pasting rows into the
