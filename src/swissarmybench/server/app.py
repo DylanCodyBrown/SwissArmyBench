@@ -319,9 +319,9 @@ def create_app(
             ctx.screen.opened(websocket)
         try:
             while True:
-                # What a client sends: a VS Code or Workbench window saying it came to the front, a page saying
-                # which window it is now ({"type": "window", "kind": "notebooks"}), and a window's report of what
-                # it shows.
+                # What a client sends: a VS Code or Workbench window saying it came to the front, a page
+                # saying which window it is now ({"type": "window", "kind": "notebooks"}), and a window's
+                # report of what it shows.
                 said = await websocket.receive_text()
                 if said == '{"type":"focus"}':
                     ctx.live.focus(websocket)

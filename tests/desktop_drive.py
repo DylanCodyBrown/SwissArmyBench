@@ -388,7 +388,9 @@ def main(folder: Path, shots: Path | None) -> int:
         # Off the window thread: a new project is saved, and its Save asks the open Scripts window for its
         # unsaved documents first; that window answers only while this thread keeps drawing the app.
         made_box: list[Any] = []
-        threading.Thread(target=lambda: made_box.append(post_json("/project/new", project)), daemon=True).start()
+        threading.Thread(
+            target=lambda: made_box.append(post_json("/project/new", project)), daemon=True
+        ).start()
         made = json.loads(wait(lambda: made_box, 60, "the new project")[0])
         canvas_path = call("GET", "/streamlit/canvases")["canvases"][0]["path"]
         results["canvas_project"] = bool(made)
