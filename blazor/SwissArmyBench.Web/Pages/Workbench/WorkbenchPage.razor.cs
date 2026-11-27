@@ -125,6 +125,7 @@ public partial class WorkbenchPage
         Session.Changed += Redraw;
         Project.Changed += Redraw;
         Palette.SetPageCommands(PageCommands);
+        Palette.SetPageAnswers(AgentAnswerAsync);
         _showFiles = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.files") != "0";
         _showBlades = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.blades") == "1";
         _showExplorer = await Js.InvokeAsync<string?>("sab.recall", $"{Page}.explorer") == "1";
@@ -368,6 +369,7 @@ public partial class WorkbenchPage
     public async ValueTask DisposeAsync()
     {
         Palette.WithdrawPageCommands(PageCommands);
+        Palette.WithdrawPageAnswers(AgentAnswerAsync);
         Shown.Clear();
         Session.Changed -= Redraw;
         Project.Changed -= Redraw;

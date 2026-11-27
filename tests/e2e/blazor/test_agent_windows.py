@@ -1,5 +1,7 @@
-"""The agent's windows on the Blazor front end: a page says which window it is, so app_navigate (POST
-/navigate) with window notebooks or scripts reaches the open one, refused only when none is open."""
+"""The agent's windows on the Blazor front end: a page says which window it is, so workbench_window (POST
+/workbench/window) runs a command of the open Notebooks or Scripts page's palette as the user's own, and
+app_navigate (POST /navigate) with window notebooks or scripts reaches the open one; both are refused only
+when none is open."""
 
 from __future__ import annotations
 
@@ -31,6 +33,41 @@ def ask(server: dict[str, Any], path: str, body: dict[str, Any]) -> tuple[int, A
             return response.status, json.loads(response.read() or b"null")
     except urllib.error.HTTPError as refused:
         return refused.code, json.loads(refused.read() or b"null")
+
+
+def test_the_agents_window_command_runs_on_the_open_scripts_page(browser: Browser, server: dict[str, Any]) -> None:
+    page = open_page(browser, server, "")
+    expect(page.locator("h1.area-page-title")).to_be_visible()
+    status, said = ask(server, "/workbench/window", {"command": "documents"})
+    assert status == 409 and "Neither the Notebooks nor the Scripts page is open" in said["error"]
+
+    page.locator(".nav-rail-item[data-area=scripts]").click()
+    expect(page).to_have_url(re.compile(r"/blazor/scripts"))
+    expect(page.locator(".wb-landing, .empty-state").first).to_be_visible()
+    for _ in range(40):  # the page says it is the Scripts window as it lands
+        status, said = ask(server, "/workbench/window", {"command": "documents"})
+        if status == 200:
+            break
+        page.wait_for_timeout(250)
+    assert status == 200 and said["result"]["page"] == "scripts" and said["result"]["documents"] == []
+
+    status, said = ask(server, "/workbench/window", {"command": "commands"})
+    listed = {c["id"]: c for c in said["result"]["commands"]}
+    assert "file.new" in listed and listed["file.close"]["why_not"] == "Open a notebook or a script first"
+
+    # A palette command, as the user's own: a new script's tab.
+    status, said = ask(server, "/workbench/window", {"command": "file.new"})
+    assert status == 200 and said["result"] == {"ran": "file.new"}
+    expect(page.locator(".monaco-editor").first).to_be_visible()
+    status, said = ask(server, "/workbench/window", {"command": "documents", "page": "scripts"})
+    assert [d["kind"] for d in said["result"]["documents"]] == ["script"]
+
+    # One it cannot run, and one it does not have: the reason, at once.
+    status, said = ask(server, "/workbench/window", {"command": "kitchen.sink"})
+    assert status == 409 and "no command" in said["error"]
+    status, said = ask(server, "/workbench/window", {"command": "documents", "page": "notebooks"})
+    assert status == 409 and "The Notebooks page is not open" in said["error"]
+    page.close()
 
 
 def test_the_agents_navigate_reaches_the_open_notebooks_page(browser: Browser, server: dict[str, Any]) -> None:
