@@ -93,6 +93,13 @@ html.rail-names .nav-rail-toggle { padding-left: 22px; font-size: 12px; }
   display: flex; flex: none; align-items: center; gap: 14px; height: 26px; padding: 0 12px;
   border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 12px;
 }
+/* One line always: in a narrow window the selection's figures, then the project's name, give way; nothing wraps
+   under the bar. */
+.status-bar { overflow: hidden; white-space: nowrap; }
+.status-bar > * { flex: none; }
+.status-bar > .status-selection { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-bar > .status-project { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.status-bar > .status-spacer { flex: 1 1 0; }
 .status-bar a { color: inherit; }
 .status-project { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); }
 .status-bar .status-project-name { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); font-weight: 600; text-decoration: none; }
