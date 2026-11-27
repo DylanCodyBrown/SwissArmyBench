@@ -199,8 +199,10 @@ body.dropping-file .grids-page { outline: 3px dashed var(--accent); outline-offs
 .rel-group th { background: var(--surface-2); }
 .scope-switch { display: inline-flex; gap: 2px; }
 .scope-choice[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.erd-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-.erd-empty { display: grid; justify-items: start; gap: 10px; }
+/* The ERD's empty state is the shared one (.empty-state), its icon large, its sentence a little wider. */
+.erd-empty { max-width: 520px; }
+.erd-empty > .icon-svg { width: 40px; height: 40px; color: var(--muted); }
+.erd-empty .erd-shared { display: grid; gap: 6px; margin-top: 12px; text-align: left; }
 .erd-shared-row { display: flex; align-items: center; gap: 10px; }
 .erd-diagram { overflow: auto; }
 .erd-diagram[data-fitted="true"] svg { width: 100% !important; max-width: 100%; height: auto !important; max-height: calc(100vh - 220px); }

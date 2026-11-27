@@ -1,20 +1,25 @@
 @* The ERD (the classic erdView.ts, ?view=erd): the keys and joins between the tables, drawn by Mermaid: the
-   project's tables (or all of them), fitted to the window (Fit, Actual size); Import relationships, Manage
-   relationships (the Relationships window). With none yet: Find relationships (the window, its finder running)
-   and the shared models with a table open, each with Apply. Logic in ErdPage.razor.cs. *@
+   project's tables (or all of them), fitted to the window (Fit, Actual size). The shared page header holds its
+   name and Import relationships, Manage relationships (the Relationships window). With none yet the shared empty
+   state: what the ERD is, Find relationships (the window, its finder running) and the shared models with a table
+   open, each with Apply. Logic in ErdPage.razor.cs. *@
 @page "/erd"
 @implements IDisposable
 
 <section class="area-page erd-page">
+    <header class="area-page-head">
+        <h1 class="area-page-title"><Icon Name="diagram" /> ERD</h1>
+        @Actions(!Empty && _erd is { Mermaid.Length: > 0 })
+    </header>
     <div class="area-page-body">
-        <h1 class="sandbox-title">ERD</h1>
         <ErrorNote Error="_error" OnRetry="LoadAsync" OnClose="() => _error = null" />
         @if (Empty)
         {
-            <div class="erd-empty">
-                <strong>No relationships yet.</strong>
+            <div class="empty-state erd-empty">
+                <Icon Name="diagram" />
+                <strong>No relationships yet</strong>
+                <p class="muted">@EmptyWords</p>
                 <button type="button" class="btn primary" @onclick="() => OpenWindow(true)"><Icon Name="zoom" /> Find relationships</button>
-                @Actions(false)
                 @if (_shared.Count > 0)
                 {
                     <div class="erd-shared">
@@ -32,7 +37,6 @@
         }
         else
         {
-            @Actions(_erd is { Mermaid.Length: > 0 })
             @if (_scope is { Project: true } scope)
             {
                 <div class="erd-scope">
@@ -67,7 +71,7 @@
 @code {
     private RenderFragment Actions(bool sized) => __builder =>
     {
-        <div class="erd-actions">
+        <div class="area-page-actions erd-actions">
             <label class="btn" title="A saved set (reviewed before it is applied) or a model as JSON">
                 <Icon Name="import" /> Import relationships
                 <InputFile class="sr-only" accept=".json,.tang,application/json" OnChange="ImportAsync" />

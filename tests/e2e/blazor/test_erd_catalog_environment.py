@@ -14,7 +14,7 @@ from tests.e2e.blazor.conftest import call, open_page
 def test_find_add_and_draw_a_relationship(browser: Browser, server: dict[str, Any]) -> None:
     call(server, "POST", "/samples/store")
     page = open_page(browser, server, "erd")
-    expect(page.locator(".erd-empty")).to_contain_text("No relationships yet.")
+    expect(page.locator(".erd-empty")).to_contain_text("No relationships yet")
     page.locator(".erd-empty").get_by_role("button", name="Find relationships").click()
     # The window opens with its finder running: the confident joins are added at once, with one Undo.
     window = page.locator(".dialog")

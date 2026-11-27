@@ -20,6 +20,7 @@ public partial class ErdPage
     private RelationshipScope? _scope;
     private IReadOnlyList<string> _covered = [];
     private IReadOnlyList<SavedSet> _shared = [];
+    private int _openTables;
     private bool _showAll;
     private bool _fitted = true;
     private bool _noneHere;
@@ -44,6 +45,14 @@ public partial class ErdPage
     /// <summary>No relationship covers a table to draw (and no project hides them): the empty state.</summary>
     private bool Empty => _covered.Count == 0 && !_noneHere;
 
+    /// <summary>The empty state's words: what the ERD draws and what Find relationships will look through.</summary>
+    private string EmptyWords => "The ERD draws the keys and joins between your tables. " + _openTables switch
+    {
+        0 => "Open two or more tables, then Find relationships looks through them and adds the confident joins, with one Undo.",
+        1 => "Open another table, then Find relationships looks through them and adds the confident joins, with one Undo.",
+        _ => $"Find relationships looks through the {_openTables} open tables and adds the confident joins, with one Undo.",
+    };
+
     protected override async Task OnInitializedAsync()
     {
         Live.NoticeArrived += OnNotice;
@@ -59,6 +68,7 @@ public partial class ErdPage
         {
             _model = await Relationships.ModelAsync();
             var open = (await Grids.ListAsync()).Select(g => g.Dataset).ToHashSet();
+            _openTables = open.Count;
             var named = (_model.Tables?.Keys ?? []).Concat(_model.Relationships.SelectMany(r => new[] { r.From, r.To })).Distinct().ToList();
             var openPart = named.Where(open.Contains).ToList();
             _scope = named.Count > 0 ? await Relationships.ScopeAsync() : null;
