@@ -9556,3 +9556,24 @@ The owner: "At full screen mode for the canvas" (read as "Add a full screen mode
 - WHATSNEW.md: its rules take only `## <version> · <time> UTC` headings, so there is no `## Unreleased`; the
   bullet waits for the next version's entry (open: the owner's).
 
+
+## The bug sweep, 2026-11-27 (decisions and open notes)
+
+- **Notices the Blazor pages did not follow.** The swap to Blazor left some of the server's notices with no listener.
+  Followed now: `navigate` (the agent's app_navigate: Layout/NavigateFollower, the home window's places),
+  `snapshot_request` (app_snapshot: Layout/SnapshotFollower, interop/snapshot.js) and `library_notice` with POST
+  /library/notices (Layout/LibraryNotices). Still not followed (open): `workbench_command` (the agent's
+  workbench_window: every palette command of the Notebooks and Scripts pages, a piece of work of its own), the
+  Notebooks and Scripts windows told apart for app_navigate (every page joins the socket as a workspace page, so
+  window notebooks or scripts is refused as not open), `workbench_handoff`, `code_file_moved`,
+  `relationship_sets_changed`, `project_documents_changed`, `inbox_changed`, `extensions_changing`, `scaffold_changed`,
+  `mode_changed`, `app_registration_checked`.
+- **Once at a time.** A dialog whose Enter and button run the same save checks its own busy flag first (New project,
+  a step's editor, a beta note, New blade, the Environment's rename): the disabled button alone does not stop a second
+  Enter before the page is drawn again.
+- **A click's refusal is said, never the crash bar.** A handler bound straight to a click that asks the server catches
+  the ApiException (the panel's ErrorNote, else the corner's note).
+- **Open (the owner's):** the rail stays usable over a dialog's shade (it sits above it); Home says "from Pasted" for
+  the sample store's tables; the words "the Data page" remain in the agent's command descriptions and the guide (the
+  pages say Catalog); a connection card's amber sentence as a short badge is a mock-up only (the owner's rule puts
+  the sentence on the card).

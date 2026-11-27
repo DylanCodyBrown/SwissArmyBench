@@ -6406,3 +6406,19 @@ to the scripts page with an open script" / "sql authorship will have one place i
   tests and the drivers check (Streamlit installed in this .venv) and test_performance under parallel load (passes
   alone). mypy: only sab_canvas.py:622 (Streamlit's own type hints, installed here).
 - Power BI catalog: a made-up workspace of 33 datasets read whole (tests/test_powerbi.py); real Power BI not run here.
+
+## 2026-11-27: the bug sweep on 0.0.40 (branch fable-sweep)
+
+- Each fix proved by a test that failed first: the browser tests in tests/e2e/blazor (test_accessibility: a dialog's
+  focus after a click beside it, Enter twice in a step's editor; test_shell: the agent's navigate and snapshot;
+  test_erd_catalog_environment: Tab and Catalog; test_layout_polish: the layout the pages keep) and bUnit
+  (NavigateFollowerTests, LibraryNoticesTests, NewProjectDialogTests, BladeRunPanelTests).
+- Looked at in Chromium on made-up data (the sample store, a 100,000-row Parquet table, a DuckDB connection, a
+  Streamlit project): every rail page in light, dark and both high contrast themes, at 1,360 and 1,000 px. A contrast
+  pass of every text on those pages (WCAG AA) found one miss (the Environment's tab mark on the selected row), fixed;
+  45 Tab presses a page found no control without a focus ring.
+- Blazor: `dotnet build -warnaserror` clean on both projects, `dotnet format --verify-no-changes` clean, bUnit 230 of
+  230. Browser tests (Release build, two workers): 185 passed, 7 skipped.
+- Unit suite (no e2e, four workers): 6,033 passed, 42 skipped; the 8 failures are this container's known ones (the
+  four data.py export tests, test_script_export, test_connection_drivers, test_performance, test_updater). ruff and
+  ruff format clean; mypy: only sab_canvas.py:622; the architecture map current.
