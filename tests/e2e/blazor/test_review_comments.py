@@ -277,9 +277,11 @@ def test_every_editor_of_the_pages_takes_a_comment(browser: Browser, server: dic
     expect(page.locator(".wb-tab-comments")).to_have_count(0)
     page.close()
 
+    # A Markdown file opens read; its Source view is the editor that takes an annotation.
     page = open_page(browser, server, f"scripts?path={notes}")
-    expect(page.locator(".wb-textfile .view-lines")).to_contain_text("Made-up notes")
-    comment_by_key(page, ".wb-textfile", "A better heading?")
+    page.click(".wb-view-source")
+    expect(page.locator(".wb-text-source .view-lines")).to_contain_text("Made-up notes")
+    comment_by_key(page, ".wb-text-source", "A better heading?")
     page.get_by_role("button", name="Send to agent").click()
     expect(page.locator(".wb-tab-comments")).to_have_count(0)
 

@@ -1,14 +1,14 @@
 [project]
 name = "swissarmybench-copilot"
 # The base's version: the base and its extensions are released together (build.py checks it).
-version = "0.0.40"
+version = "0.0.41"
 description = "Swiss Army Bench's GitHub Copilot extension: Copilot's code completion in the Workbench's editors."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 requires-python = ">=3.12"
 # The grid server it plugs into. GitHub's Copilot Language Server is an npm package (MIT), installed by the
 # extension's own Install into the state folder's copilot/ (Node.js runs it): never a Python dependency.
-dependencies = ["swissarmybench[server]==0.0.40"]
+dependencies = ["swissarmybench[server]==0.0.41"]
 
 # How the base finds it (src/swissarmybench/extensions.py): its description, door and commands.
 [project.entry-points."swissarmybench.extensions"]
