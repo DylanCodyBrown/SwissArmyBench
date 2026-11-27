@@ -26,6 +26,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import sharing as rules
 from swissarmybench.domain.sharing import SharingError
+from swissarmybench.services import background
 from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -213,7 +214,7 @@ class Sharing:
         self._device, self._sign_in_error = None, None
         running = await self._program.start(rules.login(device))
         self._sign_in = running
-        asyncio.get_running_loop().create_task(self._signing(running))
+        background.keep(self._signing(running), "the sharing sign-in")
         # The device code's line comes first: wait a little for it so the dialog can show it at once.
         for _ in range(30):
             if self._device is not None or not running.alive():
@@ -321,7 +322,7 @@ class Sharing:
                 await self._changed()
                 raise
         share.state, share.started = "sharing", self._now()
-        share.watch = asyncio.get_running_loop().create_task(self._hosting(share))
+        share.watch = background.keep(self._hosting(share), "a shared app's tunnel")
         self.ws.audit.write(who, "share_start", share.title or app, kind=kind)
         await self._changed()
         return share.said(None)

@@ -31,6 +31,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain.packages import MissingPackagesError
+from swissarmybench.services import background
 from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_copilot.domain import lsp, tools
@@ -278,7 +279,7 @@ class Copilot:
 
     def _notify_soon(self) -> None:
         with contextlib.suppress(RuntimeError):
-            asyncio.get_running_loop().create_task(self._notify())
+            background.keep(self._notify(), "the Copilot panel's notice")
 
     async def _notify(self) -> None:
         await self._live.broadcast({"type": NOTICE})
@@ -372,7 +373,7 @@ class Copilot:
         if self._device is None or self._conn is None:
             raise Conflict("Sign in first: no code is waiting.")
         if self._finishing is None or self._finishing.done():
-            self._finishing = asyncio.create_task(self._wait_for_github(self._conn))
+            self._finishing = background.keep(self._wait_for_github(self._conn), "the Copilot sign-in")
         self._device = self._device | {"waiting": True}
         await self._notify()
         return self.panel(who)

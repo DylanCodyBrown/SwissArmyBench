@@ -26,6 +26,7 @@ from typing import Any
 
 from swissarmybench.domain import local_api as rules
 from swissarmybench.server import api_host
+from swissarmybench.services import background
 from swissarmybench.services.local_api import StartFailed
 
 START_SECONDS = 30.0
@@ -51,7 +52,7 @@ class ApiProcess:
         # their end: one left unread fills, and the endpoint that prints into it would wait for ever.
         self.lines: deque[str] = deque(maxlen=OUTPUT_LINES)
         self._drains = [
-            asyncio.create_task(self._read(stream))
+            background.keep(self._read(stream), "a local sandbox API's output")
             for stream in (self.process.stdout, self.process.stderr)
             if stream is not None
         ]
