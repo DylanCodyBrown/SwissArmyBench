@@ -15,7 +15,7 @@ dependencies = []
 
 [project.optional-dependencies]
 server = [
-    "duckdb>=1.2",
+    "duckdb>=1.3",
     # The Workbench's notebooks and scripts run in an IPython kernel (the owner approved both,
     # 2026-11-13): jupyter_client starts and talks to it; ipykernel is the kernel in this Python.
     "ipykernel>=6.29",
