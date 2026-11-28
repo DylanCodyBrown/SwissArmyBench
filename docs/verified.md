@@ -6881,3 +6881,104 @@ tests/test_architecture.py passes and the architecture map is current; bootstrap
 WorkbenchPage.razor at 400; no MCP tool was added (`workbench_file` gained `source`, `workbench_sql` `force`).
 Looked at in Chromium at deviceScaleFactor 2, light and dark: the linked tab, a save's queries in the Output,
 the refusal while the workbook is open in Excel, and Run's table.
+
+## Power Query added to a workbook that has none (2026-11-28)
+
+The owner, asked whether the app should make a workbook's first Data Mashup: "Yea optional". So it is a choice,
+never a default: a save into a workbook with no Power Query stops (409, `needs_add`) and offers **Add Power
+Query to this workbook**; only that click, or the agent's `workbench_sql` save with `add: true`, writes it.
+
+**The Data Mashup made new, read again from [MS-QDEFF] (revision 8.1, 2025-02-18; the .docx from Microsoft's
+Open Specifications page, section by section) and compared with its own example (section 3.1) byte for byte:**
+
+- **2.2:** Version 0, then Package Parts, Permissions, Metadata and Permission Bindings, each after its 4-byte
+  unsigned length.
+- **2.3 Package Parts:** "an Open Packaging Conventions (OPC) package that consists of" /Config/Package.xml,
+  /Formulas/Section1.m and /Content/<guid> parts (the last "MAY" be there: none is written). An OPC package
+  has its [Content_Types].xml, so three entries, in the example's order. **Package.xml (2.3.1, 3.2)** is the
+  example's own bytes: a UTF-8 byte-order mark, the XML declaration, `<Package>` with the xsi and xsd
+  namespaces, `<Version>2.24.4065.1401</Version><MinVersion>2.21.0.0</MinVersion><Culture>en-US</Culture>`.
+  Version is "the version of the client used to create this file", MinVersion "the minimum version of the
+  client that is able to read this file": the example's values are kept, so nothing claims a newer client
+  than the specification describes. **[Content_Types].xml** is the example's bytes too (`xml` as text/xml,
+  `m` as application/x-ms-m). Stated difference inside the specification: 2.3's table gives Section1.m the
+  content type text/plain, its own example (what Excel wrote) application/x-ms-m; the example is followed.
+  **Section1.m (2.3.2):** the file's section, UTF-8 with no byte-order mark and CRLF line ends, as the example.
+- **2.4 Permissions:** the example's bytes, which are 2.6's defaults: CanEvaluateFuturePackages false
+  ("ignored when read, and is written as false"), FirewallEnabled true, WorkbookGroupType nil.
+- **2.5 Metadata:** Version 0, the Metadata XML after its length, then a Content of 22 bytes (an empty zip, as
+  the example; "A length of 0 indicates the Content field is not present" would also do). **2.5.1:** the
+  example's opening bytes, the Item with ItemType AllFormulas and an empty ItemPath ("Otherwise, it MUST be
+  the empty string"), then one Item per query: ItemType Formula, ItemPath "Section1/<query>", IsPrivate l0,
+  FillEnabled l0 ("Whether the query will load to the worksheet"), FillToDataModelEnabled l0: connection only.
+  No per-step Items (the example's `Section1/Query1/Source`): Excel writes those itself.
+- **2.6 Permission Bindings, the question asked ("empty, if the specification allows that"):** it does not
+  allow a length of 0. It says the stream "MUST be generated as follows or set to a length of 1 and content of
+  a single 0x00 (null byte)". The checksum needs Windows' DPAPI for the current user, which cannot be made
+  here, so the one null byte is written. A reader whose checksum does not match "MUST" discard the
+  Permissions and use the defaults, which are the ones written: nothing is lost.
+
+**The parts the workbook needs to hold it, and only those. [ECMA-376] Part 1 (Office Open XML, 5th edition;
+ISO/IEC 29500-1), with Microsoft's Open XML SDK as the second witness for each constant** (Microsoft Learn,
+DocumentFormat.OpenXml.CustomXmlDataProperties.DataStoreItem and SchemaReference, quoting ISO/IEC 29500-1
+22.5.2.1 and 22.5.2.2; the SDK's generated CustomXmlPart and CustomXmlPropertiesPart, read from its
+repository dotnet/Open-XML-SDK):
+
+- **15.2.5 Custom XML Data Storage Part** (`customXml/item<N>.xml`): content type application/xml, the source
+  relationship `http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml`; a Workbook
+  part may be its source. The SDK: CustomXmlPart's relationship type is that string, its target path
+  `../customXml`, its name `item`. So: ONE `<Relationship>` added to `xl/_rels/workbook.xml.rels`, its Id the
+  next free rId, its Target `../customXml/item<N>.xml`. Its content is [MS-QDEFF] 2.1's DataMashup element in
+  UTF-16 with a byte-order mark, as Excel writes that part (no `sqmid`: optional, a telemetry GUID).
+- **15.2.6 Custom XML Data Storage Properties Part** (`customXml/itemProps<N>.xml`): content type
+  `application/vnd.openxmlformats-officedocument.customXmlProperties+xml`, root namespace
+  `http://schemas.openxmlformats.org/officeDocument/2006/customXml`, the source relationship
+  `.../relationships/customXmlProps` from the Custom XML Data Storage part. The SDK: the same two strings,
+  the name `itemProps`, the only child part a CustomXmlPart allows. So: `customXml/_rels/item<N>.xml.rels`
+  with that one relationship (a third new entry: the relationship has nowhere else to live), and ONE
+  `<Override>` added to [Content_Types].xml for the properties part. The item itself falls under the
+  workbook's `xml` Default (application/xml; openpyxl and Excel both write it); a workbook with no such
+  Default gets a second Override for the item.
+- **22.5.2.1 datastoreItem:** "specifies the properties for a single custom XML part ... attached to the
+  custom XML part that specifies a relationship to this part", its `itemID` a GUID, its child `schemaRefs`
+  (22.5.2.3) of `schemaRef` (22.5.2.2: "a single XML schema ... identified using its target namespace"): the
+  Data Mashup's namespace. The itemID is made from the workbook's bytes (SHA-256, in a GUID's shape with
+  braces), so no clock or dice is asked and the same workbook gets the same bytes.
+- N is the first number no `customXml/item<N>.xml` or `itemProps<N>.xml` has; other custom XML parts stay.
+
+**Shown by the tests** (tests/test_workbook_queries_add.py, 9; tests/test_workbook_queries_service.py, 3 new or
+rewritten; bUnit, 2; the browser, 1):
+
+- The made Package.xml, the package's [Content_Types].xml and the Permissions equal the specification's
+  example's bytes; the metadata opens and closes with the example's bytes; the Content is the example's 22
+  bytes; the bindings are the one null byte; the stream's lengths are where 2.2 puts them, and parsing and
+  packing it gives the same bytes. Each of the workbook's new parts is compared with its whole expected text.
+- Every zip entry that was in the workbook has the same checksum, sizes and compressed bytes afterwards, but
+  `xl/_rels/workbook.xml.rels` and `[Content_Types].xml`, each equal to what it was with its one element
+  before the root's end tag. The same input gives the same output bytes.
+- A save, then a second save: only `customXml/item<N>.xml` differs, and inside the stream only
+  Formulas/Section1.m (Permissions, Metadata and Permission Bindings byte for byte; the package's other
+  entries raw). A third save of the same text changes no byte.
+- openpyxl opens the workbook with its sheet, its named table and its cells as they were.
+- Refused, each in one sentence and with the workbook's bytes untouched: a save without `add` (also `add`
+  false, a text "yes", `force`); a text with no query, a section of another name, a name the specification
+  refuses, a name twice (each with its line); a Strict Open XML workbook; a workbook whose relationships part
+  or content types are not as expected; a protected or signed one (read refuses them first); Excel's owner
+  file beside it; queries added in Excel since the file was opened (the conflict); the agent's save outside
+  the open project declined. Inside the open project the agent needs `add` and no Allow, as any save there.
+- One backup copy before the write (`<name>.backup.xlsx`, or the project's `.sab/backup/<date>/`), none on
+  the save after it.
+
+**NOT checked: real Excel.** No Excel runs in this container, so the workbook made here was never opened in
+it. For the owner on Windows, with a workbook that never had a query:
+
+1. It opens with no repair prompt ("We found a problem with some content...").
+2. Data, Queries & Connections lists each query, as Connection only.
+3. Each query's M in the Power Query editor is the file's, and it runs (Refresh, or Load To... a sheet).
+4. Whether Excel asks the privacy levels the first time (expected: the bindings are the null byte).
+5. After Excel saves the workbook: it opens here again, and Excel kept or rewrote the part (its own
+   Package.xml Version, the per-step metadata Items, `xl/connections.xml` once a query is loaded).
+6. A query name with a space: Excel reads `Section1/By%20Region` as "By Region".
+7. A workbook that already has another custom XML part (a SharePoint property part): the new part took the
+   next number and Excel keeps both.
+8. An .xlsm with macros: still runs them.

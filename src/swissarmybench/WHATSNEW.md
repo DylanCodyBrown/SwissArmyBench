@@ -20,6 +20,7 @@
 - Preview save lists each query changed, added or kept
 - Excel.CurrentWorkbook reads the linked workbook
 - One backup before the first save into a workbook
+- Add Power Query to a workbook that has none, on a click
 
 ### Bug fixes
 - Fixed: agent tools did not start with Power Apps

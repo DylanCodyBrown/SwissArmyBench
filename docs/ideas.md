@@ -9937,7 +9937,7 @@ Decisions:
 Open, for the owner:
 
 - **Check in real Excel** (not possible here): the list in docs/verified.md.
-- **A workbook with no query yet cannot be saved into.** Making its first Data Mashup means a new custom XML
+- (Answered 2026-11-28, below.) **A workbook with no query yet cannot be saved into.** Making its first Data Mashup means a new custom XML
   part, its properties part, a relationship and a content type: more than "only the Data Mashup". It is refused
   with "add one in Excel first". Say so if the app should make that part.
 - **Should an added query get its connection too** (`xl/connections.xml`, Microsoft.Mashup.OleDb.1)? Left out
@@ -9964,3 +9964,40 @@ raised. That broke "refused, never guessed". Decided:
 - Kept as a refusal although M would also raise, because duckpq cannot tell M's rule from its own limit there:
   a function given the wrong number of values, a table step given the wrong kind of value. They are said with
   their line instead of taking the otherwise value.
+
+### Power Query added to a workbook that has none, on the user's word (the owner, 2026-11-28)
+
+The open question above ("A workbook with no query yet cannot be saved into... Say so if the app should make
+that part") was answered: "Yea optional". Decided:
+
+- **A choice, never a default.** A save into such a workbook stops (409, `needs_add`) and offers **Add Power
+  Query to this workbook**, on the tab's line and beside the reason in the Output. Only that click, or the
+  agent's `workbench_sql` save with `add: true` (exactly true), writes it. Outside the open project the
+  agent's also waits for the user's Allow; no new MCP tool.
+- **What is written** is in docs/verified.md with its sources: the Data Mashup as [MS-QDEFF] says, with its
+  own example's bytes where it gives them, and the three parts and two elements [ECMA-376] needs for a custom
+  XML part. Every part that was there is copied raw.
+- **Permission Bindings are one 0x00 byte.** The specification does not allow an empty (zero-length) field;
+  it allows exactly this where no checksum is generated. The Permissions are its defaults.
+- **Package.xml's Version is the specification's example's** (2.24.4065.1401, MinVersion 2.21.0.0): the app
+  is not a Power Query client with a version of its own, and an older value cannot ask more of a reader.
+- **The item's own relationships part is a third new entry.** The task said the item, its properties and the
+  workbook's relationship; the properties part is only attached through that relationships part.
+- **Refused:** a Strict Open XML workbook (its relationship types are other ones), and whatever a save into
+  any workbook refuses.
+- The same lock, conflict and one-backup rules as any workbook save. What was added is said three times in
+  the same words: the Output's first line, the notice, and the agent's answer (`words`, `new_parts`).
+
+Accepted by the owner (2026-11-28), so no longer open:
+
+- **A protected workbook is refused whole**, although Excel itself may allow query edits under some
+  protections.
+- **The linked .pq lives in the project's scripts/** (where New file puts any file), not beside its workbook.
+
+Open, for the owner:
+
+- **Check it in real Excel**: the eight points in docs/verified.md. Until then the button could carry a word
+  that it was never tried in Excel; it does not today.
+- **Package.xml's Version**: keep the example's, or write a newer Excel's once one is seen.
+- **`try` around a source the app cannot read** (duckpq 1.1.1): a file that is not there takes the otherwise
+  value (M's own error); a database no connection matches is refused. Say so if both should be refused.

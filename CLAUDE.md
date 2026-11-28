@@ -146,10 +146,21 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   connections.xml entry); one taken out of the file is kept in the workbook and said. Never written: over
   queries changed on disk since the file was opened (one sentence, Reload or Keep mine), while Excel has it
   open (`~$<name>` beside it: "Close it in Excel first."), an .xls, .xlsb, encrypted, protected or signed
-  workbook, a Data Mashup not as specified, a workbook with no query yet (it opens a starter; its first query
-  is added in Excel). One backup copy before the first write. The agent: `workbench_file` new
+  workbook, a Data Mashup not as specified. One backup copy before the first write. **A workbook with no
+  Power Query yet (the owner, 2026-11-28, asked whether the app should add it: "Yea optional"):** it opens a
+  starter, and its save STOPS and offers **Add Power Query to this workbook**: never automatic, never silent.
+  On that click (the agent: `workbench_sql` save with `add: true`, and outside the open project the user's
+  Allow too) a new Data Mashup is written exactly as [MS-QDEFF] says, with its own example's bytes where it
+  gives them (Version 0; Package Parts: Config/Package.xml, [Content_Types].xml, Formulas/Section1.m; the
+  default Permissions; the Metadata with one connection-only Item a query; Permission Bindings as the one
+  0x00 byte section 2.6 allows), and ONLY the parts the workbook needs to hold it ([ECMA-376] Part 1, 15.2.5,
+  15.2.6, 22.5): a new `customXml/item<N>.xml`, its `itemProps<N>.xml` with the item's own relationships part,
+  one Relationship in the workbook part's and one Override in [Content_Types].xml; every part that was there
+  copied raw. The same lock, conflict and backup rules; the tab's line, the Output and the notice say what was
+  added; a Strict Open XML workbook is refused. Never opened in real Excel here (docs/verified.md's list). The agent: `workbench_file` new
   `powerquery_workbook` with `source`; `workbench_sql` workbook, preview (the dry run), save (outside the open
-  project: on the user's Allow), reload; `app_screen` names the tab's workbook.
+  project: on the user's Allow; `add` for a workbook with no Power Query), reload; `app_screen` names the
+  tab's workbook.
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -363,7 +374,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   diagram's picture beside its file (`<name>.svg`, `<name>.png`) on the user's Save SVG or PNG (the agent's
   `workbench_file` export), a new file's starter where New file names it,
   an Excel workbook's Data Mashup on the Save of a Power Query file linked to it (the owner, 2026-11-28; only
-  that one part of the workbook; the agent's into a workbook outside the open project on the user's Allow) and
+  that one part of the workbook, or, on the user's Add Power Query to this workbook, that part made new with
+  its properties part and the two elements that name them; the agent's into a workbook outside the open project on the user's Allow) and
   one backup copy of that workbook before the first such write (`.sab/backup/<date>/` in the open project, its
   own .gitignore ignoring all of it, else `<name>.backup.xlsx` beside the workbook),
   `.sab/stats.json` (the calls' running figures: names, times, sizes) and `.sab/changes.jsonl` (the change log: names,
@@ -869,7 +881,10 @@ src/swissarmybench/
                          for byte), the section's queries split with no parser (a `;` ends each), the linked file's
                          header (`// workbook:`), a save's plan (changed, added, kept, same) and the workbook's new
                          bytes, an added query's metadata Item, every refusal's one sentence, the lock's and the
-                         backup's names
+                         backup's names; Power Query added to a workbook that has none, on the user's word
+                         (plan's `add`; NoPowerQuery without it): new_mashup ([MS-QDEFF]'s parts, its example's
+                         bytes), with_power_query (the custom XML part, its properties, the two elements that
+                         name them; zip_add)
     new_files.py         New file (the owner, 2026-11-27: "a drop down combo that asks what file type you wanna
                          create ... then scaffolds it for you"; "Everything should get a name or the file is not
                          created"): the file types as data (TYPES: Python, SQL, JSON, YAML, TOML, XML, Markdown,
@@ -1304,7 +1319,8 @@ src/swissarmybench/
                          (New file's maker: a workbook's queries as one linked .pq), link (what the tab shows; the
                          first look remembers the queries' hash), preview (a save's dry run), save (the .pq, then
                          only the Data Mashup; the lock, the conflict, the one backup, what was made read back
-                         before it is written; the agent's outside the open project on Allow), reload; table_path
+                         before it is written; the agent's outside the open project on Allow; a workbook with no
+                         Power Query: WorkbookNeedsPowerQuery, 409 `needs_add`, until `add` is true), reload; table_path
                          (the linked workbook, for a run's Excel.CurrentWorkbook())
     debugger.py          the Scripts page's debugger: a session per kernel over the kernel's own debugpy (the
                          Jupyter debug protocol), the run and the events' watcher, steps, variables, evaluate,
