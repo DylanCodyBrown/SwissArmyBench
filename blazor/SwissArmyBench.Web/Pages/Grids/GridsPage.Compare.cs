@@ -174,11 +174,21 @@ public partial class GridsPage
             .. PopOutEntries(at.Grid),
             new("Compare with…", "columns", () => CompareWithAsync(at.Grid, at.X, at.Y), _tabs.Count < 2 ? "Open another table to compare with" : null),
             new("Rename", "rename", () => _tabRow?.StartRenameAsync(at.Grid) ?? Task.CompletedTask),
+            .. WorkbookEntries(tab),
             Collaboration.Entry(new("table", tab.Dataset, string.Empty, tab.Dataset)),
             MenuEntry.Separator,
             new("Close", "close", () => CloseGridAsync(at.Grid)),
         ], at.X, at.Y);
     }
+
+    /// <summary>A table read from an Excel workbook: Edit workbook queries… (the workbook's own Power Query as one
+    /// linked file on the Scripts page: its name asked first, as any new file's).</summary>
+    private IEnumerable<MenuEntry> WorkbookEntries(GridListItem tab) => tab.Origin?.Workbook is { Length: > 0 } workbook
+        ? [new("Edit workbook queries…", "powerquery", () => { Nav.NavigateTo(WorkbookQueriesAddress(workbook)); return Task.CompletedTask; })]
+        : [];
+
+    /// <summary>The Scripts page's New file dialog for a workbook's queries, the workbook filled in.</summary>
+    public static string WorkbookQueriesAddress(string workbook) => $"scripts?new=powerquery_workbook&from={Uri.EscapeDataString(workbook)}";
 
     /// <summary>Compare with…: another open table beside this one (which stays on the left). One other table: that
     /// one at once; several: a list of them.</summary>

@@ -3,7 +3,7 @@
    its name first, never an untitled tab. *@
 @page "/scripts"
 
-<WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" NewKind="@NewParameter" Blade="@BladeParameter" Line="@LineParameter" Cell="@CellParameter" CodeFile="@CodeFileParameter" />
+<WorkbenchPage Page="scripts" Path="@PathParameter" New="@(NewParameter is not null)" NewKind="@NewParameter" NewFrom="@FromParameter" Blade="@BladeParameter" Line="@LineParameter" Cell="@CellParameter" CodeFile="@CodeFileParameter" />
 
 @code {
     [SupplyParameterFromQuery(Name = "path")]
@@ -11,6 +11,10 @@
 
     [SupplyParameterFromQuery(Name = "new")]
     public string? NewParameter { get; set; }
+
+    /// <summary>With ?new=: the file the new one is made from (a workbook whose queries to edit), filled in.</summary>
+    [SupplyParameterFromQuery(Name = "from")]
+    public string? FromParameter { get; set; }
 
     /// <summary>A blade opened as a tab (its IDE).</summary>
     [SupplyParameterFromQuery(Name = "blade")]

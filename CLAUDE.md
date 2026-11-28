@@ -129,6 +129,26 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   tests (tests/test_duckpq_*.py) import only duckpq, duckdb and the standard library. **The app is one caller:**
   the domain and the services call its compile half only (tests/test_architecture.py), and resolve its sources
   through the app's own engine. An export of a .pq file carries duckpq.py beside it, so the M runs with no app.
+  **Workbook queries: .pq and .m are for Excel workbook development (the owner, 2026-11-28: ".m and .pq is more
+  for editing powerbi files in place", then "I've changed my mind. I don't want to edit power query in powerbi
+  at all. I was the m and .pq features to be aimed at workbook development"; asked which: "Excel's own Power
+  Query").** NOTHING writes a Power BI file (Import Power BI queries… stays a read-only copy). **Edit workbook
+  queries…** (New file, the palette, a workbook's table's tab menu) opens an .xlsx's or .xlsm's queries (Data,
+  Get & Transform) as ONE linked .pq file: Section1.m as Excel wrote it under a first line `// workbook: <file>`
+  (relative to the .pq, which lives where New file puts any file: the project's scripts/). The tab says "Saves
+  into <workbook>"; the Files pane lists linked files under their workbook's name. Run stays a preview
+  (`Excel.CurrentWorkbook(){[Name = "T"]}[Content]` reads the linked workbook's named table). **Save writes the
+  .pq, then ONLY the workbook's Data Mashup** ([MS-QDEFF]; domain/workbook_queries.py): Section1.m replaced,
+  every other zip entry of the package and of the workbook copied raw, every length written again, permissions,
+  metadata and the permission bindings kept; atomically, nothing when the text is the same. A changed query runs
+  on Excel's next Refresh; an added one is connection only (its metadata item; never a sheet, a table or a
+  connections.xml entry); one taken out of the file is kept in the workbook and said. Never written: over
+  queries changed on disk since the file was opened (one sentence, Reload or Keep mine), while Excel has it
+  open (`~$<name>` beside it: "Close it in Excel first."), an .xls, .xlsb, encrypted, protected or signed
+  workbook, a Data Mashup not as specified, a workbook with no query yet (it opens a starter; its first query
+  is added in Excel). One backup copy before the first write. The agent: `workbench_file` new
+  `powerquery_workbook` with `source`; `workbench_sql` workbook, preview (the dry run), save (outside the open
+  project: on the user's Allow), reload; `app_screen` names the tab's workbook.
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -341,6 +361,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `.sab/outline.json` (the hash of the ARCHITECTURE.md the app last wrote, so one edited by hand is kept), a
   diagram's picture beside its file (`<name>.svg`, `<name>.png`) on the user's Save SVG or PNG (the agent's
   `workbench_file` export), a new file's starter where New file names it,
+  an Excel workbook's Data Mashup on the Save of a Power Query file linked to it (the owner, 2026-11-28; only
+  that one part of the workbook; the agent's into a workbook outside the open project on the user's Allow) and
+  one backup copy of that workbook before the first such write (`.sab/backup/<date>/` in the open project, its
+  own .gitignore ignoring all of it, else `<name>.backup.xlsx` beside the workbook),
   `.sab/stats.json` (the calls' running figures: names, times, sizes) and `.sab/changes.jsonl` (the change log: names,
   types, fingerprints), both Git-ignored and never a value (Plans/stats.plan.md, Plans/changes.plan.md, 2026-11-22),
   `.sab/collaboration/` (the Collaboration panel, the owner 2026-11-25: the team's notes, one small file per message,
@@ -836,6 +860,14 @@ src/swissarmybench/
                          Add connection), reference ([Conn].[schema].[table]); a dataset's queries (from_schema: a
                          .pbit's DataModelSchema, a model.bim; from_tmdl; from_frames: pbixray's) as one section
                          document; export_files (the file, duckpq.py, run.py, requirements.txt, README.md)
+    workbook_queries.py  an Excel workbook's own Power Query (the owner, 2026-11-28), bytes in, bytes out: the Data
+                         Mashup as [MS-QDEFF] says (the customXml part's base64; Version 0, then Package Parts,
+                         Permissions, Metadata and Permission Bindings each after its 4-byte length; the metadata's
+                         XML and Content), a zip read and rewritten raw (one entry replaced, the rest copied byte
+                         for byte), the section's queries split with no parser (a `;` ends each), the linked file's
+                         header (`// workbook:`), a save's plan (changed, added, kept, same) and the workbook's new
+                         bytes, an added query's metadata Item, every refusal's one sentence, the lock's and the
+                         backup's names
     new_files.py         New file (the owner, 2026-11-27: "a drop down combo that asks what file type you wanna
                          create ... then scaffolds it for you"; "Everything should get a name or the file is not
                          created"): the file types as data (TYPES: Python, SQL, JSON, YAML, TOML, XML, Markdown,
@@ -1266,6 +1298,12 @@ src/swissarmybench/
                          through the app's readers; a ${NAME}; a probe), then each query's SQL built through
                          datasets.build_from_query; problems (nothing read), sql, for_table, export, import_new
                          (New file's maker: Import Power BI queries…), reopen (a project's table run again)
+    workbook_queries.py  workbook queries (WorkbookQueries, held by the Power Query service as `workbooks`): open_new
+                         (New file's maker: a workbook's queries as one linked .pq), link (what the tab shows; the
+                         first look remembers the queries' hash), preview (a save's dry run), save (the .pq, then
+                         only the Data Mashup; the lock, the conflict, the one backup, what was made read back
+                         before it is written; the agent's outside the open project on Allow), reload; table_path
+                         (the linked workbook, for a run's Excel.CurrentWorkbook())
     debugger.py          the Scripts page's debugger: a session per kernel over the kernel's own debugpy (the
                          Jupyter debug protocol), the run and the events' watcher, steps, variables, evaluate,
                          stop; `debug_state` notices
@@ -1436,6 +1474,8 @@ src/swissarmybench/
                          gone, at which line)
     m_files.py           a Power BI dataset's queries read from its file: a .pbit's DataModelSchema, a .pbip's
                          TMDL or model.bim, a .pbix's own schema part else pbixray's frames (imported only here)
+    workbook_queries.py  a workbook's file for its Power Query: its bytes read, Excel's owner file looked for, the one
+                         backup copy, the new bytes written whole or not at all
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and

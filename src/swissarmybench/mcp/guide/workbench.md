@@ -160,7 +160,18 @@ page, and SQL is written only on the Scripts page).
   matching says Add connection), `query` or `line` one of them; `action="problems"` says what cannot run with
   line and column, nothing read; `action="sql"` the DuckDB SQL composed; `action="export"` writes the file
   with duckpq.py and run.py beside it, to run with no app. A plain `let ... in` file is one query named after
-  the file; a `section` file holds many `shared` queries that name each other. Delete
+  the file; a `section` file holds many `shared` queries that name each other. **Workbook queries** (Excel's
+  own Power Query; nothing writes a Power BI file): `workbench_file(action="new", type="powerquery_workbook",
+  to=<name>, source=<an .xlsx or .xlsm>)` opens the workbook's queries as ONE linked .pq file (its first line
+  `// workbook: <file>`, relative to it; a workbook with no query opens a starter). Edit it with
+  `workbench_save`, run it as any .pq (a preview: `Excel.CurrentWorkbook(){[Name = "T"]}[Content]` reads the
+  linked workbook's named table), then `workbench_sql` with its path: `action="workbook"` (its workbook, there
+  or not, `open_in_excel`, `changed` on disk), `action="preview"` (the dry run: each query `changed`, `added`
+  as connection only, `kept` because none is ever removed, or `same`; nothing written), `action="save"` (the
+  queries written into the workbook's Data Mashup and nothing else of it; `text` saves the file first; a
+  workbook outside the open project waits for the user's Allow; refused while Excel has it open, and with
+  `conflict` when its queries changed on disk since the file was opened: `action="reload"` takes the
+  workbook's, `force=true` keeps yours), with one backup copy before the first write (`backup`). Delete
   (to the trash) is the user's own. `workbench_debug(action, document)`: the script in its running kernel
   under the debugger: start (code, breakpoints [{line, condition?, log?}]), state (paused line, frames,
   output), breakpoints, over, into, out, continue, variables, evaluate (expression in the frame), stop. The window's `view.fullScreen`,

@@ -20,8 +20,10 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import refusals
 from swissarmybench.domain import sql_files as rules
+from swissarmybench.domain import workbook_queries as workbook_rules
 from swissarmybench.domain.variable_refs import MissingVariables
 from swissarmybench.services.m_files import PowerQueryFiles
+from swissarmybench.services.workbook_queries import WorkbookQueries
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 
 ConnectionQuery = Callable[[str, Any, str], Awaitable[dict[str, Any]]]
@@ -91,6 +93,12 @@ class SqlFiles:
         self.power_query = PowerQueryFiles(ws, tables, connections, files, projects, code_files.touched)
         hooks.new_file_makers["powerquery_import"] = self.power_query.import_new
         projects.power_query = self.power_query.reopen
+        # A workbook's own Power Query as one linked file (the owner, 2026-11-28): held by the Power Query
+        # service, whose run reads the linked workbook's tables.
+        self.power_query.workbooks = WorkbookQueries(
+            ws, files, projects, code_files.touched, connections.approvals
+        )
+        hooks.new_file_makers[workbook_rules.TYPE] = self.power_query.workbooks.open_new
 
     async def run(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{path?, text?, connection?, line?, selection?, table?}: the file's query run; its table built.

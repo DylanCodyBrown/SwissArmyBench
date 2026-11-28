@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from swissarmybench.domain import code_tree, markdown_blocks, project_paths
+from swissarmybench.domain import code_tree, markdown_blocks, project_paths, workbook_queries
 from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import project_scope as rules
@@ -160,9 +160,8 @@ class ProjectScope:
             sql = code_tree.sql_group(files)  # the project's .sql files (2026-11-24)
             if sql is not None:
                 groups.append(sql)
-            queries = code_tree.power_query_group(files)  # its Power Query files (2026-11-27)
-            if queries is not None:
-                groups.append(queries)
+            # Its Power Query files (2026-11-27), the ones linked to a workbook under its name (2026-11-28).
+            groups += code_tree.power_query_groups(files, self._linked_workbooks(current.folder, files))
             text = code_tree.text_group(files)  # its Markdown and plain text files (2026-11-27)
             if text is not None:
                 groups.append(text)
@@ -174,6 +173,21 @@ class ProjectScope:
             for item in group["files"]:
                 item["full"] = rules.inside(current.folder, item["path"])
         return {"project": current.name, "folder": current.folder, "page": page, "groups": groups}
+
+    def _linked_workbooks(self, folder: str, files: list[str]) -> dict[str, str]:
+        """Each Power Query file's workbook by name, read from the file's first line."""
+        found: dict[str, str] = {}
+        for relative in files:
+            if not relative.lower().endswith((".pq", ".m")):
+                continue
+            try:
+                head = self._files.read_file(folder, relative)[:1000].decode("utf-8-sig", "replace")
+            except OSError:
+                continue
+            named = workbook_queries.linked_to(head)
+            if named:
+                found[relative] = named.replace("\\", "/").rsplit("/", 1)[-1]
+        return found
 
     HAND = ".sab/hand-edited.json"
 

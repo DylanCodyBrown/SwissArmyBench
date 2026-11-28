@@ -48,6 +48,7 @@ public partial class PowerQueryFileView
 
     private string Status => _running ? "Running…"
         : _failed is not null ? "Failed."
+        : _saved is { } saved ? saved.Words
         : _built is { } built ? $"{Tables(built.Tables.Count)} built from {(built.Tables.Count == 1 ? "its" : "their")} original sources."
         : _sql is { } composed ? $"What runs in DuckDB for {Tables(composed.Queries.Count)}."
         : string.Empty;
@@ -95,7 +96,7 @@ public partial class PowerQueryFileView
         await AskAsync(async (request, cancel) =>
         {
             _sql = await Ide.PowerQuerySqlAsync(request with { Line = line }, cancel);
-            _built = null;
+            (_built, _saved) = (null, null);
         });
     }
 
@@ -106,7 +107,7 @@ public partial class PowerQueryFileView
     private Task RunAsync(int? line) => AskAsync(async (request, cancel) =>
     {
         _built = await Ide.RunPowerQueryAsync(request with { Line = line }, cancel);
-        _sql = null;
+        (_sql, _saved) = (null, null);
         await OnBuilt.InvokeAsync(_built);
     });
 
@@ -128,12 +129,12 @@ public partial class PowerQueryFileView
         }
         catch (OperationCanceledException)
         {
-            (_built, _sql) = (null, null);
+            (_built, _sql, _saved) = (null, null, null);
             _failed = new SqlFailure("Cancelled.", null, null);
         }
         catch (ApiException error)
         {
-            (_built, _sql) = (null, null);
+            (_built, _sql, _saved) = (null, null, null);
             _failed = SqlFailure.Of(error);
             await MarkAsync(_failed.Line, _failed.Words);
         }
@@ -145,7 +146,7 @@ public partial class PowerQueryFileView
 
     private async Task ClearAsync()
     {
-        (_built, _sql, _failed) = (null, null, null);
+        (_built, _sql, _failed, _saved) = (null, null, null, null);
         await MarkAsync(null, null);
     }
 

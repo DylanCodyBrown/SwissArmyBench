@@ -2,15 +2,22 @@
    the power query runs"): Monaco in M with its colours, the problems underlined before a run (what cannot run, with
    its line: the server's, nothing read), Run file (F5: every query that is a table) and Run query (Ctrl+Enter: the
    one under the cursor), and its Output under it: each open table it built with Open in Tables, the failure with its
-   line marked in the code, or the DuckDB SQL composed (Show as SQL). Logic in PowerQueryFileView.razor.cs. *@
+   line marked in the code, or the DuckDB SQL composed (Show as SQL). A file linked to an Excel workbook (its first
+   line `// workbook: <file>`; the owner, 2026-11-28: "Excel's own Power Query") shows "Saves into <workbook>" over
+   the editor, and its Save's result or preview in the Output: each workbook query changed, added, kept or the same.
+   Logic in PowerQueryFileView.razor.cs and PowerQueryFileView.Workbook.cs. *@
 
 <div class="wb-script wb-sql wb-pq">
+    @if (_link is { Linked: true } link)
+    {
+        <WorkbookLinkLine Link="link" Busy="_running" OnReload="ReloadFromWorkbookAsync" OnKeepMine="KeepMineAsync" OnPreview="PreviewSaveAsync" />
+    }
     <div class="wb-script-editor">
         <CodeEditor @ref="_editor" Value="@Text" Language="powerquery" Label="Power Query file" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" />
     </div>
-    <section class="wb-console wb-sql-output wb-pq-output" aria-label="Output" hidden="@(_built is null && _failed is null && _sql is null && !_running)">
+    <section class="wb-console wb-sql-output wb-pq-output" aria-label="Output" hidden="@(_built is null && _failed is null && _sql is null && _saved is null && !_running)">
         <div class="wb-console-head">
-            <strong>@(_sql is null ? "Output" : "As SQL")</strong>
+            <strong>@(_saved is { } into ? (into.Written ? "Saved into the workbook" : "Save preview") : _sql is null ? "Output" : "As SQL")</strong>
             <span class="sql-status" role="status">@Status</span>
             <span class="wb-grow"></span>
             <button type="button" class="btn small ghost" @onclick="ClearAsync">Clear</button>
@@ -34,6 +41,22 @@
                     }
                 </div>
             </div>
+        }
+        else if (_saved is { } saved)
+        {
+            <ul class="wb-console-body wb-pq-tables wb-pq-changes" aria-label="Workbook queries">
+                @foreach (var change in saved.Changes)
+                {
+                    <li class="wb-pq-table wb-pq-change @change.What" @key="change.Query">
+                        <span class="chip">@change.What</span> <strong>@change.Query</strong>
+                        <span class="muted">@change.Words</span>
+                    </li>
+                }
+                @if (saved.Backup is { Length: > 0 } backup)
+                {
+                    <li class="wb-pq-table wb-pq-backup"><Icon Name="copy" /> <span class="muted">A backup copy of the workbook as it was: @backup</span></li>
+                }
+            </ul>
         }
         else if (_built is { } built)
         {

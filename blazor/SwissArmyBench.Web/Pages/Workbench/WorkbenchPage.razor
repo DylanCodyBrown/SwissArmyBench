@@ -313,7 +313,7 @@
             }
             else if (doc.IsQueryFile)
             {
-                @if (doc.IsPowerQuery) { <div class="wb-script-host"><PowerQueryFileView @ref="doc.PowerQueryView" Text="@doc.ScriptText" Path="@doc.Path" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="PowerQueryBuiltAsync" OnOpenTable="t => ShowTableAsync(t.Grid)" /></div> } else { <div class="wb-script-host"><SqlFileView @ref="doc.SqlView" Text="@doc.ScriptText" Path="@doc.Path" Table="@SqlHeader.TableOf(doc.Path)" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="SqlBuiltAsync" OnOpenTable="r => ShowTableAsync(r.Grid)" /></div> }
+                @if (doc.IsPowerQuery) { <div class="wb-script-host"><PowerQueryFileView @ref="doc.PowerQueryView" Text="@doc.ScriptText" Path="@doc.Path" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="PowerQueryBuiltAsync" OnOpenTable="t => ShowTableAsync(t.Grid)" OnReloaded="() => ReloadAsync(doc)" /></div> } else { <div class="wb-script-host"><SqlFileView @ref="doc.SqlView" Text="@doc.ScriptText" Path="@doc.Path" Table="@SqlHeader.TableOf(doc.Path)" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="SqlBuiltAsync" OnOpenTable="r => ShowTableAsync(r.Grid)" /></div> }
             }
             else
             {

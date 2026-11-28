@@ -14,7 +14,7 @@ from __future__ import annotations
 import ast
 import posixpath
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from swissarmybench.domain import project_paths, text_documents, workbench_pages
@@ -189,18 +189,35 @@ def power_query_group(paths: Iterable[str]) -> dict[str, Any] | None:
     """The Scripts page's Power Query group (the owner, 2026-11-27: "Wish I had it as a supported language"):
     every .pq and .m file of the project, by folder then name, each opening as a Power Query tab
     (domain/m_files.py). None when there are none."""
-    files = []
+    found = power_query_groups(paths, {})
+    return found[0] if found else None
+
+
+def power_query_groups(paths: Iterable[str], workbooks: Mapping[str, str]) -> list[dict[str, Any]]:
+    """The Power Query group, then one group per Excel workbook that files are linked to (the owner,
+    2026-11-28: "Excel's own Power Query"), named after the workbook: `workbooks` maps a linked file's path
+    to its workbook's name (domain/workbook_queries.py). A linked file is listed under its workbook only."""
+    plain: list[dict[str, Any]] = []
+    linked: dict[str, list[dict[str, Any]]] = {}
     for relative in paths:
         relative = relative.replace("\\", "/")
         if not relative.lower().endswith((".pq", ".m")) or not listed(relative):
             continue
-        files.append(
-            {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
-        )
-    if not files:
-        return None
-    files.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
-    return {"id": POWER_QUERY, "name": "Power Query", "files": files, "kind": POWER_QUERY}
+        file = {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
+        workbook = workbooks.get(relative)
+        (linked.setdefault(workbook, []) if workbook else plain).append(file)
+    order = lambda f: (f["folder"].casefold(), f["name"].casefold())  # noqa: E731
+    groups: list[dict[str, Any]] = []
+    if plain:
+        plain.sort(key=order)
+        groups.append({"id": POWER_QUERY, "name": "Power Query", "files": plain, "kind": POWER_QUERY})
+    for workbook in sorted(linked, key=str.casefold):
+        files = sorted(linked[workbook], key=order)
+        groups.append(
+            {"id": f"workbook:{workbook}", "name": workbook, "files": files, "kind": POWER_QUERY,
+             "workbook": workbook}
+        )  # fmt: skip
+    return groups
 
 
 TEXT = "text"

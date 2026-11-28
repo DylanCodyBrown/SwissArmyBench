@@ -37,6 +37,8 @@ _TABLE_PART = re.compile(r"[^A-Za-z0-9_-]+")
 # How many times a run resolves what the compiler asks for before it gives up (a source's columns, then a
 # pivot's values read from it, then ...).
 MAX_ROUNDS: int = 8
+# Excel's own source for the workbook a query is in: a linked file's workbook (domain/workbook_queries.py).
+CURRENT_WORKBOOK: str = "Excel.CurrentWorkbook"
 
 
 def is_file(path: Any) -> bool:

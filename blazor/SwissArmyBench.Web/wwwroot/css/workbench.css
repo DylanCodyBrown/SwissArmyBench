@@ -277,3 +277,11 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .md-empty { margin: 24px 0; }
 .new-file-place { flex-wrap: nowrap; }
 .new-file-place .new-file-folder { flex: 1 1 auto; min-width: 0; }
+/* A Power Query file linked to an Excel workbook: the line over its editor, and a save's queries in the Output. */
+.wb-pq-workbook { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.wb-pq-workbook .muted { color: var(--muted); }
+.wb-pq-workbook.blocked { background: var(--warn-soft); }
+.wb-pq-workbook-why { color: var(--warn); }
+.wb-pq-change .chip { text-transform: capitalize; }
+.wb-pq-change.changed .chip, .wb-pq-change.added .chip { color: var(--accent); border-color: var(--accent); }
+.wb-pq-change .muted, .wb-pq-backup .muted { color: var(--muted); overflow-wrap: anywhere; }

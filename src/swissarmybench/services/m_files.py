@@ -128,6 +128,7 @@ class _Resolution:
     def __init__(self) -> None:
         self.tables: dict[str, Any] = {}
         self.reads: list[dict[str, Any]] = []
+        self.workbook: str | None = None  # the workbook the file is linked to (Excel.CurrentWorkbook())
 
 
 class PowerQueryFiles:
@@ -146,6 +147,8 @@ class PowerQueryFiles:
         self._files = files
         self._projects = projects
         self._touched = touched
+        # A linked file's workbook (services/workbook_queries.py), set by SqlFiles.
+        self.workbooks: Any = None
 
     # ===== what the compiler is told =====
 
@@ -186,12 +189,17 @@ class PowerQueryFiles:
         except rules.NoConnection as error:
             return duckpq.Failure(str(error))
 
-    def _lint_answers(self, context: duckpq.Context, saved: list[rules.Connection]) -> None:
-        """What can be answered with nothing read: a database source no saved connection matches."""
+    def _lint_answers(
+        self, context: duckpq.Context, saved: list[rules.Connection], linked: bool = False
+    ) -> None:
+        """What can be answered with nothing read: a database source no saved connection matches (a linked
+        file's Excel.CurrentWorkbook() is its workbook: read on a run)."""
         for key in context.missing:
             if key[0] != "source":
                 continue
             source = context.sources[key[1]]
+            if source.function == rules.CURRENT_WORKBOOK and linked:
+                continue
             if source.kind == "call":
                 found = self._matched(source, saved)
                 if isinstance(found, duckpq.Failure):
@@ -207,7 +215,8 @@ class PowerQueryFiles:
         saved = self.saved_connections()
         compiled = duckpq.compile(text, rules.query_name(path), context)
         if context.missing:
-            self._lint_answers(context, saved)
+            linked = self.workbooks is not None and self.workbooks.table_path(text, path) is not None
+            self._lint_answers(context, saved, linked)
             compiled = duckpq.compile(text, rules.query_name(path), context)
         return {
             "problems": [p.to_json() for p in compiled.problems],
@@ -249,6 +258,8 @@ class PowerQueryFiles:
             table = await self._tables.read_file(str(source.path), source.sheet)
             held.tables[source.name] = table
             return duckpq.Resolved([str(n) for n in table.schema.names])
+        if source.function == rules.CURRENT_WORKBOOK:
+            return await self._workbook_table(source, held)
         found = self._matched(source, saved)
         if isinstance(found, duckpq.Failure):
             return found
@@ -264,11 +275,30 @@ class PowerQueryFiles:
             columns = [str(n) for n in table.schema.names]
         return duckpq.Resolved(columns, named)
 
+    async def _workbook_table(self, source: duckpq.Source, held: _Resolution) -> Any:
+        """Excel.CurrentWorkbook(){[Name = "Table1"]}[Content]: that named table (or sheet) of the workbook
+        the file is linked to, read through the app's own workbook reader (the adapter's Excel source)."""
+        name = next((str(s["Name"]) for s in source.navigation if s.get("Name")), "")
+        if held.workbook is None:
+            return duckpq.Failure(
+                "Excel.CurrentWorkbook() is the workbook a file is linked to, and this file names none "
+                "(Edit workbook queries… links one)."
+            )
+        if not name:
+            return duckpq.Failure(
+                'Pick the workbook\'s table: Excel.CurrentWorkbook(){[Name = "Table1"]}[Content].'
+            )
+        table = await self._tables.read_file(held.workbook, name)
+        held.tables[source.name] = table
+        return duckpq.Resolved([str(n) for n in table.schema.names])
+
     async def _compiled(
         self, text: str, path: str | None
     ) -> tuple[duckpq.Compiled, duckpq.Context, _Resolution]:
         """The file compiled with everything it asks for resolved."""
         context, held, saved = self._context(path), _Resolution(), self.saved_connections()
+        if self.workbooks is not None:
+            held.workbook = self.workbooks.table_path(text, path)
         name = rules.query_name(path)
         for _ in range(rules.MAX_ROUNDS):
             compiled = duckpq.compile(text, name, context)

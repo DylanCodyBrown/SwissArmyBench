@@ -43,6 +43,7 @@ public partial class WorkbenchPage
         new("file.new", "File", $"New {KindWord}… (its name first)", AskNewAsync),
         new("file.newSql", "File", "New SQL file… (its name first)", () => AskNewAsync("sql"), WhyNot: IsNotebooks ? "SQL files are the Scripts page's" : null),
         new("file.newPowerQuery", "File", "New Power Query file… (its name first)", () => AskNewAsync("powerquery"), WhyNot: IsNotebooks ? "Power Query files are the Scripts page's" : null),
+        new("file.editWorkbookQueries", "File", "Edit workbook queries… (an Excel workbook's Power Query as one file)", () => AskNewAsync("powerquery_workbook")),
         new("file.importPowerBiQueries", "File", "Import Power BI queries… (a dataset's queries as one file)", () => AskNewAsync("powerquery_import"), WhyNot: IsNotebooks ? "Power Query files are the Scripts page's" : null),
         // The desktop app's Ctrl+N and Ctrl+T run the page's "tabs.new-query" (Layout/DesktopKeys): here, New file.
         new("tabs.new-query", "File", "New file… (pick its type, then its name)", () => _newFileButton?.OpenList() ?? Task.CompletedTask, "Ctrl+N"),

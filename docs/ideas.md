@@ -9900,3 +9900,49 @@ Asked whether an exported .pq file should carry the project's connection code (a
 a database source runs unchanged elsewhere): "no not needed if we already imported the connection". The export
 stays as it is: the file, duckpq.py, run.py, requirements.txt and README.md; its `run.py` leaves each database
 source for the caller's resolver to fill in.
+
+## Workbook queries: .pq and .m are for Excel workbook development (the owner, 2026-11-28)
+
+The owner first: ".m and .pq is more for editing powerbi files in place". Then: "I've changed my mind. I don't want
+to edit power query in powerbi at all. I was the m and .pq features to be aimed at workbook development". Asked
+which, they chose "Excel's own Power Query".
+
+Decisions:
+
+- **No Power BI writing.** Nothing writes into a .pbix or a .pbip. Import Power BI queries… stays as it was: a
+  read-only copy.
+- **One linked .pq file per workbook**, its first line `// workbook: <file>` relative to the .pq. duckpq reads it
+  as a comment, so the file runs as any other.
+- **The .pq lives where New file puts any file** (the open project's scripts/, or the folder named), not beside
+  the workbook: a new file is always named first and written by the server, the project's code stays in one
+  place, and a workbook outside the project is not given a neighbour it did not ask for.
+- **Save rewrites only the Data Mashup** ([MS-QDEFF], docs/verified.md): every other part of the workbook is
+  copied raw. The permission bindings cannot be made off Windows (DPAPI), so they are kept; the specification
+  has Excel fall back to the default privacy settings then, never fail.
+- **An added query is connection only**: its Section1.m member and its metadata Item. `xl/connections.xml` is
+  not touched (the specification does not cover it, and the rule is that only the Data Mashup changes). No
+  sheet table is ever made.
+- **A removed query is kept** in the workbook (put back at the end of Section1.m) and said. Renaming a query
+  in the file is so "one added, one kept": rename it in Excel.
+- **The conflict's hash is of the queries' text**, not of the whole file: a workbook saved in Excel with other
+  cells changed is no conflict, since a save reads everything else from the file as it is then.
+- **The backup** is one copy before the first write: `.sab/backup/<date>/` in the open project (with its own
+  .gitignore: a workbook holds rows), else `<name>.backup.xlsx` beside the workbook.
+- **Excel.CurrentWorkbook()** reads the linked workbook's named table (or sheet) through the app's workbook
+  reader. A workbook with no query opens a starter over its first named table, M that Excel and Run both read.
+- **No new MCP tool**: `workbench_file` new takes `source`; `workbench_sql` takes workbook, preview, save and
+  reload for a linked .pq, with `force`.
+- bootstrap.py did not grow: the service hangs on the Power Query service, its Allow is the connections'.
+
+Open, for the owner:
+
+- **Check in real Excel** (not possible here): the list in docs/verified.md.
+- **A workbook with no query yet cannot be saved into.** Making its first Data Mashup means a new custom XML
+  part, its properties part, a relationship and a content type: more than "only the Data Mashup". It is refused
+  with "add one in Excel first". Say so if the app should make that part.
+- **Should an added query get its connection too** (`xl/connections.xml`, Microsoft.Mashup.OleDb.1)? Left out
+  until Excel is seen to need it.
+- **The Accounting workbook tab has no action**: it designs a workbook the app builds, and holds no workbook
+  with queries. The action is on New file, the palette and a workbook's table's tab menu (so a workbook opened
+  with the app or by Open file has it).
+- A protected workbook is refused whole. Excel itself may allow query edits under some protections.

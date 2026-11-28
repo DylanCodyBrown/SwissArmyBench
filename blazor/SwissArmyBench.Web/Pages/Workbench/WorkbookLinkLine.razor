@@ -1,0 +1,52 @@
+@* A Power Query file linked to an Excel workbook (the owner, 2026-11-28: "Excel's own Power Query"): the one line
+   over its editor. "Saves into <workbook>", how many workbook queries it holds, and what stands in a save's way,
+   each in one sentence: the workbook is not there or cannot be read, Excel has it open, or its queries changed on
+   disk since the file was opened (Reload them, or Keep mine). Preview save lists what a save would change. *@
+@using SwissArmyBench.Web.Api.Workbench
+
+<div class="wb-pq-workbook @(Blocked ? "blocked" : string.Empty)" role="status" aria-label="This file's workbook">
+    <Icon Name="excel" />
+    <span class="wb-pq-saves-into">Saves into <strong title="@Link.WorkbookPath">@Link.Workbook</strong></span>
+    @if (Link.Why is { Length: > 0 } why)
+    {
+        <span class="wb-pq-workbook-why">@why</span>
+    }
+    else
+    {
+        <span class="muted">@(Link.Queries == 1 ? "1 workbook query" : $"{Link.Queries:N0} workbook queries")</span>
+    }
+    @if (Link.OpenInExcel)
+    {
+        <span class="wb-pq-workbook-why">Open in Excel. Close it in Excel first.</span>
+    }
+    @if (Link.Changed)
+    {
+        <span class="wb-pq-workbook-why">Its queries changed on disk since this file was opened.</span>
+        <button type="button" class="btn small wb-pq-reload" disabled="@Busy" @onclick="OnReload">Reload</button>
+        <button type="button" class="btn small ghost wb-pq-keep-mine" disabled="@Busy" @onclick="OnKeepMine">Keep mine</button>
+    }
+    <span class="wb-grow"></span>
+    @if (Link.There && Link.Why is null)
+    {
+        <button type="button" class="btn small ghost wb-pq-preview-save" title="What a save would change in the workbook: nothing is written" disabled="@Busy" @onclick="OnPreview">Preview save</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkbookLink Link { get; set; } = default!;
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback OnReload { get; set; }
+
+    [Parameter]
+    public EventCallback OnKeepMine { get; set; }
+
+    [Parameter]
+    public EventCallback OnPreview { get; set; }
+
+    private bool Blocked => Link.Why is not null || Link.OpenInExcel || Link.Changed;
+}
