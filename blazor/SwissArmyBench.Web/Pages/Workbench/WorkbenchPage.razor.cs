@@ -101,6 +101,10 @@ public partial class WorkbenchPage
     [Parameter]
     public string? NewKind { get; set; }
 
+    /// <summary>With ?new=: the file the new one is made from (?from=), filled into the dialog.</summary>
+    [Parameter]
+    public string? NewFrom { get; set; }
+
     /// <summary>The script's line to reveal (its cursor there), or the notebook's cell to select (the classic file.openCell).</summary>
     [Parameter]
     public int? Line { get; set; }

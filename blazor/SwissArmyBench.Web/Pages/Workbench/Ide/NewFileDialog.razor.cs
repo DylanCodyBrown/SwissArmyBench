@@ -39,6 +39,10 @@ public partial class NewFileDialog : IDisposable
     [Parameter, EditorRequired]
     public NewFileType Type { get; set; } = default!;
 
+    /// <summary>The file the new one is made from, already known (a workbook's queries asked for from its table).</summary>
+    [Parameter]
+    public string? Source { get; set; }
+
     /// <summary>The open project's folders ("" its top).</summary>
     [Parameter]
     public IReadOnlyList<string> Folders { get; set; } = [];
@@ -67,7 +71,8 @@ public partial class NewFileDialog : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        _name = Type.Suggested + Type.Ending;
+        _source = Type.AsksFor("source") ? Source ?? string.Empty : string.Empty;
+        _name = (_source.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(_source.Replace('\\', '/')) : Type.Suggested) + Type.Ending;
         _folder = HasProject ? Type.Folder : StartFolder;
         _variant = Type.Variants is { Count: > 0 } variants ? variants[0].Id : string.Empty;
         await CheckAsync(CancellationToken.None);

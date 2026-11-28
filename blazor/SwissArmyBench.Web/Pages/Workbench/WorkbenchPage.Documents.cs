@@ -220,7 +220,9 @@ public partial class WorkbenchPage
             var saved = await SaveCallAsync(doc, path, renamed ? null : doc.Modified, force);
             (doc.Path, doc.Modified, doc.Dirty, doc.Hash, doc.Elsewhere) = (saved.Path, saved.Modified, false, saved.Hash, null);
             _error = null;
-            _ = Notes.SayAsync($"Saved {doc.Title}.");
+            // A file linked to an Excel workbook: its queries go into the workbook next, and that is what is said.
+            var into = doc.PowerQueryView is { Workbook: not null } linked ? await linked.SaveIntoWorkbookAsync() : null;
+            _ = Notes.SayAsync(into ?? $"Saved {doc.Title}.");
             if (renamed && doc == Front)
             {
                 await FollowAddressAsync();

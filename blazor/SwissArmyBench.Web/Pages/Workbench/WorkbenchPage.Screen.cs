@@ -61,7 +61,7 @@ public partial class WorkbenchPage
             .ToList(),
         ["session"] = Session.Words,
         ["script"] = Front is { IsNotebook: false, IsBlade: false, IsStructure: false, IsWorkbook: false } script
-            ? new Dictionary<string, object?> { ["language"] = script.IsSql ? "sql" : script.IsPowerQuery ? "powerquery" : script.TextKind?.Language ?? "python", ["running"] = script.SqlView?.Running ?? script.PowerQueryView?.Running ?? Session.Busy }
+            ? new Dictionary<string, object?> { ["language"] = script.IsSql ? "sql" : script.IsPowerQuery ? "powerquery" : script.TextKind?.Language ?? "python", ["running"] = script.SqlView?.Running ?? script.PowerQueryView?.Running ?? Session.Busy, ["workbook"] = script.PowerQueryView?.Workbook }
             : null,
     };
 }

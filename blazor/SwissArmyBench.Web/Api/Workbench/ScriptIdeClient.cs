@@ -85,6 +85,23 @@ public sealed class ScriptIdeClient
     /// <summary>Export to run anywhere: the saved file with duckpq.py and run.py beside it, in a folder of its own.</summary>
     public Task<PowerQueryExport> ExportPowerQueryAsync(string path) => _api.PostAsync<PowerQueryExport>("/scripts/pq/export", new { path });
 
+    /// <summary>What a linked Power Query file's tab shows: its workbook, and what stands in a save's way.</summary>
+    public Task<WorkbookLink> WorkbookLinkAsync(string path, string text, CancellationToken cancel = default) =>
+        _api.PostAsync<WorkbookLink>("/scripts/pq/workbook", new { path, text }, cancel);
+
+    /// <summary>A save's dry run: each workbook query changed, added, kept or the same. Nothing is written.</summary>
+    public Task<WorkbookSave> PreviewWorkbookSaveAsync(string path, string text, CancellationToken cancel = default) =>
+        _api.PostAsync<WorkbookSave>("/scripts/pq/workbook/preview", new { path, text }, cancel);
+
+    /// <summary>The saved file's queries written into its workbook's Data Mashup, and nothing else of it
+    /// (<paramref name="force"/>: Keep mine, over queries changed on disk).</summary>
+    public Task<WorkbookSave> SaveIntoWorkbookAsync(string path, bool force = false, CancellationToken cancel = default) =>
+        _api.PostAsync<WorkbookSave>("/scripts/pq/workbook/save", new { path, force }, cancel);
+
+    /// <summary>Reload: the workbook's queries read again into the linked file.</summary>
+    public Task<WorkbookReload> ReloadWorkbookAsync(string path, CancellationToken cancel = default) =>
+        _api.PostAsync<WorkbookReload>("/scripts/pq/workbook/reload", new { path }, cancel);
+
     private static object PowerQueryBody(PowerQueryRequest request) =>
         new { path = request.Path, text = request.Text, line = request.Line, query = request.Query };
 

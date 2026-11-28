@@ -52,7 +52,9 @@ public partial class WorkbenchPage
 
     /// <summary>A new file asked for, from anywhere: the dialog for its type (none named: this page's own, a
     /// notebook or the server's default), with the types and folders as they are now.</summary>
-    private async Task AskNewAsync(string? typeId)
+    private Task AskNewAsync(string? typeId) => AskNewAsync(typeId, null);
+
+    private async Task AskNewAsync(string? typeId, string? from)
     {
         await LoadNewFileOptionsAsync();
         if (_newFileOptions is not { } options)
@@ -68,7 +70,7 @@ public partial class WorkbenchPage
             return;
         }
         StateHasChanged(); // the types and folders reach the dialog
-        _newFileButton?.Ask(type);
+        _newFileButton?.Ask(type, from);
     }
 
     /// <summary>?new= in the address (a file type): the New file dialog for it once the page is drawn (its name first;
@@ -88,7 +90,7 @@ public partial class WorkbenchPage
             return;
         }
         _askOnceDrawn = null;
-        await AskNewAsync(asked.Length > 0 ? asked : null);
+        await AskNewAsync(asked.Length > 0 ? asked : null, NewFrom);
         await FollowAddressAsync();
         StateHasChanged();
     }

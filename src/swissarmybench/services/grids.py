@@ -26,6 +26,7 @@ from swissarmybench.domain.steps import (
     with_header_sort,
 )
 from swissarmybench.domain.table_cells import Origin
+from swissarmybench.domain.workbook_queries import SUFFIXES as WORKBOOK_SUFFIXES
 from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.workspace import NotFound, Workspace
@@ -72,7 +73,10 @@ class GridService:
         origin = self._origin_of(dataset)
         # A file connection's file is in its connection's group too.
         named = origin.connection if origin.kind in ("connection", "file") and origin.connection else None
-        return {"kind": origin.kind, "connection": connection_named(named) if named else None}
+        source = {"kind": origin.kind, "connection": connection_named(named) if named else None}
+        if origin.kind == "file" and str(origin.path or "").lower().endswith(WORKBOOK_SUFFIXES):
+            source["workbook"] = origin.path  # an Excel workbook: its tab offers Edit workbook queries…
+        return source
 
     def find(self, grid_id: str) -> tuple[Grid, DatasetInfo]:
         return self.ws.grid_and_info(grid_id)

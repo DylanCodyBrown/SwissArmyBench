@@ -20,7 +20,7 @@ else
 }
 @if (_asked is { } asked)
 {
-    <NewFileDialog @key="asked.Id" Type="asked" HasProject="HasProject" StartFolder="@StartFolder" Folders="Folders" Connections="Connections" ProjectName="@ProjectName" OnClose="() => _asked = null" OnMade="MadeAsync" />
+    <NewFileDialog @key="asked.Id" Type="asked" Source="@_from" HasProject="HasProject" StartFolder="@StartFolder" Folders="Folders" Connections="Connections" ProjectName="@ProjectName" OnClose="() => _asked = null" OnMade="MadeAsync" />
 }
 
 @code {
@@ -29,6 +29,7 @@ else
 
     private (double X, double Y)? _at;
     private NewFileType? _asked;
+    private string? _from;
 
     /// <summary>The file types this button offers, in the list's order.</summary>
     [Parameter]
@@ -60,9 +61,9 @@ else
     public EventCallback<NewFileMade> OnMade { get; set; }
 
     /// <summary>The New file dialog for this type (the page's answer to every way a file is asked for).</summary>
-    public void Ask(NewFileType type)
+    public void Ask(NewFileType type, string? from = null)
     {
-        _asked = type;
+        (_asked, _from) = (type, from);
         StateHasChanged();
     }
 
