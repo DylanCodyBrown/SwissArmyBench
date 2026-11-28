@@ -194,8 +194,9 @@ def workbench_file(a: dict[str, Any]) -> Any:
     "over the open tables and [Conn].table names); a failure names its line. for_table: a table a query made "
     "as its file (Edit in Scripts), its path. A Power Query file (path ending .pq or .m): run builds each query "
     "that is a table as the open table of its name, from its original sources; problems: what cannot run "
-    "(line, column), nothing read; sql: the DuckDB SQL composed",
-    req("action", "run or for_table; a .pq file: run, problems or sql."),
+    "(line, column), nothing read; sql: the DuckDB SQL composed; export: the file with duckpq.py and run.py "
+    "beside it, to run with no app",
+    req("action", "run or for_table; a .pq file: run, problems, sql or export."),
     opt("path", "The .sql or .pq file (its text read when text is not sent)."),
     opt("text", "run: the SQL or M (unsaved text wins over the file's)."),
     opt("connection", 'run: where it runs ("" the open tables), else the file\'s header.'),
@@ -208,8 +209,9 @@ def workbench_sql(a: dict[str, Any]) -> Any:
         return api.call("POST", "/scripts/sql/for-table", {"table": a.get("table")})
     if str(a.get("path") or "").lower().endswith((".pq", ".m")):
         paths = {"run": "/scripts/pq/run", "problems": "/scripts/pq/problems", "sql": "/scripts/pq/sql"}
+        paths["export"] = "/scripts/pq/export"
         if a["action"] not in paths:
-            return {"error": "action: run, problems or sql."}
+            return {"error": "action: run, problems, sql or export."}
         body = {k: a[k] for k in ("path", "text", "query", "line") if a.get(k) is not None}
         return api.call("POST", paths[a["action"]], body)
     if a["action"] != "run":

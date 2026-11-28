@@ -501,6 +501,12 @@ def test_the_composed_sql_and_its_sources(client: TestClient, tmp_path: Path) ->
     assert people["sql"] == 'SELECT * FROM "m_source_0"' and people["sources"][0]["kind"] == "file"
     one = ok(client.post("/scripts/pq/sql", json={"text": text, "line": 2}, headers=AGENT))
     assert [x["query"] for x in one["queries"]] == ["Big"]
+    # The cursor in a parameter: every table's SQL, not a refusal.
+    with_value = (
+        "section S;\nshared Least = 6;\nshared Big = Table.SelectRows(orders, each [amount] > Least);\n"
+    )
+    every = ok(client.post("/scripts/pq/sql", json={"text": with_value, "line": 2}, headers=AGENT))
+    assert [x["query"] for x in every["queries"]] == ["Big"]
     assert ok(client.get("/datasets", headers=AUTH))["datasets"][0]["name"] == "orders"  # nothing was built
 
 
@@ -577,3 +583,80 @@ def test_new_file_makes_a_power_query_file_and_imports_a_dataset(client: TestCli
     assert client.post("/scripts/files/new", json=body, headers=AUTH).status_code == 409
     wrong = client.post("/scripts/files/new", json=body | {"name": "x", "source": made["path"]}, headers=AUTH)
     assert wrong.status_code == 403 and "a .pbix, a .pbit or a .pbip" in wrong.json()["error"]
+
+
+def test_an_export_carries_the_library_and_runs_with_no_app(client: TestClient, tmp_path: Path) -> None:
+    """Portability: the exported folder holds the .pq, duckpq.py as it is and run.py; run in a bare Python (the
+    app's packages cannot be imported there), every table is written as Parquet."""
+    import subprocess
+    import sys
+
+    import duckdb
+
+    (tmp_path / "orders.csv").write_text("id,amount\n1,5\n2,50\n3,500\n", encoding="utf-8")
+    file = tmp_path / "big orders.pq"
+    file.write_text(
+        "section Shop;\n"
+        f'shared Orders = Table.PromoteHeaders(Csv.Document(File.Contents("{tmp_path / "orders.csv"}")));\n'
+        "shared Big = Table.SelectRows(Orders, each [amount] > 10);\n"
+        'shared Elsewhere = Sql.Database("made-up-sql.example", "Sales"){[Schema = "dbo", Item = "t"]}[Data];\n',
+        encoding="utf-8",
+    )
+    made = ok(client.post("/scripts/pq/export", json={"path": str(file)}, headers=AGENT))
+    folder = Path(made["folder"])
+    assert folder == tmp_path / "big_orders_export"
+    assert made["files"] == ["README.md", "big orders.pq", "duckpq.py", "requirements.txt", "run.py"]
+    assert (folder / "duckpq.py").read_text(encoding="utf-8") == Path(duckpq.__file__).read_text(
+        encoding="utf-8"
+    )
+    run = (folder / "run.py").read_text(encoding="utf-8")
+    assert "source.function == 'Sql.Database' and source.arguments == ('made-up-sql.example', 'Sales')" in run
+    assert "answer for it in `run.py`'s `resolver`" in (folder / "README.md").read_text(encoding="utf-8")
+    assert "swissarmybench" not in run
+    # A second export writes nothing (the same bytes).
+    assert ok(client.post("/scripts/pq/export", json={"path": str(file)}, headers=AUTH))["written"] == []
+    # With the database's query taken out, it runs as it is in a bare Python.
+    text = file.read_text(encoding="utf-8")
+    (folder / "big orders.pq").write_text(text[: text.index("shared Elsewhere")], encoding="utf-8")
+    block = "import sys\nsys.modules['swissarmybench'] = None\nimport runpy\nrunpy.run_path('run.py', run_name='__main__')\n"
+    done = subprocess.run(  # noqa: S603 (this Python, the exported script)
+        [sys.executable, "-I", "-c", "import sys; sys.path.insert(0, '.')\n" + block],
+        cwd=folder, capture_output=True, text=True, timeout=120, check=False,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    assert duckdb.sql(f"SELECT id FROM '{folder / 'out' / 'Big.parquet'}' ORDER BY id").fetchall() == [
+        (2,),
+        (3,),
+    ]
+
+
+def test_a_project_reads_a_power_querys_table_again_by_running_its_query(
+    client: TestClient, tmp_path: Path
+) -> None:
+    folder = tmp_path / "made_up_shop"
+    ok(client.post("/project/new", json={"path": str(folder)}, headers=AUTH))
+    (folder / "people.csv").write_text("name,region\nann,North\nbob,South\n", encoding="utf-8")
+    scripts = folder / "scripts"
+    scripts.mkdir(exist_ok=True)
+    file = scripts / "shop.pq"
+    file.write_text(
+        "section Shop;\n"
+        f'shared People = Table.PromoteHeaders(Csv.Document(File.Contents("{folder / "people.csv"}")));\n'
+        'shared North = Table.SelectRows(People, each [region] = "North");\n',
+        encoding="utf-8",
+    )
+    ran = ok(client.post("/scripts/pq/run", json={"path": str(file)}, headers=AUTH))
+    assert [t["table"] for t in ran["tables"]] == ["People", "North"]
+    ok(client.post("/project/save", json={}, headers=AUTH))
+    kept = json.loads((folder / ".sab" / "project.json").read_text(encoding="utf-8"))
+    sources = {t["name"]: t["source"] for t in kept["tables"]}
+    assert sources["North"]["powerquery"] == {"path": "scripts/shop.pq", "query": "North"}
+    assert "sql" in sources["North"] and sources["North"]["kind"] == "query"
+    ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
+    assert ok(client.get("/datasets", headers=AUTH))["datasets"] == []
+    # The file changed while the project was closed: opening it runs the query as it is now.
+    (folder / "people.csv").write_text("name,region\nann,North\ncy,North\nbob,South\n", encoding="utf-8")
+    ok(client.post("/project/open", json={"path": str(folder)}, headers=AUTH))
+    back = {d["name"]: d for d in ok(client.get("/datasets", headers=AUTH))["datasets"]}
+    assert set(back) == {"People", "North"} and back["North"]["rows"] == 2
+    ok(client.post("/project/close", json={"discard": True}, headers=AUTH))

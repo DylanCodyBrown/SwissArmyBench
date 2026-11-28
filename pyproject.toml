@@ -156,7 +156,8 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/duckpq.py" = ["S608", "E501"]
 "tests/test_duckpq_*.py" = ["S608", "E501", "RUF043"]
 # A Power Query file's tests: their lines are M as a person writes it.
-"tests/test_m_files.py" = ["E501"]
+"tests/test_m_files.py" = ["E501", "S608"]
+"tests/e2e/blazor/test_workbench_power_query.py" = ["E501"]
 # The canvas runtime: its bookkeeping (the analyzer's marks, the viewer's values, Play's stamp) must never
 # stop a page, and a built app has nowhere to log to.
 "extensions/streamlit/src/swissarmybench_streamlit/server/sab_canvas.py" = ["S110"]

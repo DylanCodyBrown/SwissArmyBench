@@ -409,3 +409,97 @@ def document(queries: DatasetQueries, source_file: str = "") -> str:
         body = expression.strip().rstrip(";").rstrip()
         out += [f"shared {duckpq.quoted_name(name)} = {body};", ""]
     return "\n".join(out).rstrip("\n") + "\n"
+
+
+# ===== an export: the file with the library beside it, so the M runs anywhere =====
+
+EXPORT_FOLDER: str = "exports/powerquery"
+LIBRARY_FILE: str = "duckpq.py"
+RUN_FILE: str = "run.py"
+
+
+def _run_script(stem: str, file: str, sources: Sequence[duckpq.Source]) -> str:
+    """run.py: the file run with duckpq, each table written as Parquet; a branch per database source to
+    fill in."""
+    calls = [s for s in sources if s.kind == "call"]
+    lines = [
+        f'"""Runs {file} with duckpq (the file beside this one): every query that is a table, read from its',
+        "sources, written as out/<table>.parquet. Nothing of Swiss Army Bench is needed: Python and duckdb",
+        "(requirements.txt), on a laptop, a Linux container or an Azure Function App alike.",
+        "",
+        f"    python {RUN_FILE}",
+        '"""',
+        "",
+        "from __future__ import annotations",
+        "",
+        "from pathlib import Path",
+        "from typing import Any",
+        "",
+        "import duckpq",
+        "",
+        "HERE = Path(__file__).resolve().parent",
+        "",
+        "",
+        "def resolver(source: duckpq.Source) -> Any:",
+        '    """Each source the file reads that is not a file: return something DuckDB reads (a path, a',
+        '    relation, an Arrow table, a DataFrame). A file (CSV, Parquet, JSON, a sheet) needs nothing."""',
+    ]
+    for source in calls:
+        lines += [
+            f"    if source.function == {source.function!r} and source.arguments == "
+            f"{tuple(source.arguments)!r}:",
+            f"        # {source.words()}",
+            '        raise NotImplementedError("Read this source here: return its rows.")',
+        ]
+    lines += [
+        "    return None",
+        "",
+        "",
+        "def main() -> None:",
+        f'    text = (HERE / {file!r}).read_text(encoding="utf-8-sig")',
+        f"    tables = duckpq.run(text, name={stem!r}, resolver=resolver, folder=str(HERE))",
+        '    out = HERE / "out"',
+        "    out.mkdir(exist_ok=True)",
+        "    for name, table in tables.items():",
+        '        table.write_parquet(str(out / f"{name}.parquet"))',
+        '        print(f"{name}: {len(table.columns)} columns -> out/{name}.parquet")',
+        "",
+        "",
+        'if __name__ == "__main__":',
+        "    main()",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def export_files(path: str, text: str, sources: Sequence[duckpq.Source], library: str) -> dict[str, str]:
+    """A Power Query file's export, by file name: the file as it is, duckpq.py as it is (the M runs with the
+    library, not with this app), run.py, requirements.txt and a README that names each source to plug in."""
+    file = re.split(r"[\\/]", path)[-1]
+    stem = query_name(path)
+    calls = [s for s in sources if s.kind == "call"]
+    files = [s for s in sources if s.kind == "file"]
+    readme = [
+        f"# {file}",
+        "",
+        f"`python {RUN_FILE}` runs every query of `{file}` that is a table and writes each as",
+        "`out/<table>.parquet`. It needs Python 3.12 or later and `duckdb` (`pip install -r",
+        "requirements.txt`); `duckpq.py` beside it is the Power Query compiler (one file, not a Microsoft",
+        "product).",
+        "",
+        "## Sources",
+        "",
+    ]
+    readme += [
+        f"- A file: `{s.words()}`. Put it where the path says, or change the path in `{file}`." for s in files
+    ]
+    readme += [f"- `{s.words()}`: answer for it in `{RUN_FILE}`'s `resolver`." for s in calls]
+    if not sources:
+        readme.append("None: the queries read nothing from outside the file.")
+    return {
+        file: text,
+        LIBRARY_FILE: library,
+        RUN_FILE: _run_script(stem, file, sources),
+        "requirements.txt": "duckdb>=1.2\n",
+        "README.md": "\n".join(readme) + "\n",
+    }

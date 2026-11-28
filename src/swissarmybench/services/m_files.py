@@ -368,7 +368,11 @@ class PowerQueryFiles:
         compiled, _, _ = await self._compiled(text, path)
         if not compiled.queries and compiled.problems:
             self._raise(compiled.problems[0])
-        wanted = self._wanted(compiled, body if isinstance(body, dict) else {})
+        asked = dict(body) if isinstance(body, dict) else {}
+        here = rules.query_at(compiled, asked["line"]) if isinstance(asked.get("line"), int) else None
+        if here is not None and not asked.get("query") and here.kind in ("value", "function"):
+            asked.pop("line")  # the cursor is in a parameter or a function: every table's SQL instead
+        wanted = self._wanted(compiled, asked)
         return {
             "queries": [
                 {
@@ -407,6 +411,43 @@ class PowerQueryFiles:
             await self._touched(path, who)
             self.ws.audit.write(who, "power_query_file_made", path, table=table)
         return {"path": path, "made": made, "connection": None, "table": table, "query": origin.m_query}
+
+    # ===== an export: the file with the library beside it =====
+
+    async def export(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{path}: the file's export, so its M runs anywhere (a Function App among them) with no app: the
+        file, duckpq.py as it is, run.py, requirements.txt and README.md in the project's
+        exports/powerquery/<name>/ (no project open: <name>_export beside the file). Only a file whose bytes
+        change is written. {folder, files, sources}."""
+        text, path = self._text(body)
+        if path is None:
+            raise ValueError('Send the saved file\'s "path": its export is made beside it.')
+        context = self._context(path)
+        compiled = duckpq.compile(text, rules.query_name(path), context)
+        if compiled.problems and not compiled.queries:
+            self._raise(compiled.problems[0])
+        library = await asyncio.to_thread(lambda: self._files.read(str(duckpq.__file__))[0])
+        made = rules.export_files(path, text, list(context.sources.values()), library)
+        current = self._projects.current
+        name = rules.query_name(path)
+        if current is not None:
+            folder = f"{str(current.folder).replace(chr(92), '/').rstrip('/')}/{rules.EXPORT_FOLDER}/{name}"
+        else:
+            folder = f"{_folder_of(path) or '.'}/{name}_export"
+        written: list[str] = []
+        for file, content in made.items():
+            target = f"{folder}/{file}"
+            same = self._files.exists(target) and self._files.read(target)[0] == content
+            if not same:
+                await asyncio.to_thread(self._files.write, target, content, True, True)
+                written.append(file)
+        self.ws.audit.write(who, "power_query_export", path, files=len(made))
+        return {
+            "folder": folder,
+            "files": sorted(made),
+            "written": written,
+            "sources": [s.to_json() for s in context.sources.values()],
+        }
 
     # ===== a dataset's queries as one file =====
 

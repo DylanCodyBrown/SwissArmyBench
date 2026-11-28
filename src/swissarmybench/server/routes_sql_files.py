@@ -13,6 +13,8 @@ POST /scripts/pq/run         {path?, text?, line?, query?}: every table query of
                              carries the file's `line`, `column` and `name`
 POST /scripts/pq/problems    {path?, text?}: what cannot run, before a run; nothing is read
 POST /scripts/pq/sql         {path?, text?, line?, query?}: the DuckDB SQL composed for each query
+POST /scripts/pq/export      {path}: the file with duckpq.py, run.py, requirements.txt and README.md beside it
+                             (the project's exports/powerquery/<name>/), so its M runs with no app
 """
 
 from __future__ import annotations
@@ -63,6 +65,7 @@ def routes(sql_files: SqlFiles) -> list[BaseRoute]:
         Route("/scripts/pq/run", run_queries, methods=["POST"]),
         Route("/scripts/pq/sql", composed, methods=["POST"]),
         Route("/scripts/pq/problems", problems, methods=["POST"]),
+        Route("/scripts/pq/export", with_body(queries.export), methods=["POST"]),
         Route("/scripts/sql/run", run, methods=["POST"]),
         Route("/scripts/sql/for-table", with_body(sql_files.for_table), methods=["POST"]),
     ]
