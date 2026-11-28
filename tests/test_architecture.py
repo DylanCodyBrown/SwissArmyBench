@@ -268,6 +268,30 @@ def test_no_function_of_a_one_file_module_is_over_80_lines(name: str) -> None:
     assert long == {}
 
 
+def test_duckpq_is_one_file_that_imports_nothing_of_the_app() -> None:
+    """duckpq (src/duckpq.py, the Power Query compiler; the owner, 2026-11-27: "I want to approach this like we
+    could use this power query library outside of this application") is held like the adapters: one file, no
+    function over 80 lines, a ceiling that is the owner's to raise, and no import of swissarmybench. Its own
+    tests (tests/test_duckpq_alone.py) hold the same and move with it; this one keeps the app from leaning in."""
+    path = PACKAGE.parent / "duckpq.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules = {
+        (node.module or "").split(".")[0] if isinstance(node, ast.ImportFrom) else alias.name.split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import | ast.ImportFrom)
+        for alias in node.names
+    }
+    assert "swissarmybench" not in modules and "sqlglot" not in modules and "pyarrow" not in modules
+    assert len(path.read_text(encoding="utf-8").splitlines()) <= 5000
+    long = [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and (node.end_lineno or node.lineno) - node.lineno + 1 > ONE_FILE_FUNCTION
+    ]
+    assert long == []
+
+
 # The composition root and the command registry (craft review 2026-11-22, review B2): ceilings at their size
 # after their use cases went to the services and the commands to cli/commands_<area>.py. They only shrink:
 # lower one when a file gets shorter, and put new code in a service or an area's module, never here.
