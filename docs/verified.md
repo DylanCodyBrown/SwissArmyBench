@@ -6982,3 +6982,14 @@ it. For the owner on Windows, with a workbook that never had a query:
 7. A workbook that already has another custom XML part (a SharePoint property part): the new part took the
    next number and Excel keeps both.
 8. An .xlsm with macros: still runs them.
+
+**The suites, 2026-11-28, on the Release build, with both follow-ups in (duckpq 1.1.1 and Power Query added to
+a workbook):** the unit suite (no e2e, four workers) 6,572 passed, 43 skipped, 8 failed: this container's known
+eight (the four data.py tests of test_projects, test_script_export, test_updater, test_connection_drivers,
+test_performance). The browser suite (two workers) 229 passed, 7 skipped, none failed; its new test adds Power
+Query to a made-up workbook by the button and reads the file back. bUnit 365 passed (2 new). ruff and ruff
+format clean; mypy: only sab_canvas.py:622; `dotnet build -warnaserror` and `dotnet format
+--verify-no-changes` clean; tests/test_architecture.py passes and the architecture map is current;
+WorkbenchPage.razor stays at 400 lines; no MCP tool was added (`workbench_sql` gained `add`), and the tool
+list stays under 100,000 characters. Looked at in Chromium: the stopped save with the button on the line and
+beside the reason, and the Output after the click.
