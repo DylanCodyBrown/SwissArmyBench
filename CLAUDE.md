@@ -135,17 +135,29 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the shared core in `src/swissarmybench/` plus `src/swissarmybench/editions/<edition>/` (Python and its manifest,
   never a `.ts`, `.tsx`, `.css` or `.html`). A front-end change is its own change, made for every edition, only on
   the owner's word, never as part of edition work. Tests enforce it (no folder extension named in `blazor/`; no front-end files
-  under `editions/`; each edition's manifest and routes against the shared schema). **The base and its extensions
-  (Plans/editions.plan.md, the owner 2026-11-17):** the base install is **Swiss Army Bench (BI Edition)**
-  (`swissarmybench`: notebooks and analysis, a BI notebook as the deliverable); optional **extensions** plug into
-  the same app (entry points, one server, one library): **Accounting** (an Excel workbook from a Python
-  automation; cession statements and invoices), **Power Apps** (code apps; Plans/powerapps-spinoff.plan.md) and
-  **Streamlit** (today's app-building work, moved out of the base). A project's type names its extension.
-  Read "edition" in this rule as "extension": its code is backend and manifest only. **Today (the owner,
-  2026-11-17: "It's not an edition now it's the streamlit extension. Preinstalled"):** the app is **Swiss Army
-  Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
-  Extensions page lists the extensions (Streamlit preinstalled; Accounting, Power Apps, Power BI and GitHub Copilot available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
-  continues as before; from then on, the rule holds.
+  under `editions/`; each edition's manifest and routes against the shared schema).
+- **Every extension is built in (the owner, 2026-11-27: "Also I think all extensions should be built in now";
+  asked how: "Merge into one package" and "No Remove").** It reverses 2026-11-17's optional extensions
+  (Plans/editions.plan.md) and "It's not an edition now it's the streamlit extension. Preinstalled". **Streamlit**
+  (the Canvas and widgets), **Accounting** (an Excel workbook from a Python automation; cession statements and
+  invoices), **Power Apps** (code apps), **Power BI** (the model as a Power BI Desktop file, a .pbix as a project,
+  Edit in Power BI Desktop), **Git** (GitHub sync and the Source Control page) and **GitHub Copilot** (ghost text in
+  the editors, off until the user signs in) are on every install, always on: no Install, no Remove, no switch
+  (`SWISSARMYBENCH_EXTENSIONS` is not read any more). ONE wheel holds them: each keeps a package of its own beside
+  the app's (`src/swissarmybench_<id>/`, the same three layers, tests/test_extension_layers.py) and still declares
+  what it adds in its `extension.py` (ID, NAME, MODE, RAIL, PANEL, routes, commands...), read through
+  `swissarmybench/extensions.py`'s BUILT_IN, the only place the shared code names them; the front end names none
+  and draws what the backend says (modes, areas, panels). Their project types (Streamlit, Accounting, a Power Apps
+  code app, Power BI) are project types like the base's BI; the rail's Source Control and Power BI areas show
+  always. Power BI's `pbixray` and `pythonnet` (Windows) are in the `[server]` extra. The app's name in the status
+  bar stays Swiss Army Bench. Write "built in", never "preinstalled". **Folder extensions stay** (the user's own, the
+  library's `extensions/<id>/`, Plans/folder-extensions.plan.md): the rail's **Extensions** page lists those, with New
+  extension…, their Install (missing packages, then Load again), Remove (to the trash) and Show its folder, and a
+  built-in feature's own panel where it has one (GitHub Copilot's sign-in). `extensions_install` or
+  `extensions_remove` of a built-in feature answers in one sentence that it is built in. An install of 0.0.42 or
+  older updates with its own updater, which asks this release for each old extension's wheel: build.py still makes
+  an EMPTY wheel of each old name for the GitHub release (no code; the app never asks for them). Read "edition"
+  in the rule above as a built-in feature or a folder extension: backend and manifest only.
 - **A blade's screen is an IDE (the owner, 2026-11-21: "this entire panel should be an ide, with small save,
   saves, cancel buttons at the top and a play button to execute with a realtime linter and output at the bottom
   to see the results. This is an IDE not a save form"; it reverses 2026-11-17's read-only code).** One slim bar
@@ -163,7 +175,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   blades page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its
   just tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
 - **Two things: the app and the project scaffold (the owner, 2026-11-22; design principle 12a).** The app is Swiss
-  Army Bench itself (`src/swissarmybench/`, `blazor/`, `extensions/`, the library); the project scaffold is what it writes
+  Army Bench itself (`src/swissarmybench/`, the built-in features' `src/swissarmybench_<id>/`, `blazor/`, the library); the project scaffold is what it writes
   into a project folder and an export carries (`adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`,
   `requirements.txt`, the type's deliverable, the sandbox mirror) and must run without the app. Say which one a change
   is about. **adapter.py and api_adapter.py are the most valuable files** (the owner: "the single most valuable piece of
@@ -342,7 +354,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
   files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
   (its Qt WebEngine profile: cookies, local storage, cache; `windows.json`, each kind of window's place),
-  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only); `profile.json` (the Collaboration panel's name set in Settings: a name only); `collaboration_read.json` (each project's threads read up to when, this computer's unread marks); `whats_new.json` (What's New's version last seen here: the version only).
+  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `dialogs.json` (the file picker's recent folders per kind of pick: paths only); `profile.json` (the Collaboration panel's name set in Settings: a name only); `collaboration_read.json` (each project's threads read up to when, this computer's unread marks); `whats_new.json` (What's New's version last seen here: the version only).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs. **`${NAME}` anywhere
@@ -396,7 +408,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   projects so you could work a shared project and clone it into a local project"; chose "Built-in, signed in to
   GitHub"; then "literally steal VS Code's panel for git with the graph and commit and show it with a diff navigator on
   a new rail icon that shows up when you install the git extension" / "literally clone to exactly no deviation")**:
-  `extensions/git` (swissarmybench-git, available in the Extensions catalog; not installed, none of it runs). The meta
+  `src/swissarmybench_git` (built in since 2026-11-27, on every install; nothing of it asks GitHub until the user signs in). The meta
   store and shared projects are cloned, connected, pulled and pushed through GitHub's web API (api.github.com),
   signed in with the user's GitHub account (a fine-grained token pasted once, or Sign in with GitHub's device flow
   once the app's OAuth client id is filled in; the token in the keyring only, never a file, an answer or a log;
@@ -419,8 +431,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   one **Team** box (first after Theme; no rail page, no Projects-page entry): no team: Join a team… and Start a
   team…; joined: "Team: owner/repo", its sync words only when something is to do, Pull, Push and "…" (Open on
   GitHub, Set up this computer, Show its folder, Leave the team); the local projects folder's row; Advanced
-  (folded): the two folders as their own paths. Join (one dialog: GitHub sync's Install, its step kept in the state
-  folder's `team.json` over the restart; Sign in; the repository) makes the local copy itself in the state
+  (folded): the two folders as their own paths. Join (one dialog: Sign in; the repository; GitHub sync is built in, so nothing is installed first) makes the local copy itself in the state
   folder's `team/<owner>-<repo>/` (no path asked), points the library at it and the shared projects folder at its
   `projects/`, then shows Set up this computer; Start makes a private repository (README.md, .gitignore with
   local/ and .sab/data/, projects/) and pushes this computer's library; Leave asks whether to keep a copy of the
@@ -471,16 +482,16 @@ src/swissarmybench/
                          set: a wrong order fails at start), then Services, a typed view of Built by field name;
                          _seams: what the base offers an extension (services/hooks.py Seams). Wiring only: each
                          use case is its service's (review B2, 2026-11-22). A ceiling that only shrinks
-  extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
-                         SWISSARMYBENCH_EXTENSIONS: extension_on(id)), their modules, every project type's
-                         mode as data (the base's BASE_MODE, each extension's MODE); the library's folder
-                         extensions (folders(): library/extensions/<id>/ loaded as the package sab_ext_<id>,
-                         or kept with its error, its missing REQUIRES, a package of its id winning; use_library:
-                         the server's library; SWISSARMYBENCH_EXTENSION_FOLDERS for tests), a folder's MODE and
-                         New project files from its contract.json; contract(module): any extension's contract.json;
-                         manifest(module): every module attribute an extension may declare, read once into one
-                         typed Manifest, an unknown upper-case name reported (its commands' OLD_NAMES and
-                         OLD_ARGS read with its commands)
+  extensions.py          the built-in features (BUILT_IN: {id: its module}, in the order their project types and
+                         rail areas are offered; always on: extension_on(id), built_in(), enabled()), their
+                         modules, every project type's mode as data (the base's BASE_MODE, each feature's MODE);
+                         the library's folder extensions (folders(): library/extensions/<id>/ loaded as the
+                         package sab_ext_<id>, or kept with its error, its missing REQUIRES, a built-in feature of
+                         its id winning; use_library: the server's library; SWISSARMYBENCH_EXTENSION_FOLDERS for
+                         tests), a folder's MODE and New project files from its contract.json; contract(module):
+                         its contract.json; manifest(module): every module attribute a feature may declare, read
+                         once into one typed Manifest, an unknown upper-case name reported (its commands'
+                         OLD_NAMES and OLD_ARGS read with its commands)
 
   domain/                the model and its rules. Standard library and sqlglot only; no I/O, no clock
     datasets.py          Column, DatasetInfo, names, the dataset errors
@@ -812,14 +823,14 @@ src/swissarmybench/
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
-                         update's plan (uv tool install --force, each installed extension `--with`)
+                         update's plan (uv tool install --force, the user's own packages `--with`)
     whats_new.py         What's New: WHATSNEW.md read (parse, problems: its shape and its line), the releases newer
                          than the version last seen, whether it opens by itself (the first start after an update)
-    extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps, copilot available), statuses
-                         (preinstalled, available, installed, coming), an entry point's description read loosely,
-                         the wheel on this version's GitHub release, Install's and Remove's plan; a folder
-                         extension's card (source folder, path, on, error, missing: the one missing answer) and
-                         a contract's project type and deliverable on a card
+    extensions.py        the Extensions page's rules: BuiltIn (a built-in feature's id, name and panel), Found (a
+                         folder extension), the cards (listed: a built-in feature with a panel of its own as
+                         "builtin"; a folder extension's source, path, on, error, missing: the one missing
+                         answer; a contract's project type and deliverable), built_in_words (Install or Remove
+                         asked of a built-in feature, in one sentence)
     extension_folders.py folder extensions' rules (Plans/folder-extensions.plan.md): the id (a Python name, never a
                          base word), the manifest's literals and REQUIRES read with ast before it loads, a load
                          error's one sentence with its file and line, the words; New extension's folder
@@ -1226,11 +1237,10 @@ src/swissarmybench/
     desktop.py           desktop_status and desktop_open: the app's windows, a page opened in one
     file_watch.py        a table read from a file, watched (a stat every few seconds, off the loop): Changed on
                          disk said once (`file_changed`), Not now; Reload is datasets.py's (steps kept)
-    extensions.py        the Extensions page: the cards, Install and Remove handed to the update's helper (the
-                         agent's on Allow; Remove asks the user first; a development checkout says what to run);
-                         a folder extension with no restart: Install (its missing packages, then Load again: its
-                         routes mounted), Remove (to the trash, asked first), Show its folder (the user's only),
-                         New extension (the agent's on Allow; written, loaded, mounted)
+    extensions.py        the Extensions page: the cards; a built-in feature's Install or Remove refused in one
+                         sentence; a folder extension with no restart: Install (its missing packages, then Load
+                         again: its routes mounted), Remove (to the trash, asked first), Show its folder (the
+                         user's only), New extension (the agent's on Allow; written, loaded, mounted)
     claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
                          Desktop started (Desktop's config asked once); the agent reads only
     context_md.py        context.md kept current: gathered from the services, looked at after a notice (every
@@ -1435,10 +1445,9 @@ src/swissarmybench/
                          whats_new.json)
     desktop.py           the desktop app's channel (127.0.0.1, a key, one JSON line each way), desktop.json, its
                          windows.json
-    extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
-                         SWISSARMYBENCH_EXTENSIONS (tests and development only); each one's contract.json;
-                         FolderExtensions (the library's folders as cards, New extension's folder written, Remove's
-                         system trash, Show its folder's file manager, Load again)
+    extensions.py        built_in() (each built-in feature as its module declares it: id, name, what it adds, its
+                         panel's route); FolderExtensions (the library's folders as cards, New extension's folder
+                         written, Remove's system trash, Show its folder's file manager, Load again)
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     sab_files.py         a project folder's .sab/ files (written atomically, only when their bytes change),
                          the scaffold's Git files, its documents listed, Copy project to;
@@ -1501,8 +1510,8 @@ src/swissarmybench/
                          window (its real path), the channel's quit, the server it starts (off the window
                          thread; Starting… meanwhile) and tells when its last window closed
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
-                         installs with uv, checks the version, starts the app, or the old one and a note;
-                         Install and Remove an extension the same way (launch_change)
+                         installs with uv (the user's own packages kept, `--with`), checks the version, starts
+                         the app, or the old one and a note
     routes_updates.py    the update check, its switch, Update to X; /whats-new, /whats-new/seen, /whats-new/open
     routes_lifecycle.py  GET /lifecycle (app_lifecycle), POST /lifecycle/closed (the app's)
     routes_desktop.py    GET /desktop, POST /desktop/open (desktop_status, desktop_open)
@@ -1610,7 +1619,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (375 in the base, 406 with the Streamlit extension).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (477: the base's 375 and every built-in feature's).
                          It holds no logic; add a command in cli/commands.py and it appears
 blazor/                  THE front end (Blazor WebAssembly, .NET 10, Fluent UI; blazor/README.md has its layout, checks
                          and what each page does): SwissArmyBench.Web/ (Program.cs the composition root; Api/<Area>/
@@ -1646,7 +1655,7 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/blazor/ 
                          copilot_standin.py (GitHub's Copilot Language Server stood in for: stdio LSP, a made-up
                          device flow and made-up suggestions),
                          test_architecture.py (the layers, the depth, the plain client; adapter.py's and
-                         api_adapter.py's function cap), test_extension_layers.py (every extension package held to
+                         api_adapter.py's function cap), test_extension_layers.py (every built-in feature's package held to
                          the same layers; Accounting's flat layout declared file by file),
                          test_architecture_map.py (no import cycle while loading; docs/architecture-map.md current),
                          driver_check.py (stdlib only: every starter's code against its installed client: calls,
@@ -1697,28 +1706,28 @@ examples/forms_recon/    the owner's first app POC as a test app, made by the ap
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes;
                          workbook.py (a month's reconciliations as a workbook beside the app, from the sandbox
                          through adapter.py and sab_excel.py: tests/test_workbook_deliverable.py)
-build.py                 build the page (release) and the one wheel
-installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
+build.py                 build the page (release) and the one wheel (the app's package and each built-in feature's);
+                         transition_wheels: an empty wheel of each old extension's name, for an older install's update
+installer/               install.sh and install.ps1 (uv, then the one wheel as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
-tools/smoke_install.py   start the installed server, push the sample store, check it all arrived (used by releases)
-extensions/accounting/   the Accounting extension (swissarmybench-accounting, its own wheel on the base's version):
-                         src/swissarmybench_accounting/ (its builder is the base's sab_excel: Play runs it, Export
+tools/smoke_install.py   start the installed server, push the sample store, check it all arrived and that every
+                         built-in feature answers (used by releases)
+src/swissarmybench_<id>/ the built-in features (the owner, 2026-11-27; each was a package of its own in extensions/<id>/
+                         before): beside the app's package in the one wheel, each with the app's three layers and its
+                         extension.py (what it adds, as data) and commands.py (its tools)
+src/swissarmybench_accounting/   Accounting (project type accounting), a flat package (its builder
+                         is the app's sab_excel: Play runs it, Export
                          writes the parts a design uses into workbook.py; its runtime.py moved there 2026-11-22),
                          design.py and templates.py (rules), exporter.py (workbook.py's text; parts_used),
                          files.py (files, the preview), service.py, routes.py (/accounting),
                          commands.py (workbook_, template_, statements_), extension.py (describe, MODE, routes,
                          scaffold); tests in tests/test_accounting_*.py with tests/accounting_data.py (a made-up
                          reinsurer's cessions)
-extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entry point streamlit =
-                         swissarmybench_streamlit.extension; project type streamlit), PREINSTALLED: the installers
-                         and each update install it beside the base (an update from a built-in version brings it
-                         back once at its first start, extensions.json: never against the user's Remove). Without
-                         it the app is the BI base: no Canvas, no Widgets, its tools and its door say which
-                         extension they need. tests/conftest.py puts its src on the path and switches it on.
+src/swissarmybench_streamlit/    Streamlit (project type streamlit; its canvas offered in a BI project too): the
+                         Canvas and Widgets.
                          Widgets and the Canvas (the owner, 2026-11-21) replaced app notebooks, .stapp.json
                          canvases, live Streamlit cells, controllers and the designer (2026-11-21; the Performance
                          Analyzer and Builds came back on the widget Canvas, branch canvas-rest2)
-  src/swissarmybench_streamlit/
     extension.py         ID, NAME, ADDS, MODE (the Streamlit project: its canvas, widget_framework, its tools),
                          STARTERS, SECRET_PATHS (/streamlit/run/); routes(services) its composition root (widgets,
                          canvases, live runs, previews; the base's hooks: an old app file said, a new project's
@@ -1837,10 +1846,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          53 of them in eight starter packs (sales_, ops_, cs_, de_, admin_, input_, excel_, form_);
                          four, api_*, call the local sandbox API
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
-extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
-                         project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
-                         page, through GitHub's web API (no Git on the computer)
-  src/swissarmybench_git/
+src/swissarmybench_git/  Git (no project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source
+                         Control page, through GitHub's web API (no Git on the computer)
     extension.py         ID, NAME, ADDS, AREAS (github_, scm_), RAIL ({area: scm, mark: /git/mark}), CLIENT_ID (the
                          device flow's OAuth app, empty until the owner registers it), SESSION_RULES; routes(services)
                          its composition root (the folders from the library and the Project Explorer, Allow, the
@@ -1861,12 +1868,10 @@ extensions/git/          the Git extension (swissarmybench-git; entry point git 
     services/scm.py      SourceControl: the page's repositories and groups, stage, discard, commit, sync, history, a
                          commit's files, the diff's two sides, branches, checkout and create
     server/routes.py     /git/*
-extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
-                         powerapps = swissarmybench_powerapps.extension; project type codeapp): Power Apps code
+src/swissarmybench_powerapps/    Power Apps (project type codeapp): Power Apps code
                          apps built with Microsoft's own command lines (pa for the app, pac for environments and
                          custom connectors); docs/ideas.md "The Power Apps extension, phase 1" and "phase 2" (the data
                          notebook: TypeScript, SQL and TSX cells on Deno's kernel and one DuckDB, data.ts)
-  src/swissarmybench_powerapps/
     extension.py         what the base reads: ID, NAME, ADDS, MODE (the code app mode as data), AREAS, routes,
                          commands, STARTERS, SECRET_PATHS, SESSION_RULES, stop; its composition root
     commands.py          the agent's powerapps_* tools (Push, a custom connector, an install wait for Allow)
@@ -1901,10 +1906,8 @@ extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; en
     adapters/environment_api.py  a connector's definition from the connectivity service (pac's token, in memory)
     server/routes.py     /powerapps/* and the dev server's live pages (/powerapps/live/<key>/, the live proxy)
     starters/            TypeScript and React snippet starters (families TypeScript, React, Connectors)
-extensions/powerbi/       the Power BI extension (swissarmybench-powerbi; entry point powerbi =
-                         swissarmybench_powerbi.extension; project type powerbi, keeping some
-                         features closed; a Power BI rail area drawn from data; in the Extensions catalog)
-  src/swissarmybench_powerbi/
+src/swissarmybench_powerbi/      Power BI (project type powerbi, keeping some features closed; a Power BI rail
+                         area drawn from data; pbixray and, on Windows, pythonnet: the [server] extra's)
     extension.py         ID, NAME, ADDS, AREAS (powerbi_), PAGE_ACTIONS (the ERD's Export to Power BI…, as data),
                          SESSION_RULES; routes(services) its composition root; commands
     commands.py          powerbi_export (dry_run: what would go); Open in Power BI Desktop is the user's click;
@@ -1945,14 +1948,13 @@ extensions/powerbi/       the Power BI extension (swissarmybench-powerbi; entry 
     services/export.py   plan (the ERD's tables, why one cannot go, Include its rows), export (the project's
                          powerbi/, or a zip; rows on the agent's Allow), open (the user's click)
     server/routes.py     /powerbi/plan, /powerbi/export, /powerbi/report (a dropped file's bytes), /powerbi/open
-extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; entry point copilot =
-                         swissarmybench_copilot.extension; no project type): Copilot's ghost text in the Workbench's
+src/swissarmybench_copilot/      GitHub Copilot (no project type): Copilot's ghost text in the Workbench's
                          editors through GitHub's Copilot Language Server (npm @github/copilot-language-server,
-                         MIT, pinned; installed by the extension into the state folder's copilot/, run by Node.js
-                         20.8+); off until installed and signed in; nothing sent for a project marked private
-  src/swissarmybench_copilot/
-    extension.py         ID, NAME, ADDS, INLINE_COMPLETION (the editors' routes, as data), PANEL (its card's and
-                         Settings' panel route), AREAS, SESSION_RULES, routes, stop, commands
+                         MIT, pinned; installed on the user's Install into the state folder's copilot/, run by
+                         Node.js 20.8+); off until that server is installed and the user signed in; nothing sent
+                         for a project marked private
+    extension.py         ID, NAME, ADDS, INLINE_COMPLETION (the editors' routes, as data), PANEL (its card's panel on the
+                         Extensions page), AREAS, SESSION_RULES, routes, stop, commands
     commands.py          copilot_status, copilot_toggle, copilot_install (Allow); sign-in is the user's only
     domain/lsp.py        the protocol: Content-Length framing, initialize, telemetry off, UTF-16 positions,
                          incremental changes, inline completion's parameters and items, signIn/checkStatus read

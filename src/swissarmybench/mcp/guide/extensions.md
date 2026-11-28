@@ -111,7 +111,7 @@ Plain module values the base reads; leave out what you do not use.
 |---|---|
 | `ID`, `NAME`, `VERSION`, `DESCRIPTION`, `ADDS` | who it is; `ADDS` is the Extensions card's list of what it adds |
 | `describe()` | `{"id", "name", "description", "version", "adds"}` |
-| `MODE` | its project type as data (copy the exact keys from `extensions/powerbi`'s): `type`, `name`, `deliverable`, `canvases`, `families`, `languages`, its extra cell kinds, `tools` (its command prefix), `export`, `areas` (the features open in it), `title`, `for_whom`, `explain`, `example`, `first_open`, `tour` |
+| `MODE` | its project type as data (copy the exact keys from `src/swissarmybench_powerbi/extension.py`'s): `type`, `name`, `deliverable`, `canvases`, `families`, `languages`, its extra cell kinds, `tools` (its command prefix), `export`, `areas` (the features open in it), `title`, `for_whom`, `explain`, `example`, `first_open`, `tour` |
 | `scaffold(name, data_names)` | a new project's own files: `{"app", "files", "requirements"}` |
 | `AREAS` | `((area, words),)`: its command prefix and what it covers |
 | `RAIL` | `[{"area", "name", "icon", "panel"}]`: a rail page drawn from the `panel` route's data |

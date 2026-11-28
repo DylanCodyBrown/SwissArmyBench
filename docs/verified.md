@@ -6627,3 +6627,43 @@ to the scripts page with an open script" / "sql authorship will have one place i
 - Looked at in Chromium at deviceScaleFactor 2, light and dark, on the made-up sample store: the Pop out button
   on a table and on a page, a table in its own window, the placeholder with Reattach, a rail page in its own
   window and its placeholder.
+
+## Every extension built in (2026-11-27, branch built-in)
+
+- The move (tests/test_extension_layers.py, tests/test_architecture.py): the six packages sit in `src/` beside
+  the app's, each held to the same three layers; no `extensions/` folder, no pyproject.toml but the root's; the
+  architecture map is current (`python tools/architecture_map.py --check`).
+- Always on (tests/test_extensions.py, test_streamlit_extension.py, test_accounting_routes.py, test_powerapps.py,
+  test_powerbi_*.py, test_scm.py, test_copilot.py, test_cli.py): BUILT_IN is the one place the shared code names
+  them; SWISSARMYBENCH_EXTENSIONS set to "-streamlit,-git" changes nothing; GET /extensions lists a built-in
+  feature only where it has a panel (GitHub Copilot) and the user's folder extensions; `extensions_install` and
+  `extensions_remove` of a built-in id answer in one sentence; /app/modes has bi, streamlit, accounting, codeapp
+  and powerbi; /app/areas has scm and powerbi; the updater's command line carries no extension wheel; the
+  installers install one wheel; the Team box's Join has no install step; a project's card no "needs".
+- The command count: 477 in the registry and 477 MCP tools, the same as 0.0.42 with every extension switched on
+  (375 in the base, 102 from the six: counted in the main checkout at 0.0.42 before the change).
+- The wheel in a fresh virtual environment (uv venv, `uv pip install "<wheel>[server]"`, 83 packages, pbixray
+  0.15.5 among them; deleted afterwards): `swissarmybench start --no-window` starts and `swissarmybench status`
+  says where; `import pbixray` works; no entry point in the group `swissarmybench.extensions`; the wheel carries
+  the 113 prebuilt widgets, Streamlit's 52 starters, the four contract.json files and the page; GET /app/areas,
+  /app/modes, /extensions, /streamlit/widgets (113), /accounting, /powerapps, /powerbi/page, /git/mark and
+  /copilot all answer 200 (Copilot `on` false); `swissarmybench-mcp` over stdio lists 477 tools (canvas_ 18,
+  widgets_ 12, workbook_ 8, template_ 3, statements_ 2, powerapps_ 28, powerbi_ 10, github_ 7, scm_ 10,
+  copilot_ 3).
+- build.py writes the one wheel (14 MB) and six empty wheels of the old package names (about 1 KB each: METADATA,
+  WHEEL, RECORD), which an install of 0.0.42 or older asks the release for when it updates.
+- Unit suite (no e2e, four workers): 6,267 passed, 43 skipped, 9 failed: this container's known seven (the four
+  data.py tests of test_projects, test_script_export, test_connection_drivers, test_updater) and two under the
+  suite's load that pass run alone (test_agent_index's read over MCP, test_analyze_http's time limit).
+  ruff and ruff format clean; mypy: only sab_canvas.py:622 (now src/swissarmybench_streamlit/server/);
+  bootstrap.py is 1,976 lines (2,009 before: the catalog, the bring-back and the install hand-over went);
+  the MCP tool list is under its new ceiling of 117,000 characters (100,000 held only the base and Streamlit).
+- The front end: `dotnet build -warnaserror` on both projects with no warning, `dotnet format
+  --verify-no-changes` on both clean, bUnit 346 passed. blazor/ names no feature (tests/test_architecture.py's
+  boundary test).
+- The browser tests, two workers, on the Release build: 220 passed, 7 skipped, 1 failed and fixed
+  (test_settings_parity.py still expected the Team flow to start at an Install step; it now checks the flow
+  starts at Sign in with nothing to install, and passes).
+- Looked at in Chromium at deviceScaleFactor 2, light and dark: the Extensions page (GitHub Copilot's panel as
+  Built in, a made-up folder extension with Remove and Show its folder, New extension…) and the rail with Source
+  Control and Power BI.

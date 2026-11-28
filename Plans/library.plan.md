@@ -95,7 +95,7 @@ library/
 "Connect a local GitHub repo and push and pull and fork projects so you could work a shared project and clone it
 into a local project"; chosen: built in, signed in to GitHub. The meta store folder and the shared projects folder
 are each cloned or connected to a GitHub repository and pulled and pushed through GitHub's web API: no Git on the
-computer. The Git extension (`extensions/git`) holds all of it, with a Source Control page (VS Code's view and graph)
+computer. Git (`src/swissarmybench_git`, built in since 2026-11-27) holds all of it, with a Source Control page (VS Code's view and graph)
 and the footer's mark. Each folder's link is the state folder's `sync.json` (never the repository's): the last
 synced commit and each file's blob SHA (the base of a three-way merge). docs/ideas.md has the decisions and the
 deviations from VS Code.

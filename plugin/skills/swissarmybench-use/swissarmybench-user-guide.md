@@ -72,15 +72,14 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 
 ## Extensions
 
-**Extensions** (the puzzle piece at the bottom of the rail, above Settings) lists what plugs into Swiss Army Bench, one card each: its name, what it is for, what it adds, its status and version.
+Everything that used to be an extension is **built in**: Streamlit (the Canvas and the Widgets window, the prebuilt widgets, its starters), Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices), Power Apps (code apps), Power BI (your model as a Power BI Desktop file), Git (GitHub sync and the Source Control page) and GitHub Copilot (code completion in the Workbench). They come with every install: there is nothing to install and nothing to remove. Their project types are in New project, and the rail shows Source Control and Power BI.
 
-- **Preinstalled:** Streamlit comes with every install, as an extension of its own (the Canvas and the Widgets window, 56 prebuilt widgets, the Streamlit, Components, Controllers and Text and layout starters). Its card says **Preinstalled**, with **Remove**: without it the app is the base alone (no Canvas, no Widgets, a canvas's file says which extension opens it), and **Install** brings it back. It never comes back by itself once you removed it.
-- **Available:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices), Power Apps (code apps) and GitHub Copilot (Copilot's code completion in the Workbench).
-- **Available:** **Install**, one click. The app closes, installs the extension for this same version and opens again in a window of its own; the card shows each stage while it works. If it fails, the app opens as it was and the status bar says why.
-- **Installed:** **Remove** (asked first), the same way.
-- Updates keep your installed extensions. A copy run from a source checkout (not the installer's) says what to run instead and changes nothing.
-- The version mark at the bottom left of each status bar names the app, **Swiss Army Bench**; its tooltip lists the installed extensions.
-- Your agent can list them; its Install and Remove wait for your Allow.
+**Extensions** (the puzzle piece at the bottom of the rail, above Settings) is for your own extensions, one card each: its name, what it is for, what it adds, its status and version.
+
+- **New extension…** makes a folder extension in your library (a page route and an agent command to grow from), loaded at once. Its card says **Installed (folder)**, with its folder's path, **Remove** (asked first: its folder goes to the trash) and **Show its folder**; one that needs packages offers **Install**, and one that did not load says why, with **Load again**. Nothing restarts.
+- **GitHub Copilot** has a card too, marked **Built in**: its Install of GitHub's language server, Sign in and its switch are there. It stays off until you sign in.
+- The version mark at the bottom left of each status bar names the app, **Swiss Army Bench**; its tooltip lists your own extensions.
+- Your agent can list them and make one; its Install and Remove of a folder extension wait for your Allow.
 
 ## Launch Claude
 
@@ -1848,7 +1847,7 @@ linear `.ipynb`, for a scheduler that runs notebooks. The name starts as the doc
 
 ## Accounting (an extension)
 
-**Accounting** is an optional extension (`swissarmybench-accounting`): a project whose deliverable is an Excel workbook, built by a Python automation you can run anywhere. The workflow is connection, data, then the workbook.
+**Accounting** is built in: a project whose deliverable is an Excel workbook, built by a Python automation you can run anywhere. The workflow is connection, data, then the workbook.
 
 - **New Accounting project…** (the Workbench's project menu) makes `data.ipynb`, `workbook.design.json` (the workbook's design: sheets and blocks, never data) and `workbook.py` (the automation). While it is open, **New Excel workbook** is offered, and the Blades page and Insert a snippet… show the Excel, Write and Files families first (**Show all** for the rest).
 - **The Excel canvas** shows a sheet on the Tables page of cells. **+ Block** adds a title, text, a **table** (an open table, or a DuckDB query; its columns, number formats such as currency, percent or date, widths, a total row, a colour rule), a **pivot** (rows, columns, sums, counts or averages: a summary DuckDB computes, written as a formatted table, never an Excel pivot table) or a **chart** (Excel's own: column, bar, line, pie, or a combo of columns and lines, drawn from a table or a pivot). Drag a block to move it, drag its corner to size it; Properties edits the selected block, or the sheet's freeze panes and print setup when none is selected. Sheets are tabs.
