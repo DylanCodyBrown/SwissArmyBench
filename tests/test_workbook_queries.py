@@ -137,8 +137,8 @@ def test_a_workbook_with_no_query_opens_a_starter_over_its_named_table(tmp_path:
     assert found.text.startswith("section Section1;")
     assert not duckpq.compile(found.text, "plain", duckpq.Context()).problems
     assert "#table(" in wq.starter() and not duckpq.compile(wq.starter(), "x", duckpq.Context()).problems
-    with pytest.raises(wq.Unreadable, match=r"no Power Query yet.*Blank Query"):
-        wq.plan(found, _linked(found.text))
+    with pytest.raises(wq.NoPowerQuery, match=r"no Power Query yet\. Add Power Query to this workbook"):
+        wq.plan(found, _linked(found.text))  # never by itself: tests/test_workbook_queries_add.py
 
 
 def _encrypted(path: Path) -> Path:

@@ -216,6 +216,7 @@ def workbench_file(a: dict[str, Any]) -> Any:
     opt("table", "run: the table's name (default: the file's name); for_table: the table."),
     opt("query", "A .pq file: one query by its name."),
     opt("force", "save: over queries changed on disk.", "bool"),
+    opt("add", "save: add Power Query to a workbook with none.", "bool"),
 )
 def workbench_sql(a: dict[str, Any]) -> Any:
     if a["action"] == "for_table":
@@ -227,7 +228,7 @@ def workbench_sql(a: dict[str, Any]) -> Any:
         paths |= {"save": "/scripts/pq/workbook/save", "reload": "/scripts/pq/workbook/reload"}
         if a["action"] not in paths:
             return {"error": "action: run, problems, sql, export, workbook, preview, save or reload."}
-        body = {k: a[k] for k in ("path", "text", "query", "line", "force") if a.get(k) is not None}
+        body = {k: a[k] for k in ("path", "text", "query", "line", "force", "add") if a.get(k) is not None}
         return api.call("POST", paths[a["action"]], body)
     if a["action"] != "run":
         return {"error": "action: run or for_table (problems and sql: a .pq file's)."}

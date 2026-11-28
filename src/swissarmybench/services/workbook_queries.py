@@ -13,7 +13,10 @@ preview   a save's dry run: each query changed, added, kept or the same; nothing
 save      the .pq written (when its text is sent), then ONLY the workbook's Data Mashup: never while Excel
           has it open, never over queries changed on disk since the file was opened (Reload or Keep mine:
           `force`), one backup copy before the first write. The agent's save into a workbook outside the
-          open project waits for the user's Allow.
+          open project waits for the user's Allow. A workbook with no Power Query yet: the save stops
+          (WorkbookNeedsPowerQuery) and offers "Add Power Query to this workbook"; only `add: true`, the
+          user's click or the agent's explicit argument, makes its first Data Mashup (the owner,
+          2026-11-28: "Yea optional"). Never by itself, and the same lock, conflict, backup and Allow.
 reload    the workbook's queries read again into the file (the conflict's Reload).
 
 Run stays a preview (services/m_files.py): `table_path` gives it the linked workbook for
@@ -56,6 +59,10 @@ class WorkbookConflict(Conflict):
 
 class WorkbookLocked(Conflict):
     """Excel has the workbook open."""
+
+
+class WorkbookNeedsPowerQuery(Conflict):
+    """The workbook has no Power Query yet: the save stops and offers to add it (`add: true`)."""
 
 
 class SectionRefused(ValueError):
@@ -188,7 +195,7 @@ class WorkbookQueries:
             return {"linked": False}
         answer: dict[str, Any] = {
             "linked": True, "workbook": _name(workbook), "workbook_path": workbook, "there": True,
-            "queries": 0, "open_in_excel": False, "changed": False, "why": None,
+            "queries": 0, "open_in_excel": False, "changed": False, "why": None, "can_add": False,
         }  # fmt: skip
         try:
             _, found = await self._read(workbook)
@@ -201,18 +208,19 @@ class WorkbookQueries:
         answer["open_in_excel"] = await asyncio.to_thread(self._store.locked, workbook)
         answer["changed"] = was != found.stamp
         if found.part is None:
-            answer["why"] = (
-                f"{found.name} has no Power Query yet: add one in Excel first, then Save works here."
-            )
+            answer["can_add"] = True
+            answer["why"] = f"{found.name} has no Power Query yet."
         return answer
 
     # ===== preview and save =====
 
-    def _plan(self, found: rules.Read, text: str) -> rules.Plan:
+    def _plan(self, found: rules.Read, text: str, add: bool = False) -> rules.Plan:
         try:
-            return rules.plan(found, text)
+            return rules.plan(found, text, add)
         except rules.SectionError as error:
             raise SectionRefused(str(error), error.line) from None
+        except rules.NoPowerQuery as error:
+            raise WorkbookNeedsPowerQuery(str(error)) from None
         except rules.Unreadable as error:
             raise Refused(str(error)) from None
 
@@ -225,39 +233,47 @@ class WorkbookQueries:
             "changed": planned.count(rules.CHANGED),
             "added": planned.count(rules.ADDED),
             "kept": planned.count(rules.KEPT),
+            "adds_power_query": bool(planned.adds),
+            "new_parts": list(planned.adds),
         }
 
     async def preview(self, body: Any) -> dict[str, Any]:
-        """{path, text?}: what a save would change, each query by name; nothing is written. `conflict` and
-        `open_in_excel` say what would stop the save."""
+        """{path, text?}: what a save would change, each query by name; nothing is written. `conflict`,
+        `open_in_excel` and `needs_add` (the workbook has no Power Query yet: a save needs `add`) say what
+        would stop the save."""
         text, path = self._text(body)
         workbook = self._workbook(text, path)
         _, found = await self._read(workbook)
-        planned = self._plan(found, text)
+        planned = self._plan(found, text, found.part is None)
         was = self._opened.get(self._key(path), found.stamp)
-        words = (
-            f"A save would write into {found.name}: "
-            + ", ".join(f"{planned.count(w)} {w}" for w in (rules.CHANGED, rules.ADDED, rules.KEPT))
-            + "."
-            if planned.writes
-            else planned.words(found.name)
-        )
+        counts = ", ".join(f"{planned.count(w)} {w}" for w in (rules.CHANGED, rules.ADDED, rules.KEPT))
+        if planned.adds:
+            words = (
+                f"{found.name} has no Power Query yet. With add, a save would add it ({planned.adds[0]}, its "
+                f"properties part and the two entries that name them) and write {counts}, connection only."
+            )
+        elif planned.writes:
+            words = f"A save would write into {found.name}: {counts}."
+        else:
+            words = planned.words(found.name)
         return self._answer(found, planned, workbook) | {
             "written": False,
+            "needs_add": bool(planned.adds),
             "words": words,
             "conflict": was != found.stamp,
             "open_in_excel": await asyncio.to_thread(self._store.locked, workbook),
         }
 
     async def save(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{path, text?, force?}: the file saved (its `text`, when sent), then its queries written into its
-        workbook. {workbook, written, changes, words, backup}."""
+        """{path, text?, force?, add?}: the file saved (its `text`, when sent), then its queries written into
+        its workbook. {workbook, written, changes, words, backup}. `add` true (exactly): Power Query added to
+        a workbook that has none; without it that save stops with WorkbookNeedsPowerQuery."""
         text, path = self._text(body)
         workbook = self._workbook(text, path)
         if isinstance(body.get("text"), str):
             path = await self._save_file(path, text, who)
         data, found = await self._read(workbook)
-        planned = self._plan(found, text)
+        planned = self._plan(found, text, body.get("add") is True)
         key = self._key(path)
         answer = self._answer(found, planned, workbook) | {"written": False, "backup": None}
         if not planned.writes:
@@ -273,7 +289,11 @@ class WorkbookQueries:
             await self._approvals.allowed(
                 who,
                 subject=found.name,
-                action=f"Save the queries into {found.name}",
+                action=(
+                    f"Add Power Query to {found.name}"
+                    if planned.adds
+                    else f"Save the queries into {found.name}"
+                ),
                 detail=f"{workbook} is outside the open project. " + planned.words(found.name),
                 otherwise=f"{found.name} was not changed",
             )
@@ -290,6 +310,7 @@ class WorkbookQueries:
         self.ws.audit.write(
             who, "workbook_queries_saved", found.name,
             changed=answer["changed"], added=answer["added"], kept=answer["kept"],
+            power_query_added=bool(planned.adds),
         )  # fmt: skip
         return answer | {"written": True, "backup": backup, "words": planned.words(found.name)}
 

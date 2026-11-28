@@ -55,7 +55,7 @@ def test_a_workbooks_queries_open_as_one_linked_file(client: Any, tmp_path: Path
     link = client.post("/scripts/pq/workbook", json={"path": str(file)}, headers=AUTH).json()
     assert link == {
         "linked": True, "workbook": "Sales Report.xlsx", "workbook_path": str(workbook).replace("\\", "/"),
-        "there": True, "queries": 3, "open_in_excel": False, "changed": False, "why": None,
+        "there": True, "queries": 3, "open_in_excel": False, "changed": False, "why": None, "can_add": False,
     }  # fmt: skip
     plain = tmp_path / "plain.pq"
     plain.write_text("let x = 1 in x", encoding="utf-8")
@@ -263,7 +263,7 @@ def test_a_workbook_that_cannot_be_read_is_refused_and_no_file_is_made(
     assert not (tmp_path / "report.pq").exists()
 
 
-def test_a_workbook_with_no_query_opens_a_starter_that_runs_and_says_why_it_cannot_save(
+def test_a_workbook_with_no_query_opens_a_starter_that_runs_and_its_save_offers_to_add_power_query(
     client: Any, tmp_path: Path
 ) -> None:
     workbook = data.plain_workbook(tmp_path / "plain.xlsx")
@@ -273,10 +273,115 @@ def test_a_workbook_with_no_query_opens_a_starter_that_runs_and_says_why_it_cann
     ran = client.post("/scripts/pq/run", json={"path": str(file)}, headers=AUTH)
     assert ran.status_code == 200 and ran.json()["rows"] == 5
     link = client.post("/scripts/pq/workbook", json={"path": str(file)}, headers=AUTH).json()
-    assert link["queries"] == 0 and "no Power Query yet" in link["why"]
-    refused = client.post("/scripts/pq/workbook/save", json={"path": str(file)}, headers=AUTH)
-    assert refused.status_code == 403 and "Blank Query" in refused.json()["error"]
+    assert link["queries"] == 0 and link["can_add"] is True
+    assert link["why"] == "plain.xlsx has no Power Query yet."
+    # A save stops and offers; it never adds by itself, whatever else the body says.
+    for body in ({}, {"add": False}, {"add": "yes"}, {"force": True}):
+        refused = client.post("/scripts/pq/workbook/save", json={"path": str(file)} | body, headers=AUTH)
+        assert refused.status_code == 409 and refused.json()["needs_add"] is True, body
+        assert refused.json()["error"] == (
+            "plain.xlsx has no Power Query yet. Add Power Query to this workbook to save these queries "
+            "into it."
+        )
+        assert workbook.read_bytes() == before and not (tmp_path / "plain.backup.xlsx").exists()
+    preview = client.post("/scripts/pq/workbook/preview", json={"path": str(file)}, headers=AGENT).json()
+    assert preview["needs_add"] is True and preview["written"] is False and preview["added"] == 1
+    assert (
+        preview["new_parts"][0] == "customXml/item1.xml"
+        and "With add, a save would add it" in preview["words"]
+    )
     assert workbook.read_bytes() == before
+    # The user's explicit word: Power Query is added, with the one backup, and said plainly.
+    added = client.post("/scripts/pq/workbook/save", json={"path": str(file), "add": True}, headers=AUTH)
+    assert added.status_code == 200, added.text
+    answer = added.json()
+    assert answer["written"] and answer["adds_power_query"] and answer["added"] == 1
+    assert answer["new_parts"] == [
+        "customXml/item1.xml", "customXml/itemProps1.xml", "customXml/_rels/item1.xml.rels",
+    ]  # fmt: skip
+    assert answer["words"] == (
+        "Added Power Query to plain.xlsx: 1 query, connection only (no sheet, no table). New in the "
+        "workbook: customXml/item1.xml and its properties part; every other part is as it was. Excel "
+        "lists them in Queries & Connections."
+    )
+    assert Path(answer["backup"]).read_bytes() == before
+    assert data.section_of(workbook).startswith("section Section1;\r\n\r\nshared Query1 = let")
+    book = openpyxl.load_workbook(workbook)
+    assert book.sheetnames == ["Data"] and book["Data"]["B2"].value == 120
+    link = client.post("/scripts/pq/workbook", json={"path": str(file)}, headers=AUTH).json()
+    assert (link["queries"], link["can_add"], link["why"], link["changed"]) == (1, False, None, False)
+    # The next save is any workbook's: only Section1.m changes, and no second backup is made.
+    first = data.parts_of(workbook)
+    text = file.read_text(encoding="utf-8").replace("in\n    Source;", "in\n    Table.FirstN(Source, 2);")
+    again = client.post("/scripts/pq/workbook/save", json={"path": str(file), "text": text}, headers=AUTH)
+    assert again.status_code == 200 and again.json()["changed"] == 1 and again.json()["backup"] is None
+    assert again.json()["adds_power_query"] is False
+    second = data.parts_of(workbook)
+    assert {n for n in first if first[n] != second[n]} == {"customXml/item1.xml"} and set(first) == set(
+        second
+    )
+    assert "Table.FirstN(Source, 2)" in data.section_of(workbook)
+
+
+def test_adding_power_query_keeps_the_lock_the_conflict_and_the_agents_rules(
+    client: Any, tmp_path: Path
+) -> None:
+    from swissarmybench.cli import commands
+
+    tool = commands.REGISTRY["workbench_sql"]
+    assert next(a for a in tool.args if a.name == "add").help == (
+        "save: add Power Query to a workbook with none."
+    )
+    workbook = data.plain_workbook(tmp_path / "plain.xlsx")
+    before = workbook.read_bytes()
+    file = _open(client, tmp_path, workbook)
+    body = {"path": str(file), "add": True}
+    # Excel has it open: never written.
+    lock = tmp_path / "~$plain.xlsx"
+    lock.write_bytes(b"\x05Maria")
+    locked = client.post("/scripts/pq/workbook/save", json=body, headers=AUTH)
+    assert locked.status_code == 409 and locked.json()["open_in_excel"] is True
+    lock.unlink()
+    # The agent without `add`: refused as anyone's. With it, outside the open project: the user's Allow.
+    plain = client.post("/scripts/pq/workbook/save", json={"path": str(file)}, headers=AGENT)
+    assert plain.status_code == 409 and plain.json()["needs_add"] is True
+    helper = _answer_when_asked(client, False)
+    declined = client.post("/scripts/pq/workbook/save", json=body, headers=AGENT)
+    helper.join()
+    assert declined.status_code == 403 and "plain.xlsx was not changed" in declined.json()["error"]
+    assert workbook.read_bytes() == before and not (tmp_path / "plain.backup.xlsx").exists()
+    # Queries added in Excel since the file was opened: a conflict, as for any workbook.
+    data.workbook(workbook)
+    conflict = client.post("/scripts/pq/workbook/save", json=body, headers=AUTH)
+    assert conflict.status_code == 409 and conflict.json()["conflict"] is True
+    data.plain_workbook(workbook)
+    helper = _answer_when_asked(client, True)
+    allowed = client.post("/scripts/pq/workbook/save", json=body, headers=AGENT)
+    helper.join()
+    assert allowed.status_code == 200 and allowed.json()["adds_power_query"] is True
+    assert wq.read(workbook.read_bytes(), "plain.xlsx").part == "customXml/item1.xml"
+
+
+def test_the_agent_adds_power_query_inside_the_open_project_only_with_add(
+    client: Any, tmp_path: Path
+) -> None:
+    project = tmp_path / "shop"
+    assert client.post("/project/new", json={"path": str(project)}, headers=AUTH).status_code == 200
+    workbook = data.plain_workbook(project / "plain.xlsx")
+    original = workbook.read_bytes()
+    new = client.post(
+        "/scripts/files/new",
+        json={"type": "powerquery_workbook", "name": "plain", "source": str(workbook)},
+        headers=AGENT,
+    )
+    assert new.status_code == 200, new.text
+    file = Path(new.json()["path"])
+    refused = client.post("/scripts/pq/workbook/save", json={"path": str(file)}, headers=AGENT)
+    assert refused.status_code == 409 and workbook.read_bytes() == original
+    saved = client.post("/scripts/pq/workbook/save", json={"path": str(file), "add": True}, headers=AGENT)
+    assert saved.status_code == 200, saved.text  # inside the project: no Allow, as any save there
+    kept = list((project / ".sab" / "backup").glob("*/plain.xlsx"))
+    assert len(kept) == 1 and kept[0].read_bytes() == original
 
 
 def test_the_agents_dry_run_and_its_save_outside_the_project_waits_for_allow(

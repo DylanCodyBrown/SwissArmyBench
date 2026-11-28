@@ -26,6 +26,18 @@ part. Everything else is copied byte for byte: every other entry of both zips is
 its compressed bytes, its data descriptor), Permissions, the Metadata's Content and the Permission Bindings
 as they are, and every other part of the workbook.
 
+A workbook with no query yet has no Data Mashup. On the user's explicit word (the owner, 2026-11-28: "Yea
+optional"; never by itself) one is made, exactly as [MS-QDEFF] says and with the bytes of its own example
+(section 3) where it gives them: Version 0; Package Parts, an OPC zip of Config/Package.xml,
+[Content_Types].xml and Formulas/Section1.m; the Permissions XML at its defaults (2.6's own); the Metadata
+(the AllFormulas Item and one Item per query, connection only; an empty Content package); and the Permission
+Bindings as 2.6 allows them where no checksum can be made: "a length of 1 and content of a single 0x00". The
+workbook gets the parts that hold it and only those ([ECMA-376] Part 1, 15.2.5 and 15.2.6): a new
+customXml/item<N>.xml, its customXml/itemProps<N>.xml (22.5.2.1 datastoreItem) with the item's own
+relationships part that names it, one Relationship in xl/_rels/workbook.xml.rels and one Override in
+[Content_Types].xml. Every part that was there is copied raw; those two gain their one element and keep
+every other byte.
+
 A linked file's first line names its workbook, relative to the file: `// workbook: Sales Report.xlsx`.
 
 Pure rules: bytes in, bytes out. The standard library only; no I/O, no clock.
@@ -60,6 +72,10 @@ CLOSE_IT = "Close it in Excel first."
 
 class Unreadable(ValueError):
     """A workbook (or its Data Mashup) this cannot read, so never writes: one sentence."""
+
+
+class NoPowerQuery(Unreadable):
+    """The workbook has no Data Mashup yet: a save stops here and offers to add one (never by itself)."""
 
 
 class SectionError(ValueError):
@@ -193,6 +209,40 @@ def zip_replace(data: bytes, name: str, content: bytes, what: str = "The file") 
     count = len(archive.entries)
     out += _EOCD.pack(b"PK\x05\x06", 0, 0, count, count, size, directory, len(archive.comment))
     return bytes(out + archive.comment)
+
+
+_DOS_DATE = 0x0021  # 1980-01-01, the first date a zip can say: a made entry has no clock
+
+
+def zip_add(data: bytes, parts: Sequence[tuple[str, bytes]], what: str = "The file") -> bytes:
+    """The zip with new entries after the ones it has. Every byte before the central directory stays where
+    it is, every record of the directory is written again as it was, and the new ones follow."""
+    archive = _zip(data, what)
+    taken = {e.name.lstrip("/").casefold() for e in archive.entries}
+    out = bytearray(data[: archive.directory])
+    records = bytearray()
+    for name, content in parts:
+        if name.casefold() in taken:
+            raise Unreadable(f"{what} already has {name}.")
+        raw_name = name.encode("ascii")
+        packer = zlib.compressobj(6, zlib.DEFLATED, -15)
+        packed = packer.compress(content) + packer.flush()
+        sizes = (zlib.crc32(content), len(packed), len(content), len(raw_name))
+        records += _CENTRAL.pack(b"PK\x01\x02", 20, 20, 0, 8, 0, _DOS_DATE, *sizes, 0, 0, 0, 0, 0, len(out))
+        records += raw_name
+        out += _LOCAL.pack(b"PK\x03\x04", 20, 0, 8, 0, _DOS_DATE, *sizes, 0) + raw_name + packed
+    directory = len(out)
+    for entry in archive.entries:
+        out += _CENTRAL.pack(*entry.record) + entry.tail
+    out += records
+    count = len(archive.entries) + len(parts)
+    out += _EOCD.pack(
+        b"PK\x05\x06", 0, 0, count, count, len(out) - directory, directory, len(archive.comment)
+    )
+    return bytes(out + archive.comment)
+
+
+_EMPTY_ZIP = _EOCD.pack(b"PK\x05\x06", 0, 0, 0, 0, 0, 0, 0)
 
 
 # ===== [MS-QDEFF] 2.2 and 2.5: the binary stream =====
@@ -382,6 +432,59 @@ def metadata_with(xml: bytes, added: Sequence[str]) -> bytes:
     return xml[: empty.start()] + b"<Items>" + items + b"</Items>" + xml[empty.end() :]
 
 
+# ===== a Data Mashup made new: [MS-QDEFF]'s parts, with its own example's bytes where it gives them =====
+
+_BOM = b"\xef\xbb\xbf"
+_DECLARED = (
+    _BOM + b'<?xml version="1.0" encoding="utf-8"?><%s xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+    b'xmlns:xsd="http://www.w3.org/2001/XMLSchema">'
+)
+# 2.3.1 and 3.2: Version (the client that made the file), MinVersion (the oldest that reads it), Culture.
+# The example's own values: nothing here is a newer client than the one the specification describes.
+NEW_PACKAGE_XML = (
+    _DECLARED % b"Package" + b"<Version>2.24.4065.1401</Version><MinVersion>2.21.0.0</MinVersion>"
+    b"<Culture>en-US</Culture></Package>"
+)
+# The package's own [Content_Types].xml, as the example's package has it.
+NEW_PACKAGE_TYPES = (
+    _BOM + b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    b'<Default Extension="xml" ContentType="text/xml" />'
+    b'<Default Extension="m" ContentType="application/x-ms-m" />'
+    b"</Types>"
+)
+# 2.4, and 2.6's defaults: no future packages, the firewall on, no privacy level for the workbook.
+NEW_PERMISSIONS = (
+    _DECLARED % b"PermissionList" + b"<CanEvaluateFuturePackages>false</CanEvaluateFuturePackages>"
+    b'<FirewallEnabled>true</FirewallEnabled><WorkbookGroupType xsi:nil="true" /></PermissionList>'
+)
+# 2.5.1: the Item of the whole set of queries (ItemType AllFormulas, an empty ItemPath); each query's follows.
+NEW_METADATA_XML = (
+    _DECLARED % b"LocalPackageMetadataFile" + b"<Items><Item><ItemLocation><ItemType>AllFormulas</ItemType>"
+    b"<ItemPath /></ItemLocation><StableEntries /></Item></Items></LocalPackageMetadataFile>"
+)
+# 2.6: "set to a length of 1 and content of a single 0x00 (null byte)" where no checksum is generated (it
+# needs Windows' DPAPI). A reader then uses the default permissions, which are the ones written above.
+NEW_BINDINGS = b"\x00"
+
+
+def new_mashup(section: str, queries: Sequence[str]) -> Mashup:
+    """A workbook's first Data Mashup: the package of the three parts 2.3 names (in the example's order),
+    the default permissions, the metadata with one connection-only Item per query and an empty Content
+    package, and the one null byte of bindings."""
+    package = zip_add(
+        _EMPTY_ZIP,
+        [
+            ("Config/Package.xml", NEW_PACKAGE_XML),
+            ("[Content_Types].xml", NEW_PACKAGE_TYPES),
+            (SECTION_PART, section.encode("utf-8")),
+        ],
+        "The Data Mashup's package",
+    )
+    metadata = Metadata(metadata_with(NEW_METADATA_XML, queries), _EMPTY_ZIP).pack()
+    return Mashup(package, NEW_PERMISSIONS, metadata, NEW_BINDINGS)
+
+
 # ===== the customXml part: the DataMashup element's base64 =====
 
 _ELEMENT = re.compile(r"<DataMashup\b([^>]*)>([^<]*)</DataMashup\s*>")
@@ -418,6 +521,124 @@ def _item(raw: bytes) -> _Item | None:
     if found is None or NAMESPACE not in found.group(1):
         return None
     return _Item(mark, encoding, text, found.start(2), found.end(2))
+
+
+# ===== the parts a workbook needs to hold a Data Mashup: [ECMA-376] Part 1, 15.2.5, 15.2.6 and 22.5 =====
+
+REL_CUSTOM_XML = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml"
+REL_CUSTOM_XML_PROPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps"
+TYPE_CUSTOM_XML_PROPS = "application/vnd.openxmlformats-officedocument.customXmlProperties+xml"
+NS_CUSTOM_XML = "http://schemas.openxmlformats.org/officeDocument/2006/customXml"
+NS_RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships"
+WORKBOOK_RELS = "xl/_rels/workbook.xml.rels"
+CONTENT_TYPES = "[Content_Types].xml"
+_XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
+_STRICT = b"http://purl.oclc.org/ooxml/"
+_RELS_END = re.compile(rb"</Relationships\s*>")
+_TYPES_END = re.compile(rb"</Types\s*>")
+_REL_ID = re.compile(rb"<Relationship\b[^>]*?\bId=[\"']([^\"']*)[\"']")
+_XML_DEFAULT = re.compile(rb"<Default\b[^>]*?\bExtension=[\"']xml[\"']", re.IGNORECASE)
+_ITEM_NUMBER = re.compile(r"customXml/item(?:Props)?(\d+)\.xml", re.IGNORECASE)
+
+
+def free_item(names: Sequence[str]) -> int:
+    """The first number no custom XML part of the workbook has (item<N>.xml, itemProps<N>.xml)."""
+    used = [int(found.group(1)) for n in names for found in [_ITEM_NUMBER.fullmatch(n)] if found]
+    return max(used, default=0) + 1
+
+
+def item_xml(stream: bytes) -> bytes:
+    """The Custom XML Data Storage part (15.2.5) that holds the Data Mashup ([MS-QDEFF] 2.1): the DataMashup
+    element, its content the stream in base64; UTF-16 with its byte-order mark, as Excel writes this part."""
+    text = (
+        f'<?xml version="1.0" encoding="utf-16"?><DataMashup xmlns="{NAMESPACE}">'
+        f"{base64.b64encode(stream).decode('ascii')}</DataMashup>"
+    )
+    return b"\xff\xfe" + text.encode("utf-16-le")
+
+
+def item_id(data: bytes) -> str:
+    """The new part's itemID (22.5.2.1: a GUID in braces, its own in the package): made from the workbook's
+    bytes, so the same workbook gets the same one and no clock or dice is asked."""
+    h = hashlib.sha256(b"swissarmybench DataMashup item of " + data).hexdigest().upper()
+    return f"{{{h[:8]}-{h[8:12]}-4{h[13:16]}-8{h[17:20]}-{h[20:32]}}}"
+
+
+def item_props_xml(identity: str) -> bytes:
+    """The Custom XML Data Storage Properties part (15.2.6): datastoreItem (22.5.2.1) with its itemID and,
+    in schemaRefs (22.5.2.3), the one namespace the item's root element is in."""
+    return (
+        f'{_XML_HEAD}<ds:datastoreItem ds:itemID="{identity}" xmlns:ds="{NS_CUSTOM_XML}"><ds:schemaRefs>'
+        f'<ds:schemaRef ds:uri="{NAMESPACE}"/></ds:schemaRefs></ds:datastoreItem>'
+    ).encode()
+
+
+def item_rels_xml(number: int) -> bytes:
+    """The item's own relationships part: the one that names its properties part (15.2.6: the properties
+    part is the target of a relationship from the Custom XML Data Storage part)."""
+    return (
+        f'{_XML_HEAD}<Relationships xmlns="{NS_RELATIONSHIPS}"><Relationship Id="rId1" '
+        f'Type="{REL_CUSTOM_XML_PROPS}" Target="itemProps{number}.xml"/></Relationships>'
+    ).encode()
+
+
+def _inserted(raw: bytes | None, end: re.Pattern[bytes], element: str, part: str, name: str) -> bytes:
+    """A part with one element put before its root's end tag; every other byte stays."""
+    ends = list(end.finditer(raw or b""))
+    if raw is None or not ends or raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        raise Unreadable(f"{name}'s {part} is not as expected, so Power Query cannot be added to it here.")
+    at = ends[-1].start()
+    return raw[:at] + element.encode() + raw[at:]
+
+
+def with_power_query(data: bytes, name: str, stream: bytes) -> bytes:
+    """The workbook holding a Data Mashup it did not have. Added: customXml/item<N>.xml, its properties
+    part and the relationships part that joins the two. Changed by one element each: the workbook part's
+    relationships (to the new item; 15.2.5: a Workbook part may be its source) and [Content_Types].xml (the
+    properties part's type; the item itself is the xml Default's, else its own Override). Every other part
+    is copied raw."""
+    names = zip_names(data, name)
+    if _STRICT in (zip_read(data, "xl/workbook.xml", name) or b""):
+        raise Unreadable(
+            f"{name} is a Strict Open XML workbook: save it as an Excel Workbook (.xlsx) in Excel to add "
+            "Power Query to it here."
+        )
+    number = free_item(names)
+    rels = zip_read(data, WORKBOOK_RELS, name)
+    ids = [int(i[3:]) for i in _REL_ID.findall(rels or b"") if re.fullmatch(rb"rId\d+", i)]
+    relationship = (
+        f'<Relationship Id="rId{max(ids, default=0) + 1}" Type="{REL_CUSTOM_XML}" '
+        f'Target="../customXml/item{number}.xml"/>'
+    )
+    types = zip_read(data, CONTENT_TYPES, name)
+    override = (
+        f'<Override PartName="/customXml/itemProps{number}.xml" ContentType="{TYPE_CUSTOM_XML_PROPS}"/>'
+    )
+    if not _XML_DEFAULT.search(types or b""):
+        override = (
+            f'<Override PartName="/customXml/item{number}.xml" ContentType="application/xml"/>' + override
+        )
+    made = zip_replace(
+        data, WORKBOOK_RELS, _inserted(rels, _RELS_END, relationship, WORKBOOK_RELS, name), name
+    )
+    made = zip_replace(made, CONTENT_TYPES, _inserted(types, _TYPES_END, override, CONTENT_TYPES, name), name)
+    return zip_add(
+        made,
+        [
+            (f"customXml/item{number}.xml", item_xml(stream)),
+            (f"customXml/itemProps{number}.xml", item_props_xml(item_id(data))),
+            (f"customXml/_rels/item{number}.xml.rels", item_rels_xml(number)),
+        ],
+        name,
+    )
+
+
+def new_parts(number: int) -> tuple[str, ...]:
+    return (
+        f"customXml/item{number}.xml",
+        f"customXml/itemProps{number}.xml",
+        f"customXml/_rels/item{number}.xml.rels",
+    )
 
 
 # ===== the section's text: its members split, with no parser (a `;` ends each one) =====
@@ -634,6 +855,7 @@ class Read:
     mark: bytes = b""
     facts: dict[str, QueryFacts] = field(default_factory=dict)
     tables: tuple[str, ...] = ()
+    free: int = 1  # the number a new custom XML part would take
 
     @property
     def stamp(self) -> str:
@@ -696,7 +918,7 @@ def read(data: bytes, name: str) -> Read:
         if item is not None
     ]
     if not parts:
-        return Read(name, tables=tables)
+        return Read(name, tables=tables, free=free_item(names))
     if len(parts) > 1:
         raise Unreadable(f"{name} holds more than one Data Mashup: it is not read here.")
     part, item = parts[0]
@@ -740,6 +962,7 @@ class Plan:
     section: str
     changes: tuple[Change, ...]
     writes: bool
+    adds: tuple[str, ...] = ()  # the parts a workbook with no Power Query yet gains (the user's own word)
 
     @property
     def added(self) -> tuple[str, ...]:
@@ -752,6 +975,13 @@ class Plan:
         """The save notice's one sentence."""
         if not self.writes:
             return f"{workbook} already holds these queries: nothing was written."
+        if self.adds:
+            count = self.count(ADDED)
+            return (
+                f"Added Power Query to {workbook}: {count} {'query' if count == 1 else 'queries'}, "
+                f"connection only (no sheet, no table). New in the workbook: {self.adds[0]} and its "
+                "properties part; every other part is as it was. Excel lists them in Queries & Connections."
+            )
         parts = [f"{self.count(w)} {w}" for w in (CHANGED, ADDED, KEPT) if self.count(w)]
         return f"Saved into {workbook}: {', '.join(parts)}. Excel runs them on its next Refresh."
 
@@ -773,15 +1003,42 @@ def _line_ends(text: str, like: str) -> str:
     return text
 
 
-def plan(found: Read, text: str) -> Plan:
+ADD_POWER_QUERY = "Add Power Query to this workbook"
+_ADDED_WORDS = "Added as connection only (no sheet): load it to a sheet in Excel if you want one."
+
+
+def no_power_query_words(name: str) -> str:
+    return f"{name} has no Power Query yet. {ADD_POWER_QUERY} to save these queries into it."
+
+
+def _first_plan(found: Read, section: str, lines: int) -> Plan:
+    """A workbook's first queries: the whole section, in Excel's line ends, every query added."""
+    section = section.replace("\r\n", "\n").replace("\n", "\r\n")
+    try:
+        new = split(section)
+    except SectionError as error:
+        raise SectionError(str(error), error.line + lines) from None
+    if new.name != SECTION_NAME:
+        raise SectionError(f"The section must be named {SECTION_NAME}: Excel reads no other.", 1 + lines)
+    if not new.members:
+        raise SectionError("The file has no query to add: write `shared Name = ...;` first.", 1 + lines)
+    for member in new.members:
+        problem = name_problem(member.name)
+        if problem:
+            raise SectionError(problem, member.line + lines)
+    changes = tuple(Change(m.name, ADDED, _ADDED_WORDS) for m in new.members)
+    return Plan(section, changes, True, new_parts(found.free))
+
+
+def plan(found: Read, text: str, add: bool = False) -> Plan:
     """What saving a linked file's text into its workbook does. SectionError (with the file's line) for a
-    text that is not one section of named queries; Unreadable for a workbook with no query yet."""
+    text that is not one section of named queries. A workbook with no query yet: NoPowerQuery, unless `add`
+    says to add Power Query to it (the user's explicit word, never a default)."""
     section, lines = body(text)
     if found.part is None or found.mashup is None:
-        raise Unreadable(
-            f"{found.name} has no Power Query yet, and its first one cannot be made here: add one in Excel "
-            "first (Data, Get Data, Blank Query), then edit it here."
-        )
+        if not add:
+            raise NoPowerQuery(no_power_query_words(found.name))
+        return _first_plan(found, section, lines)
     section = _line_ends(section, found.section)
     try:
         new, old = split(section), split(found.section)
@@ -796,8 +1053,7 @@ def plan(found: Read, text: str) -> Plan:
             problem = name_problem(member.name)
             if problem:
                 raise SectionError(problem, member.line + lines)
-            words = "Added as connection only (no sheet): load it to a sheet in Excel if you want one."
-            changes.append(Change(member.name, ADDED, words))
+            changes.append(Change(member.name, ADDED, _ADDED_WORDS))
         elif before.m != member.m:
             changes.append(Change(member.name, CHANGED, _changed_words(found.facts.get(member.name))))
         else:
@@ -814,7 +1070,10 @@ def plan(found: Read, text: str) -> Plan:
 def written(data: bytes, found: Read, planned: Plan) -> bytes:
     """The workbook's new bytes: Section1.m replaced inside the Data Mashup's package, an added query's
     Item in its metadata, every length written again, the base64 put back into the same customXml part.
-    Nothing else of the workbook changes; a plan that writes nothing gives the same bytes."""
+    Nothing else of the workbook changes; a plan that writes nothing gives the same bytes. A plan that adds
+    Power Query (plan's `add`) gives the workbook its first Data Mashup and the parts that hold it."""
+    if planned.writes and planned.adds and found.part is None:
+        return with_power_query(data, found.name, new_mashup(planned.section, planned.added).pack())
     if not planned.writes or found.part is None or found.mashup is None:
         return data
     mashup = found.mashup

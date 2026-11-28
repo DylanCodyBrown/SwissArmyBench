@@ -22,9 +22,11 @@ POST /scripts/pq/workbook          {path, text?}: what the linked file's tab sho
                                    there or not, open in Excel, changed on disk since the file was opened
 POST /scripts/pq/workbook/preview  {path, text?}: a save's dry run, each query changed, added, kept or the
                                    same; nothing is written
-POST /scripts/pq/workbook/save     {path, text?, force?}: the file saved, then its queries written into the
-                                   workbook's Data Mashup and nothing else; 409 with `conflict` (Reload or
-                                   Keep mine: force) or `open_in_excel`; a text that cannot go in: its `line`
+POST /scripts/pq/workbook/save     {path, text?, force?, add?}: the file saved, then its queries written into
+                                   the workbook's Data Mashup and nothing else; 409 with `conflict` (Reload
+                                   or Keep mine: force), `open_in_excel`, or `needs_add` (the workbook has no
+                                   Power Query yet: `add` true adds it, never by itself); a text that cannot
+                                   go in: its `line`
 POST /scripts/pq/workbook/reload   {path}: the workbook's queries read again into the file
 """
 
@@ -40,7 +42,12 @@ from swissarmybench.domain.sql_files import SqlFileError
 from swissarmybench.server.http import actor, json_response, read_json, refusal, with_body
 from swissarmybench.services.m_files import PowerQueryError
 from swissarmybench.services.sql_files import SqlFiles
-from swissarmybench.services.workbook_queries import SectionRefused, WorkbookConflict, WorkbookLocked
+from swissarmybench.services.workbook_queries import (
+    SectionRefused,
+    WorkbookConflict,
+    WorkbookLocked,
+    WorkbookNeedsPowerQuery,
+)
 
 
 def routes(sql_files: SqlFiles) -> list[BaseRoute]:
@@ -88,6 +95,8 @@ def routes(sql_files: SqlFiles) -> list[BaseRoute]:
                 return refusal(str(error), 409, conflict=True)
             except WorkbookLocked as error:
                 return refusal(str(error), 409, open_in_excel=True)
+            except WorkbookNeedsPowerQuery as error:
+                return refusal(str(error), 409, needs_add=True)
 
         return handler
 

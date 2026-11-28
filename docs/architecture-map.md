@@ -124,9 +124,9 @@ low by design and its D says little; the measure bites for the components that h
 
 | Component | What it is | Modules | Ca | Ce | I | Classes | Abstract | A | D |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| domain | the model and its rules | 136 | 177 | 0 | 0.00 | 373 | 1 | 0.00 | 1.00 |
+| domain | the model and its rules | 136 | 177 | 0 | 0.00 | 374 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 6 | 1 | 0.14 | 2 | 0 | 0.00 | 0.86 |
-| services | the use cases | 96 | 98 | 121 | 0.55 | 349 | 185 | 0.53 | 0.08 |
+| services | the use cases | 96 | 98 | 121 | 0.55 | 350 | 185 | 0.53 | 0.08 |
 | adapters | the driven edge: DuckDB, files, the keyring | 48 | 22 | 41 | 0.65 | 111 | 2 | 0.02 | 0.33 |
 | cli | the agent's commands | 42 | 7 | 3 | 0.30 | 5 | 0 | 0.00 | 0.70 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |

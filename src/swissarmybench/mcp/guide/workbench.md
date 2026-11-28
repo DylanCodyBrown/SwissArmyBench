@@ -163,7 +163,10 @@ page, and SQL is written only on the Scripts page).
   the file; a `section` file holds many `shared` queries that name each other. **Workbook queries** (Excel's
   own Power Query; nothing writes a Power BI file): `workbench_file(action="new", type="powerquery_workbook",
   to=<name>, source=<an .xlsx or .xlsm>)` opens the workbook's queries as ONE linked .pq file (its first line
-  `// workbook: <file>`, relative to it; a workbook with no query opens a starter). Edit it with
+  `// workbook: <file>`, relative to it; a workbook with no query opens a starter, and its save is refused
+  with `needs_add` until you pass `add=true`: that adds Power Query to the workbook, its first Data Mashup
+  and the custom XML part that holds it, each query connection only; say so to the user, it is never done
+  by itself). Edit it with
   `workbench_save`, run it as any .pq (a preview: `Excel.CurrentWorkbook(){[Name = "T"]}[Content]` reads the
   linked workbook's named table), then `workbench_sql` with its path: `action="workbook"` (its workbook, there
   or not, `open_in_excel`, `changed` on disk), `action="preview"` (the dry run: each query `changed`, `added`

@@ -179,6 +179,18 @@ def stream_of(path: Path) -> bytes:
     return base64.b64decode(text.split(">", 2)[2].split("<", 1)[0])
 
 
+def stream_of_bytes(blob: bytes) -> bytes:
+    """The Data Mashup's stream of a workbook given as bytes (its one customXml item with a DataMashup)."""
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        for name in archive.namelist():
+            if name.startswith("customXml/item") and "Props" not in name and name.endswith(".xml"):
+                raw = archive.read(name)
+                if raw[:2] == b"\xff\xfe" and "<DataMashup" in raw[2:].decode("utf-16-le"):
+                    text = raw[2:].decode("utf-16-le")
+                    return base64.b64decode(text.split(">", 2)[2].split("<", 1)[0])
+    raise AssertionError("no Data Mashup")
+
+
 def fields_of(stream: bytes) -> list[bytes]:
     """The stream's four fields, read by their lengths."""
     (version,) = struct.unpack_from("<I", stream, 0)
