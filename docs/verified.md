@@ -6692,3 +6692,26 @@ made-up template, and the export run in a bare Python to its Parquet files.
 **Found on the way:** pbixray is not installed in this container, so a .pbix is proven through its frames'
 shape (the reader's seam), not a real file; DuckDB's excel extension is not installed here either, so duckpq's
 own workbook read (standalone) is not run here, while the app reads a sheet through its own reader.
+
+**The whole suites, 2026-11-28, on the Release build:** the unit suite (no e2e, four workers) 6,368 passed, 43
+skipped, 10 failed: this container's known eight (the four data.py tests of test_projects, test_script_export,
+test_connection_drivers, test_performance, test_updater), test_blazor_api_types (in this worktree the generator
+run under the suite's environment gives ExtensionCard three more fields than the committed record; it passes in
+the main checkout and Power Query touches no extension card) and test_play_live once under the suite's load (it
+passes alone). The browser suite (two workers) 224 passed, 7 skipped, the four of
+tests/e2e/blazor/test_workbench_power_query.py among them: New file's Power Query type, a query typed, F5 and
+its table on the Tables page with its M, Show as SQL and Edit in Scripts; a wrong column underlined before any
+run and "Line 3" after; a file of queries with a parameter; Import Power BI queries… from a made-up template.
+bUnit 357 passed (11 new: PowerQueryFilesTests). ruff and ruff format clean; mypy: only sab_canvas.py:622;
+`dotnet build -warnaserror` and `dotnet format --verify-no-changes` clean; tests/test_architecture.py passes
+(duckpq allowed in the domain and the services, its compile half only); the architecture map is current;
+bootstrap.py is 2,009 lines, unchanged; the MCP tool list stays under 100,000 characters (a tool of its own put
+it at 100,248, so a .pq file is `workbench_sql`'s). WorkbenchPage.razor stays at its 400 lines.
+
+- Found on the way: Monaco's language id for M is `powerquery` (not `pq`): with the wrong id the file opened in
+  one colour, and the first browser check (any second token class) passed all the same; it now asks for a token
+  that is not the plain one. A test that read the export's Parquet with DuckDB's default connection failed only
+  inside the whole suite (the app's process keeps that connection to itself): it opens its own.
+- Looked at in Chromium at deviceScaleFactor 2, light and dark, on the made-up sample store: a .pq file in the
+  editor with its colours, a wrong column underlined with its sentence, the run's line said in the Output, the
+  tables a run built on the Tables page with the M above the grid, an imported dataset's file, Show as SQL.

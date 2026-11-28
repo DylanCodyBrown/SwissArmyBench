@@ -287,8 +287,15 @@ def test_duckpq_is_one_file_that_imports_nothing_of_the_app() -> None:
     assert "swissarmybench" not in modules and "sqlglot" not in modules and "pyarrow" not in modules
     for layer in ("domain", "services"):
         for file in _layer_files(layer):
-            text = file.read_text(encoding="utf-8")
-            assert not any(f"duckpq.{name}(" in text for name in ("run", "run_query", "to_sql")), file.name
+            called = {
+                node.func.attr
+                for node in ast.walk(ast.parse(file.read_text(encoding="utf-8")))
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "duckpq"
+            }
+            assert not called & {"run", "run_query", "to_sql"}, file.name
     assert len(path.read_text(encoding="utf-8").splitlines()) <= 5000
     long = [
         node.name

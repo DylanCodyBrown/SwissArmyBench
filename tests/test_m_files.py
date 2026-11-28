@@ -624,7 +624,9 @@ def test_an_export_carries_the_library_and_runs_with_no_app(client: TestClient, 
         cwd=folder, capture_output=True, text=True, timeout=120, check=False,
     )  # fmt: skip
     assert done.returncode == 0, done.stderr
-    assert duckdb.sql(f"SELECT id FROM '{folder / 'out' / 'Big.parquet'}' ORDER BY id").fetchall() == [
+    # A connection of its own: the app's process keeps DuckDB's default one to itself.
+    read = duckdb.connect().sql(f"SELECT id FROM '{folder / 'out' / 'Big.parquet'}' ORDER BY id")
+    assert read.fetchall() == [
         (2,),
         (3,),
     ]
