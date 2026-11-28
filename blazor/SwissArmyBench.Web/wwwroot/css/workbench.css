@@ -212,6 +212,15 @@ html[data-theme="dark"] :is(.wb-outputs, .wb-console-body), html[data-theme="hc-
 .wb-sql-output .sql-status { color: var(--muted); }
 .wb-sql-error { margin: 6px 10px; }
 .wb-sql-error pre { margin: 4px 0 0; white-space: pre-wrap; }
+/* A Power Query file's Output: the tables a run built, or the DuckDB SQL composed (Show as SQL). */
+.wb-pq-tables { list-style: none; margin: 0; padding: 4px 10px; display: flex; flex-direction: column; gap: 4px; overflow: auto; }
+.wb-pq-table { display: flex; align-items: center; gap: 8px; }
+.wb-pq-table .muted { color: var(--muted); }
+.wb-pq-sql { padding: 4px 10px; overflow: auto; }
+.wb-pq-sql-query { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.wb-pq-sql-query .muted { color: var(--muted); font-size: 12px; }
+.wb-pq-sql-query pre { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wb-pq-add-connection { margin-left: 6px; }
 
 /* ===== A text document's tab (Pages/Workbench/TextFileView): its source, its preview, or both side by side ===== */
 .wb-text-panes { display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; }

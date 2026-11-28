@@ -1,0 +1,20 @@
+@* A Power Query file's controls in its group's bar: Run file (F5: every query that is a table, each an open table of
+   its name), Run query (Ctrl+Enter: the one under the cursor) and Show as SQL (the DuckDB SQL composed for it). *@
+
+<button type="button" class="btn small primary wb-run-file" title="Run file (F5): every query that is a table" disabled="@Running" @onclick="OnRunFile"><Icon Name="play" /> <span class="btn-label">Run file</span></button>
+<button type="button" class="btn small ghost wb-run-selection" title="Run the query under the cursor (Ctrl+Enter)" disabled="@Running" @onclick="OnRunQuery"><Icon Name="play" /> <span class="btn-label">Query</span></button>
+<button type="button" class="btn small ghost wb-pq-as-sql" title="The DuckDB SQL composed for the query under the cursor" disabled="@Running" @onclick="OnShowSql"><Icon Name="sql" /> <span class="btn-label">Show as SQL</span></button>
+
+@code {
+    [Parameter]
+    public bool Running { get; set; }
+
+    [Parameter]
+    public EventCallback OnRunFile { get; set; }
+
+    [Parameter]
+    public EventCallback OnRunQuery { get; set; }
+
+    [Parameter]
+    public EventCallback OnShowSql { get; set; }
+}

@@ -52,6 +52,30 @@ public partial class WorkbenchPage
         await ShowTableAsync(built.Grid);
     }
 
+    /// <summary>A Power Query file's run built its tables: said, and the Tables page brought forward on the last.</summary>
+    private async Task PowerQueryBuiltAsync(PowerQueryRun built)
+    {
+        var names = string.Join(", ", built.Tables.Select(t => t.Table));
+        await Notes.SayAsync($"Built {PowerQueryFileView.Tables(built.Tables.Count)}: {names}.");
+        await ShowTableAsync(built.Grid);
+    }
+
+    /// <summary>Export to run anywhere: the file saved first, then written with duckpq.py and run.py beside it (the
+    /// project's exports/powerquery/, else a folder beside the file), where Python and duckdb alone run it.</summary>
+    private async Task ExportPowerQueryAsync(OpenDocument doc)
+    {
+        if (doc.Dirty)
+        {
+            await SaveAsync(doc);
+        }
+        if (doc.Path is not { } path)
+        {
+            return;
+        }
+        var made = await ScriptIde.ExportPowerQueryAsync(path);
+        await Notes.SayAsync($"Exported to {made.Folder}: {string.Join(", ", made.Files)}.");
+    }
+
     /// <summary>The table's tab on the Tables page: the home window brought forward on it. When this page is the home
     /// window it goes there, unless a document here has unsaved changes: then the Tables page opens in a window of its
     /// own (or, where the browser blocks it, a note offers it), so nothing typed here is lost.</summary>

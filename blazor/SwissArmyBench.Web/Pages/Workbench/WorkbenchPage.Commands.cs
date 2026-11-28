@@ -42,6 +42,8 @@ public partial class WorkbenchPage
     [
         new("file.new", "File", $"New {KindWord}… (its name first)", AskNewAsync),
         new("file.newSql", "File", "New SQL file… (its name first)", () => AskNewAsync("sql"), WhyNot: IsNotebooks ? "SQL files are the Scripts page's" : null),
+        new("file.newPowerQuery", "File", "New Power Query file… (its name first)", () => AskNewAsync("powerquery"), WhyNot: IsNotebooks ? "Power Query files are the Scripts page's" : null),
+        new("file.importPowerBiQueries", "File", "Import Power BI queries… (a dataset's queries as one file)", () => AskNewAsync("powerquery_import"), WhyNot: IsNotebooks ? "Power Query files are the Scripts page's" : null),
         // The desktop app's Ctrl+N and Ctrl+T run the page's "tabs.new-query" (Layout/DesktopKeys): here, New file.
         new("tabs.new-query", "File", "New file… (pick its type, then its name)", () => _newFileButton?.OpenList() ?? Task.CompletedTask, "Ctrl+N"),
         new("file.open", "File", "Open a notebook or script…", OpenAsync, "Ctrl+O"),
@@ -85,8 +87,8 @@ public partial class WorkbenchPage
         return
         [
             new("run.main", "Run", "Run the file, or every cell", () => Front is { } doc ? RunMainAsync(doc) : Task.CompletedTask, "F5", NeedsDocument),
-            new("run.statement", "Run", "Run the statement at the cursor, then the next", () => Front?.ScriptView?.RunSelectionAsync() ?? Front?.SqlView?.RunSelectionAsync() ?? Task.CompletedTask, "Ctrl+Enter",
-                Front?.ScriptView is null && Front?.SqlView is null ? "A script's command: put a script in front" : null),
+            new("run.statement", "Run", "Run the statement at the cursor, then the next", () => Front?.ScriptView?.RunSelectionAsync() ?? Front?.SqlView?.RunSelectionAsync() ?? Front?.PowerQueryView?.RunQueryAsync() ?? Task.CompletedTask, "Ctrl+Enter",
+                Front?.ScriptView is null && Front?.SqlView is null && Front?.PowerQueryView is null ? "A script's command: put a script in front" : null),
             new("run.cell", "Run", "Run the selected cell", () => notebook!.RunSelectedAsync(), "Ctrl+Enter", cell),
             new("run.above", "Run", "Run the cells above", () => notebook!.RunAboveAsync(), WhyNot: cell),
             new("run.below", "Run", "Run this cell and the ones below", () => notebook!.RunBelowAsync(), WhyNot: cell),

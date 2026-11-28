@@ -57,11 +57,11 @@ public partial class WorkbenchPage
     /// <summary>In this project…: the documents of the page's kind opened lately, each opened on its click.</summary>
     private async Task InThisProjectAsync(MouseEventArgs at)
     {
-        string[] extensions = IsNotebooks ? [".ipynb"] : [".py", ".sql"];
+        string[] extensions = IsNotebooks ? [".ipynb"] : [".py", ".sql", ".pq", ".m"];
         _recent = await RecentAsync();
         List<MenuEntry> entries = _recent
             .Where(r => r.Exists && extensions.Any(e => r.Path.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
-            .Select(r => new MenuEntry(FilePaths.Name(r.Path), IsNotebooks ? "notebook" : r.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) ? "sql" : "code", async () =>
+            .Select(r => new MenuEntry(FilePaths.Name(r.Path), IsNotebooks ? "notebook" : r.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) ? "sql" : PowerQueryFileView.IsFile(r.Path) ? "powerquery" : "code", async () =>
             {
                 await OpenPathAsync(r.Path);
                 await FollowAddressAsync();
@@ -153,6 +153,13 @@ public partial class WorkbenchPage
     {
         List<MenuEntry> entries = doc.IsNotebook
             ? [new("Clear every output", "clean", () => Toggle(() => doc.NotebookView?.ClearAll()))]
+            : doc.IsPowerQuery
+                ?
+                [
+                    new("Run query", "play", () => doc.PowerQueryView?.RunQueryAsync() ?? Task.CompletedTask, Keys: "Ctrl+Enter"),
+                    new("Show as SQL", "sql", () => doc.PowerQueryView?.ShowSqlAsync() ?? Task.CompletedTask),
+                    new("Export to run anywhere…", "export", () => GuardAsync(() => ExportPowerQueryAsync(doc))),
+                ]
             : doc.IsSql
                 ? [new("Run selection", "play", () => doc.SqlView?.RunSelectionAsync() ?? Task.CompletedTask, Keys: "Ctrl+Enter")]
                 : [new("Run statement", "play", () => doc.ScriptView?.RunSelectionAsync() ?? Task.CompletedTask, Keys: "Ctrl+Enter")];
@@ -167,7 +174,7 @@ public partial class WorkbenchPage
             new("Rename…", "edit", () => RenameTabAsync(doc.Key), Keys: "F2"),
             .. ExportEntries(doc),
             MenuEntry.Separator,
-            .. doc.IsSql ? [] : SessionEntries(),
+            .. doc.IsQueryFile ? [] : SessionEntries(),
             MenuEntry.Separator,
             SplitEntry(doc, SplitSide.Right, "Ctrl+\\"),
             SplitEntry(doc, SplitSide.Down),
@@ -178,8 +185,8 @@ public partial class WorkbenchPage
         return ("Document menu", entries);
     }
 
-    /// <summary>A notebook's or a script's exports (a SQL file has none: its run is its table).</summary>
-    private List<MenuEntry> ExportEntries(OpenDocument doc) => doc.IsSql ? [] :
+    /// <summary>A notebook's or a script's exports (a SQL or Power Query file has none: its run is its tables).</summary>
+    private List<MenuEntry> ExportEntries(OpenDocument doc) => doc.IsQueryFile ? [] :
     [
         new("Export as one Python script…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "script"))),
         new("Export as one notebook…", "export", () => GuardAsync(() => ExportDocumentAsync(doc, "notebook"))),

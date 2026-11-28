@@ -311,9 +311,9 @@
             {
                 <div class="wb-script-host"><TextFileView @ref="doc.TextView" Text="@doc.ScriptText" Path="@doc.Path" View="@doc.TextViewNow" OnTextChanged="t => ScriptChanged(doc, t)" OnEditedInPlace="t => EditedInPlaceAsync(doc, t)" OnOpenFile="OpenLinkedAsync" OnPageKey="EditorPageKeyAsync" /></div>
             }
-            else if (doc.IsSql)
+            else if (doc.IsQueryFile)
             {
-                <div class="wb-script-host"><SqlFileView @ref="doc.SqlView" Text="@doc.ScriptText" Path="@doc.Path" Table="@SqlHeader.TableOf(doc.Path)" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="SqlBuiltAsync" OnOpenTable="r => ShowTableAsync(r.Grid)" /></div>
+                @if (doc.IsPowerQuery) { <div class="wb-script-host"><PowerQueryFileView @ref="doc.PowerQueryView" Text="@doc.ScriptText" Path="@doc.Path" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="PowerQueryBuiltAsync" OnOpenTable="t => ShowTableAsync(t.Grid)" /></div> } else { <div class="wb-script-host"><SqlFileView @ref="doc.SqlView" Text="@doc.ScriptText" Path="@doc.Path" Table="@SqlHeader.TableOf(doc.Path)" OnTextChanged="t => ScriptChanged(doc, t)" OnPageKey="EditorPageKeyAsync" OnProblems="p => Problems(doc, p)" OnBuilt="SqlBuiltAsync" OnOpenTable="r => ShowTableAsync(r.Grid)" /></div> }
             }
             else
             {
@@ -353,9 +353,9 @@
             {
                 <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, TabMenu(doc.Key))"><Icon Name="more" /></button>
             }
-            else if (doc.IsSql)
+            else if (doc.IsQueryFile)
             {
-                <SqlFileBar Text="@doc.ScriptText" Connections="_sqlConnections" Running="doc.SqlView?.Running == true" OnText="t => ScriptChanged(doc, t)" OnRunFile="() => RunMainAsync(doc)" OnRunSelection="() => doc.SqlView?.RunSelectionAsync() ?? Task.CompletedTask" />
+                @if (doc.IsPowerQuery) { <PowerQueryFileBar Running="doc.PowerQueryView?.Running == true" OnRunFile="() => RunMainAsync(doc)" OnRunQuery="() => doc.PowerQueryView?.RunQueryAsync() ?? Task.CompletedTask" OnShowSql="() => doc.PowerQueryView?.ShowSqlAsync() ?? Task.CompletedTask" /> } else { <SqlFileBar Text="@doc.ScriptText" Connections="_sqlConnections" Running="doc.SqlView?.Running == true" OnText="t => ScriptChanged(doc, t)" OnRunFile="() => RunMainAsync(doc)" OnRunSelection="() => doc.SqlView?.RunSelectionAsync() ?? Task.CompletedTask" /> }
             }
             else if (doc.IsNotebook)
             {
@@ -389,7 +389,7 @@
                 }
                 <button type="button" class="btn small ghost icon wb-debug-start" aria-label="Start debugging" title="Start debugging (Ctrl+Shift+D)" @onclick="() => DebugAsync(doc)"><Icon Name="bug" /></button>
             }
-            @if (doc.IsCode || doc.IsSql)
+            @if (doc.IsCode || doc.IsQueryFile)
             {
             <button type="button" class="btn small ghost icon wb-save" aria-label="Save" title="Save (Ctrl+S)" @onclick="() => SaveAsync(doc)"><Icon Name="save" /></button>
             <button type="button" class="btn small ghost icon wb-more" aria-label="Document menu" title="More" aria-haspopup="menu" @onclick="e => ShowMenuAsync(e, DocumentMenu(doc))"><Icon Name="more" /></button>

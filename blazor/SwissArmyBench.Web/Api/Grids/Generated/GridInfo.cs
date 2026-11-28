@@ -29,6 +29,10 @@ public sealed record GridInfo
 
     public string? QueryConnection { get; init; }
 
+    public string QueryLanguage { get; init; } = string.Empty;
+
+    public string? QuerySql { get; init; }
+
     public JsonElement? Opened { get; init; }
 
     public IReadOnlyList<GridColumn> SourceColumns { get; init; } = [];

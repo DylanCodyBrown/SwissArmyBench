@@ -65,7 +65,7 @@
                     <Banner>
                         @if (shown.Query is { } query)
                         {
-                            <QueryShown @key="@($"built:{shown.Grid}")" Sql="@query" Table="@shown.Dataset" Connection="@shown.QueryConnection" />
+                            <QueryShown @key="@($"built:{shown.Grid}")" Sql="@query" Table="@shown.Dataset" Connection="@shown.QueryConnection" Language="@shown.QueryLanguage" ComposedSql="@shown.QuerySql" />
                         }
                         @if (_changedOnDisk.Contains(shown.Dataset))
                         {

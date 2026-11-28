@@ -63,6 +63,15 @@
                 </select>
             </label>
         }
+        @if (Type.AsksFor("source"))
+        {
+            <label class="field"><span>From the file</span>
+                <span class="form-row new-file-place">
+                    <input type="text" class="new-file-source" aria-label="From the file" placeholder="The file's whole path" spellcheck="false" autocomplete="off" data-no-variables @bind="_source" @bind:event="oninput" @onkeydown="KeyAsync" />
+                    <button type="button" class="btn small new-file-source-browse" @onclick="BrowseSourceAsync"><Icon Name="folder" /> Browse…</button>
+                </span>
+            </label>
+        }
         <div class="table-name-check new-file-check @(_why is null ? "ok" : "error")" role="status" aria-live="polite">@(_why ?? _makes)</div>
     </ChildContent>
     <Foot>

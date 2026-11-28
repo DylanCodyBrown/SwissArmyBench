@@ -82,11 +82,11 @@ public partial class WorkbenchPage
     /// <summary>The chosen path with the document's kind's ending.</summary>
     private static string WithEnding(OpenDocument doc, string chosen)
     {
-        if (doc.IsText)
+        if (doc.IsText || (doc.IsPowerQuery && PowerQueryFileView.IsFile(chosen)))
         {
-            return chosen; // a text file keeps the ending it was given
+            return chosen; // a text file keeps the ending it was given, a Power Query file its .pq or .m
         }
-        var ending = doc.IsNotebook ? ".ipynb" : doc.IsSql ? ".sql" : ".py";
+        var ending = doc.IsNotebook ? ".ipynb" : doc.IsSql ? ".sql" : doc.IsPowerQuery ? ".pq" : ".py";
         return chosen.EndsWith(ending, StringComparison.OrdinalIgnoreCase) ? chosen : chosen + ending;
     }
 }

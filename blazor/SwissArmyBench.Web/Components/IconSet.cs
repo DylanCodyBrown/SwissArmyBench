@@ -40,6 +40,8 @@ public static class IconSet
         ["branch"] = "<circle cx=\"6\" cy=\"5\" r=\"2\"/><circle cx=\"6\" cy=\"19\" r=\"2\"/><circle cx=\"18\" cy=\"7\" r=\"2\"/><path d=\"M6 7v10M18 9c0 5-12 3-12 8\"/>",
         ["more"] = "<circle cx=\"5\" cy=\"12\" r=\"1.5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/><circle cx=\"19\" cy=\"12\" r=\"1.5\"/>",
         ["expand"] = "<path d=\"M9 6l6 6-6 6\"/>",
+        // Power Query: a table with a funnel over it (rows shaped as they come in).
+        ["powerquery"] = "<path d=\"M3 5h18l-7 7.5V19l-4 2v-8.5z\"/>",
         ["plus"] = "<path d=\"M12 5v14M5 12h14\"/>",
         ["minus"] = "<path d=\"M5 12h14\"/>",
         ["close"] = "<path d=\"M6 6l12 12M18 6L6 18\"/>",

@@ -261,7 +261,7 @@ public partial class WorkbenchPage
 
     /// <summary>A group's main Run: Run all for a notebook, Run file for a script (F5).</summary>
     private Task RunMainAsync(OpenDocument doc) => IsApiFile(doc) ? RunApiAsync(doc)
-        : doc.NotebookView?.RunAllAsync() ?? doc.SqlView?.RunFileAsync() ?? doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask;
+        : doc.NotebookView?.RunAllAsync() ?? doc.SqlView?.RunFileAsync() ?? doc.PowerQueryView?.RunFileAsync() ?? doc.ScriptView?.RunFileAsync() ?? Task.CompletedTask;
 
     /// <summary>API.py, the project's local sandbox API: its main Run is Run API.</summary>
     private static bool IsApiFile(OpenDocument doc) =>

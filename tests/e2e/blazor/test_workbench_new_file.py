@@ -17,6 +17,8 @@ from tests.e2e.blazor.conftest import call, choose_path, open_page
 TYPES = [
     "Python script (.py)",
     "SQL file (.sql)",
+    "Power Query (.pq)",
+    "Import Power BI queries… (.pq)",
     "JSON (.json)",
     "YAML (.yaml)",
     "TOML (.toml)",
