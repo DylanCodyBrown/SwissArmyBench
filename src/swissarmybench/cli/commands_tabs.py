@@ -15,6 +15,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "tabs_new_query",
+    "New table from one SELECT over the open tables. "
     "New table from a query (the + tab): one SELECT over the open tables, each read as its tab shows it. "
     "Opens the result in a tab.",
     req("name", "Name of the new dataset."),
@@ -33,6 +34,7 @@ def build_from_query(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_new_connection_query",
+    "New table from a query in a connection's own SQL. "
     "New table from a query run on a connection, in its own SQL. Run again reruns it there.",
     req("name", "Name of the new dataset."),
     req("connection", "The connection the query runs on (a database connection)."),
@@ -62,6 +64,7 @@ def create_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_get",
+    "An open table: columns, steps, settings, row count. "
     "An open table in full: columns and types, every step (with ids), settings, step error, the view's row count "
     "(view_rows; row_count is the dataset's), how many rows are selected and how many highlight rules it has.",
     req("grid", "The open table's id."),
@@ -77,7 +80,7 @@ def get_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_close_grid",
-    "Close an open table's tab (the dataset stays open).",
+    "Close a table's tab (the dataset stays open). Close an open table's tab (the dataset stays open).",
     req("grid", "The open table's id."),
 )
 def close_grid(a: dict[str, Any]) -> Any:
@@ -86,6 +89,7 @@ def close_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_reopen",
+    "Reopen the last closed tab, its steps kept. "
     "Reopen the last closed tab (Ctrl+Shift+T), its steps kept: a closed table is read again from its file.",
 )
 def reopen_grid(a: dict[str, Any]) -> Any:
@@ -94,6 +98,7 @@ def reopen_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_reload",
+    "Reload a table whose file changed, steps kept. "
     "A table whose file changed on disk (datasets_list: changed_on_disk): Reload it, its steps kept.",
     req("dataset", "The table."),
     opt("not_now", "Not now: keep it as it is (said again when the file changes again).", "bool"),
@@ -104,6 +109,7 @@ def reload_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_cancel",
+    "Stop every query running for an open table. "
     "Stop every query now running for an open table: its rows, counts, profiles, SQL and exports.",
     req("grid", "The open table's id."),
 )

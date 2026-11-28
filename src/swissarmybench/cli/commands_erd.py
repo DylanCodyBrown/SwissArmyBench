@@ -14,7 +14,7 @@ from swissarmybench.cli.command_kit import SCOPE, _q, command, opt, req
 
 @command(
     "erd_text",
-    "The ERD as Mermaid text: the tables the open project uses (or all; no project open: the open tables)",
+    "The ERD as Mermaid text. The tables the open project uses (or all; no project open: the open tables)",
     opt("tables", "Comma-separated dataset names."),
     SCOPE,
 )
@@ -24,7 +24,7 @@ def erd(a: dict[str, Any]) -> Any:
 
 @command(
     "erd_draw",
-    "Draw the relationship model as a diagram card in Analyze.",
+    "Draw the ERD as a diagram card in Analyze. Draw the relationship model as a diagram card in Analyze.",
     req("grid", "The open table the card is filed with (its id)."),
     opt("tables", "Comma-separated dataset names."),
     opt("title", "Card title (default Relationships)."),

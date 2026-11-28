@@ -23,6 +23,7 @@ LONG = 960.0  # an install or a push can take minutes
 
 @command(
     "powerapps_state",
+    "The Code App page: tools, account, the open app. "
     "The Code App page's picture: tools, account, environments, the open code app, Run live, recent runs",
 )
 def powerapps_state(a: dict[str, Any]) -> Any:
@@ -31,6 +32,7 @@ def powerapps_state(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_tools",
+    "The command lines found; `install` one (on Allow). "
     "Node.js, npm, pa, pac, Deno: found, versions, install commands; `install` installs one (Allow)",
     opt("refresh", "true: look again.", "bool"),
     opt("install", "A tool's id to install (node, pa, pac, dotnet, deno)."),
@@ -43,6 +45,7 @@ def powerapps_tools(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_auth",
+    "Who pa is signed in as; sign_in, switch. "
     "Who pa is signed in as; `sign_in` opens the browser sign-in; `switch` makes an account active",
     opt("sign_in", "true: pa auth login.", "bool"),
     opt("account", "The account to prefill (sign_in) or to make active (switch)."),
@@ -57,7 +60,9 @@ def powerapps_auth(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "powerapps_environments", "The environments this sign-in reaches (pac env list), the code app's marked"
+    "powerapps_environments",
+    "The environments this sign-in reaches. "
+    "The environments this sign-in reaches (pac env list), the code app's marked",
 )
 def powerapps_environments(a: dict[str, Any]) -> Any:
     return api.call("GET", "/powerapps/environments")
@@ -65,6 +70,7 @@ def powerapps_environments(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_profiles",
+    "pac's sign-in profiles; create, select. "
     "pac's sign-in profiles; `create` signs in (the browser) for an environment; `select` makes one active",
     opt("create", "true: pac auth create.", "bool"),
     opt("environment", "create's environment (id, address or name)."),
@@ -80,6 +86,7 @@ def powerapps_profiles(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_project",
+    "The open code app: environment, sources, models. "
     "The open code app: its name, environment, data sources, generated models and services",
 )
 def powerapps_project(a: dict[str, Any]) -> Any:
@@ -88,6 +95,7 @@ def powerapps_project(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_new",
+    "New code app from Microsoft's template, then open. "
     "New code app: Microsoft's template into parent/<name>, npm install, pa app init; then it is open",
     req("name", "The app's display name."),
     req("environment_id", "The environment's id (powerapps_environments)."),
@@ -101,6 +109,7 @@ def powerapps_new(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_open",
+    "Open a code app folder; `close` closes it. "
     "Open a code app folder (it has power.config.json); `close` closes the open one",
     opt("folder", "The code app's folder."),
     opt("close", "true: close the open code app.", "bool"),
@@ -113,6 +122,7 @@ def powerapps_open(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_files",
+    "The code app's files; `path` reads one. "
     "The code app's files a person edits (.ts and .tsx under src/; `all` lists every file); `path` reads "
     "one (a hidden one too); `path` and `text` save it",
     opt("path", "A file's path in the app (src/App.tsx)."),
@@ -129,6 +139,7 @@ def powerapps_files(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_pages",
+    "The app's pages; `name` makes one. "
     "The app's pages (each a folder under src/pages that owns its components, hooks, state and types); "
     "`name` makes a New page and lists it in src/pages.ts",
     opt("name", "New page: its name (Accounts, Open orders)."),
@@ -142,6 +153,7 @@ def powerapps_pages(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_scaffold",
+    "Write the starter files where none is. "
     "The starter files where none is: src/shared (Page, useLoad, DataTable, FormField, the app's context), "
     "the Accounts page, src/pages.ts and App.tsx's page switcher",
 )
@@ -151,6 +163,7 @@ def powerapps_scaffold(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_lint",
+    "The pages rule: no import from another page. "
     "The pages rule: an import from another page (move the piece to src/shared/); one file as sent, or all",
     opt("path", "A file's path (with `text`)."),
     opt("text", "The file's text as it stands."),
@@ -161,6 +174,7 @@ def powerapps_lint(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_add_source",
+    "Add a data source: a Dataverse table or a connector. "
     "Add a data source (pa app add data-source): a Dataverse table, or a connector with its connection",
     opt("table", "Dataverse: the table's logical name; a connector: its table."),
     opt("connector", "A connector's id (shared_office365users); none: Dataverse."),
@@ -178,7 +192,7 @@ def powerapps_add_source(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_remove_source",
-    "Remove a data source (pa app remove data-source)",
+    "Remove a data source. Pa app remove data-source",
     req("name", "The data source's name (powerapps_project lists them)."),
 )
 def powerapps_remove_source(a: dict[str, Any]) -> Any:
@@ -187,6 +201,7 @@ def powerapps_remove_source(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_connectors",
+    "The environment's connectors, searched. "
     "The environment's connectors (pa connector list), searched; in_app marks the app's",
     opt("q", "Words to search for."),
     opt("refresh", "true: ask pa again.", "bool"),
@@ -198,7 +213,7 @@ def powerapps_connectors(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_connector",
-    "One connector's operations, inputs and outputs (the APIs explorer's model; read-only)",
+    "One connector's operations, inputs and outputs. The APIs explorer's model; read-only",
     req("name", "The connector's id (shared_office365users)."),
 )
 def powerapps_connector(a: dict[str, Any]) -> Any:
@@ -207,6 +222,7 @@ def powerapps_connector(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_connections",
+    "The environment's connections, for Add to app. "
     "The environment's connections (pa connection list), for Add to app",
     opt("connector", "Only this connector's."),
 )
@@ -216,6 +232,7 @@ def powerapps_connections(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_run_live",
+    "Run live: the app's dev server; `stop` stops it. "
     "Run live: the app's dev server, shown in the Code App page's pane; its Local Play link; `stop` stops it",
     opt("stop", "true: stop it.", "bool"),
     opt("state", "true: only say whether it runs.", "bool"),
@@ -230,6 +247,7 @@ def powerapps_run_live(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_push",
+    "Push a new version to the environment (on Allow). "
     "Push: npm run build, then pa app push, a new version in the environment (waits for the user's Allow)",
     opt("dry_run", "true: say what would run; nothing runs.", "bool"),
     opt("solution_id", "The solution to add the app to."),
@@ -241,6 +259,7 @@ def powerapps_push(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_versions",
+    "The environment's code apps and this session's pushes. "
     "The environment's code apps (pa app list), this one marked, and this session's pushes",
 )
 def powerapps_versions(a: dict[str, Any]) -> Any:
@@ -249,6 +268,7 @@ def powerapps_versions(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_custom_connector",
+    "A custom connector from a library API (dry run first). "
     "A custom connector from a library API: dry run (the default) shows its two files; dry_run false runs "
     "pac connector create (waits for Allow)",
     req("api", "The API's name (apis_list)."),
@@ -268,6 +288,7 @@ def powerapps_custom_connector(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_runs",
+    "This session's pa, pac and npm runs. "
     "This session's pa, pac and npm runs (their words, exit codes, output); `run` gives one's whole output",
     opt("run", "A run's id."),
 )
@@ -284,6 +305,7 @@ RUN = 600.0  # a cell can run for minutes; the first start fetches DuckDB's Node
 
 @command(
     "powerapps_notebook",
+    "The data notebook: kernels, Deno; `open` makes it. "
     "The data notebook: its kernels and Deno; `open` makes the code app's data.ipynb (SQL and TypeScript "
     "cells on one DuckDB) and gives its path; `interrupt`, `restart` or `stop` its kernel",
     opt("open", "true: the code app's data notebook (made the first time).", "bool"),
@@ -302,6 +324,7 @@ def powerapps_notebook(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_ts_run",
+    "Run a TypeScript or SQL cell in the Deno kernel. "
     "Run a TypeScript or SQL cell in the data notebook's Deno kernel (one DuckDB; the open tables are views "
     "by name; `sab.sql`, `sab.table`); its outputs (a table: columns, first rows, total, id)",
     req("code", "The cell's TypeScript, or its SQL (kind sql)."),
@@ -321,6 +344,7 @@ def powerapps_ts_run(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_ts_grid",
+    "Open a cell's table result on the Tables page. "
     "Open a TypeScript or SQL cell's table result on the Tables page (every row), by its id (r and a number)",
     req("id", "The result's id (its output says it)."),
     opt("name", "The open table's name."),
@@ -333,6 +357,7 @@ def powerapps_ts_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_data_ts",
+    "data.ts from the notebook's TypeScript cells. "
     "data.ts from the data notebook's TypeScript cells (exported, typed results); `use_in_app` writes it "
     "into the code app's src/ (Use in app)",
     opt("use_in_app", "true: write src/data.ts.", "bool"),
@@ -345,6 +370,7 @@ def powerapps_data_ts(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_tsx_preview",
+    "Draw a TSX cell with the code app's own React. "
     "Draw a TSX cell (its default export, the code app's own React; `// props: {...}` on its first line "
     "worked out in the notebook's kernel): the page, its frame policy and the props' names",
     req("source", "The TSX cell's code."),
@@ -358,6 +384,7 @@ def powerapps_tsx_preview(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_dataverse_grid",
+    "Open a code app's Dataverse source as a table. "
     "Open one of the code app's Dataverse sources on the Tables page through the library's Dataverse "
     "connection for its environment; with none, which connection to add",
     req("source", "The source's name (powerapps_project lists them)."),

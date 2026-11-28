@@ -66,13 +66,18 @@ STEP_KINDS: dict[str, Any] = {
 }
 
 
-@command("steps_kinds", "The step vocabulary: kinds, their params, filter ops, aggregates, transforms.")
+@command(
+    "steps_kinds",
+    "The step vocabulary: kinds, params, operators. "
+    "The step vocabulary: kinds, their params, filter ops, aggregates, transforms.",
+)
 def step_kinds(a: dict[str, Any]) -> Any:
     return STEP_KINDS
 
 
 @command(
     "steps_run_sql",
+    "Run one guarded DuckDB statement over the open tables. "
     "Run one guarded SQL statement (DuckDB) over the open tables. A SELECT returns rows (at most 1,048,576); "
     "CREATE TABLE <name> AS SELECT ... pins the result as a new dataset with its own tab. `grid` is this "
     "table's view (after its steps); any open table by its name reads that table's rows as loaded.",
@@ -95,7 +100,7 @@ def run_sql(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_counts",
-    "Row count after each step (the numbers beside the steps).",
+    "Row count after each step. The numbers beside the steps.",
     req("grid", "The open table's id."),
 )
 def step_counts(a: dict[str, Any]) -> Any:
@@ -104,6 +109,7 @@ def step_counts(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_categorize_stats",
+    "Rows a categorize step leaves unmatched or doubled. "
     "Rows a categorize step leaves unmatched or matched twice.",
     req("grid", "The open table's id."),
     req("step", "Index of the categorize step.", "int"),
@@ -114,6 +120,7 @@ def categorize_stats(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_python",
+    "The table's steps as verified SQL or Python code. "
     "The table's steps as code for the user's own Python, verified against the table (Copy as SQL / Copy as "
     "Python). `sql` is one DuckDB query over the user's table by its variable name; `code` is "
     "`import duckdb` plus one line running it.",
@@ -128,6 +135,7 @@ def grid_code(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_put",
+    "Replace a table's step list and matching settings. "
     "Replace an open table's step list and/or text-matching settings. Steps: see steps_kinds. Omit `steps` to keep them.",
     req("grid", "The open table's id."),
     opt("steps", "The whole new step list.", "json"),
@@ -139,7 +147,8 @@ def put_steps(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_add",
-    "Add one step (the ribbon's Filter, Sort, Group by...). Goes before a header-click sort unless `index` is given.",
+    "Add one step. The ribbon's Filter, Sort, Group by... Goes before a header-click sort unless "
+    "`index` is given.",
     req("grid", "The open table's id."),
     req("kind", "Step kind (see steps_kinds)."),
     req("params", "The step's params.", "json"),
@@ -151,7 +160,7 @@ def add_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_edit",
-    "Replace a step's params (the step's Edit button).",
+    "Replace a step's params. The step's Edit button.",
     req("grid", "The open table's id."),
     req("index", "Step index, from 0.", "int"),
     req("params", "The full new params.", "json"),
@@ -162,7 +171,7 @@ def edit_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_delete",
-    "Remove a step (the step's trash button).",
+    "Remove a step. The step's trash button.",
     req("grid", "The open table's id."),
     req("index", "Step index, from 0.", "int"),
 )
@@ -172,7 +181,7 @@ def delete_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_toggle",
-    "Turn a step off or on without deleting it (the step's checkbox).",
+    "Turn a step off or on. Turn a step off or on without deleting it (the step's checkbox).",
     req("grid", "The open table's id."),
     req("index", "Step index, from 0.", "int"),
     opt("enabled", "true/false; omit to flip.", "bool"),
@@ -194,6 +203,7 @@ def move_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_undo",
+    "Undo the last change to the table's steps. "
     "Undo the last change to the table's steps (the page's Ctrl+Z): a step added, removed, edited, switched "
     "off or moved, the steps cleared, a header sort. Each table remembers its own changes.",
     req("grid", "The open table's id."),
@@ -204,7 +214,7 @@ def undo_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_redo",
-    "Redo the step change last undone (the page's Ctrl+Y). A new change ends what can be redone.",
+    "Redo the step change last undone. The page's Ctrl+Y. A new change ends what can be redone.",
     req("grid", "The open table's id."),
 )
 def redo_step(a: dict[str, Any]) -> Any:
@@ -213,6 +223,7 @@ def redo_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_apply_sql",
+    "Add a SQL step: one SELECT over the table as it stands. "
     "Add a SQL transformation step (Create SQL transformation, Apply): one SELECT over the table as it stands, "
     "by the dataset's own name or `grid`. Later steps see its columns.",
     req("grid", "The open table's id."),
@@ -224,6 +235,7 @@ def apply_sql_step(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_save_result",
+    "Run a SELECT and pin its result as a new dataset. "
     "Run a SELECT over `grid` or dataset names and pin the result as a new dataset with its own tab.",
     req("grid", "The open table's id the SQL reads."),
     req("sql", "One SELECT."),

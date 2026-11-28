@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import command, opt
 
 @command(
     "stats",
+    "Every call's statistics: time, size, outcome (never a value). "
     "Every call's statistics (connections' reads, queries and writes; APIs' actions): time in parts (wait in "
     "line, connect, first row or byte, total), size, folded vs DuckDB, outcome, who and where, the shape's "
     "fingerprint; the running figures per table, connection and endpoint; hints. Never a value",

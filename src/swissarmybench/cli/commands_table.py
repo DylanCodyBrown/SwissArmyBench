@@ -16,6 +16,7 @@ from swissarmybench.cli.command_kit import _insert_step, _post_steps, _q, comman
 
 @command(
     "table_profile",
+    "Profile a table's view, or one column of it. "
     "Profile of the table's view (every column, or one with `column`): the page's Profile button. For a "
     "table no tab shows, give `dataset` instead: its schema, row count, duplicate rows and a line a column "
     "(or one column's full profile with `column`), over the rows as loaded.",
@@ -39,6 +40,7 @@ def grid_profile(a: dict[str, Any]) -> Any:
 
 @command(
     "table_header_stats",
+    "Every column's header statistics (min, max, blanks). "
     "The column-header statistics the page shows (min, max, blanks...) for every column.",
     req("grid", "The open table's id."),
     values=True,
@@ -49,6 +51,7 @@ def grid_stats(a: dict[str, Any]) -> Any:
 
 @command(
     "table_export",
+    "Export the table to the export folder (on Allow). "
     "Export the table to the user's export folder. Waits for the user's approval click. Returns the saved path.",
     req("grid", "The open table's id."),
     opt("format", "csv (default), txt, xlsx or parquet."),
@@ -60,6 +63,7 @@ def grid_stats(a: dict[str, Any]) -> Any:
     opt("overwrite", "Replace an existing file.", "bool"),
     opt(
         "options",
+        "An object: delimiter, encoding, header, sheet_name.... "
         "More export options as an object: delimiter, line_ending, encoding, header, quote_all, sheet_name, compression, provenance, blank...",
         "json",
     ),
@@ -88,6 +92,7 @@ def grid_export(a: dict[str, Any]) -> Any:
 
 @command(
     "table_matching",
+    "How filters and rules compare text (Matching). "
     "The ribbon's Matching: how filters and rules compare text. Omitted switches keep their value.",
     req("grid", "The open table's id."),
     opt("case_sensitive", "Match case.", "bool"),
@@ -108,8 +113,8 @@ def set_matching(a: dict[str, Any]) -> Any:
 # the columns or values instead, so each wrapper takes them as arguments.
 @command(
     "table_filter",
-    "Keep rows that match a condition (the ribbon's Filter). ops: eq ne in not_in blank not_blank contains "
-    "starts_with ends_with lt gt between before after date_between true false.",
+    "Keep rows that match a condition. The ribbon's Filter. ops: eq ne in not_in blank not_blank "
+    "contains starts_with ends_with lt gt between before after date_between true false.",
     req("grid", "The open table's id."),
     req("column", "Column name."),
     req("op", "The filter operation."),
@@ -126,9 +131,10 @@ def table_filter(a: dict[str, Any]) -> Any:
 
 @command(
     "table_sort",
+    "Sort by up to three columns (a sort step). "
     "Sort by up to three columns with their own directions (the ribbon's Sort, a sort step).",
     req("grid", "The open table's id."),
-    req("keys", 'e.g. [["region", "asc"], ["amount", "desc"]]', "json"),
+    req("keys", 'Like [["region", "asc"], ["amount", "desc"]].', "json"),
     opt("index", "Insert at this step position.", "int"),
 )
 def table_sort(a: dict[str, Any]) -> Any:
@@ -137,10 +143,11 @@ def table_sort(a: dict[str, Any]) -> Any:
 
 @command(
     "table_group_by",
+    "Group rows; add totals, counts or averages. "
     "Group rows and add totals, counts or averages (the ribbon's Group by).",
     req("grid", "The open table's id."),
     req("keys", "Columns to group by; [] gives one total row.", "list"),
-    req("aggregates", 'e.g. [{"fn": "sum", "column": "amount", "as": "total"}]; fns in steps_kinds.', "json"),
+    req("aggregates", 'Like [{"fn": "sum", "column": "amount", "as": "total"}]; fns in steps_kinds.', "json"),
     opt("index", "Insert at this step position.", "int"),
 )
 def table_group_by(a: dict[str, Any]) -> Any:
@@ -151,6 +158,7 @@ def table_group_by(a: dict[str, Any]) -> Any:
 
 @command(
     "table_distinct",
+    "Drop duplicate rows; the first one stays. "
     "Drop duplicate rows, the first one stays (the ribbon's Distinct rows).",
     req("grid", "The open table's id."),
     opt("index", "Insert at this step position.", "int"),
@@ -161,7 +169,7 @@ def table_distinct(a: dict[str, Any]) -> Any:
 
 @command(
     "table_clean_text",
-    "Trim or change the case of text columns (the ribbon's Clean text).",
+    "Trim or change the case of text columns. The ribbon's Clean text.",
     req("grid", "The open table's id."),
     req("fn", "trim_left, trim_right, trim_both, upper or lower."),
     opt("columns", "Text columns; every text column when omitted.", "list"),
@@ -175,7 +183,7 @@ def table_clean_text(a: dict[str, Any]) -> Any:
 # ----- a table's connection swapped (its steps kept), and the code that named the old one -----
 @command(
     "table_connection",
-    "A table's connection, how it is read, the others, its undo",
+    "A table's connection, the others, its undo. A table's connection, how it is read, the others, its undo",
     req("table", "Its name."),
 )
 def table_connection(a: dict[str, Any]) -> Any:

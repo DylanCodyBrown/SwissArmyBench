@@ -12,14 +12,17 @@ from swissarmybench.cli import api
 from swissarmybench.cli.command_kit import command, opt
 
 
-@command("desktop_status", "The desktop app: running, its windows (kind, title, page)")
+@command(
+    "desktop_status",
+    "The desktop app: running, its windows. Kind, title, page",
+)
 def desktop_status(a: dict[str, Any]) -> Any:
     return api.call("GET", "/desktop")
 
 
 @command(
     "desktop_open",
-    "Open a page in a desktop app window (the app started if needed)",
+    "Open a page in a desktop app window. The app started if needed",
     opt("page", "home (default), workbench or blades."),
 )
 def desktop_open(a: dict[str, Any]) -> Any:

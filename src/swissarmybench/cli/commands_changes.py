@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import command, opt
 
 @command(
     "changes",
+    "The open project's change log (never a value). "
     "The open project's change log: each change to a table (columns, source, steps), a connection, an API or "
     "an endpoint's learned shape, API.py, a widget, a canvas page, a notebook or script, a variable or setting: "
     "when, who, what in words and as a difference by name, fingerprints before and after. Never a value",

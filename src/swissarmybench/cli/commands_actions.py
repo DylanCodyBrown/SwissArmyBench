@@ -17,6 +17,7 @@ _ACTIONS = ("list", "describe", "run", "shape", "discover", "allow", "offer", "b
 
 @command(
     "actions",
+    "Every API's actions through api_adapter (guide: apis). "
     "Every API's actions through api_adapter, one envelope (guide: apis); a run that writes and discover wait "
     "for Allow",
     req("action", ", ".join(_ACTIONS) + "."),
@@ -24,6 +25,7 @@ _ACTIONS = ("list", "describe", "run", "shape", "discover", "allow", "offer", "b
     opt("name", "The action's name (describe, run, shape, offer, build)."),
     opt(
         "args",
+        "The action's arguments, an object (guide: apis). "
         'run: {"inputs": {...}, "required"?: [paths]}; allow: {"allow": false} (Discover\'s, taken back); offer: {"from", "to", "take": bool}; build: {"as": '
         'cell (into data.ipynb)|function ("path": its script)|widget, "inputs"?, "insert"?: false, "canvas"?, '
         '"page"?}.',

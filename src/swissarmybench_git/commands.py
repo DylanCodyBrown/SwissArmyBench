@@ -29,6 +29,7 @@ def _q(a: dict[str, Any], *keys: str) -> dict[str, Any]:
 
 @command(
     "github_status",
+    "GitHub sync: who is signed in, each folder's status. "
     "GitHub sync: who is signed in (never the token), each folder's repository, branch and status words "
     "(Up to date, 3 changes to push, 2 behind: Pull, Conflicts: 2), the footer's mark",
     opt("remote", "true: ask GitHub about each head now (at most once a minute).", "bool"),
@@ -37,13 +38,17 @@ def github_status(a: dict[str, Any]) -> Any:
     return api.call("GET", "/git?remote=1" if a.get("remote") else "/git")
 
 
-@command("github_repositories", "The signed-in user's GitHub repositories (owner/name, default branch)")
+@command(
+    "github_repositories",
+    "The signed-in user's GitHub repositories. Owner/name, default branch",
+)
 def github_repositories(a: dict[str, Any]) -> Any:
     return api.call("GET", "/git/repositories")
 
 
 @command(
     "github_clone",
+    "Clone a GitHub repository into a folder (on Allow). "
     "Clone a GitHub repository into an empty or new folder, which becomes the team library or the shared projects "
     "folder; waits for Allow",
     req("repository", "owner/name."),
@@ -58,6 +63,7 @@ def github_clone(a: dict[str, Any]) -> Any:
 
 @command(
     "github_connect",
+    "Connect a folder to a GitHub repository (on Allow). "
     "Connect the team library or shared projects folder to a GitHub repository (compared, nothing written); "
     "waits for Allow",
     req("repository", "owner/name."),
@@ -77,6 +83,7 @@ def github_disconnect(a: dict[str, Any]) -> Any:
 
 @command(
     "github_pull",
+    "Pull a folder from GitHub, merging (on Allow). "
     "Pull a folder from GitHub: theirs where only they changed, three-way merges, conflicts as <name>.theirs; "
     "waits for Allow",
     WHICH,
@@ -87,6 +94,7 @@ def github_pull(a: dict[str, Any]) -> Any:
 
 @command(
     "github_push",
+    "Push a folder's changes as one commit (on Allow). "
     "Push a folder's changes to GitHub as one commit (fast-forward only; refused when behind or a file holds a "
     "secret); waits for Allow",
     WHICH,
@@ -99,6 +107,7 @@ def github_push(a: dict[str, Any]) -> Any:
 
 @command(
     "scm_changes",
+    "Source Control: each folder's changes, by group. "
     "The Source Control page: each connected folder's Merge Changes, Staged Changes and Changes (letters A M D "
     "U !), branch, ahead and behind",
     WHICH,
@@ -109,7 +118,7 @@ def scm_changes(a: dict[str, Any]) -> Any:
 
 @command(
     "scm_stage",
-    "Stage Changes (or unstage): the files the next commit takes",
+    "Stage or unstage files for the next commit. Stage Changes (or unstage): the files the next commit takes",
     req("paths", "The files' paths in the folder.", "list"),
     WHICH,
     opt("unstage", "true: Unstage Changes.", "bool"),
@@ -122,6 +131,7 @@ def scm_stage(a: dict[str, Any]) -> Any:
 
 @command(
     "scm_discard",
+    "Discard changes to files (on Allow). "
     "Discard Changes: files back to their last synced version (a new file deleted); waits for Allow",
     req("paths", "The files' paths in the folder.", "list"),
     WHICH,
@@ -132,6 +142,7 @@ def scm_discard(a: dict[str, Any]) -> Any:
 
 @command(
     "scm_commit",
+    "Commit files as one commit on GitHub (on Allow). "
     "Commit: the named files (else the staged, else every change) as one commit on GitHub; sync pulls first; "
     "waits for Allow",
     req("message", "The commit message."),
@@ -144,13 +155,18 @@ def scm_commit(a: dict[str, Any]) -> Any:
     return api.call("POST", "/git/commit", body, timeout=LONG)
 
 
-@command("scm_sync", "Sync Changes: Pull, then Push; waits for Allow", WHICH)
+@command(
+    "scm_sync",
+    "Sync Changes: Pull, then Push (on Allow). Sync Changes: Pull, then Push; waits for Allow",
+    WHICH,
+)
 def scm_sync(a: dict[str, Any]) -> Any:
     return api.call("POST", "/git/sync", {"which": _which(a)}, timeout=LONG)
 
 
 @command(
     "scm_history",
+    "The branch's commits from GitHub, paged. "
     "The graph's history: the branch's commits from GitHub (100 a page; id, parents, subject, author, date), "
     "the refs and the uncommitted count",
     WHICH,
@@ -162,7 +178,7 @@ def scm_history(a: dict[str, Any]) -> Any:
 
 @command(
     "scm_commit_files",
-    "One commit's files (each with its letter) and its parent",
+    "One commit's files and its parent. One commit's files (each with its letter) and its parent",
     req("commit", "The commit's SHA."),
     WHICH,
 )
@@ -172,8 +188,8 @@ def scm_commit_files(a: dict[str, Any]) -> Any:
 
 @command(
     "scm_diff",
-    "A file's change as unified diff text: since the last sync, in a commit (against its parent), or a "
-    "conflict (yours against theirs)",
+    "A file's change as unified diff text. Since the last sync, in a commit (against its parent), or "
+    "a conflict (yours against theirs)",
     req("path", "The file's path in the folder."),
     WHICH,
     opt("commit", "A commit's SHA."),

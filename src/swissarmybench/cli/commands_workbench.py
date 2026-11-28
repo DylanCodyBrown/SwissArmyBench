@@ -21,6 +21,7 @@ def workbench_home(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_open",
+    "A notebook's cells or a script's text, and its Python. "
     "A notebook's cells (with their outputs) or a script's text, and its remembered Python",
     req("path", "An .ipynb, .py, .sql or .pq file."),
     values=True,
@@ -31,6 +32,7 @@ def workbench_open(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_fine_tune",
+    "Fine-tune as a script: a table's steps as a new script. "
     "Fine-tune as a script: an open table's transformations (its load and its steps as one DuckDB query) as "
     "a new script in the project's scripts/, opened on the Scripts page",
     req("table", "The open table's name."),
@@ -41,6 +43,7 @@ def workbench_fine_tune(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_outline",
+    "A module's classes, functions and constants, by line. "
     "A module's outline as typed: its classes, methods, functions and constants with their lines",
     req("text", "The module's text."),
 )
@@ -55,6 +58,7 @@ def _at(a: dict[str, Any]) -> dict[str, Any]:
 
 @command(
     "workbench_definition",
+    "Go to definition of the name at line and column. "
     "Go to definition (F12): where the name at line/column is defined (project or libraries)",
     req("text", "The script's text."),
     req("line", "The line, from 1.", "int"),
@@ -68,6 +72,7 @@ def workbench_definition(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_references",
+    "Every use of the name at line and column. "
     "Find all references (Shift+F12): every use of the name at line/column across the project's scripts",
     req("text", "The script's text."),
     req("line", "The line, from 1.", "int"),
@@ -80,6 +85,7 @@ def workbench_references(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_rename",
+    "Rename a symbol across the scripts: the plan, or apply. "
     "Rename a symbol across the project's scripts (F2): the plan (each change, the made files skipped), "
     "or written with apply (said in the Session log)",
     req("text", "The script's text."),
@@ -95,6 +101,7 @@ def workbench_rename(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_debug",
+    "Debug a script in its kernel (guide: workbench). "
     "Debug a script in its kernel; action: start, state, breakpoints, over, into, out, continue, "
     "variables, evaluate, stop",
     req("action", "What to do."),
@@ -134,6 +141,7 @@ def _scripts_window(command_id: str, path: Any) -> Any:
 
 @command(
     "workbench_file",
+    "A file: new, blocks, view, export, move, rename (guide: workbench). "
     "Files. new: a named file with its type's starter (types: the list, by the project's type; no project: "
     "path is a whole folder). blocks, edit_block: a Markdown file's blocks, one replaced, added or its task "
     "ticked. view, export: a Scripts tab's preview, split or source; its diagram saved as svg or png. "
@@ -189,6 +197,7 @@ def workbench_file(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_sql",
+    "A .sql or Power Query file: run, problems (guide: workbench). "
     "A .sql file (the Scripts page's SQL): run builds the open table named after the file (orders_by_month.sql: "
     "orders_by_month; run again replaces it, its steps kept) on the file's `-- connection: <name>` (none: DuckDB "
     "over the open tables and [Conn].table names); a failure names its line. for_table: a table a query made "
@@ -222,6 +231,7 @@ def workbench_sql(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_search",
+    "Search the project's scripts; with to: replace. "
     "Search across the project's scripts (regex, case, whole word); with to: replace's plan, or applied",
     req("query", "The text (or a regular expression with regex)."),
     opt("to", "Replace with this (the plan; apply writes it)."),
@@ -237,6 +247,7 @@ def workbench_search(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_format",
+    "Format a script's text with Ruff. "
     "Format a script's text with Ruff in its own Python (said when Ruff is not there)",
     req("text", "The script's text."),
     opt("python", "The script's Python."),
@@ -247,10 +258,11 @@ def workbench_format(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_save",
-    "Save a notebook's cells or a script's text (refused if changed on disk since modified, unless force)",
+    "Save a notebook's cells or a script's text. Refused if changed on disk since modified, unless force",
     req("path", "An .ipynb, .py, .sql or .pq file."),
     opt(
         "cells",
+        '[{"kind", "source", "connection"?, "outputs"?, "height"?}]. '
         '[{"kind": "code" | "sql" | "dax" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',
         "json",
     ),
@@ -267,6 +279,7 @@ def workbench_save(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_export_script",
+    "Export a notebook or script as one runnable file. "
     "Export a notebook or script as ONE .py that runs with plain python anywhere (an Azure Function too), "
     "or as one linear .ipynb: its connections, vault lookups and table steps written out, no passwords, no rows",
     req("path", "The notebook (.ipynb) or script (.py)."),
@@ -280,13 +293,17 @@ def workbench_export_script(a: dict[str, Any]) -> Any:
     return api.call("POST", "/workbench/export-script", body)
 
 
-@command("workbench_pythons", "The Pythons a kernel can run in: version, ipykernel, the package")
+@command(
+    "workbench_pythons",
+    "The Pythons a kernel can run in. Version, ipykernel, the package",
+)
 def workbench_pythons(a: dict[str, Any]) -> Any:
     return api.call("GET", "/workbench/pythons")
 
 
 @command(
     "workbench_kernel_start",
+    "Start a kernel; its id. "
     "Start a kernel (every connection is a variable by its name in it); its id. With a project open it is "
     "the project's ONE Python session, shared by every notebook and script of the project (session.shared)",
     opt("python", "The Python (default: the app's own). A project's session runs in the project's own."),
@@ -368,6 +385,7 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
 
 @command(
     "workbench_run",
+    "Run code in a kernel (kind: sql, dax, file, table, html). "
     "Run code in a kernel (kind sql: a SQL cell on its connection; kind dax: a DAX cell on a Power BI "
     "workspace's dataset; kind file: a script as python would; kind table: a table's cell; kind html: an "
     "HTML cell, its {{ names }} filled from the kernel)",
@@ -395,11 +413,13 @@ def workbench_run(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_script_settings",
+    "A script's run settings; with set, change them. "
     "A script's run settings: arguments, the variables it needs and each one's source (never a value); "
     "with set, change them",
     req("path", "The script (.py)."),
     opt(
         "set",
+        '{"arguments", "variables": [{"name", "from", ...}]}. '
         '{"arguments": "--region all", "variables": [{"name": "REPORT_FOLDER", "from": "env"}, '
         '{"name": "HOST", "from": "value", "value": "db1"}, {"name": "PASSWORD", "from": "vault", '
         '"vault": "Team vault", "secret": "warehouse-password"}]}',
@@ -416,6 +436,7 @@ def workbench_script_settings(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_input",
+    "Answer a run waiting at input(), getpass or pdb. "
     "Answer a run the user started that waits at input(), getpass or pdb",
     req("kernel", "The kernel's id."),
     req("value", "The line to type."),
@@ -426,7 +447,7 @@ def workbench_input(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_is_complete",
-    "Whether code is a whole statement yet (complete, incomplete with its indent, or invalid)",
+    "Whether code is a whole statement yet. Complete, incomplete with its indent, or invalid",
     req("kernel", "The kernel's id."),
     req("code", "The code."),
 )
@@ -454,6 +475,7 @@ _INTEL_ARGS = (
 
 @command(
     "workbench_complete",
+    "The editor's completions at a place. "
     "What the editor's member list offers at a place: names ranked, each with its kind, signature and "
     "docs; the app's names inside strings (connections, variables, blades); a project module's import",
     *_INTEL_ARGS,
@@ -464,6 +486,7 @@ def workbench_complete(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_signature",
+    "Parameter info for the call at a place, or its hover. "
     "Parameter info for the call at a place (each signature, the active parameter, each one's words), "
     "or with hover the docs and type of the name there",
     *_INTEL_ARGS,
@@ -475,6 +498,7 @@ def workbench_signature(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_problems",
+    "The problems the editors show, by document. "
     "The problems the Workbench's editors show (syntax, undefined names, unused imports, Ruff's), each "
     "document's; with path, that file checked now",
     opt("path", "A .py or .ipynb file to check now."),
@@ -487,12 +511,17 @@ def workbench_problems(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_window",
+    "Run a palette command in the Workbench window. "
     "Do what the user does in the open Workbench window: any command of its palette (Ctrl+Shift+P). "
     'command "documents" says what is open (its tab groups too); "commands" lists every command and its '
     'args; e.g. "cell.insertBelow" {"kind": "code", "source": "..."}, "run.cell", "view.focus", "doc.show", '
     '"group.splitRight", "group.moveTab" {"group": 1}, "data.goToTable" {"table": "orders"}',
     req("command", 'A command\'s id, such as "documents", "commands", "run.statement" or "cell.delete".'),
-    opt("args", 'The command\'s arguments, as an object (see "commands").', "json"),
+    opt(
+        "args",
+        "The command's arguments, as an object. The command's arguments, as an object (see \"commands\").",
+        "json",
+    ),
     opt("page", "notebooks or scripts (default: args.path's, else the window the user was last in)."),
 )
 def workbench_window(a: dict[str, Any]) -> Any:
@@ -504,7 +533,7 @@ def workbench_window(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_table_cells",
-    "Every open table's read-only Workbench cell: its steps as one DuckDB query, its tab and kernel",
+    "Every open table's read-only Workbench cell. Its steps as one DuckDB query, its tab and kernel",
 )
 def workbench_table_cells(a: dict[str, Any]) -> Any:
     return api.call("GET", "/workbench/tables")
@@ -512,6 +541,7 @@ def workbench_table_cells(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_tables_arrange",
+    "A document with its Tables group put in order. "
     "A notebook's cells or a script's text with its Tables group (the tables' cells, on top) as it should be",
     req("kind", "notebook or script."),
     opt("cells", "A notebook's cells.", "json"),
@@ -531,6 +561,7 @@ def _window(command_id: str, args: dict[str, Any]) -> Any:
 
 @command(
     "workbench_tables",
+    "The front document's tables: cell, steps, up to date. "
     "The front Workbench document's tables: each one's cell, steps, and whether it is up to date",
 )
 def workbench_tables(a: dict[str, Any]) -> Any:
@@ -539,6 +570,7 @@ def workbench_tables(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_table_run",
+    "Run a table's cell (default: each one out of date). "
     "Run a table's cell in the front Workbench document (default: every one not up to date)",
     opt("table", "The table."),
 )
@@ -550,6 +582,7 @@ def workbench_table_run(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_cell_goto",
+    "Go to a cell of the front document by its number. "
     "Go to a cell of the front Workbench document by its number (as @cell7 links to it)",
     req("number", "The cell's number.", "int"),
 )
@@ -559,6 +592,7 @@ def workbench_cell_goto(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_add",
+    "Add an HTML cell to the front document. "
     "Add an HTML cell to the front Workbench document: a design drawn from its HTML; {{ name }} in it "
     "is filled from the kernel when the cell runs",
     opt("source", "The cell's HTML."),
@@ -570,6 +604,7 @@ def workbench_html_add(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_dax_add",
+    "Add a DAX cell to the front document. "
     "Add a DAX cell to the front Workbench document, on one dataset of a Power BI workspace connection "
     "(a notebook: a cell of kind dax; a script: `# %% [dax]` over one sab.dax() call). Run it with "
     "workbench_window run.cell; connections_datasets lists a workspace's datasets",
@@ -582,6 +617,7 @@ def workbench_dax_add(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_snippet_insert",
+    "Insert a filled snippet into the front document. "
     "Insert a filled snippet into the front Workbench document: DAX, HTML or Markdown into a cell of its "
     "kind, a Streamlit piece as a named Python cell",
     req("name", "The snippet."),
@@ -595,6 +631,7 @@ def workbench_snippet_insert(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_cells",
+    "The front document's HTML cells. "
     "The front Workbench document's HTML cells (and Markdown cells with names): number, text, names, "
     "height, and whether it needs a run",
 )
@@ -604,6 +641,7 @@ def workbench_html_cells(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_run",
+    "Run an HTML cell: fill its names and draw it. "
     "Run an HTML cell (or a Markdown cell with names) in the front Workbench document: fill its names "
     "and draw it (default: every one "
     "that needs a run)",
@@ -615,6 +653,7 @@ def workbench_html_run(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_resize",
+    "Size an HTML cell's pane. "
     "Size an HTML cell's pane in the front Workbench document (saved with the cell)",
     req("number", "The cell's own number.", "int"),
     opt("height", "Pixels, 60 to 2000 (without it: the design's own height).", "int"),
@@ -626,6 +665,7 @@ def workbench_html_resize(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_fill",
+    "An HTML cell's design with its names filled, as text. "
     "An HTML cell's design as text: its HTML with each {{ name }} filled from a run's values (nothing runs)",
     req("html", "The cell's HTML (or a Markdown cell's text, with markdown)."),
     opt(
@@ -641,9 +681,10 @@ def workbench_html_fill(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_marks",
+    "What each name of an HTML cell would draw now. "
     "A mark of what each name would draw in an HTML cell now (differs from a run's mark: out of date)",
     req("kernel", "The kernel's id."),
-    req("names", 'The names, e.g. ["orders", "total"].', "json"),
+    req("names", 'The names, like ["orders", "total"].', "json"),
 )
 def workbench_html_marks(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/html-marks", {"names": a["names"]})
@@ -651,7 +692,7 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_cell_copy",
-    "Copy a cell of the front document (as C does)",
+    "Copy a cell of the front document. As C does",
     opt("number", "The cell's own number (default: the selected cell).", "int"),
 )
 def workbench_cell_copy(a: dict[str, Any]) -> Any:
@@ -660,7 +701,7 @@ def workbench_cell_copy(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_cell_paste",
-    "Paste the copied cell into the front notebook (as V does)",
+    "Paste the copied cell into the front notebook. As V does",
 )
 def workbench_cell_paste(a: dict[str, Any]) -> Any:
     return _window("cell.paste", {})
@@ -668,7 +709,7 @@ def workbench_cell_paste(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_cell_name",
-    "Name a cell of the front document (its number stays its identity)",
+    "Name a cell of the front document. Its number stays its identity",
     req("number", "The cell's own number.", "int"),
     opt("name", "One line (without it: no name)."),
 )
@@ -678,7 +719,7 @@ def workbench_cell_name(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_lineage",
-    "A cell's lineage back to the data: nodes, edges, Mermaid, each value summarised",
+    "A cell's lineage back to the data. Nodes, edges, Mermaid, each value summarised",
     opt("document", "The notebook or script (its path)."),
     opt("cell", "The cell's own number.", "int"),
     opt("values", "false: the graph alone.", "bool"),
@@ -691,6 +732,7 @@ def workbench_lineage(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_lineage_show",
+    "Show a cell's lineage overlay in the Workbench. "
     "Show the lineage overlay in the Workbench for a cell of the front document",
     opt("number", "The cell's own number (default: the selected cell).", "int"),
 )
@@ -700,20 +742,25 @@ def workbench_lineage_show(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_pop_out",
+    "Move the front document into its own window. "
     "Move the front document (unsaved text, kernel) into a Workbench window of its own",
 )
 def workbench_pop_out(a: dict[str, Any]) -> Any:
     return _window("doc.popOut", {})
 
 
-@command("workbench_move_back", "Move the front document of a popped-out window back to the main window")
+@command(
+    "workbench_move_back",
+    "Move a popped-out document back to the main window. "
+    "Move the front document of a popped-out window back to the main window",
+)
 def workbench_move_back(a: dict[str, Any]) -> Any:
     return _window("doc.moveToMain", {})
 
 
 @command(
     "workbench_project_open",
-    "Open a project's folder in the Workbench window, its files as tabs",
+    "Open a project's folder in the Workbench window. Its files as tabs",
     req("folder", "The project's folder."),
 )
 def workbench_project_open(a: dict[str, Any]) -> Any:
@@ -722,7 +769,7 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_statement",
-    "The whole statement at a script's line, as Ctrl+Enter runs it (first and last line, the next one)",
+    "The whole statement at a script's line. As Ctrl+Enter runs it (first and last line, the next one)",
     req("code", "The script's code."),
     req("line", "A line in it (the first is 1).", "int"),
 )
@@ -732,6 +779,7 @@ def workbench_statement(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_run_notebook",
+    "Run every cell of a notebook and save its outputs. "
     "Open a notebook, run every cell in a kernel (stops at an error), save it with the outputs",
     req("path", "An .ipynb file."),
     opt("kernel", "A running kernel (default: start one in the notebook's remembered Python)."),
@@ -782,6 +830,7 @@ def workbench_run_notebook(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_inspect",
+    "The signature and help of the name at a place. "
     "The signature and help of the name at a place in the code",
     req("kernel", "The kernel's id."),
     req("code", "The code."),
@@ -795,6 +844,7 @@ def workbench_inspect(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_variables",
+    "A kernel's variables, connections, environment names. "
     "What a kernel holds: variables (type, size, a preview), connections, environment names",
     req("kernel", "The kernel's id."),
     values=True,
@@ -805,6 +855,7 @@ def workbench_variables(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_to_grid",
+    "Open a kernel's variable or result as a table. "
     "Open a table from a kernel on the Tables page: a variable, or a cell's result (an output's Open as table); "
     "structure=true: a dict or list variable on the Structures page",
     req("kernel", "The kernel's id."),
@@ -841,7 +892,7 @@ def workbench_kernel(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_environment_offer",
-    "What a new environment can hold: libraries by group, presets, Python versions",
+    "What a new environment can hold. Libraries by group, presets, Python versions",
 )
 def workbench_environment_offer(a: dict[str, Any]) -> Any:
     return api.call("GET", "/workbench/environments")
@@ -849,6 +900,7 @@ def workbench_environment_offer(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_environment_create",
+    "Make a virtual environment with the packages. "
     "Make a virtual environment (uv, else venv and pip) with ipykernel and the packages; remembered for a document",
     req("folder", "A new folder (a .venv beside the notebook)."),
     opt("python", "3.13, 3.12, 3.11 or 3.10 (default: the app's own version)."),

@@ -6,7 +6,8 @@ tool's typed schema, so the model sees `steps_add(grid, kind, params, index?)` r
 a generic call. Nothing is written by hand here: add a command to the registry and it is a tool.
 
 Descriptions are kept lean on purpose, since every tool's description and schema sits in the
-agent's context: the first sentence of the command's summary, and a short note only on arguments
+agent's context: the first sentence of the command's summary (so a summary opens with one short sentence
+of 70 characters at most, saying what the tool is for), and a short note only on arguments
 whose shape cannot be guessed (the JSON ones). The guide carries the detail: a short index the agent
 reads first (`swissarmybench://index`, or the `guide` tool with no arguments) and a page per topic
 (`swissarmybench://guide/<topic>`, or `guide(topic=...)`), served as resources too.
@@ -144,7 +145,7 @@ class GridServerError(ToolError):
 
 
 _TYPES: dict[str, Any] = {"str": str, "int": int, "bool": bool, "json": Any, "any": Any, "list": list[str]}
-DESCRIPTION_LIMIT = 110
+DESCRIPTION_LIMIT = 70
 ARG_NOTE_LIMIT = 90
 
 

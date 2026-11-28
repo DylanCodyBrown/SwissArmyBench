@@ -18,6 +18,7 @@ command = Registrar(COMMANDS)
 
 @command(
     "copilot_status",
+    "Copilot: installed, on, signed in, ready. "
     "Copilot's state: installed, on, signed-in login, private project, ready",
 )
 def copilot_status(a: dict[str, Any]) -> Any:
@@ -31,6 +32,10 @@ def copilot_toggle(a: dict[str, Any]) -> Any:
     return api.call("POST", "/copilot/toggle", {"on": a["on"]})
 
 
-@command("copilot_install", "Install Copilot's language server (waits for the user's Allow)")
+@command(
+    "copilot_install",
+    "Install Copilot's language server (on Allow). "
+    "Install Copilot's language server (waits for the user's Allow)",
+)
 def copilot_install(a: dict[str, Any]) -> Any:
     return api.call("POST", "/copilot/install", {}, timeout=900.0)

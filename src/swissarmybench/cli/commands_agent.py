@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import command, opt
 
 @command(
     "agent_context",
+    "The table in front, and the other open tables. "
     "The table in front of the user now, its columns, steps and selection; plus the other open tables.",
 )
 def current_table(a: dict[str, Any]) -> Any:
@@ -30,6 +31,7 @@ def list_approvals(a: dict[str, Any]) -> Any:
 
 @command(
     "agent_events",
+    "Wait for live events and return them. "
     "Wait for live events (the user changed a table, opened a table, an approval was asked...) and return them. "
     "Types: grid_updated, grid_shown, grid_closed, dataset_updated, dataset_closed, cards_updated, "
     "relationships_updated, approval_requested, approval_resolved, processes_changed.",
@@ -47,6 +49,7 @@ def events(a: dict[str, Any]) -> Any:
 
 @command(
     "agent_inbox",
+    "What the user sent you (Send to the agent). "
     "What the user sent you from the Workbench (right-click an error or code, Send to the agent): "
     "errors with their place, values and traceback, or code, each with the user's question if any",
     opt("all", "Also the ones already read (default: only the waiting ones, which this marks read).", "bool"),

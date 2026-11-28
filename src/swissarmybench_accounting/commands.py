@@ -35,6 +35,7 @@ WORKBOOK = req("workbook", "The open design's id (workbook_open gives it).")
 
 @command(
     "workbook_open",
+    "Open a workbook design, or start a new one. "
     "Open a workbook design (workbook.design.json) or start a new one: its id, sheets, blocks, the tables it reads",
     opt("path", "A workbook.design.json to open."),
     opt("title", "A new workbook's title (no path)."),
@@ -46,6 +47,7 @@ def workbook_open(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_design",
+    "A workbook design: sheets, blocks, problems. "
     "A workbook design as it stands: sheets, blocks, the tables it reads, problems",
     WORKBOOK,
 )
@@ -55,7 +57,8 @@ def workbook_design(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_set_design",
-    "Replace a workbook's whole design: {title, sheets: [{name, freeze, print, blocks: [{kind: title|text|table|pivot|chart, cell, ...}]}]}",
+    "Replace a workbook's whole design. {title, sheets: [{name, freeze, print, blocks: [{kind: "
+    "title|text|table|pivot|chart, cell, ...}]}]}",
     WORKBOOK,
     req("design", "The design (as workbook_design shows it).", "json"),
 )
@@ -65,12 +68,14 @@ def workbook_set_design(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_sheet",
-    "Add, change or remove a sheet: action add (name), change (name, freeze, tab_colour, print, index), remove",
+    "Add, change or remove a sheet. Action add (name), change (name, freeze, tab_colour, print, "
+    "index), remove",
     WORKBOOK,
     req("action", "add, change or remove."),
     opt("sheet", "The sheet (its id or name): change, remove."),
     opt(
         "changes",
+        '{"name", "freeze", "tab_colour", "print", "index"}. '
         '{"name": "Treaties", "freeze": "A2", "print": {"orientation": "landscape", "fit_width": true}}',
         "json",
     ),
@@ -123,6 +128,7 @@ def workbook_block(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_play",
+    "Build the workbook from the open tables and show it. "
     "Build the workbook from the open tables (each with its steps) and show it: each sheet's cells as built",
     WORKBOOK,
     opt("rows", "Rows of each sheet to return (default 30).", "int"),
@@ -138,6 +144,7 @@ def workbook_play(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_save",
+    "Save a workbook's design (no data). "
     "Save a workbook's design (workbook.design.json: sheets, blocks, bindings; no data)",
     WORKBOOK,
     opt("path", "Where (Save as; needed for a new one)."),
@@ -148,7 +155,8 @@ def workbook_save(a: dict[str, Any]) -> Any:
 
 @command(
     "workbook_export",
-    "Export workbook.py beside the design: the automation that builds the same workbook from data.py, anywhere",
+    "Export workbook.py beside the design. The automation that builds the same workbook from "
+    "data.py, anywhere",
     WORKBOOK,
     opt("folder", "Another folder for workbook.py."),
 )
@@ -158,6 +166,7 @@ def workbook_export(a: dict[str, Any]) -> Any:
 
 @command(
     "template_import",
+    "Import a workbook as the project's template. "
     "Import an existing workbook (a statement, an invoice) as the project's template: templates/<name>.xlsx, its layout, formats, merged cells and named ranges kept",
     req("source", "The .xlsx to import."),
     opt("name", "The template's name (default: the file's)."),
@@ -171,6 +180,7 @@ def template_import(a: dict[str, Any]) -> Any:
 
 @command(
     "template_show",
+    "A template's cells, names and bindings, or the list. "
     "A template: its sheets' cells, named ranges, bindings, the columns they need; without name, the project's templates",
     opt("name", "The template's name."),
     opt("folder", "The project's folder (default: the open project)."),
@@ -188,10 +198,12 @@ def template_show(a: dict[str, Any]) -> Any:
 
 @command(
     "template_bind",
+    "Bind a template's place to a value or a table. "
     "Bind a template's place to data: value {column}|{text}|{number: true}|{date: true} (format), or a table (columns, rows, grow); unbind frees one",
     req("name", "The template's name."),
     opt(
         "binding",
+        '{"kind": "value"|"table", "place", "value"|"columns"}. '
         '{"kind": "value", "place": "Cedant", "value": {"column": "cedant"}} or {"kind": "table", "place": "Statement!A12", "columns": [...]}',
         "json",
     ),
@@ -208,9 +220,9 @@ def template_bind(a: dict[str, Any]) -> Any:
 
 @command(
     "statements_build",
-    "Build statements or invoices from a template: one per group of data, lines joined on key, named, numbered, "
-    "dated. A dry run (the files, rows, totals; nothing written) unless dry_run is false, which needs that dry run "
-    "first and the user's Allow: only when the user said to build",
+    "Build statements or invoices from a template. One per group of data, lines joined on key, "
+    "named, numbered, dated. A dry run (the files, rows, totals; nothing written) unless dry_run is "
+    "false, which needs that dry run first and the user's Allow: only when the user said to build",
     req("template", "The template's name."),
     req("data", "An open table: one row per group (party, contract, period)."),
     opt("lines", "An open table of line items, joined on key."),
@@ -243,6 +255,7 @@ def statements_build(a: dict[str, Any]) -> Any:
 
 @command(
     "statements_register",
+    "What was built in a folder (its register.csv). "
     "What was built in a folder (its register.csv: file, group, number, rows, totals, when); open: on the Tables page",
     opt("out_folder", "The folder (default: the project's statements/)."),
     opt("open", "true: open the register on the Tables page.", "bool"),

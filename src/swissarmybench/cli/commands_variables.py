@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "variables_list",
+    "Every variable: source, uses (never a secret's value). "
     "Every variable: its source (vault, value, keyring, env, missing), what uses it, a plain value's "
     "value; a keyring's, a secret's or a vault's value never",
     opt("search", "A name, vault, connection or document."),
@@ -25,6 +26,7 @@ def variables_list(a: dict[str, Any]) -> Any:
 
 @command(
     "variables_set",
+    "Add or change a variable (kept=keyring: a secret). "
     "Add or change a variable; kept=keyring keeps a secret in this computer's keyring (never read back)",
     req("name", "SALES_REGION"),
     opt("value", "Its value (a keyring one: empty keeps the saved one)."),
@@ -38,6 +40,7 @@ def variables_set(a: dict[str, Any]) -> Any:
 
 @command(
     "variables_rename",
+    "Rename a variable; its uses follow. "
     "Rename a variable: connections' code and Run settings follow; notebooks still reading it are listed",
     req("name", "The old name."),
     req("to", "The new name."),
@@ -48,6 +51,7 @@ def variables_rename(a: dict[str, Any]) -> Any:
 
 @command(
     "variables_remove",
+    "Remove a variable; what still reads it. "
     "Remove a variable (or a key vault's entry; the secret stays in the vault); what still reads it",
     req("name", "The variable."),
 )
@@ -57,6 +61,7 @@ def variables_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "variables_resolve",
+    "A box's ${NAME} as read here (secrets masked). "
     "A box's ${NAME} as read here (a secret masked); names not set",
     req("text", "https://${TENANT}.x.com, ${PORT:-5432}; $${X}: the text."),
 )

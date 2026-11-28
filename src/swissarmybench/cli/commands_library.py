@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import command, opt, req
 
 @command(
     "library_info",
+    "The library: its folder and what is in it. "
     "The library: its folder (a Git repository's working copy), what is in it, what stays on this computer",
 )
 def library_info(a: dict[str, Any]) -> Any:
@@ -22,6 +23,7 @@ def library_info(a: dict[str, Any]) -> Any:
 
 @command(
     "library_set_folder",
+    "Point the library at another folder (on Allow). "
     "Point the library folder at a local copy of the team's repository, or the default; waits for Allow",
     opt("folder", "The folder's whole path; none: the default (~/.swissarmybench/library)."),
 )
@@ -31,6 +33,7 @@ def library_set_folder(a: dict[str, Any]) -> Any:
 
 @command(
     "library_setup",
+    "Set up this computer: the team library's checklist. "
     "Set up this computer (a team library): vault sign-ins, values to type once, each connection's status, shared projects",
     opt("check", "true: check every key vault again now.", "bool"),
 )
@@ -40,6 +43,7 @@ def library_setup(a: dict[str, Any]) -> Any:
 
 @command(
     "library_setup_move_to_vault",
+    "Move a connection's keyring password to a key vault. "
     "Move a connection's keyring password to a key vault's secret, so the next person needs nothing",
     req("connection", "The connection."),
     req("secret", 'Its password\'s name in the code (secret("...")).'),

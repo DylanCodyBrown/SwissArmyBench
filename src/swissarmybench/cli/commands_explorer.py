@@ -16,6 +16,7 @@ SANDBOX_SORT = "The Sandbox section's order, as the Catalog's Sort: name, rows, 
 
 @command(
     "explorer_search",
+    "The Data Explorer: find data by name, everywhere. "
     "The Data Explorer: find data by name in connections (their loaded catalogs' tables and columns, with "
     "DuckDB SQL names), open tables, variables, blades. Any case, by parts (cust: customer_id). Names and "
     "types only; offers: catalogs not loaded (connections_load_catalog)",
@@ -45,6 +46,7 @@ def explorer_search(a: dict[str, Any]) -> Any:
 
 @command(
     "explorer_browse",
+    "The Catalog page: every connection and its tables. "
     "The Catalog page with nothing typed (the one place to browse tables): every connection with its status "
     "(its catalog: loaded, loading, none: connections_load_catalog) and its tables by database and schema "
     "(a Power BI workspace's datasets), each with its DuckDB SQL name; then the open tables with their "
@@ -70,6 +72,7 @@ def explorer_browse(a: dict[str, Any]) -> Any:
 
 @command(
     "explorer_table",
+    "A connection's table: columns, source, uses. "
     "A connection's table as the Catalog page's detail side shows it: its columns (name, type, nulls), where "
     "it comes from, its DuckDB SQL name, the code that reads it (a %%sql cell's, a Python cell's) and "
     "whether its relationships import (connections_import_relationships). Its catalog must be loaded.",

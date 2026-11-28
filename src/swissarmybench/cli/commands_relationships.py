@@ -19,7 +19,11 @@ MODEL_SHAPE = (
 )
 
 
-@command("relationships_get", "The current relationship model: primary keys and joins, as model JSON.")
+@command(
+    "relationships_get",
+    "The relationship model: primary keys and joins. "
+    "The current relationship model: primary keys and joins, as model JSON.",
+)
 def get_relationships(a: dict[str, Any]) -> Any:
     return api.call("GET", "/relationships")
 
@@ -37,6 +41,7 @@ def set_relationships(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_library",
+    "The saved relationship sets. "
     "The saved relationship sets (the user's and the team's shared ones) and which of their tables are open",
 )
 def library(a: dict[str, Any]) -> Any:
@@ -44,7 +49,9 @@ def library(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "relationships_apply_library", "Apply a saved relationship set by name (merges)", req("name", "Its name.")
+    "relationships_apply_library",
+    "Apply a saved relationship set (merges). Apply a saved relationship set by name (merges)",
+    req("name", "Its name."),
 )
 def apply_library(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/relationships/library/{_q(a['name'])}")
@@ -55,7 +62,7 @@ JOINS_SHAPE = '[{"from": "<dataset>", "from_columns": [...], "to": "<dataset>", 
 
 @command(
     "relationships_delete",
-    "Delete joins from the ones in use (relationships_undo brings them all back). Joins: " + JOINS_SHAPE,
+    "Delete joins in use (relationships_undo restores). Joins: " + JOINS_SHAPE,
     req("joins", "The joins to delete.", "json"),
 )
 def relationships_delete(a: dict[str, Any]) -> Any:
@@ -64,8 +71,11 @@ def relationships_delete(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_update",
+    "Change joins in use: their kind, or active. "
     "Change joins in use: their kind and/or Run (active: whether a join is used). Undo with relationships_undo",
-    req("joins", "The joins to change: " + JOINS_SHAPE, "json"),
+    req(
+        "joins", '[{"from", "from_columns", "to", "to_columns"}]. The joins to change: ' + JOINS_SHAPE, "json"
+    ),
     opt("kind", "one-to-one, one-to-many, many-to-one or many-to-many."),
     opt("active", "Run: true to use the joins, false to keep them but not use them.", "bool"),
 )
@@ -78,13 +88,17 @@ def relationships_update(a: dict[str, Any]) -> Any:
     return api.call("POST", "/relationships/update", body)
 
 
-@command("relationships_undo", "Undo the last delete or change of the joins in use")
+@command(
+    "relationships_undo",
+    "Undo the last delete or change of joins. Undo the last delete or change of the joins in use",
+)
 def relationships_undo(a: dict[str, Any]) -> Any:
     return api.call("POST", "/relationships/undo")
 
 
 @command(
     "relationships_find",
+    "Suggest how the open tables join, with evidence. "
     "Find how the open tables join: suggestions with evidence (match share, orphans, why); best first",
     opt("tables", "Dataset names to look at (default every open one).", "list"),
 )
@@ -94,6 +108,7 @@ def find_relationships(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_check",
+    "Test the relationships against the open tables. "
     "Run the current relationships (or a saved set) against the open tables: holds, orphans or broken",
     opt("set", "A saved set's name (default the current relationships)."),
     values=True,
@@ -104,6 +119,7 @@ def check_relationships(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_path",
+    "The chain of joins linking two tables. "
     "The chain of joins that links two tables through the current relationships",
     req("start", "Dataset name to start from."),
     req("end", "Dataset name to reach."),
@@ -114,6 +130,7 @@ def relationship_path(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_scope",
+    "Which model tables the open project uses. "
     "Which of the model's tables the open project uses (drawn on the ERD) and which not, by connection",
     SCOPE,
 )
@@ -123,6 +140,7 @@ def relationships_scope(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_save_set",
+    "Save the relationships as a relationship set. "
     "Save the current relationships as a relationship set (a shared .relationships.json file)",
     req("name", "The set's name."),
     opt("description", "What it joins."),
@@ -140,6 +158,7 @@ def relationships_save_set(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_export_set",
+    "A relationship set as .relationships.json text. "
     "A saved relationship set, or the current relationships, as .relationships.json text",
     opt("name", "A saved set's name (default the current relationships)."),
 )
@@ -151,7 +170,7 @@ def relationships_export_set(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_rename_set",
-    "Rename a saved relationship set (its file too)",
+    "Rename a saved relationship set. Its file too",
     req("name", "Its name now."),
     req("new_name", "Its new name."),
 )
@@ -161,6 +180,7 @@ def relationships_rename_set(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_delete_set",
+    "Delete a saved relationship set (on Allow). "
     "Delete a saved relationship set's file (waits for the user's Allow)",
     req("name", "Its name."),
 )
@@ -170,6 +190,7 @@ def relationships_delete_set(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_import_set",
+    "Import a relationship set's text; apply uses it. "
     "Import a relationship set's text: without apply, what it would change; apply and save to use and keep it",
     req("text", "The .relationships.json file's text."),
     opt("apply", "Apply it to the current relationships.", "bool"),
@@ -186,8 +207,13 @@ def relationships_import_set(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_reject",
-    "Stop the finder offering a suggestion (undo brings it back)",
-    req("suggestion", "The suggestion as relationships_find gave it (from, to, columns).", "json"),
+    "Stop the finder offering a suggestion. Undo brings it back",
+    req(
+        "suggestion",
+        "The suggestion, as relationships_find gave it. "
+        "The suggestion as relationships_find gave it (from, to, columns).",
+        "json",
+    ),
     opt("undo", "Offer it again.", "bool"),
 )
 def relationships_reject(a: dict[str, Any]) -> Any:

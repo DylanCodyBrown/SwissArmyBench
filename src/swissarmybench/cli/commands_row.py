@@ -16,6 +16,7 @@ from swissarmybench.cli.command_kit import DATA_NOTE, _csv, _defuse, _insert_ste
 
 @command(
     "row_read",
+    "A window of a table's rows as the page draws them. "
     "A window of an open table's rows exactly as the page draws them (what the user sees, after its steps), with "
     "highlight marks. format=csv gives the same rows as CSV, headed by the view's total row_count: the "
     "compact form for reading many rows (up to 1,048,576 in one read; the default form gives 1,000).",
@@ -71,7 +72,7 @@ def grid_count(a: dict[str, Any]) -> Any:
     "row_highlight",
     'Mark rows matching conditions. Each is a filter-shaped object plus a "label"; [] clears them.',
     req("grid", "The open table's id."),
-    req("highlights", 'e.g. [{"column": "balance", "op": "lt", "value": 0, "label": "negative"}]', "json"),
+    req("highlights", 'Like [{"column": "balance", "op": "lt", "value": 0, "label": "negative"}].', "json"),
 )
 def set_highlights(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/grids/{_q(a['grid'])}/highlights", {"highlights": a["highlights"]})
@@ -79,7 +80,7 @@ def set_highlights(a: dict[str, Any]) -> Any:
 
 @command(
     "row_select",
-    "Tell the table how many rows are selected (the number the status bar and agent context show).",
+    "Tell the table how many rows are selected. The number the status bar and agent context show.",
     req("grid", "The open table's id."),
     req("count", "Selected row count.", "int"),
 )

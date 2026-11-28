@@ -16,7 +16,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "analyze_all",
-    "Every chart, note, table and diagram card on the Analyze board.",
+    "Every card on the Analyze board. Every chart, note, table and diagram card on the Analyze board.",
 )
 def all_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", "/cards")
@@ -35,6 +35,7 @@ _CARD_FIELDS = (
     ),
     opt(
         "spec",
+        "A chart's spec (analyze_formats shows its shape). "
         "Chart spec: {mark: bar|line|area|point|histogram|heatmap, x: {field, time_unit?, bins?, sort?}, "
         "y: {field?, aggregate: count|sum|mean|min|max}, color?: {field}, title?}.",
         "json",
@@ -80,6 +81,7 @@ _FORMATS: dict[str, Any] = {
 
 @command(
     "analyze_formats",
+    "What each card kind takes, with an example. "
     "What each Analyze card kind takes, with an example, and how sizing works.",
 )
 def card_formats(a: dict[str, Any]) -> Any:
@@ -88,7 +90,7 @@ def card_formats(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_add",
-    "Add a card to the Analyze board (analyze_formats lists the kinds). Without grid it belongs to no table.",
+    "Add a card to the Analyze board. Analyze_formats lists the kinds. Without grid it belongs to no table.",
     opt("grid", "The open table's id: needed for chart and for table sql."),
     opt("kind", "chart, note, table, diagram, plotly or image."),
     *_CARD_FIELDS,
@@ -120,6 +122,7 @@ def add_card(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_update",
+    "Change, pin or move a card, or start a page. "
     "Change a card's title, body, spec, sql or size, pin it, move it (before a card) or start a page.",
     req("card", "Card id."),
     *_CARD_FIELDS,
@@ -140,7 +143,7 @@ def update_card(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_dashboards",
-    "Saved dashboards; with name, its versions and cards (analyze_dashboard saves, opens and deletes).",
+    "Saved dashboards; with name, its versions and cards. Analyze_dashboard saves, opens and deletes.",
     opt("name", "A dashboard's name."),
 )
 def dashboards(a: dict[str, Any]) -> Any:
@@ -149,6 +152,7 @@ def dashboards(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_theme",
+    "The board's themes; set one, or propose your own. "
     "The Analyze board's themes; set one (theme), or propose your own (file). The Tables page keeps its own theme.",
     opt("theme", "A theme's id, or app to follow the app."),
     opt("file", '{"name", "dark", "tokens": {"bg": "#rrggbb", ..., "cat": [8 colours]}}', "json"),
@@ -173,6 +177,7 @@ def delete_card(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_select",
+    "Click a chart's mark: filters its table to it. "
     "Click a chart's bar or point: adds the matching filter step to its table (cross-filtering).",
     req("card", "Chart card id."),
     opt("value", "The x value clicked; omit for the blank bar."),
@@ -188,6 +193,7 @@ def card_code(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_odds",
+    "Each value's share and odds, or its rate of an outcome. "
     "Each value's share and odds; with `outcome` (values, or op and value for a number) each value's "
     "rate of it against the rest and its odds ratio with a 95% range. Numbers are bucketed.",
     req("grid", "The open table's id."),
@@ -207,6 +213,7 @@ def analyze_odds(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_predictors",
+    "Which columns go with a target, ranked. "
     "Which columns go with a target: each tested by chi-square (numbers bucketed), ranked by "
     "Cramér's V with correlations; identifiers and dates skipped; pairs saying the same thing "
     "flagged."
@@ -224,6 +231,7 @@ def analyze_predictors(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_regression",
+    "Regression: linear, or logistic with outcome. "
     "Regression: linear for a number target, logistic with `outcome` (odds ratios). Effects in words "
     "with ranges and p, the fit, the verdict, `model` (for analyze_predict) and `steps` (predicted / "
     "miss columns for steps_add)."
@@ -241,6 +249,7 @@ def analyze_regression(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_predict",
+    "What-if: a regression model's estimate for values. "
     "What-if: a model's (from analyze_regression) estimate for the values given, with its 95% range."
     "with its 95% range (where a new row would fall; for yes/no, the chance and its range).",
     req("model", "analyze_regression's model.", "json"),
@@ -252,6 +261,7 @@ def analyze_predict(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_time_series",
+    "A metric per period: trend, season, what stands out. "
     "A metric per period from a date column: trend, season in words, periods that stand out (with a step "
     "showing their rows), steps in the level, memory, growth.",
     req("grid", "The open table's id."),
@@ -269,6 +279,7 @@ def analyze_time_series(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_forecast",
+    "Forecast a metric per period, with its ranges. "
     "Forecast a metric per period: trend and season continued, 80% and 95% ranges, a held-back check of "
     "its typical miss; predictors each with a future (last, trend or value).",
     req("grid", "The open table's id."),
@@ -293,6 +304,7 @@ def _analyze_body(a: dict[str, Any], *keys: str) -> dict[str, Any]:
 
 @command(
     "analyze_contracts",
+    "Each analysis's data contract: slots, options, sample. "
     "Each analysis's data contract: its slots (the kinds of column each takes, how many, the checks), the "
     "table's shape, options with defaults, what it makes, and a made-up sample. Read it, then analyze_run.",
     opt(
@@ -309,6 +321,7 @@ def analyze_contracts(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_tables",
+    "The analyses by group and the tables they run on. "
     "The Analyze toolbar (each analysis, by group) and the open tables it can run on, with the one its "
     "forms start on.",
     values=True,
@@ -319,6 +332,7 @@ def analyze_tables(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_check",
+    "Every analysis ranked for a table, with why. "
     "Check this table: every analysis ranked for it (fits now, fits after its fixes, or not, with why) "
     "and the three that suit it. With `analysis`: that one's check: per slot what fits and what does not "
     "(and why), what is missing, and `fixes`, each with the steps (for steps_add) that make the table fit.",
@@ -333,6 +347,7 @@ def analyze_check(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_plan",
+    "An analysis's form for a table: picks and options. "
     "An analysis's form for a table, as the page shows it: each slot's pick (and why), the columns that "
     "fit, the options and their defaults, and the sentence of what analyze_run would run.",
     req("analysis", "The analysis's id (analyze_contracts)."),
@@ -347,6 +362,7 @@ def analyze_plan(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_column",
+    "The analyses a column fits. "
     "What can I do with a column? The analyses it fits (each runs with analyze_run); with no column, "
     "every column of the table with its type and what fits it.",
     opt("table", "The open table's id or a table name."),
@@ -359,6 +375,7 @@ def analyze_column(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_fix",
+    "Make it fit: add the named fixes' steps to the table. "
     "Make it fit: add the named fixes' steps to the table (the user sees them in the steps strip and can "
     "undo them), then the form again. The ids are analyze_check's `fixes`.",
     req("analysis", "The analysis's id."),
@@ -376,6 +393,7 @@ def analyze_fix(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_run",
+    "Run an analysis; the app picks what is not given. "
     "Run an analysis by its id: columns and options are picked by the app unless given. Its cards land on "
     "the Analyze board (as the user's do) and `result` holds the numbers. A table that does not fit is "
     "refused with why and the form (`plan`); apply_fixes adds the steps it needs first.",
@@ -399,7 +417,7 @@ def analyze_run(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_cancel",
-    "Stop a run started with a token; nothing of it lands.",
+    "Stop a run started with a token. Nothing of it lands.",
     req("token", "The run's token."),
 )
 def analyze_cancel(a: dict[str, Any]) -> Any:
@@ -408,6 +426,7 @@ def analyze_cancel(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_runs",
+    "This session's runs; one result's inputs, math, code. "
     "This session's runs, newest first; with `run` and `show`, a result's actions: inputs (Run again), "
     "math (Show the math), code (Copy code) or grid (Open as table: its table in a new tab).",
     opt("run", "A run's id."),
@@ -431,6 +450,7 @@ def analyze_runs(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_sample",
+    "Open an analysis's made-up sample as a table. "
     "Open an analysis's made-up sample as a table (Try it on this sample): its id (grid) and the columns each "
     "slot takes.",
     req("analysis", "The analysis's id."),
@@ -441,6 +461,7 @@ def analyze_sample(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_code",
+    "An analysis as Python for the user's notebook. "
     "An analysis as Python for the user's notebook (one swissarmybench.stats call): code and imports",
     req("grid", "The open table's id."),
     req("analysis", "fit_test, outliers, odds, predictors, regression, time_series or forecast."),
@@ -454,6 +475,7 @@ def analyze_code(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_proof",
+    "Show the math: a result as a step-by-step proof. "
     "Show the math: an analysis result as a step-by-step proof (markdown)",
     req("analysis", "The analysis's name."),
     req("result", "Its result, as the analyze_ command gave it.", "json"),
@@ -469,6 +491,7 @@ def analyze_proof(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_dashboard",
+    "Save, open or delete an Analyze dashboard. "
     "Save Analyze as a dashboard (a new version), open one, or delete one",
     req("action", "save, open or delete."),
     req("name", "The dashboard's name."),
@@ -489,7 +512,7 @@ def analyze_dashboard(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_theme_remove",
-    "Remove one of the user's imported Analyze themes",
+    "Remove an imported Analyze theme. Remove one of the user's imported Analyze themes",
     req("id", "The theme's id."),
 )
 def analyze_theme_remove(a: dict[str, Any]) -> Any:

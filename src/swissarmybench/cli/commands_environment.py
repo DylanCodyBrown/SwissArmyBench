@@ -36,12 +36,14 @@ _ENVIRONMENT_ASKS = {"list": ("search",), "show": ("kind", "name"), "libraries":
 
 @command(
     "environment",
+    "Everything the project holds (guide: environment). "
     "Everything the project holds: tables, variables, structures, settings and secrets, libraries, each "
     "with where it is used (guide: environment); clear, keep, install, update, pin and a file's delete "
     "wait for Allow",
     req("action", ", ".join(_ENVIRONMENT) + "."),
     opt(
         "args",
+        "The action's arguments, an object (guide: environment). "
         'list: {"search"}; show, open, insert: {"kind": table|variable|structure|setting|library, "name"}; '
         'rename: + {"to"}; remove: + {"python": true} (a table: also delete it in Python); keep: {"name", '
         '"keep"}; clear: {"tables", "variables", "structures", "dry_run"}; libraries: {"check": true} (ask '

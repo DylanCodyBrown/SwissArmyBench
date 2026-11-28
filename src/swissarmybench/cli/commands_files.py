@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import command, opt, req
 
 @command(
     "files_list",
+    "A folder's subfolders and files (nothing read). "
     "A folder's subfolders and files on this computer (names, sizes, dates; nothing read)",
     opt("path", "The folder (default: the home folder)."),
     opt("suffixes", "Only files ending so, as .csv,.xlsx."),
@@ -30,7 +31,7 @@ def files_list(a: dict[str, Any]) -> Any:
 
 @command(
     "files_new_folder",
-    "Make a new folder inside a folder (the file picker's New folder)",
+    "Make a new folder inside a folder. The file picker's New folder",
     req("path", "The folder it goes in."),
     req("name", "The new folder's name."),
 )

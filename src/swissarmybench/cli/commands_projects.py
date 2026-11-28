@@ -15,7 +15,7 @@ from swissarmybench.cli.command_kit import command, opt
 
 @command(
     "projects_list",
-    "Every project as a card (type, counts, Git branch, times; the projects folder's and opened ones)",
+    "Every project as a card. Type, counts, Git branch, times; the projects folder's and opened ones",
     opt("by", "opened, name, type, changed, created or custom (default: the remembered sort)."),
     opt("descending", "true: largest first.", "bool"),
     opt("type", "Only this type."),
@@ -29,6 +29,7 @@ def projects_list(a: dict[str, Any]) -> Any:
 
 @command(
     "projects_sort",
+    "The Project Explorer's sort, or its custom order. "
     "The Project Explorer's sort (remembered), or its custom order: order, or move a card left/right",
     opt("by", "opened, name, type, changed, created or custom."),
     opt("descending", "true: largest first.", "bool"),
@@ -48,6 +49,7 @@ def projects_sort(a: dict[str, Any]) -> Any:
 
 @command(
     "projects_folders",
+    "The Local and Shared projects folders (set: on Allow). "
     "Settings' Local and Shared projects folders: read both; set one (waits for the user's Allow)",
     opt("which", "local (default) or shared."),
     opt("folder", "The folder to set."),

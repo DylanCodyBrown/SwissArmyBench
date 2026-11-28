@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "apis_make_into_blades",
+    "Make an older API connection into library blades. "
     "Make an older API connection (apis_list's older) into blades in this computer's library: its API blade "
     "and a web call blade per operation, from the document it was made from (or the one given).",
     req("name", "The older API connection."),
@@ -26,7 +27,8 @@ def apis_make_into_blades(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "apis_list", "Every API in the library: its operations, tables, sign-in type, source, calls this session"
+    "apis_list",
+    "Every API in the library. Its operations, tables, sign-in type, source, calls this session",
 )
 def apis_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/apis")
@@ -34,6 +36,7 @@ def apis_list(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_describe",
+    "An API's operations and schemas. "
     "An API's operations (inputs, body example, outputs per status, its web call blade, SQL name) and its "
     "schemas; with operation: that one only",
     req("name", "The API."),
@@ -44,7 +47,8 @@ def apis_describe(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/apis/{_q(a['name'])}" + query)
 
 
-@command("apis_search", "Search every API's operations: name, method, path, text, tags, parameters, fields",
+@command("apis_search", "Search every API's operations. Name, method, path, text, tags, parameters, "
+                        "fields",
          req("q", "Words."))  # fmt: skip
 def apis_search(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/apis/search?q={_q(a['q'])}")
@@ -52,6 +56,7 @@ def apis_search(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_call",
+    "Send an operation; the answer opens in Structures. "
     "Send an operation (its web call, after its API blade): the answer opens in Structures with its lineage; "
     "you get the status, time, headers and the structure's id (read it with structures_show)",
     req("name", "The API."),
@@ -66,6 +71,7 @@ def apis_call(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_save_call",
+    "Save an operation's web call blade (as_table: a table). "
     "Save an operation's web call blade: its inputs and body; as_table=true makes it one of the API's tables "
     "in SQL (records: $.items; shape records|header_rows; header; columns; flatten; paging all|first)",
     req("name", "The API."),
@@ -91,6 +97,7 @@ def apis_save_call(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_write_rows",
+    "Write a table's rows through an operation (dry run first). "
     "Write a table's rows with a POST/PUT/PATCH/DELETE operation: a dry run by default (the first three "
     "requests, the rows, the calls, the fields unmapped); dry_run=false sends, only after the user said to "
     "write, in their own words; save=true saves it as a web call blade",
@@ -122,6 +129,7 @@ def apis_write_rows(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_refresh",
+    "Read an API's source again: what changed. "
     "Read an API's source again: what changed (operations, parameters, fields), nothing written; "
     "apis_apply_refresh writes it",
     req("name", "The API."),
@@ -137,6 +145,7 @@ def apis_apply_refresh(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_rename",
+    "Rename an API, or set its check-for-changes switch. "
     "Rename an API (its blades too; the code that named it is listed), or set its check-for-changes switch",
     req("name", "The API."),
     opt("new_name", "Its new name."),
@@ -150,6 +159,7 @@ def apis_rename(a: dict[str, Any]) -> Any:
 
 @command(
     "apis_delete",
+    "Delete an API (confirm; on Allow). "
     "Delete an API (its blades and folder): without confirm, the code that uses it; with confirm, it waits "
     "for the user's Allow",
     req("name", "The API."),

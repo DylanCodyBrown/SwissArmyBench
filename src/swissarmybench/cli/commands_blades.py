@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "blades_list",
+    "Every blade and connection (never secret values). "
     "Every blade and connection: name, kind, description, tags, which secrets are saved (never values)",
 )
 def blades_list(a: dict[str, Any]) -> Any:
@@ -22,6 +23,7 @@ def blades_list(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_get",
+    "One blade whole: code, stamp, header, settings. "
     "One blade whole: code, the file's stamp, header fields, settings, packages",
     req("name", "The blade's name."),
 )
@@ -31,6 +33,7 @@ def blades_get(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_templates",
+    "Starter connections and analyses; id: one's code. "
     "Starter connections (databases, files, vaults) and analyses; give an id for one's full code",
     opt("id", "A starter's id, for its code and catalog query."),
 )
@@ -43,6 +46,7 @@ def blades_templates(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_new",
+    "New blade by name and kind, or from a template. "
     "New blade by name and kind: a blank working .blade.py (made-up rows), or from a template",
     opt("name", "Its name."),
     opt("kind", "table, code, analysis, connection, snippet, secret."),
@@ -58,6 +62,7 @@ def blades_new(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_header_set",
+    "Set a blade's header fields (none given: read them). "
     "Set a blade's header fields (none given: its kind's fields and values)",
     req("name", "The blade."),
     opt("fields", '{"dialect": "duckdb", "queries.total": 4}', "json"),
@@ -70,6 +75,7 @@ def blades_header_set(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_update",
+    "Save a blade's code into its file. "
     "Save a blade's code into its file (a starter's refused: blades_copy); its header: blades_header_set",
     req("name", "Its name."),
     req("code", "Its code (after the file's header)."),
@@ -82,6 +88,7 @@ def blades_update(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_table_name_check",
+    "Whether a table name is free for a blade's result. "
     "Is a table name free for a blade's result? available, or why not",
     req("name", "The table name."),
     opt("blade", "The blade it is for (it may keep its own)."),
@@ -91,7 +98,10 @@ def blades_table_name_check(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "blades_delete", "Delete a blade or connection (its saved passwords go too)", req("name", "Its name.")
+    "blades_delete",
+    "Delete a blade or connection, its passwords too. "
+    "Delete a blade or connection (its saved passwords go too)",
+    req("name", "Its name."),
 )
 def blades_delete(a: dict[str, Any]) -> Any:
     return api.call("DELETE", f"/blades/{_q(a['name'])}")
@@ -99,6 +109,7 @@ def blades_delete(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_inspect",
+    "What code makes, asks for, imports and needs. "
     "What code makes, asks for (secrets), imports and needs (packages); its settings. Nothing runs",
     req("code", "The Python."),
     opt("template", "The starter it came from."),
@@ -109,10 +120,12 @@ def blades_inspect(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_fill",
+    "Write values into code at its settings. "
     "Write values into code at its settings (ids from blades_inspect); the new code",
     req("code", "The Python."),
     req(
         "values",
+        '{"<setting id>": "new value"}. '
         '{"<setting id>": "new value"}; a certificate or keystore file also takes {"value": path, '
         '"env": "TRINO_KEYSTORE_PATH"} (env null: a plain path)',
         "json",
@@ -124,6 +137,7 @@ def blades_fill(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_secrets",
+    "Save or forget a blade's passwords in the keyring. "
     "Save or forget a blade's passwords in the system keyring (values are never read back)",
     req("name", "The blade."),
     req("values", '{"password": "value"} to save; {"password": null} to forget.', "json"),
@@ -134,9 +148,15 @@ def blades_secrets(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_test",
+    "Test a blade in a child process; what it made. "
     "Run a blade in a child process: does it work? What it made",
     req("name", "The blade."),
-    opt("env", '{"VAR": "value"}: values a secret blade asks for, for this run only.', "json"),
+    opt(
+        "env",
+        '{"VAR": "value"} for this run only. '
+        '{"VAR": "value"}: values a secret blade asks for, for this run only.',
+        "json",
+    ),
 )
 def blades_test(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/blades/{_q(a['name'])}/test", {"env": a.get("env") or {}})
@@ -144,9 +164,15 @@ def blades_test(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_refresh",
+    "Run a blade's catalog command; load its catalog. "
     "Run a blade's catalog command and load its source's tables and columns into the catalog",
     req("name", "The blade."),
-    opt("env", '{"VAR": "value"}: values a secret blade asks for, for this run only.', "json"),
+    opt(
+        "env",
+        '{"VAR": "value"} for this run only. '
+        '{"VAR": "value"}: values a secret blade asks for, for this run only.',
+        "json",
+    ),
 )
 def blades_refresh(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/blades/{_q(a['name'])}/refresh", {"env": a.get("env") or {}})
@@ -154,10 +180,16 @@ def blades_refresh(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_run",
+    "Run a blade as the IDE does: output, result, error. "
     "Run a blade as the IDE's Run does (`code`: unsaved): output, result, error, problems",
     req("name", "The blade."),
     opt("code", "Code to run instead (nothing saved)."),
-    opt("env", '{"VAR": "value"}: values a secret blade asks for, for this run only.', "json"),
+    opt(
+        "env",
+        '{"VAR": "value"} for this run only. '
+        '{"VAR": "value"}: values a secret blade asks for, for this run only.',
+        "json",
+    ),
     opt("open", "Then open its table result on the Tables page.", "bool"),
     opt("cancel", "A run id going now: stop it."),
 )
@@ -174,6 +206,7 @@ def blades_run(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_problems",
+    "The lint's problems in a blade's code. "
     "The lint's problems in a blade's code (or `code`): line, column, message, severity, fixes",
     req("name", "The blade."),
     opt("code", "Code to check instead of its saved code."),
@@ -184,7 +217,7 @@ def blades_problems(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_install",
-    "Install packages into the app's own Python (where Test and Refresh run)",
+    "Install packages into the app's own Python. Where Test and Refresh run",
     req("packages", "pip names, such as pyodbc.", "list"),
 )
 def blades_install(a: dict[str, Any]) -> Any:
@@ -193,7 +226,7 @@ def blades_install(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_pin",
-    "Make a blade a favourite (listed first), or not",
+    "Make a blade a favourite, or not. Make a blade a favourite (listed first), or not",
     req("name", "The blade."),
     opt("pinned", "true or false (default true).", "bool"),
 )
@@ -203,6 +236,7 @@ def blades_pin(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_folders",
+    "The blade folders searched; give folders to set them. "
     "The blade folders searched for .blade.py files; give folders to set them",
     opt("folders", "The new list of folders.", "list"),
 )
@@ -214,7 +248,7 @@ def blades_folders(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_export",
-    "A blade as its portable .blade.py text (no secret values in it)",
+    "A blade as its portable .blade.py text. No secret values in it",
     req("name", "The blade."),
 )
 def blades_export(a: dict[str, Any]) -> Any:
@@ -224,6 +258,7 @@ def blades_export(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_import",
+    "Import .blade.py texts: a review, or apply. "
     "Import .blade.py texts: without apply, a review of what they hold; with apply, save the chosen ones",
     req("files", '[{"name": "file.blade.py", "text": "..."}]', "json"),
     opt("apply", 'Choices from the review: {"<file>": "save" | "rename" | "skip"}.', "json"),
@@ -237,6 +272,7 @@ def blades_import(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_starters",
+    "The built-in starter pack, by family. "
     "The built-in starter pack by family: read-only blades and snippets",
 )
 def blades_starters(a: dict[str, Any]) -> Any:
@@ -245,6 +281,7 @@ def blades_starters(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_copy",
+    "Copy a starter as the user's own. "
     "Copy a starter (or a pack's blade) as the user's own; Save as with code",
     req("name", "The starter or blade."),
     opt("new_name", "The copy's name (default: <name> copy)."),
@@ -257,6 +294,7 @@ def blades_copy(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_snippet",
+    "A snippet's placeholders; with values, its text. "
     "A snippet's placeholders and their choices; with values, its filled text",
     req("name", "The snippet."),
     opt("values", '{"placeholder": "value"}', "json"),
@@ -269,13 +307,17 @@ def blades_snippet(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/blades/{_q(a['name'])}/snippet{query}")
 
 
-@command("blades_analyses", "The user's own analyses (analysis blades) the Analyze page offers")
+@command(
+    "blades_analyses",
+    "The user's own analysis blades. The user's own analyses (analysis blades) the Analyze page offers",
+)
 def blades_analyses(a: dict[str, Any]) -> Any:
     return api.call("GET", "/blades/analyses")
 
 
 @command(
     "blades_run_analysis",
+    "Run an analysis blade on an open table. "
     "Run an analysis blade on an open table's rows as shown; its result as Analyze cards",
     req("grid", "The open table's id."),
     req("name", "The analysis blade."),

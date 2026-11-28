@@ -25,6 +25,7 @@ def _some(a: dict[str, Any], *keys: str) -> dict[str, Any]:
 
 @command(
     "collaboration_list",
+    "The Collaboration panel's threads and channels. "
     "The Collaboration panel's threads, channels, objects with threads, unread, shared",
     opt("where", "#general, #<channel> or an object's key (cell:data.ipynb#7)."),
     opt("filter", "all, mentions, page or unresolved."),
@@ -36,6 +37,7 @@ def collaboration_list(a: dict[str, Any]) -> Any:
 
 @command(
     "collaboration_thread",
+    "One thread: messages, reactions, references. "
     "One thread: its messages, reactions, references (where each opens, gone or not), resolved, pinned",
     req("thread", "The thread's id."),
 )
@@ -45,12 +47,18 @@ def collaboration_thread(a: dict[str, Any]) -> Any:
 
 @command(
     "collaboration_post",
+    "Post as Claude: a new thread, or a reply. "
     "Post as Claude for the user: a new thread (a channel or an object), or a reply with thread. "
     "The agent's only way to write here",
     req("body", _BODY),
     opt("thread", "Reply in this thread."),
     opt("channel", "A channel (default general)."),
-    opt("anchor", 'An object {"kind", "path", "id", "text"} (collaboration_objects).', "json"),
+    opt(
+        "anchor",
+        "An object from collaboration_objects. "
+        'An object {"kind", "path", "id", "text"} (collaboration_objects).',
+        "json",
+    ),
     opt("title", "Default: the first line."),
 )
 def collaboration_post(a: dict[str, Any]) -> Any:
@@ -62,13 +70,17 @@ def collaboration_search(a: dict[str, Any]) -> Any:
     return api.call("GET", "/collaboration/search", params={"words": a["words"]})
 
 
-@command("collaboration_unread", "The user's unread counts and what is new since they last read")
+@command(
+    "collaboration_unread",
+    "The user's unread counts and what is new. The user's unread counts and what is new since they last read",
+)
 def collaboration_unread(a: dict[str, Any]) -> Any:
     return api.call("GET", "/collaboration/unread") | {"news": api.call("GET", "/collaboration/news")}
 
 
 @command(
     "collaboration_objects",
+    "What @ points at, each with its link. "
     "What @ points at: the page's objects first, then people, then the project's, each with its link",
     opt("words", "Words to match."),
     opt("page", _PAGE),
@@ -79,6 +91,9 @@ def collaboration_objects(a: dict[str, Any]) -> Any:
     )
 
 
-@command("collaboration_profile", "This computer's name in the panel (set in Settings, by the user)")
+@command(
+    "collaboration_profile",
+    "This computer's name in the panel. Set in Settings, by the user",
+)
 def collaboration_profile(a: dict[str, Any]) -> Any:
     return api.call("GET", "/collaboration/profile")

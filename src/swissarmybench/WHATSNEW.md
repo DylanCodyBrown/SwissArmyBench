@@ -18,6 +18,7 @@
 ### Bug fixes
 - Fixed: agent tools did not start with Power Apps
 - Fixed: a path too long gave an error, not a refusal
+- Fixed: the agent's tool list was too long; a fifth shorter
 
 ## 0.0.42 · 2026-11-27 21:40 UTC
 

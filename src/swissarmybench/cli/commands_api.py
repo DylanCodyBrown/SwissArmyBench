@@ -35,8 +35,8 @@ _API = {
 
 @command(
     "api",
-    "The project's local sandbox API, API.py (guide: sandbox); the first write call waits for Allow (it covers "
-    "the session)",
+    "The project's local sandbox API, API.py (guide: sandbox). The first write call waits for Allow "
+    "(it covers the session)",
     req(
         "action",
         "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, patterns, "
@@ -44,6 +44,7 @@ _API = {
     ),
     opt(
         "args",
+        "The action's arguments, an object (guide: sandbox). "
         'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
         'writes: {"allow": bool} (the agent writing this session); settings: {"name", '
         '"target", "base_path"}; plan: {"table", "pattern"?, "fields"?, "other"?} (the patterns ranked for '

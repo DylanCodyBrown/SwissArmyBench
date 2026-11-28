@@ -15,6 +15,7 @@ from swissarmybench.cli.command_kit import _insert_step, _q, command, opt, req
 
 @command(
     "column_sort",
+    "Sort by columns, as clicking their headers. "
     "Sort by columns like clicking their headers (Sort A to Z / Z to A). It stays the last word over other sorts.",
     req("grid", "The open table's id."),
     req("columns", "Columns to sort by, in order. An empty list clears the header sort.", "list"),
@@ -35,7 +36,7 @@ def column_sort(a: dict[str, Any]) -> Any:
 
 @command(
     "column_keep",
-    "Keep only these columns (the Column row's Keep only).",
+    "Keep only these columns. The Column row's Keep only.",
     req("grid", "The open table's id."),
     req("columns", "Columns to keep, in the order to show them.", "list"),
     opt("index", "Insert at this step position.", "int"),
@@ -46,7 +47,7 @@ def column_keep(a: dict[str, Any]) -> Any:
 
 @command(
     "column_remove",
-    "Remove these columns from the view (the Column row's Remove).",
+    "Remove these columns from the view. The Column row's Remove.",
     req("grid", "The open table's id."),
     req("columns", "Columns to remove.", "list"),
     opt("index", "Insert at this step position.", "int"),
@@ -64,6 +65,7 @@ def column_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "column_unnest",
+    "Unnest a LIST (rows) or STRUCT (columns) column. "
     "Unnest a LIST column (a row per item) or a STRUCT column (its fields as columns): a SQL step.",
     req("grid", "The open table's id."),
     req("column", "The list or struct column."),
@@ -78,7 +80,7 @@ def column_unnest(a: dict[str, Any]) -> Any:
     "column_rename",
     "Rename columns (a rename step).",
     req("grid", "The open table's id."),
-    req("mapping", 'e.g. {"old name": "new name"}', "json"),
+    req("mapping", 'Like {"old name": "new name"}.', "json"),
     opt("index", "Insert at this step position.", "int"),
 )
 def column_rename(a: dict[str, Any]) -> Any:
@@ -87,13 +89,14 @@ def column_rename(a: dict[str, Any]) -> Any:
 
 @command(
     "column_bucket",
+    "Add a column of number or date buckets. "
     "Add a column that sorts a number or date column into buckets (the Column row's Bucket). Give `unit` for "
     "dates, `edges` or width+low+high for numbers.",
     req("grid", "The open table's id."),
     req("column", "The number or date column."),
     req("new_column", "Name of the new column."),
     opt("unit", "Date buckets: day, week, month, quarter or year."),
-    opt("edges", "Number buckets: increasing edges, e.g. [0, 10, 100].", "json"),
+    opt("edges", "Number buckets: increasing edges, like [0, 10, 100].", "json"),
     opt("width", "Number buckets of equal width (with low and high).", "any"),
     opt("low", "Where equal-width buckets start.", "any"),
     opt("high", "Where equal-width buckets end.", "any"),
@@ -119,13 +122,13 @@ def column_bucket(a: dict[str, Any]) -> Any:
 
 @command(
     "column_categorize",
-    "Add a column of labels from rules (the Column row's Categorize).",
+    "Add a column of labels from rules. The Column row's Categorize.",
     req("grid", "The open table's id."),
     req("column", "The column the rules read."),
     req("new_column", "Name of the new column."),
     req(
         "rules",
-        'e.g. [{"type": "contains", "value": "Corp", "label": "Business"}]; types in steps_kinds.',
+        'Like [{"type": "contains", "value": "Corp", "label": "Business"}]; types in steps_kinds.',
         "json",
     ),
     opt("unmatched", "Label for rows no rule matches (default Other)."),
@@ -140,7 +143,7 @@ def column_categorize(a: dict[str, Any]) -> Any:
 
 @command(
     "column_profile",
-    "Profile one column of the table's view (the Column row's Profile).",
+    "Profile one column of the table's view. The Column row's Profile.",
     req("grid", "The open table's id."),
     req("column", "Column name."),
     opt("upto", "Profile the table entering this step index.", "int"),
@@ -153,6 +156,7 @@ def column_profile(a: dict[str, Any]) -> Any:
 
 @command(
     "column_values",
+    "A column's values and counts, most common first. "
     "A column's values and row counts, most common first (Filter's checklist).",
     req("grid", "The open table's id."),
     req("column", "Column name."),
@@ -168,6 +172,7 @@ def column_values(a: dict[str, Any]) -> Any:
 
 @command(
     "column_fit_test",
+    "Chi-square fit test on columns of the view. "
     "Chi-square fit test on columns of the table's view. expected: even (default), benford / benford2 "
     "(first digits of amounts), grid (another open table: reference), shares, together (two columns "
     "related?). Gives p, an effect size in words, the values furthest off."
@@ -177,10 +182,16 @@ def column_values(a: dict[str, Any]) -> Any:
     opt("expected", "even, benford, benford2, grid, shares or together."),
     opt(
         "reference",
+        '{"grid": id, "column": name} for expected=grid. '
         'With expected=grid: {"grid": id, "column": name} (column defaults to the same name).',
         "json",
     ),
-    opt("shares", 'With expected=shares: {"value": share, ...} (normalized for you).', "json"),
+    opt(
+        "shares",
+        '{"value": share, ...} for expected=shares. '
+        'With expected=shares: {"value": share, ...} (normalized for you).',
+        "json",
+    ),
     values=True,
 )
 def column_fit_test(a: dict[str, Any]) -> Any:

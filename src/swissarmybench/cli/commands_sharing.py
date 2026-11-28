@@ -15,6 +15,7 @@ from swissarmybench.cli.command_kit import command, opt, req
 
 @command(
     "sharing_status",
+    "Shared apps: devtunnel, sign-in, each share's link. "
     "Shared apps (Dev Tunnels, organization only): devtunnel installed, signed in, each share's state and link",
     opt("app", "An app's id: its share only."),
     opt("kind", "streamlit (default)."),
@@ -28,6 +29,7 @@ def sharing_status(a: dict[str, Any]) -> Any:
 
 @command(
     "sharing_start",
+    "Share a launched app with the organization (on Allow). "
     "Share a launched app with the organization (sign-in is the user's); waits for Allow",
     req("app", "The app's id (a canvas's)."),
     opt("kind", "streamlit (default)."),
@@ -39,7 +41,7 @@ def sharing_start(a: dict[str, Any]) -> Any:
 
 @command(
     "sharing_stop",
-    "Stop sharing an app (its link ends); waits for Allow",
+    "Stop sharing an app (on Allow). Stop sharing an app (its link ends); waits for Allow",
     req("app", "The app's id."),
     opt("kind", "streamlit (default)."),
 )

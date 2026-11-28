@@ -15,6 +15,7 @@ from swissarmybench.cli.command_kit import command, opt, req
 
 @command(
     "extensions_list",
+    "The Extensions page: the folder extensions. "
     "The Extensions page: the library's folder extensions (and a built-in feature's own panel)",
 )
 def extensions_list(a: dict[str, Any]) -> Any:
@@ -23,6 +24,7 @@ def extensions_list(a: dict[str, Any]) -> Any:
 
 @command(
     "extensions_install",
+    "Install a folder extension's packages (on Allow). "
     "A folder extension's missing packages installed, then loaded again (waits for the user's Allow)",
     req("id", "The extension's id, from extensions_list."),
 )
@@ -32,6 +34,7 @@ def extensions_install(a: dict[str, Any]) -> Any:
 
 @command(
     "extensions_remove",
+    "Remove a folder extension to the trash (on Allow). "
     "Remove a folder extension: its folder to the trash (waits for the user's Allow)",
     req("id", "The extension's id, from extensions_list."),
 )
@@ -41,6 +44,7 @@ def extensions_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "extensions_new",
+    "New folder extension in the library (on Allow). "
     "New folder extension in the library (extensions/<id>/: one route, one command; waits for Allow)",
     req("id", "Its id: lower case, digits, _ (its routes /<id>/, commands <id>_...)."),
     opt("name", "Its name."),

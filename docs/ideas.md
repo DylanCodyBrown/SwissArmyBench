@@ -9802,6 +9802,16 @@ reverses 2026-11-17's optional extensions (Plans/editions.plan.md) and the Strea
 - **The tool list's ceiling** was 100,000 characters for the base with Streamlit; with every feature's tools
   always in it the list is larger, and the test's ceiling is 117,000. The agent's context pays for that on every
   start: the owner's to weigh (the features' tools could be trimmed, or listed only in their project type).
+  **Decided (the owner's yes, 2026-11-28): shorten the words, hide nothing.** Every one of the 477 tools is still
+  listed at every start, none merged or renamed, none listed by project type. The list is 95,400 characters
+  (116,600 before) and the test's ceiling is 100,000 again; it only shrinks. How: a tool's description is the
+  first sentence of its command's summary, so each summary now OPENS with one short sentence (70 characters at
+  most, mcp/server.py DESCRIPTION_LIMIT; 42 on average) that says what the tool is for; what the long first
+  sentence said (the page's button, the enumerations, the answer's fields) stays right after it, in the same
+  summary, which `commands` shows whole, and in the guide's topics, pointed at in a few words ("guide: writing").
+  "waits for the user's Allow" is "(on Allow)" (the index says what Allow is). The JSON arguments' notes the same
+  way: the shape first, the rest after. A note that was only "e.g" (the first sentence of "e.g. [...]") now shows
+  its example. workbench_file's description was the one word "Files"; it says what it does now.
 - **Open (the owner's):** whether the rail's page keeps the name Extensions now that it lists only the user's
   own folder extensions (it could be My extensions, or move into Settings); whether a built-in feature's panel
   (Copilot's) belongs on that page or in Settings; whether Source Control and Power BI should sit on the rail

@@ -12,14 +12,18 @@ from swissarmybench.cli import api
 from swissarmybench.cli.command_kit import _q, command, opt, req
 
 
-@command("datasets_list", "Open datasets with their sizes, plus the memory budget. No cell values.")
+@command(
+    "datasets_list",
+    "Open datasets, their sizes, the memory budget. "
+    "Open datasets with their sizes, plus the memory budget. No cell values.",
+)
 def list_datasets(a: dict[str, Any]) -> Any:
     return api.call("GET", "/datasets")
 
 
 @command(
     "datasets_close",
-    "Close a dataset and every tab on it (the Datasets popover's Close).",
+    "Close a dataset and every tab on it. The Datasets popover's Close.",
     req("name", "Dataset name."),
 )
 def delete_dataset(a: dict[str, Any]) -> Any:
@@ -28,6 +32,7 @@ def delete_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_rename",
+    "Rename a table everywhere it is used. "
     "Call a table by another name everywhere: its tabs, its views (steps kept), the relationship model "
     "(a double-click on the tab, or the Pasted toast's name box).",
     req("name", "The table's name now."),
@@ -39,6 +44,7 @@ def rename_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_load",
+    "Load a data file (full path) and open its tab. "
     "Load a CSV, TSV, Parquet, JSON-lines, Arrow or Excel file from a full path into a dataset and open it in a tab.",
     req("name", "New dataset name."),
     req("path", "Full path to the file. Pass the path, never the contents."),
@@ -64,6 +70,7 @@ def sheets(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_paste",
+    "Make a dataset from pasted text (CSV, TSV). "
     "Make a dataset from pasted text (CSV, TSV or a copied table), the Paste button.",
     req("name", "New dataset name."),
     req("text", "The pasted text."),
@@ -74,6 +81,7 @@ def paste(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_sample",
+    "Open the made-up sample store's three tables. "
     "Open the made-up sample store: customers, products, orders (Try it with sample data)",
 )
 def datasets_sample(a: dict[str, Any]) -> Any:
@@ -82,6 +90,7 @@ def datasets_sample(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_python_sessions",
+    "Python sessions offering tables, and their tables. "
     "Python sessions (notebooks, scripts) reporting tables to the Tables page, and their tables.",
 )
 def list_processes(a: dict[str, Any]) -> Any:
@@ -90,6 +99,7 @@ def list_processes(a: dict[str, Any]) -> Any:
 
 @command(
     "datasets_open_from_python",
+    "Ask a Python session to send one of its tables. "
     "Ask a running Python session to send one of its tables (datasets_python_sessions lists them)",
     req("process", "The session's id."),
     req("name", "The table's name in that session."),

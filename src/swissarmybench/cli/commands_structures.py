@@ -12,13 +12,18 @@ from swissarmybench.cli import api
 from swissarmybench.cli.command_kit import _q, command, opt, req
 
 
-@command("structures_list", "The open structures (id, name, format, steps) and the project's structure files")
+@command(
+    "structures_list",
+    "The open structures and the project's structure files. "
+    "The open structures (id, name, format, steps) and the project's structure files",
+)
 def structures_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/structures")
 
 
 @command(
     "structures_open",
+    "Open a structure: a file, pasted text or a new one. "
     "Open a structure: a .json/.yaml/.xml/.toml file (path), pasted text (text, format found), or a new "
     "one (kind object|list, or value: your JSON)",
     opt("path", "A file."),
@@ -50,6 +55,7 @@ def _structure_summary(answer: Any) -> Any:
 
 @command(
     "structures_show",
+    "A structure's shape and the node at a path. "
     "A structure's shape (types, counts, keys), its record lists, and the node at path, capped like rows; "
     "search: where words stand (each match's path and Python code)",
     req("structure", "Its id or name."),
@@ -68,6 +74,7 @@ def structures_show(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_step_add",
+    "Add a step (guide: structures). "
     "Add a step: op pick|filter|rename|remove|set|add|sort|flatten; path ($.orders, [*] for each); "
     "filter: field, test (= != > >= < <= contains, starts with, exists, missing), value; rename: key, to; "
     "set/add: key, value; sort: field, descending",
@@ -80,6 +87,7 @@ def structures_step_add(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_step_remove",
+    "Remove a step, or undo or redo the last change. "
     "Remove a step (index from 0; the last when not given), or undo / redo the last change",
     req("structure", "Its id or name."),
     opt("index", "The step's index.", "int"),
@@ -98,6 +106,7 @@ def structures_step_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_edit",
+    "Change a structure's file: its text or its tree. "
     "Change a structure's file (unsaved until structures_save): its text (kept as typed; text_error says "
     "where it does not parse), a node (edit), Format, the format it is written in, or its name",
     req("structure", "Its id or name."),
@@ -123,6 +132,7 @@ def structures_edit(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_open_as_grid",
+    "Open the records at a path as a table. "
     "Open the list of records at path on the Tables page (a table: SQL and Analyze work on it)",
     req("structure", "Its id or name."),
     opt("path", "$.orders (default $)."),
@@ -135,6 +145,7 @@ def structures_open_as_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_save",
+    "Save a structure to its file. "
     "Save a structure to its file (as_text: its text as typed, only changed bytes, never over a file "
     "changed on disk); with name, format, folder or path: Save as; disk=reload|keep_mine after a change",
     req("structure", "Its id or name."),
@@ -163,6 +174,7 @@ def structures_save(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_lineage",
+    "A structure's lineage: its source, steps, tables. "
     "A structure's lineage: the API call (inputs, body, when) or file, its steps, the tables made from it; "
     "run_again=true sends the same call again (the steps kept)",
     req("structure", "Its id or name."),
@@ -177,6 +189,7 @@ def structures_lineage(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_close",
+    "Close a structure, or list where code uses it. "
     "Close an open structure (unsaved steps go), or with references=true: where code calls "
     "sab.structure(name)",
     req("structure", "Its id or name (references: the saved structure's name)."),

@@ -32,10 +32,11 @@ _SANDBOX = {
 
 @command(
     "sandbox",
-    "The project's sandbox (guide: sandbox); reset and drop (Remove the sandbox) wait for Allow",
+    "The project's sandbox (guide: sandbox). Reset and drop (Remove the sandbox) wait for Allow",
     req("action", ", ".join(_SANDBOX) + "."),
     opt(
         "args",
+        "The action's arguments, an object (guide: sandbox). "
         'list: {"sort": name|rows|source|created|changed, "order"}; add: {"from", ...}; variant: {"from": '
         'grid|structure, "table"|"structure", "name"?}; mock: {"table", "connection"}; key: {"table", "key": '
         'column or [columns]}; edit: {"table", "op", ...}; others: {"table"} or {"name"}.',

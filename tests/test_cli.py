@@ -848,7 +848,11 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # 117,000 (2026-11-27): every extension built in (the owner: "all extensions should be built in now"), so
     # the list every agent gets is the base's and Streamlit's (99,900) with Accounting's, Power Apps', Power
     # BI's, Git's and Copilot's 71 tools (16,700), which counted before only where each was installed.
-    assert size < 117_000, f"the tool list is {size} characters"
+    # 100,000 again (2026-11-28, the owner's yes): every tool still listed at every start, none hidden, merged
+    # or renamed; each summary opens with one short sentence (70 characters at most: the tool's purpose), the
+    # detail after it (`commands`) and in the guide's topics; the JSON arguments' notes shortened the same
+    # way. 95,400 as of this change. The ceiling only shrinks from here.
+    assert size < 100_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

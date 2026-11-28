@@ -14,6 +14,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "key_finder_candidates",
+    "The open tables the Key Finder can compare with. "
     "The open tables the Key Finder can compare this one against.",
     req("grid", "The open table's id."),
 )
@@ -23,6 +24,7 @@ def key_finder_candidates(a: dict[str, Any]) -> Any:
 
 @command(
     "key_finder_run",
+    "Key Finder: likely join columns between tables. "
     "Key Finder: likely join columns between an open table and another (or every other open table with target='*'), "
     "plus the table's likely primary key. Counts only, no cell values.",
     req("grid", "The open table's id."),
@@ -47,7 +49,7 @@ def key_finder_run(a: dict[str, Any]) -> Any:
 
 @command(
     "key_finder_sample",
-    "Values a column pair shares and does not (the Key Finder's sample)",
+    "Values a column pair shares and does not. The Key Finder's sample",
     req("grid", "The open table's id."),
     req("target", "The other table's id."),
     req("source_column", "This table's column."),

@@ -19,6 +19,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 # The catalog groups by area, and so does the MCP's tool list.
 @command(
     "connections_list",
+    "Every connection: type, code name, catalog, writes. "
     "Every connection: database or file, its type, its name in Workbench code, its catalog, and what it "
     "writes (writes.words: 'Writes: <the Write starters>' or 'Read-only: <why>'; never write a read-only one)",
 )
@@ -27,7 +28,8 @@ def connections_list(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "connections_types", "The kinds of connection and each one's form: fields, passwords, the code they fill"
+    "connections_types",
+    "The kinds of connection and each one's form. Fields, passwords, the code they fill",
 )
 def connections_types(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections/types")
@@ -35,7 +37,7 @@ def connections_types(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_get",
-    "A saved connection as its form: fields, passwords (saved or not), code",
+    "A saved connection as its form. Fields, passwords (saved or not), code",
     req("name", "The connection."),
 )
 def connections_get(a: dict[str, Any]) -> Any:
@@ -44,6 +46,7 @@ def connections_get(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_overview",
+    "The Connections page's cards: status, calls, writes. "
     "The Connections page's cards: each connection's status, calls this session and writes ('Writes: ...' "
     "or 'Read-only: <why>')",
 )
@@ -53,6 +56,7 @@ def connections_overview(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_usage",
+    "One connection: what uses it, its settings, calls. "
     "One connection's detail: cells and blocks that use it, its configuration (no values), its calls",
     req("name", "The connection."),
 )
@@ -62,6 +66,7 @@ def connections_usage(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_colours",
+    "Each connection's colour; name and colour set one. "
     "Each connection's colour (this computer's, every project) and the palette; name and colour set one",
     opt("name", "A connection, to set its colour."),
     opt("colour", "#rrggbb, never a rail colour; null: the next free one."),
@@ -75,6 +80,7 @@ def connections_colours(a: dict[str, Any]) -> Any:
 # ----- each connection's slots: queries at once, the agent's share, the line (2026-11-21) -----
 @command(
     "connections_slots",
+    "Each connection's running and waiting queries, limits. "
     "Each connection's running and waiting query counts and limits (default 8 at once, 4 the agent's)",
 )
 def connections_slots(a: dict[str, Any]) -> Any:
@@ -83,6 +89,7 @@ def connections_slots(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_queries",
+    "Running, waiting and finished queries (no SQL). "
     "Running, waiting and finished queries (who, what, tables, place, time); no SQL",
     opt("connection", "One connection's (default: every one's)."),
     opt("clear", "true: empty the finished list first.", "bool"),
@@ -96,6 +103,7 @@ def connections_queries(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_cancel_query",
+    "Cancel a query by id (the user's: on Allow). "
     "Cancel a query by its id: yours at once, the user's on their Allow",
     req("id", "The query's id."),
 )
@@ -105,6 +113,7 @@ def connections_cancel_query(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_set_limits",
+    "Set a connection's queries at once, share and wait. "
     "Set a connection's queries at once (1-64), the agent's share and the wait in seconds",
     req("name", "The connection."),
     opt("total", "Queries at once.", "int"),
@@ -118,6 +127,7 @@ def connections_set_limits(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_move_tables",
+    "Move every table of a connection to another. "
     "Move every table read from a connection (a deleted one too) to another, as table_swap_connection",
     req("name", "The old connection."),
     req("to", "The new one."),
@@ -130,6 +140,7 @@ def connections_move_tables(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_repoint",
+    "Cells naming a connection: list, or point at another. "
     "Cells naming a connection (a deleted one too): list them (no to), or point them at another",
     req("name", "The old connection."),
     opt("to", "The new one."),
@@ -153,8 +164,8 @@ _CONNECTION_ARGS = (
     opt("dialect", "For a database: its SQL dialect."),
     opt("variable", "The variable the code makes (default: the last one assigned)."),
     opt("description", "What it is for."),
-    opt("catalog", '{"language", "command"}: lists the source\'s columns (the type gives one).', "json"),
-    opt("secrets", '{"password": "value"}: saved in the system keyring, never shown back.', "json"),
+    opt("catalog", '{"language", "command"}: lists the source\'s columns. The type gives one.', "json"),
+    opt("secrets", '{"password": "value"}: kept in the keyring. Never shown back.', "json"),
     opt(
         "row_limit",
         "A database: how many rows a table opens with on the Tables page (10,000 unless set; 0: every row).",
@@ -162,8 +173,8 @@ _CONNECTION_ARGS = (
     ),
     opt(
         "vault_mapping",
-        'A vault\'s entries: [{"env": "WAREHOUSE_PASSWORD", "secret": "warehouse-password"}] (each secret '
-        "in the vault becomes that environment variable in every Workbench kernel). With vault_all, only "
+        'A vault\'s entries: [{"env": "NAME", "secret": "its-name-in-the-vault"}]. Each secret '
+        "in the vault becomes that environment variable in every Workbench kernel. With vault_all, only "
         "the renamed ones.",
         "json",
     ),
@@ -213,6 +224,7 @@ def connections_update(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_test",
+    "Test a connection's code, saved or not. "
     "Run a connection's code, saved or not, in a child process: does it connect? (a file: is it there?) "
     "With code for a file type, the answer also has the file's columns and first rows (preview), and the "
     "name it would take from its file when none is given.",
@@ -232,6 +244,7 @@ def connections_test(a: dict[str, Any]) -> Any:
 # ----- Find connections on this computer: the known tools (DBeaver, SSMS, ODBC...) and the hint scan -----
 @command(
     "connections_find",
+    "Find connections on this computer (on Allow). "
     "Find connections on this computer (DBeaver, SSMS, ODBC, Azure Data Studio, VS Code, JetBrains, pgAdmin, "
     "MySQL Workbench, HeidiSQL, Office .odc/.udl, then a search of the app settings folders): waits for the "
     "user's Allow. Rows: id, name, kind, server, database, user, from, already, supported (never a password)",
@@ -247,6 +260,7 @@ def connections_find(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_import_found",
+    "Import rows of the last connections_find. "
     "Import rows of the last connections_find as library connections (each password a variable not set on "
     "this computer): on the user's Allow",
     req("ids", "The rows' ids.", "json"),
@@ -270,6 +284,7 @@ _PYTHON_ARGS = (
     ),
     opt(
         "variables",
+        '[{"name", "from": env|keyring|vault|value, ...}]. '
         'Each environment variable\'s source: [{"name", "from": "env" | "keyring" | "vault" | "value", '
         '"vault", "secret", "value"}]. env: this computer\'s (the default); keyring: saved here (its '
         "value in secrets); vault: a key vault's secret; value: plain text, not a secret.",
@@ -298,6 +313,7 @@ def _python_body(a: dict[str, Any], name: str) -> dict[str, Any]:
 
 @command(
     "connections_python_variables",
+    "The environment variables a Python connection reads. "
     "The environment variables a Python connection's boxes read (os.environ, os.getenv, secret): "
     "names, whether needed, whether set on this computer",
     opt("connect", "The Connect box."),
@@ -311,6 +327,7 @@ def connections_python_variables(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_python_save",
+    "Save a connection made of your own Python. "
     "Save a connection made of your own Python (its three boxes and its variables' sources), new or "
     "changed; test=true only runs it (Connect, the tables, the first table's first rows), saving nothing",
     req("name", "Its name."),
@@ -329,7 +346,7 @@ def connections_python_save(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_python_tables",
-    "Run a Python connection's List the tables now: its tables and their columns (its catalog loads too)",
+    "Run a Python connection's List the tables now. Its tables and their columns (its catalog loads too)",
     req("name", "The connection's name."),
 )
 def connections_python_tables(a: dict[str, Any]) -> Any:
@@ -339,6 +356,7 @@ def connections_python_tables(a: dict[str, Any]) -> Any:
 # ----- Add API: an OpenAPI document or a form, made into API_<name>.py and a Python connection -----
 @command(
     "connections_api_choices",
+    "Add API's auth types and presets. "
     "Add API's auth types with their settings, and its presets (Azure Function App, AWS Lambda, Google)",
 )
 def connections_api_choices(a: dict[str, Any]) -> Any:
@@ -350,17 +368,24 @@ _API_KEYS = ("spec_url", "spec_path", "spec", "form", "name", "base_url", "auth"
 
 @command(
     "connections_api_add",
+    "Add API from an OpenAPI document or a form. "
     "Add API: write API_<name>.py (one method per operation) and save its Python connection; "
     "preview=true writes nothing (operations, variables, what changes); try_it=<operation> reads its first "
     "rows before Add (nothing written)",
     opt("preview", "Only say what it would do.", "bool"),
     opt("try_it", "An operation's name (list_orders): its first rows, written nowhere."),
-    opt("values", '{"NAME": "value"} for that try only (else this computer\'s environment).', "json"),
+    opt(
+        "values",
+        '{"NAME": "value"} for that try only. '
+        '{"NAME": "value"} for that try only (else this computer\'s environment).',
+        "json",
+    ),
     opt("spec_url", "The OpenAPI document's address (2.0 or 3.x)."),
     opt("spec_path", "Its file."),
     opt("spec", "Its text."),
     opt(
         "form",
+        'No document: {"base_url", "endpoints": [{"method", "path"}]}. '
         'Instead: {"base_url", "endpoints": [{"method", "path", "parameters": "status, id*", "table": true}]}.',
         "json",
     ),
@@ -381,7 +406,11 @@ def connections_api_add(a: dict[str, Any]) -> Any:
     return api.call("POST", "/apis/preview" if a.get("preview") else "/apis", body)
 
 
-@command("connections_vaults", "The vault blades a password can come from, with their entries (names only)")
+@command(
+    "connections_vaults",
+    "The vault blades and their entries (names only). "
+    "The vault blades a password can come from, with their entries (names only)",
+)
 def connections_vaults(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections/vaults")
 
@@ -397,10 +426,10 @@ _TABLE_ARGS = (
 
 @command(
     "connections_open_table",
-    "Open a connection's table on the Tables page: a database table's first rows (the connection's Rows to open, "
-    "10,000 unless set; all=true for every row), the table told how many the source holds; a file "
-    "connection's file whole; a Python connection's by its Read a table. A workbook with several sheets "
-    "and no table named answers its sheets.",
+    "Open a connection's table on the Tables page. A database table's first rows (the connection's "
+    "Rows to open, 10,000 unless set; all=true for every row), the table told how many the source "
+    "holds; a file connection's file whole; a Python connection's by its Read a table. A workbook "
+    "with several sheets and no table named answers its sheets.",
     *_TABLE_ARGS,
     opt("all", "Every row, not the first Rows to open.", "bool"),
 )
@@ -412,6 +441,7 @@ def connections_open_table(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_write",
+    "Write rows to a connection's table (guide: writing). "
     "Write rows to a connection's table through the adapter (sab.write): insert, update, merge, delete (by "
     "key) or truncate. dry_run=true counts and writes nothing; a write waits for the user's Allow.",
     req("name", "The connection's name."),
@@ -430,6 +460,7 @@ def connections_write(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_tables",
+    "A connection's tables as a tree. "
     "A connection's tables as the Connections page's tree: its datasets (Power BI) or schemas, each table "
     "with its name for DuckDB SQL ([Finance Captive].Sales). Loads the catalog first when needed.",
     req("name", "The connection's name."),
@@ -440,6 +471,7 @@ def connections_tables(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_open_dataset",
+    "Open every table of a connection's dataset or schema. "
     "Open every table of one dataset (Power BI) or schema of a connection, each in its own tab",
     req("name", "The connection's name."),
     req("dataset", "The dataset or schema."),
@@ -450,6 +482,7 @@ def connections_open_dataset(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_dataverse_sql_endpoint",
+    "Move a Dataverse connection to its SQL endpoint. "
     "Move a Dataverse connection saved for its Web API to its SQL endpoint: its tables listed and read there",
     req("name", "The Dataverse connection's name."),
 )
@@ -459,6 +492,7 @@ def connections_dataverse_sql_endpoint(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_update_driver",
+    "Update a SQL Server connection to mssql-python. "
     "Update a SQL Server or Azure SQL connection from the app's earlier pyodbc code to mssql-python (no ODBC "
     "driver), its settings kept; the user's own code is never rewritten",
     req("name", "The connection's name (its card says update_driver)."),
@@ -469,6 +503,7 @@ def connections_update_driver(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_sql_reads",
+    "Connection tables DuckDB SQL read this session. "
     "The connections' tables DuckDB SQL read this session: connection, table, rows, when read",
 )
 def connections_sql_reads(a: dict[str, Any]) -> Any:
@@ -477,6 +512,7 @@ def connections_sql_reads(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_sql_refresh",
+    "Drop this session's reads; the next query reads again. "
     "Drop this session's reads of connections' tables (one connection's, or all): the next query reads again",
     opt("connection", "Only this connection's reads."),
 )
@@ -487,7 +523,7 @@ def connections_sql_refresh(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_preview_table",
-    "A connection's table's first 50 rows (nothing is kept)",
+    "A connection's table's first 50 rows. Nothing is kept",
     *_TABLE_ARGS,
 )
 def connections_preview_table(a: dict[str, Any]) -> Any:
@@ -497,6 +533,7 @@ def connections_preview_table(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_datasets",
+    "A Power BI workspace connection's datasets. "
     "A Power BI workspace connection's datasets (semantic models), asked of Power BI: each one's name, "
     "id, and its name for a DAX cell (`Finance/Sales model`). Its tables: catalog_tables with the dataset "
     "as the schema. To run DAX on one: workbench_run with kind dax and that name as the connection, or "
@@ -509,6 +546,7 @@ def connections_datasets(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_import_relationships",
+    "Import a dataset's relationships or foreign keys. "
     "Import one Power BI dataset's own relationships, or a SQL Server / Azure SQL database's foreign keys "
     "(composite keys whole), into the current relationship model (merged: the source's wins for a join "
     "both name). Tables are named as they open on the Tables page; an inactive relationship (a disabled foreign key) "
@@ -525,6 +563,7 @@ def connections_import_relationships(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_load_catalog",
+    "Load a connection's catalog in the background. "
     "Load a connection's catalog (its tables and columns) in the background now; it arrives for completion "
     "and catalog_* tools. Catalogs also load themselves when a connection is saved and when the app starts.",
     req("name", "The connection's name."),
@@ -535,13 +574,17 @@ def connections_load_catalog(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_vault_secrets",
+    "A key vault's secret names (no values). "
     "The secrets' names in a key vault, each with a variable name to map it to (names only, no value)",
     opt("name", "A saved vault's name."),
     opt("code", "Or a vault not saved yet: its code (a vault type's from connections_types, filled in)."),
     opt("template", "With code: its type."),
     opt("variable", "With code: the function that reads a secret (the type's: get)."),
     opt(
-        "secrets", '{"name": "value"}: passwords the vault\'s own code asks for, for this read only.', "json"
+        "secrets",
+        '{"name": "value"}: the vault code\'s passwords, this read only. '
+        '{"name": "value"}: passwords the vault\'s own code asks for, for this read only.',
+        "json",
     ),
 )
 def connections_vault_secrets(a: dict[str, Any]) -> Any:
@@ -552,6 +595,7 @@ def connections_vault_secrets(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_password_source",
+    "Point a password at the keyring, a variable or a vault. "
     "Point a password at the keyring, an environment variable, or a key vault's entry; the code it gives",
     req("code", "The connection's code."),
     req("secret", 'The password\'s name in the code (secret("...")).'),

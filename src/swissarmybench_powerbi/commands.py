@@ -24,6 +24,7 @@ def command(name: str, summary: str, *args: Arg) -> Callable[[Run], Run]:
 
 @command(
     "powerbi_export",
+    "The model as a Power BI Project in powerbi/. "
     "The model as a Power BI Project in the project's powerbi/ (none open: a zip); what went, what not, why",
     opt("tables", "Comma-separated tables (default: the ERD's)."),
     opt("name", "File name (default: the project's)."),
@@ -50,6 +51,7 @@ def _quoted(name: str) -> str:
 
 @command(
     "powerbi_import_project",
+    "Import a .pbix as a Power BI project. "
     "A .pbix as a Power BI project: its connections, variables, tables as Source and In Power BI tabs, "
     "relationships, data.ipynb, measures (dry_run: the plan only; the real one asks the user)",
     opt("path", "The .pbix on this computer."),
@@ -65,6 +67,7 @@ def powerbi_import_project(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_file",
+    "A .pbix file connection: add one, or its card. "
     "A Power BI file (.pbix) connection: add one (name and path), or its card (name only): tables, as of, "
     "read-only and why; relationships=true offers its relationships to the ERD",
     opt("name", "The connection's name."),
@@ -81,6 +84,7 @@ def powerbi_file(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_setup_status",
+    "To finish setting up: each row, or one fix. "
     "The Power BI project's To finish setting up, each row with its fix; with action, one fix (dataset with "
     "connection and dataset, not_published, registration); sign-ins and passwords are the user's",
     opt("action", "dataset, not_published or registration."),
@@ -97,6 +101,7 @@ def powerbi_setup_status(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_source",
+    "Read Power BI from: published or local. "
     "Read Power BI from: published or local (Power BI Desktop); the file when neither answers. No source: "
     "what it reads now",
     opt("source", "published or local."),
@@ -109,6 +114,7 @@ def powerbi_source(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_app_registration",
+    "The Power BI project's app registration; set it. "
     "The Power BI project's app registration: none sent, what it is; registration (a name or none) re-points "
     "its Microsoft sources after a dry run (dry_run=true: only the list), then checks its access",
     opt("registration", "An app registration's name, or none (sign in as you)."),
@@ -123,6 +129,7 @@ def powerbi_app_registration(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_edit_files",
+    "The running Power BI Desktops and their files. "
     "Edit in Power BI Desktop (Windows): the running Desktops and their open files; Live or Not open for the "
     "project's .pbix",
 )
@@ -132,6 +139,7 @@ def powerbi_edit_files(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_edit_model",
+    "The model open in Power BI Desktop (no rows). "
     "The model open in Power BI Desktop: tables, columns, measures, relationships (no rows)",
 )
 def powerbi_edit_model(a: dict[str, Any]) -> Any:
@@ -140,10 +148,12 @@ def powerbi_edit_model(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_edit_plan",
+    "Dry run of changes to the model in Power BI Desktop. "
     "The dry run of changes to the model open in Power BI Desktop, each in words and whether it can go (no "
     "changes: our relationships and measures)",
     opt(
         "changes",
+        "[{kind, table, name, expression, ...}] (guide: powerbi). "
         "[{kind: measure_add|measure_change|measure_delete|relationship_add|relationship_delete|"
         "calculated_column|calculated_table|calculation_group, table, name, expression, ...}]",
         "json",
@@ -155,6 +165,7 @@ def powerbi_edit_plan(a: dict[str, Any]) -> Any:
 
 @command(
     "powerbi_edit_apply",
+    "Apply changes to the model in Power BI Desktop (on Allow). "
     "Make the changes in the model open in Power BI Desktop (asks the user first; each change audited)",
     opt("changes", "As powerbi_edit_plan's (none: our relationships and measures).", "json"),
 )

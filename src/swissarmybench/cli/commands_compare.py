@@ -14,7 +14,7 @@ from swissarmybench.cli.command_kit import _q, command, opt, req
 
 @command(
     "compare_create",
-    "Line two tables up on key columns (the page's split compare). Counts only.",
+    "Line two tables up on key columns. The page's split compare. Counts only.",
     req("left", "The left table's id."),
     req("right", "The right table's id."),
     req("keys", "[[left column, right column], ...]", "json"),
@@ -42,6 +42,7 @@ def compare_create(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_list",
+    "The running compares, with their ids and tables. "
     "The compares that are running (the user's too: the two tables side by side), each with its id, its "
     "two tables (ids and names), keys, mode and counts.",
 )
@@ -56,6 +57,7 @@ def compare_read(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_change",
+    "Change a compare's keys, mode or diff options. "
     "Change a compare's keys, mode (outer, anti, cross, diff), anti side or diff options.",
     req("compare", "Compare id."),
     opt("keys", "[[left column, right column], ...]", "json"),
@@ -63,6 +65,7 @@ def compare_read(a: dict[str, Any]) -> Any:
     opt("anti_side", "left or right."),
     opt(
         "diff",
+        "{tolerance, percent, trim, ignore_case, skip, column, only_differing}. "
         "{tolerance, percent, trim, ignore_case, skip: [cols], column, only_differing: the page shows "
         "only the keys and the columns that differ (true unless set false)}.",
         "json",
@@ -75,6 +78,7 @@ def compare_change(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_tie_out",
+    "Whether both tables add up the same per group. "
     "Do both tables add up the same per group? Without group or measures: the choices.",
     req("compare", "Compare id."),
     opt("group", "Shared columns to group by.", "json"),
@@ -97,6 +101,7 @@ def compare_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_rows",
+    "One side's rows of a compare, differing cells marked. "
     "One side's rows of a compare, aligned, with the cells that differ.",
     req("compare", "Compare id."),
     req("side", "left or right."),
@@ -122,6 +127,7 @@ def compare_key_group(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_set_focus",
+    "Cross compare: pick a row to filter the other side. "
     "Cross compare: pick a row on one side to filter the other.",
     req("compare", "Compare id."),
     req("side", "left or right."),
@@ -140,7 +146,8 @@ def compare_clear_focus(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_grids",
-    "One-shot compare of two tables on key columns: matched, left-only and right-only counts. No cell values.",
+    "One-shot compare of two tables on key columns. Matched, left-only and right-only counts. No "
+    "cell values.",
     req("left", "The left table's id."),
     req("right", "The right table's id."),
     req("keys", "[[left column, right column], ...]", "json"),
@@ -157,6 +164,7 @@ def compare_grids(a: dict[str, Any]) -> Any:
 
 @command(
     "compare_tie_out_show",
+    "Filter a compare's tables to one tie-out group. "
     "Filter both tables of a compare to one tie-out group (as clicking its row)",
     req("compare", "The compare's id."),
     req("group", "The grouping columns, as the tie-out gave them.", "list"),

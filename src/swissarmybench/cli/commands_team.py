@@ -15,6 +15,7 @@ from swissarmybench.cli.command_kit import command, opt, req
 
 @command(
     "team_status",
+    "The Team box: none or joined, sync words, folders. "
     "The Team box: none or joined (owner/repo, sync words), signed in, a kept step, the folders",
     opt("remote", "true: ask GitHub now.", "bool"),
     opt("repositories", "true: the repositories to join, newest first.", "bool"),
@@ -33,6 +34,7 @@ def team_status(a: dict[str, Any]) -> Any:
 
 @command(
     "team_join",
+    "Join a team's repository (on Allow). "
     "Join a team: its repository copied here, the library and shared projects folder pointed at it, the "
     "checklist; waits for Allow",
     req("repository", "owner/name."),
@@ -43,6 +45,7 @@ def team_join(a: dict[str, Any]) -> Any:
 
 @command(
     "team_start",
+    "Start a team: a new private repository (on Allow). "
     "Start a team: a new private repository, this library pushed to it, then joined; waits for Allow",
     req("name", "The new repository's name."),
     opt("owner", "One of the account's organisations (default: the account)."),
@@ -55,6 +58,7 @@ def team_start(a: dict[str, Any]) -> Any:
 
 @command(
     "team_leave",
+    "Leave the team; the folders go back (on Allow). "
     "Leave the team: both folders back as they were (the copy stays); no keep: the question; waits for Allow",
     opt("keep", "true: copy the team's items into this library first.", "bool"),
 )

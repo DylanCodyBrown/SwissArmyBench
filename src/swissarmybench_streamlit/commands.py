@@ -94,6 +94,7 @@ def _given(a: dict[str, Any], *names: str) -> dict[str, Any]:
 
 @command(
     "canvas_open",
+    "Open a canvas by path, make one by name, or list them. "
     "Open a canvas (<app>.canvas.json) by path, or make one by name: its id, model; neither: the project's list",
     opt("path", "The canvas file's path."),
     opt("name", "A new canvas's name (in the open project's folder)."),
@@ -109,6 +110,7 @@ def canvas_open(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_state",
+    "A canvas: pages, containers, widgets, wiring. "
     "A canvas: pages, containers, widget instances (px), version, missing widgets, marked values, notes",
     req("canvas", "The canvas's id (canvas_open gives it)."),
 )
@@ -118,6 +120,7 @@ def canvas_state(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_add_container",
+    "Draw a container on a page or in a container. "
     "Draw a container on a page or in one (px at the layout's width: desktop 1200, phone 390; no x, y: a free "
     "place)",
     req("canvas", "The canvas's id."),
@@ -142,6 +145,7 @@ def canvas_add_container(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_insert_widget",
+    "Insert a widget into a container. "
     "Insert a widget into a container (no container: one is made around it); its values override its defaults",
     req("canvas", "The canvas's id."),
     req("widget", "The widget's name (widgets_list)."),
@@ -149,7 +153,7 @@ def canvas_add_container(a: dict[str, Any]) -> Any:
     opt("page", "The page's id."),
     opt("x", "Left in the container, px.", "int"),
     opt("y", "Top in the container, px.", "int"),
-    opt("values", "Property values (JSON object).", "json"),
+    opt("values", "Property values. Property values (JSON object).", "json"),
     opt("layout", "desktop (default) or phone: whose places these are."),
 )
 def canvas_insert_widget(a: dict[str, Any]) -> Any:
@@ -160,6 +164,7 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_move",
+    "Move, resize, re-parent, show or hide an item. "
     "Move or resize an item (px), put it in another container (parent; empty: the page), show it in one layout, "
     "or hide a widget in the app",
     req("canvas", "The canvas's id."),
@@ -194,11 +199,16 @@ def canvas_move(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_set_container",
+    "Set a container's properties. "
     "A container's properties: title, border, padding, height (fit, fixed), scrollable, resizable, background, "
     "columns",
     req("canvas", "The canvas's id."),
     req("id", "The container's id."),
-    req("props", "The properties to set (JSON object).", "json"),
+    req(
+        "props",
+        "The properties, as canvas_add_container's props. The properties to set (JSON object).",
+        "json",
+    ),
 )
 def canvas_set_container(a: dict[str, Any]) -> Any:
     return _command(a["canvas"], "set_container", {"id": a["id"], "props": a["props"]})
@@ -206,10 +216,11 @@ def canvas_set_container(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_set_values",
+    "Set a widget instance's property values. "
     "A widget instance's property values (null: back to the widget's default)",
     req("canvas", "The canvas's id."),
     req("id", "The instance's id."),
-    req("values", "Property values (JSON object).", "json"),
+    req("values", "Property values. Property values (JSON object).", "json"),
 )
 def canvas_set_values(a: dict[str, Any]) -> Any:
     return _command(a["canvas"], "set_values", {"id": a["id"], "values": a["values"]})
@@ -217,12 +228,14 @@ def canvas_set_values(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_wire",
+    "Wire an instance's In or Event (guide: streamlit). "
     "Wire an instance's In (its source) or Event (its actions); canvas_state's wiring shows Outs, readers, broken",
     req("canvas", "The canvas's id."),
     req("id", "The instance's id."),
     req("port", "The In's or Event's name."),
     opt(
         "wire",
+        "An In's source or an Event's actions (guide: streamlit). "
         'An In: {"table"} ([Sandbox].t too), {"out": "w3.name"} (any page; "app.viewer": who views), {"page"}, '
         '{"endpoint": "GET /x"}, {"variable"}, {"value"}, {"tables": [...]}. An Event: {"actions": [{"do": "call", "endpoint", "body"}, {"do": "set", "key"}, '
         '{"do": "rerun"}]}. None: unwired.',
@@ -235,6 +248,7 @@ def canvas_wire(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_replace_widget",
+    "Replace an instance's widget, its place kept. "
     "An instance's widget replaced (a missing one's Replace): its place kept",
     req("canvas", "The canvas's id."),
     req("id", "The instance's id."),
@@ -246,6 +260,7 @@ def canvas_replace_widget(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_delete",
+    "Delete a container or a widget instance. "
     "Delete a container (with what it holds) or a widget instance (undoable)",
     req("canvas", "The canvas's id."),
     req("id", "The container's or instance's id."),
@@ -256,6 +271,7 @@ def canvas_delete(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_set",
+    "The canvas's sizing: columns, row_height, gap, snap. "
     "The canvas's sizing, shared by both layouts: columns (a guide), row_height, gap, snap, step (1, 2, 4, 8, grid)",
     req("canvas", "The canvas's id."),
     opt("columns", "Columns, 1 to 48.", "int"),
@@ -270,6 +286,7 @@ def canvas_set(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_page",
+    "A canvas's pages: add, rename, move or remove one. "
     "A canvas's pages: add one (no page), rename one (name), move one (index), or remove one (remove)",
     req("canvas", "The canvas's id."),
     opt("page", "The page's id."),
@@ -287,6 +304,7 @@ def canvas_page(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_full_screen",
+    "The Canvas page full screen, or back. "
     "The Canvas page holding a canvas full screen (the board alone, F11's) or back; no `on`: the other way",
     req("canvas", "The canvas's id."),
     opt("on", "true: full screen; false: back.", "bool"),
@@ -297,6 +315,7 @@ def canvas_full_screen(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_undo",
+    "Undo a canvas's last change (redo=true: redo). "
     "Undo a canvas's last change (redo=true: redo the last undone)",
     req("canvas", "The canvas's id."),
     opt("redo", "true: redo.", "bool"),
@@ -309,6 +328,7 @@ def canvas_undo(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_play",
+    "Play a canvas: its pages built and run live. "
     "Play a canvas: its pages built and run live (its address; the tables they read follow their changes, the "
     "pages running again by themselves); with check: every page headless, each widget's errors",
     req("canvas", "The canvas's id."),
@@ -326,6 +346,7 @@ def canvas_play(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_export",
+    "Export a canvas as a Streamlit app (on Allow). "
     "Export a canvas as an app that runs alone on a hosted Streamlit app (app.py, pages, the widgets inlined, the "
     "tables' rows as Parquet). Waits for the user's Allow; declined, nothing is written",
     req("canvas", "The canvas's id."),
@@ -337,6 +358,7 @@ def canvas_export(a: dict[str, Any]) -> Any:
 
 @command(
     "app_launch",
+    "Launch a canvas in its own window, or stop it. "
     "Launch a canvas (Ctrl+F5): a build in builds/<app>/<n>/, run in its own window; or stop it",
     req("canvas", "The canvas's id."),
     opt("analyzer", "true: the Performance Analyzer records from the first load.", "bool"),
@@ -354,6 +376,7 @@ _BUILDS = ("list", "files", "compare", "relaunch", "restore")
 
 @command(
     "canvas_builds",
+    "A canvas's builds: list, files, compare, restore. "
     "A canvas's builds: list, files, compare (build, b; no b: now), relaunch, restore (undoable)",
     req("canvas", "The canvas's id."),
     opt("action", "list (default), files, compare, relaunch or restore."),
@@ -384,7 +407,7 @@ _PERF = ("session", "hints", "attach", "pause", "clear", "detach", "save", "save
 
 @command(
     "canvas_perf",
-    "The Performance Analyzer on a launch: its session (reruns, calls, caches, socket) and hints",
+    "The Performance Analyzer on a launch. Its session (reruns, calls, caches, socket) and hints",
     req("canvas", "The canvas's id."),
     opt("action", "session (default), hints, attach, pause, clear, detach, save or saved."),
     opt("build", "saved: the build's number.", "int"),
@@ -413,6 +436,7 @@ def canvas_perf(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_list",
+    "Every widget: the project's, library's, prebuilt. "
     "Every widget of the canvas's framework: the project's, the library's, then the prebuilt ones (read-only; "
     "each starter pack's first, `packs` their names and descriptions), with their properties (name, type, mask, default)",
     opt("q", "Words to search names, descriptions, groups, packs and tags."),
@@ -423,6 +447,7 @@ def widgets_list(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_get",
+    "One widget: header, code, properties, contract. "
     "One widget: its header, code, properties, contract (ins, outs, events) and file",
     req("name", "The widget's name."),
 )
@@ -432,6 +457,7 @@ def widgets_get(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_new",
+    "A new widget in the library. "
     "A new widget in the library (widgets/<name>.widget.py); top-level plain values in its code are its properties",
     opt("name", "Small letters, digits and _ (default: a free one)."),
     opt("description", "One line."),
@@ -446,7 +472,7 @@ def widgets_new(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_save",
-    "Save a widget's code (below its header; the header is kept)",
+    "Save a widget's code (its header is kept). Save a widget's code (below its header; the header is kept)",
     req("name", "The widget's name."),
     req("code", "Its whole code."),
 )
@@ -456,6 +482,7 @@ def widgets_save(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_header",
+    "Set a widget's name, description, group or size. "
     "A widget's name, description, group or size, written into its file's header only; a new name renames every "
     "canvas instance",
     req("name", "The widget's present name."),
@@ -475,6 +502,7 @@ def widgets_header(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_properties",
+    "A widget's properties, or those of unsaved code. "
     "A widget's properties (each with its type and mask), or those of code not saved yet",
     opt("name", "The widget's name."),
     opt("code", "Code to read instead."),
@@ -485,6 +513,7 @@ def widgets_properties(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_set_property",
+    "Set a property's default in the widget's code. "
     "A property's default, written into only its own characters in the widget's code (checked first)",
     req("name", "The widget's name."),
     req("property", "The property."),
@@ -500,10 +529,11 @@ def widgets_set_property(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_run",
+    "Run a widget alone, headless: what it drew, errors. "
     "Run a widget alone, headless (AppTest): what it drew, its errors (each failing widget's own panel), its "
     "address when live is true",
     req("name", "The widget's name."),
-    opt("values", "Property values to run it with (JSON object).", "json"),
+    opt("values", "Property values to run it with. Property values to run it with (JSON object).", "json"),
     opt("live", "Also run it as a live page and give its address.", "bool"),
 )
 def widgets_run(a: dict[str, Any]) -> Any:
@@ -518,6 +548,7 @@ def widgets_run(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_copy",
+    "Copy a widget as your own, to project or library. "
     "Copy a widget as your own (a prebuilt one: my_<name>), or Copy to project / Copy to library (to: the same "
     "name in the project's widgets/ or the library)",
     req("name", "The widget to copy."),
@@ -534,6 +565,7 @@ def widgets_copy(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_upgrade",
+    "Upgrade a widget to In/Out (a preview; apply saves). "
     "Upgrade to In/Out: a widget's session state keys as In/Out declarations (a preview; apply=true saves)",
     req("name", "The widget's name."),
     opt("apply", "Save it (default: the preview only).", "bool"),
@@ -553,6 +585,7 @@ def widgets_delete(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_preview",
+    "A widget's small rendered preview: its state. "
     "A widget's small rendered preview (PNG): its state (ready with its address, coming, failed with why)",
     req("name", "The widget's name."),
     opt("theme", "light or dark."),

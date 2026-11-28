@@ -18,14 +18,18 @@ CATALOG_NOTE = (
 )
 
 
-@command("catalog_list", "Every loaded catalog: name, SQL dialect, and its schema, table and column counts.")
+@command(
+    "catalog_list",
+    "Every loaded catalog, with its dialect and counts. "
+    "Every loaded catalog: name, SQL dialect, and its schema, table and column counts.",
+)
 def catalog_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/catalogs")
 
 
 @command(
     "catalog_schemas",
-    "A catalog's schemas, with how many tables and views each holds. " + CATALOG_NOTE,
+    "A catalog's schemas, with their table counts. Views counted too. " + CATALOG_NOTE,
     req("catalog", "Catalog name (catalog_list)."),
     values=True,
 )
@@ -35,6 +39,7 @@ def catalog_schemas(a: dict[str, Any]) -> Any:
 
 @command(
     "catalog_tables",
+    "The tables and views in a catalog's schema, paged. "
     "The tables and views in one schema of a catalog, with column counts, paged.",
     req("catalog", "Catalog name."),
     req("schema", "Schema name; empty text for a source without schemas."),
@@ -58,6 +63,7 @@ def catalog_tables(a: dict[str, Any]) -> Any:
 
 @command(
     "catalog_columns",
+    "A source table's columns, types and a first SELECT. "
     "A table's columns and types in the source, with a first SELECT quoted for the source's SQL dialect.",
     req("catalog", "Catalog name."),
     req("schema", "Schema name; empty text for none."),
@@ -90,6 +96,7 @@ def catalog_search(a: dict[str, Any]) -> Any:
 
 @command(
     "catalog_shared",
+    "The shared catalog: each connection's tables. "
     "The shared catalog (the library's catalog/): each connection's tables, their state and the projects using them",
     opt("search", "Words in a connection's or table's name."),
 )
@@ -100,6 +107,7 @@ def catalog_shared(a: dict[str, Any]) -> Any:
 
 @command(
     "catalog_shared_table",
+    "One shared catalog table: columns, keys, used_by. "
     "One table of the shared catalog: its columns and types, primary key, relationships, used_by",
     req("connection", "The connection's name."),
     req("table", "The table's key (main.orders) or name."),
@@ -111,6 +119,7 @@ def catalog_shared_table(a: dict[str, Any]) -> Any:
 
 @command(
     "catalog_shared_refresh",
+    "Read the library's catalog/ folder again now. "
     "Read the library's catalog/ folder again now (what the user's git pull brought); the app never runs git",
 )
 def catalog_shared_refresh(a: dict[str, Any]) -> Any:
@@ -119,7 +128,7 @@ def catalog_shared_refresh(a: dict[str, Any]) -> Any:
 
 @command(
     "catalog_load",
-    "Load a source's names and types as a catalog: one row per column (schema, table, column, type)",
+    "Load a source's names and types as a catalog. One row per column (schema, table, column, type)",
     req("name", "The catalog's name."),
     req("columns", "The rows' column names, as TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE.", "list"),
     req("rows", "The rows: one list of values per source column.", "json"),
