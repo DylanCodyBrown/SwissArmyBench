@@ -95,7 +95,7 @@ flowchart TB
     server -->|10| root
     server -->|91| services
     server -->|2| settings
-    services -->|383| domain
+    services -->|384| domain
     services -->|3| settings
     settings -->|1| domain
 ```

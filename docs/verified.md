@@ -6755,3 +6755,65 @@ it at 100,248, so a .pq file is `workbench_sql`'s). WorkbenchPage.razor stays at
 - Looked at in Chromium at deviceScaleFactor 2, light and dark, on the made-up sample store: a .pq file in the
   editor with its colours, a wrong column underlined with its sentence, the run's line said in the Output, the
   tables a run built on the Tables page with the M above the grid, an imported dataset's file, Show as SQL.
+
+## Workbook queries: Excel's Data Mashup read and written back (2026-11-28)
+
+The owner: "I don't want to edit power query in powerbi at all. I was the m and .pq features to be aimed at
+workbook development"; asked which: "Excel's own Power Query". The format was read from Microsoft's Open
+Specification **[MS-QDEFF] Query Definition File Format** (revision 8.1, 2025-02-18) on Microsoft Learn
+(learn.microsoft.com/openspecs/office_file_formats/ms-qdeff), section by section, not from memory:
+
+- **2.1 Root element:** `DataMashup` in the namespace `http://schemas.microsoft.com/DataMashup`, its content
+  base64, an optional `sqmid` attribute (a GUID for telemetry). [MS-QDEFF] 1.4: it sits in a Custom XML Part of
+  the workbook ([ECMA-376]), which is `customXml/item<N>.xml`.
+- **2.2 Top-level binary stream:** Version (4 bytes, unsigned, MUST be 0), then four fields each after its own
+  4-byte unsigned length: Package Parts, Permissions, Metadata, Permission Bindings. Nothing follows them.
+- **2.3 Package Parts:** an OPC package (a zip) of `/Config/Package.xml` (Version, MinVersion, Culture),
+  `/Formulas/Section1.m` and `/Content/<guid>` parts. **2.3.2:** only one section, which MUST be named
+  Section1; a member's name MUST NOT hold a period, a double quote, a tab, a line break or a space at either
+  end, nor be blank; members SHOULD be shared.
+- **2.4 Permissions:** UTF-8 XML (CanEvaluateFuturePackages, FirewallEnabled, WorkbookGroupType).
+- **2.5 Metadata:** Version (4 bytes, MUST be 0), Metadata XML Length (4), the Metadata XML (UTF-8), Content
+  Length (4; 0: no Content), Content (an OPC package). **2.5.1:** one `Item` per query with `ItemType` Formula
+  and `ItemPath` "Section1/<query>" (AllFormulas with an empty path for the whole set), its `StableEntries`
+  typed by a one-letter prefix (l integer or boolean, f decimal, s text, c a GUID of Content, d a date and
+  time). **The columns it names are a record, not a rule:** FillColumnNames and FillColumnTypes are "retrieved
+  in the most recent refresh", as FillCount and FillLastUpdated are; nothing says they must match the M, and
+  Excel writes them again on Refresh. FillEnabled says a query loads to a sheet, FillToDataModelEnabled to the
+  data model, FillTarget names the sheet's table.
+- **2.6 Permission Bindings:** SHA-256 of Package Parts and of Permissions, each after an Int32 length,
+  protected with Windows' DPAPI (current user, entropy "DataExplorer Package Components"), or one 0x00 byte. A
+  reader whose own checksum does not match "MUST" discard the Permissions and use the defaults (firewall on,
+  no workbook group): the queries are kept. It cannot be made here, so a save keeps its bytes; after an edit
+  Excel asks the privacy levels again.
+
+**Proven with the specification's own example** (section 3.1's base64, kept in tests/workbook_queries_data.py):
+it parses into fields of 837, 308, 1,995 and 218 bytes, its package's Section1.m reads
+`section Section1;` / `shared Query1 = let Source = 1+1 in Source;`, its metadata into 1,961 bytes of XML and a
+22-byte Content (an empty zip), and packing what was parsed gives the same bytes.
+
+**Not in the specification, so decided here and to be looked at in real Excel:**
+
+- The specification says nothing of `xl/connections.xml` or query tables: those are Excel's own
+  ([ECMA-376]). So a save touches neither, and an added query gets its Section1.m member and its metadata Item
+  (IsPrivate 0, FillEnabled 0, FillToDataModelEnabled 0: connection only) and no connection entry.
+- An ItemPath's spelling of a name with a space: written percent-encoded (`Section1/By%20Region`) unless the
+  workbook's own paths show names written as they are.
+- The customXml part's encoding: read by its byte-order mark (UTF-16 or UTF-8) and written back the same.
+
+**What a save rewrites** (tests/test_workbook_queries.py, tests/test_workbook_queries_service.py, 49 tests):
+Formulas/Section1.m inside the package (every other entry of that zip copied raw: same CRC, compressed size,
+date and flags), the Package Parts length, with an added query the Metadata XML and its two lengths, the base64
+in the one customXml part. Shown byte for byte the same: every other part of the workbook, Permissions, the
+metadata's Content and the Permission Bindings; a text that did not change gives the same file bytes. The
+saved workbook opens with openpyxl with its cells and named table as they were. Each refusal is one sentence:
+an .xls, an .xlsb, an encrypted workbook (an OLE container), a protected one (workbookProtection locked), a
+signed one, a stream of another version, a length past its end, bytes after the fourth field, no Section1.m,
+a section of another name, a query with no `;`, a name the specification refuses, queries changed on disk
+(409 with Reload and Keep mine), Excel's owner file beside it (`~$<name>`: "Close it in Excel first."), and a
+workbook with no Data Mashup yet (its first query is added in Excel).
+
+**NOT checked: real Excel.** No Excel runs in this container. The workbooks are made with openpyxl and a Data
+Mashup made by hand from the specification. For the owner on Windows: open a workbook saved from here, see
+that Queries & Connections lists the queries with the new M, that Refresh runs them and fills the sheet's
+table, that an added query shows as connection only, and whether Excel asks the privacy levels again.

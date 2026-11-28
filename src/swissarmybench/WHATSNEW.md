@@ -14,6 +14,11 @@
 - Import a Power BI dataset's queries as one file
 - A Power Query table shows its M and the SQL composed
 - Export a .pq file to run anywhere, with no app
+- Edit an Excel workbook's Power Query as one .pq file
+- Save writes the queries back into the workbook
+- Preview save lists each query changed, added or kept
+- Excel.CurrentWorkbook reads the linked workbook
+- One backup before the first save into a workbook
 
 ### Bug fixes
 - Fixed: agent tools did not start with Power Apps

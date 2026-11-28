@@ -117,9 +117,7 @@ def test_the_backup_is_made_once_beside_a_workbook_outside_a_project(client: Any
         "/scripts/pq/workbook/save", json={"path": str(file), "text": _edited(file)}, headers=AUTH
     ).json()
     backup = tmp_path / "Sales Report.backup.xlsx"
-    assert (
-        first["backup"] == str(backup) and backup.read_bytes() == original and str(backup) in first["words"]
-    )
+    assert first["backup"] == str(backup) and backup.read_bytes() == original
     text = file.read_text(encoding="utf-8").replace("> 150", "> 175")
     second = client.post(
         "/scripts/pq/workbook/save", json={"path": str(file), "text": text}, headers=AUTH

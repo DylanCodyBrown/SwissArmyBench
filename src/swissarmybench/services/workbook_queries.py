@@ -291,8 +291,7 @@ class WorkbookQueries:
             who, "workbook_queries_saved", found.name,
             changed=answer["changed"], added=answer["added"], kept=answer["kept"],
         )  # fmt: skip
-        words = planned.words(found.name) + (f" A backup copy is at {backup}." if backup else "")
-        return answer | {"written": True, "backup": backup, "words": words}
+        return answer | {"written": True, "backup": backup, "words": planned.words(found.name)}
 
     async def _save_file(self, path: str, text: str, who: str) -> str:
         try:
