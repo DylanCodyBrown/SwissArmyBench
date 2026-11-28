@@ -43,6 +43,7 @@ def test_the_rail_has_source_control_and_power_bi(browser: Browser, server: dict
 def test_a_new_folder_extension(browser: Browser, server: dict[str, Any]) -> None:
     """New extension… makes a made-up folder extension, loaded at once: its card says Installed (folder), its
     path, Remove and Show its folder; Remove takes it away (a folder's goes at once, no restart)."""
+    listed = call(server, "GET", "/extensions")["extensions"]
     page = open_page(browser, server, "extensions")
     page.click("button:has-text('New extension…')")
     dialog = page.locator(".dialog[aria-label='New extension']")
@@ -54,8 +55,10 @@ def test_a_new_folder_extension(browser: Browser, server: dict[str, Any]) -> Non
     expect(card.locator(".extension-path")).to_be_visible()
     expect(card.locator("button:has-text('Show its folder')")).to_be_visible()
     card.locator("button:has-text('Remove')").click()
+    # The user's Remove is always asked first: the question is waited for (a look at once, before the server
+    # answered, saw no dialog and left the extension there).
     asked = page.locator(".dialog[aria-label='Remove Made-up stock']")
-    if asked.count():
-        asked.locator("button.danger").click()
+    asked.locator("button.danger").click()
     expect(card).to_have_count(0)
+    assert call(server, "GET", "/extensions")["extensions"] == listed
     page.close()

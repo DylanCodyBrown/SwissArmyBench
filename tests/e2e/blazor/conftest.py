@@ -51,6 +51,9 @@ def serve(tmp: Path) -> Iterator[dict[str, Any]]:
         "SWISSARMYBENCH_PROJECT_VENV": "off",
         "SWISSARMYBENCH_AUTO_INSTALL": "off",
     }
+    # Folder extensions where the app keeps them, the library's extensions/ under this server's own state
+    # folder: New extension on the page writes there, never a folder another module's server reads.
+    env.pop("SWISSARMYBENCH_EXTENSION_FOLDERS", None)
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     info: dict[str, Any] | None = None
     for _ in range(150):

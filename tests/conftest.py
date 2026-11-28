@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
 import io
 import json
 import os
+import shutil
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -16,8 +19,12 @@ if SRC not in os.environ.get("PYTHONPATH", "").split(os.pathsep):
     os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (SRC, os.environ.get("PYTHONPATH")) if p)
 
 # Folder extensions (the library's extensions/<id>/): none in a test unless it makes one
-# (test_folder_extensions.py points this at its own folder); never the real home's library.
-os.environ["SWISSARMYBENCH_EXTENSION_FOLDERS"] = str(Path(__file__).resolve().parent / "no-extension-folders")
+# (test_folder_extensions.py points this at its own folder); never the real home's library, and never a folder
+# of the repository that every run shares: one a failed run left there was found by the next run. An empty
+# temporary folder of this process's own, removed as it ends.
+_NO_EXTENSIONS = tempfile.mkdtemp(prefix="sab-no-extensions-")
+atexit.register(shutil.rmtree, _NO_EXTENSIONS, ignore_errors=True)
+os.environ["SWISSARMYBENCH_EXTENSION_FOLDERS"] = _NO_EXTENSIONS
 
 import pyarrow as pa  # noqa: E402
 import pyarrow.ipc as ipc  # noqa: E402

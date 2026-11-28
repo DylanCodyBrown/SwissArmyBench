@@ -83,7 +83,9 @@ def test_a_cells_value_and_the_analyze_sends(browser: Browser, server: dict[str,
     profile.get_by_label("Column to profile").select_option("status")
     expect(profile).to_contain_text("Profile of status")
     profile.get_by_role("button", name="Send to Analyze").click()
-    expect(page.locator(".note-corner")).to_contain_text("On the Analyze board")
+    # Its own line, said once both cards are on the board: the row's line above ("... a note.") still shows
+    # for a few seconds, and waiting for the words they share read the board before the profile had arrived.
+    expect(page.locator(".note-corner")).to_contain_text("On the Analyze board: a note and its chart.")
     cards = call(server, "GET", f"/grids/{grid}/cards")
     assert any(
         "Profile of status" in str(c)
