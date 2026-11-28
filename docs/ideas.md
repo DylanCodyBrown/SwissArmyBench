@@ -9855,3 +9855,11 @@ Open, for the owner:
 The builder asked whether `.m` should stay, since MATLAB and Objective-C use it too. The owner: ".m. is the official vs
 code extension". So `.m` and `.pq` both open as Power Query files on the Scripts page. A MATLAB or Objective-C file in
 a project would also list under Power Query; that is accepted.
+
+### duckpq stays inside the app for now (the owner, 2026-11-28)
+
+"For now we can leave it out of the pypi." So duckpq is NOT a package of its own and has no repository of its own. It
+stays `src/duckpq.py`, carried in Swiss Army Bench's one wheel as the module `duckpq`. It is still kept able to stand
+alone: it imports nothing from the app, has its own version, change list and tests, and is carried beside an exported
+`.pq` file. That way moving it out later is a lift, not a rewrite. docs/duckpq.md is kept ready as that repository's
+README.
