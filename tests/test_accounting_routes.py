@@ -1,5 +1,5 @@
-"""The Accounting extension in the app (its routes, the project type and its mode, the agent's commands):
-on through SWISSARMYBENCH_EXTENSIONS, and off (nothing of it shows). Made-up data only."""
+"""Accounting in the app, built in (its routes, the project type and its mode, the agent's commands): always
+on, with no switch. Made-up data only."""
 
 from __future__ import annotations
 
