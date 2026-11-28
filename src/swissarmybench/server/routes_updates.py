@@ -20,14 +20,14 @@ from starlette.routing import BaseRoute, Route
 from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.updates import Updates
 
-# The app's name in the status bar (the owner, 2026-11-17: "It's not an edition now it's the streamlit
-# extension. Preinstalled"). The backend says it; the page shows what it is told, with the installed
-# extensions in its tooltip. The package, the uv tool and the commands keep their names (swissarmybench, sab).
+# The app's name in the status bar. The backend says it; the page shows what it is told, with the user's own
+# folder extensions in its tooltip (every packaged extension is built in: the owner, 2026-11-27). The
+# package, the uv tool and the commands keep their names (swissarmybench, sab).
 APP_NAME = "Swiss Army Bench"
 
 
 def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list[BaseRoute]:
-    """`extensions`: the installed extensions' names (the version mark's tooltip)."""
+    """`extensions`: the folder extensions' names (the version mark's tooltip)."""
 
     def named() -> dict[str, object]:
         return {"name": APP_NAME, "extensions": extensions()}

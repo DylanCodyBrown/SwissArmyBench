@@ -1,5 +1,11 @@
 # The base and its extensions (a plan)
 
+**Reversed (the owner, 2026-11-27: "Also I think all extensions should be built in now"; "Merge into one package";
+"No Remove").** Streamlit, Accounting, Power Apps, Power BI, Git and GitHub Copilot are built into the one wheel
+(`src/swissarmybench_<id>/`), always on, with no Install and no Remove; their project types stay. What follows is
+kept as the record of how the optional extensions were planned and built. Folder extensions
+(Plans/folder-extensions.plan.md) stay as they are.
+
 Status: **planned** (the owner, 2026-11-17). Supersedes the earlier "three editions side by side" version of this
 file. Builds on CLAUDE.md's rule that editions (now: extensions) never modify the front end, and on
 Plans/powerapps-spinoff.plan.md section 8a (the manifest boundary).

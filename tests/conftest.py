@@ -5,24 +5,15 @@ from __future__ import annotations
 import io
 import json
 import os
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-# The Streamlit extension, preinstalled with every install, from this checkout: on its path and switched on
-# (SWISSARMYBENCH_EXTENSIONS) before anything of the app is imported, so the commands' registry and every
-# server a test starts (in this process or its own) have it, as an installed app does. A test of the BI base
-# without it turns it off ("-streamlit"); a child process finds it through PYTHONPATH.
-STREAMLIT_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src")
-if STREAMLIT_SRC not in sys.path:
-    sys.path.insert(0, STREAMLIT_SRC)
-if STREAMLIT_SRC not in os.environ.get("PYTHONPATH", "").split(os.pathsep):
-    os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (STREAMLIT_SRC, os.environ.get("PYTHONPATH")) if p)
-if "streamlit" not in os.environ.get("SWISSARMYBENCH_EXTENSIONS", ""):
-    os.environ["SWISSARMYBENCH_EXTENSIONS"] = ",".join(
-        p for p in ("streamlit", os.environ.get("SWISSARMYBENCH_EXTENSIONS")) if p
-    )
+# Every feature is built in (the owner, 2026-11-27): the app's package and each feature's own sit side by side
+# in src/. A child process a test starts finds them through PYTHONPATH.
+SRC = str(Path(__file__).resolve().parents[1] / "src")
+if SRC not in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+    os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (SRC, os.environ.get("PYTHONPATH")) if p)
 
 # Folder extensions (the library's extensions/<id>/): none in a test unless it makes one
 # (test_folder_extensions.py points this at its own folder); never the real home's library.
@@ -35,28 +26,6 @@ from starlette.testclient import TestClient  # noqa: E402
 
 from swissarmybench.server.app import create_app  # noqa: E402
 from swissarmybench.settings import Settings  # noqa: E402
-
-# The Accounting extension, from this checkout (it is not installed here: SWISSARMYBENCH_EXTENSIONS turns
-# it on where a test wants it; off, nothing of it shows).
-ACCOUNTING_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "accounting" / "src")
-if ACCOUNTING_SRC not in sys.path:
-    sys.path.insert(0, ACCOUNTING_SRC)
-# The GitHub Copilot extension, the same way (tests/test_copilot*.py turn it on).
-COPILOT_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "copilot" / "src")
-if COPILOT_SRC not in sys.path:
-    sys.path.insert(0, COPILOT_SRC)
-# The Power Apps extension, the same way (tests/test_powerapps*.py turn it on).
-POWERAPPS_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src")
-if POWERAPPS_SRC not in sys.path:
-    sys.path.insert(0, POWERAPPS_SRC)
-# The Power BI extension, the same way (tests/test_powerbi*.py turn it on).
-POWERBI_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerbi" / "src")
-if POWERBI_SRC not in sys.path:
-    sys.path.insert(0, POWERBI_SRC)
-# The Git extension, the same way (tests/test_scm*.py turn it on).
-SCM_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "git" / "src")
-if SCM_SRC not in sys.path:
-    sys.path.insert(0, SCM_SRC)
 
 # A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
 os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")

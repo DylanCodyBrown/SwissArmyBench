@@ -1,6 +1,6 @@
-# Git (an extension)
+# Git
 
-When the Git extension is installed (`app_mode(areas=true)` lists the `scm` area), the team library folder and
+Built in (`app_mode(areas=true)` lists the `scm` area): the team library folder and
 the shared projects folder sync with GitHub through GitHub's web API: no Git on the computer. Its `github_` tools
 sync; its `scm_` tools are the Source Control page (VS Code's Source Control view and graph).
 

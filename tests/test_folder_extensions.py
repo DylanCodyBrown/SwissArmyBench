@@ -23,7 +23,7 @@ from swissarmybench.domain.project_contract import ContractError
 from tests.conftest import AGENT, AUTH, make_client
 
 EXAMPLE = Path(__file__).parent / "folder_extension_example" / "stockroom"
-EXTENSIONS = Path(__file__).resolve().parents[1] / "extensions"
+SOURCE = Path(__file__).resolve().parents[1] / "src"
 PACKAGED = {
     "streamlit": "swissarmybench_streamlit",
     "accounting": "swissarmybench_accounting",
@@ -140,7 +140,7 @@ def test_new_project_files_and_the_mode_come_from_the_contract() -> None:
 @pytest.mark.parametrize("ident", sorted(PACKAGED))
 def test_each_packaged_extension_has_a_contract_describing_what_it_has(ident: str, monkeypatch: Any) -> None:
     package = PACKAGED[ident]
-    file = EXTENSIONS / ident / "src" / package / contract_rules.FILE
+    file = SOURCE / package / contract_rules.FILE
     said = contract_rules.read(file.read_text(encoding="utf-8"))
     assert contract_rules.write(said) == file.read_text(encoding="utf-8")  # written as the checker writes it
     import importlib
@@ -163,7 +163,7 @@ def test_each_packaged_extension_has_a_contract_describing_what_it_has(ident: st
 
 def test_an_extension_with_no_project_type_has_no_contract() -> None:
     for ident in ("copilot", "git"):
-        assert not list((EXTENSIONS / ident / "src").glob(f"*/{contract_rules.FILE}"))
+        assert not (SOURCE / f"swissarmybench_{ident}" / contract_rules.FILE).exists()
 
 
 # ===== a folder extension's rules =====
@@ -281,11 +281,11 @@ def test_a_missing_import_is_offered_as_a_package(library: Path) -> None:
     assert loader.folders()["plots"].missing == ["made_up_module_nobody_has"]  # pip's name for it
 
 
-def test_a_folder_with_a_packages_id_loses_to_the_package(library: Path) -> None:
-    (library / "streamlit").mkdir()  # the Streamlit extension is on in every test (conftest)
+def test_a_folder_with_a_built_in_features_id_loses_to_it(library: Path) -> None:
+    (library / "streamlit").mkdir()
     (library / "streamlit" / "extension.py").write_text('raise SystemExit("never run")\n')
     found = loader.folders()["streamlit"]
-    assert found.shadowed and found.module is None and "the installed package streamlit wins" in found.error
+    assert found.shadowed and found.module is None and "streamlit is built in, and that wins" in found.error
     assert loader.load("streamlit").__name__ == "swissarmybench_streamlit.extension"  # type: ignore[union-attr]
 
 

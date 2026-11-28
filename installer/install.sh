@@ -1,7 +1,6 @@
 #!/bin/sh
 # Install Swiss Army Bench __VERSION__ (macOS and Linux): uv if it is missing, then the grid server as a uv tool,
-# with its own Python (uv downloads it; no system Python needed), and the Streamlit extension (preinstalled:
-# its wheel beside a wheel given, else from the same release; the Extensions page can remove it).
+# with its own Python (uv downloads it; no system Python needed). One wheel: every feature is built in.
 #
 #   curl -LsSf https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.sh | sh
 #   sh install.sh                                          # download the wheel from the GitHub release
@@ -34,8 +33,6 @@ if [ -n "${CI:-}" ]; then start_now=0; fi
 VERSION="__VERSION__"
 REPO="DylanCodyBrown/SwissArmyBench"
 WHEEL="swissarmybench-${VERSION}-py3-none-any.whl"
-# The Streamlit extension, preinstalled: its own wheel, on the same version.
-STREAMLIT_WHEEL="swissarmybench_streamlit-${VERSION}-py3-none-any.whl"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'Swiss Army Bench install: %s\n' "$*" >&2; exit 1; }
@@ -101,24 +98,6 @@ else
   Download $WHEEL from https://github.com/$REPO/releases/tag/v$VERSION and run: sh install.sh <path to the wheel>"
 fi
 
-# 2b. The Streamlit extension (preinstalled): beside the wheel given, else the release's. Without it the
-#     app is the base alone (the Extensions page installs it later).
-streamlit_path=""
-if [ -n "$wheel_arg" ]; then
-  beside="$(dirname "$wheel_path")/$STREAMLIT_WHEEL"
-  if [ -f "$beside" ]; then streamlit_path="$beside"; else
-    say "No $STREAMLIT_WHEEL beside the wheel: installing without the Streamlit extension (the Extensions page adds it)."
-  fi
-else
-  streamlit_path="$dir/$STREAMLIT_WHEEL"
-  surl="https://github.com/$REPO/releases/download/v$VERSION/$STREAMLIT_WHEEL"
-  say "Downloading $surl ..."
-  if ! curl -fLsS -o "$streamlit_path" "$surl"; then
-    streamlit_path=""
-    say "Could not download the Streamlit extension: installing without it (the Extensions page adds it)."
-  fi
-fi
-
 # 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes.
 if uv tool list 2>/dev/null | grep -q '^swissarmygrid '; then
   say "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it)..."
@@ -127,12 +106,7 @@ fi
 
 # 4. The server, as a uv tool in its own environment.
 say "Installing the Swiss Army Bench server $VERSION..."
-if [ -n "$streamlit_path" ]; then
-  uv tool install --force --python 3.12 "${wheel_path}[server]" --with "$streamlit_path" ||
-    fail "uv could not install the server."
-else
-  uv tool install --force --python 3.12 "${wheel_path}[server]" || fail "uv could not install the server."
-fi
+uv tool install --force --python 3.12 "${wheel_path}[server]" || fail "uv could not install the server."
 uv tool update-shell >/dev/null 2>&1 || true
 
 # 5. The launcher: the app with its icon, where the system lists applications.

@@ -1,6 +1,6 @@
 # Accounting: an Excel workbook from a Python automation
 
-An optional extension (`swissarmybench-accounting`). Its tools are there only when it is on:
+Built in (an extension of its own before 2026-11-27): its tools are always there, and
 `app_mode(all=true)` lists the project types this app can make. The workflow: connection -> data
 (data.ipynb) -> the workbook automation.
 

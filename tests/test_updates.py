@@ -246,7 +246,6 @@ def service(
     switch: UpdateSwitchFile | None = None,
     work: dict[str, Any] | None = None,
     approvals: Any = None,
-    changing: Any = None,
 ) -> tuple[Updates, Helper, Told, list[bool]]:
     helper, told, stopped = Helper(), Told(), []
 
@@ -264,7 +263,6 @@ def service(
         audit=cast(Any, Audit()),
         live=cast(Any, told),
         stop=lambda: stopped.append(True),
-        changing=changing or (lambda: None),
     )
     return updates, helper, told, stopped
 
@@ -452,14 +450,14 @@ def test_the_routes_read_switch_and_refuse_without_an_update(tmp_path: Path) -> 
 
 
 def test_the_app_is_named_swiss_army_bench(tmp_path: Path) -> None:
-    """The status bar's name (the owner, 2026-11-17: "It's not an edition now it's the streamlit extension.
-    Preinstalled"): the backend says it, and the installed extensions with it."""
+    """The status bar's name: the backend says it, and the user's own folder extensions with it (what is
+    built in, the owner 2026-11-27, is the app itself: not named beside it)."""
     from swissarmybench.server.routes_updates import APP_NAME
 
     assert APP_NAME == "Swiss Army Bench"
     with make_client(tmp_path, update_feeds=()) as client:
         said = client.get("/updates", headers=AUTH).json()
-        assert said["name"] == "Swiss Army Bench" and "Streamlit" in said["extensions"]
+        assert said["name"] == "Swiss Army Bench" and said["extensions"] == []
 
 
 def test_the_users_own_packages_are_what_nothing_of_the_apps_needs() -> None:

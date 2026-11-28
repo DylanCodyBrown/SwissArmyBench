@@ -48,7 +48,7 @@ DATA_FILE: str = "data.py"
 # The Streamlit pages' text helper beside data.py (the Streamlit extension writes it): never opened.
 REQUIREMENTS_FILE: str = "requirements.txt"
 # The project's type (Plans/editions.plan.md: "a project folder's .sab/project.json records its type"):
-# the base's "bi", or an installed extension's (accounting). It sets the project's mode.
+# the base's "bi", a built-in feature's (accounting) or a folder extension's. It sets the project's mode.
 TYPE_FILE: str = ".sab/project.json"
 BASE_TYPE: str = "bi"
 _TYPE = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
@@ -82,7 +82,7 @@ def check_type(value: object) -> str:
     if value is None or value == "":
         return BASE_TYPE
     if not isinstance(value, str) or not _TYPE.match(value.strip().lower()):
-        raise ProjectError("A project's type is its id: bi, or an installed extension's (accounting).")
+        raise ProjectError("A project's type is its id: bi, streamlit, accounting, or a folder extension's.")
     return value.strip().lower()
 
 

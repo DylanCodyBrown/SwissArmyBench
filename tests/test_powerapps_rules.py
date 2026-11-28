@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 
-from swissarmybench import extensions
 from swissarmybench_powerapps.domain import cli_lines, connectors, project, tools
 from swissarmybench_powerapps.domain.cli_lines import CliError
 from tests import powerapps_fakes as fakes
@@ -335,22 +334,6 @@ def test_tools_their_versions_and_each_systems_install() -> None:
 # ===== the extension's switch and its mode =====
 
 
-def test_the_extension_is_off_unless_installed_or_named(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(extensions.VARIABLE, raising=False)
-    assert not extensions.extension_on("powerapps")
-    assert extensions.mode_of("codeapp") == extensions.BASE_MODE  # its type means nothing while off
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
-    assert extensions.extension_on("powerapps")
-    mode = extensions.mode_of("codeapp")
-    assert mode["type"] == "codeapp" and mode["languages"] == ["typescript", "tsx"]
-    assert mode["families"] == ["TypeScript", "React", "Connectors"]
-    assert mode["cell_kinds"] == ["typescript", "tsx"] and mode["canvases"] == ["components"]
-    assert mode["tools"] == ["powerapps_"] and mode["export"] == ["push"]
-    assert [m["type"] for m in extensions.modes()] == ["bi", "codeapp"]
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps,-powerapps")  # named off wins
-    assert not extensions.extension_on("powerapps")
-
-
 # ===== its starters: TypeScript and React blades =====
 
 
@@ -376,9 +359,7 @@ def test_its_starters_read_and_fill_as_typescript(tmp_path: Path) -> None:
 
 # ===== the extension's own layers (REFACTOR.md: imports point inwards) =====
 
-PACKAGE = (
-    Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src" / "swissarmybench_powerapps"
-)
+PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench_powerapps"
 INWARD = {
     "domain": ("swissarmybench_powerapps.domain", "swissarmybench.domain"),
     "services": (

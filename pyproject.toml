@@ -44,6 +44,12 @@ server = [
     "starlette>=0.46",
     "uvicorn>=0.34",
     "websockets>=15",
+    # Power BI, built in (the owner, 2026-11-27: every extension merged into the one package). pbixray (MIT;
+    # approved 2026-11-19) reads a .pbix's model and measures, never its rows; pythonnet (MIT; approved
+    # 2026-11-19) drives Microsoft's model client libraries for Edit in Power BI Desktop, on Windows only (the
+    # libraries themselves are fetched once on first use, pinned and hash checked: never in the wheel).
+    "pbixray==0.15.5",
+    "pythonnet==3.0.5; sys_platform == 'win32'",
 ]
 # Optional for the client: with pyarrow a push travels as Arrow and keeps its column types.
 client = ["pyarrow>=19"]
@@ -77,7 +83,17 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/swissarmybench"]
+# One wheel (the owner, 2026-11-27: "all extensions should be built in now"): the app's package and each built-in
+# feature's own package beside it (Streamlit, Accounting, Power Apps, Power BI, Git, GitHub Copilot).
+packages = [
+    "src/swissarmybench",
+    "src/swissarmybench_accounting",
+    "src/swissarmybench_copilot",
+    "src/swissarmybench_git",
+    "src/swissarmybench_powerapps",
+    "src/swissarmybench_powerbi",
+    "src/swissarmybench_streamlit",
+]
 # The front end's published files (build.py copies blazor/publish/wwwroot here): ignored by Git, so named as
 # artifacts to go in the wheel all the same.
 artifacts = ["src/swissarmybench/web_blazor/**"]
@@ -85,11 +101,10 @@ artifacts = ["src/swissarmybench/web_blazor/**"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-# Each extension's own package (extensions/<id>/src) too.
-files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "extensions/powerbi/src"]
-mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src:extensions/powerbi/src"
+files = ["src", "tests", "examples", "tools", "build.py"]
+mypy_path = "src"
 # The prebuilt widgets are a Streamlit app's code (Streamlit is never the app's dependency): run by AppTest instead.
-exclude = ["extensions/streamlit/src/swissarmybench_streamlit/widgets/", "examples/forms_recon/", "examples/field_service/"]
+exclude = ["src/swissarmybench_streamlit/widgets/", "examples/forms_recon/", "examples/field_service/"]
 
 [[tool.mypy.overrides]]
 # These ship no type information.
@@ -126,7 +141,7 @@ target-version = "py312"
 # Ruff's defaults, not this repository's), checked by running it: tests/e2e/blazor/test_forms_recon_app.py and
 # tests/test_field_service_app.py.
 extend-exclude = ["examples/forms_recon", "examples/field_service"]
-src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "extensions/powerbi/src", "tests"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
@@ -148,7 +163,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/sab_excel.py" = ["S608"]
 # The canvas runtime: its bookkeeping (the analyzer's marks, the viewer's values, Play's stamp) must never
 # stop a page, and a built app has nowhere to log to.
-"extensions/streamlit/src/swissarmybench_streamlit/server/sab_canvas.py" = ["S110"]
+"src/swissarmybench_streamlit/server/sab_canvas.py" = ["S110"]
 # New endpoint from a table: the CRUD set's code as text, its SQL the user's own to read (checked names).
 "src/swissarmybench/domain/api_scaffold.py" = ["E501", "S608"]
 "src/swissarmybench/adapters/views.py" = ["S608"]
@@ -197,23 +212,23 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # and a snippet's lines (DAX, HTML, a piece for a Python cell) are kept as the cell will hold them.
 "src/swissarmybench/starters/**" = ["S310", "E501"]
 # An extension's starters too (their snippets' lines are the lines the user gets).
-"extensions/powerapps/src/swissarmybench_powerapps/starters/**" = ["E501"]
-"extensions/streamlit/src/swissarmybench_streamlit/starters/**" = ["S310", "E501"]
+"src/swissarmybench_powerapps/starters/**" = ["E501"]
+"src/swissarmybench_streamlit/starters/**" = ["S310", "E501"]
 # The prebuilt widgets: the code a user gets, its markup on one line as written.
-"extensions/streamlit/src/swissarmybench_streamlit/widgets/**" = ["S310", "E501"]
-"extensions/streamlit/src/swissarmybench_streamlit/commands.py" = ["E501"]
+"src/swissarmybench_streamlit/widgets/**" = ["S310", "E501"]
+"src/swissarmybench_streamlit/commands.py" = ["E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]
 "src/swissarmybench/cli/commands_*.py" = ["E501"]
 # The Accounting extension: its commands' help prose (as the base's), workbook.py's lines as the user reads
 # them, and the builder's queries over the blocks' own tables (every name through _quote; a block's query is
 # the user's, run in a DuckDB of its own with no files or network).
-"extensions/accounting/src/swissarmybench_accounting/commands.py" = ["E501"]
-"extensions/accounting/src/swissarmybench_accounting/exporter.py" = ["E501"]
-"extensions/accounting/src/swissarmybench_accounting/runtime.py" = ["S608", "E501"]
-"extensions/accounting/src/swissarmybench_accounting/service.py" = ["S608", "E501"]
-"extensions/accounting/src/swissarmybench_accounting/extension.py" = ["E501"]
-"extensions/git/src/**" = ["E501"]
+"src/swissarmybench_accounting/commands.py" = ["E501"]
+"src/swissarmybench_accounting/exporter.py" = ["E501"]
+"src/swissarmybench_accounting/runtime.py" = ["S608", "E501"]
+"src/swissarmybench_accounting/service.py" = ["S608", "E501"]
+"src/swissarmybench_accounting/extension.py" = ["E501"]
+"src/swissarmybench_git/**" = ["E501"]
 "tests/test_scm*.py" = ["E501"]
 "tests/github_standin.py" = ["E501"]
 "tests/test_accounting_*.py" = ["E501", "S603", "S608"]

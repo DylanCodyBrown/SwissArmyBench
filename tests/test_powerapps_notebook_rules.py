@@ -234,7 +234,6 @@ def test_typescript_and_tsx_cells_round_trip_through_the_ipynb() -> None:
 
 
 def test_the_code_app_mode_says_where_each_cell_kind_runs(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     mode = extensions.mode_of("codeapp")
     assert mode["cell_routes"]["typescript"] == {
         "name": "TypeScript", "language": "typescript", "run": "/powerapps/notebook/run",

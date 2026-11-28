@@ -8,6 +8,7 @@ where an error becomes a status code.
 
 from __future__ import annotations
 
+import errno
 import inspect
 import json
 import math
@@ -245,6 +246,8 @@ def _error_response(error: Exception) -> Response:
         error, DatasetError | StepError | SqlRefused | ExportError | CatalogError | BladeError | ValueError
     ):
         status = 400
+    elif isinstance(error, OSError) and error.errno == errno.ENAMETOOLONG:  # no disk takes it
+        return refusal("That path is too long for this computer's file system.", 400)
     elif isinstance(error, LookupError):
         status = 404
     elif isinstance(error, duckdb.Error):  # DuckDB's own words are the details; the sentence says whose

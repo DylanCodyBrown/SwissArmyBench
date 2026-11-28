@@ -1,5 +1,20 @@
 # What's new in Swiss Army Bench
 
+## 0.0.43 · 2026-11-27 23:24 UTC
+
+### New features
+- Every extension is built in: nothing to install
+- Streamlit, Accounting, Power Apps: always there
+- Power BI, Git and GitHub Copilot: always there
+- Source Control and Power BI are on the rail
+- Extensions page lists your own folder extensions
+- One download: updates need only the app itself
+- Joining a team needs no install first
+
+### Bug fixes
+- Fixed: agent tools did not start with Power Apps
+- Fixed: a path too long gave an error, not a refusal
+
 ## 0.0.42 · 2026-11-27 21:40 UTC
 
 ### New features

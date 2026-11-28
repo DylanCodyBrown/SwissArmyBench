@@ -1,14 +1,11 @@
-"""The Streamlit extension as the base reads it (swissarmybench/extensions.py; its entry point:
-`streamlit = "swissarmybench_streamlit.extension"` in the group `swissarmybench.extensions`). Preinstalled:
-the installers and each update install it beside the base; Remove on the Extensions page takes it away, and
-the app is the BI base without it (no Canvas, no Widgets; its tools say which extension they need).
+"""Streamlit as the app reads it (swissarmybench/extensions.py BUILT_IN names this module). Built in (the
+owner, 2026-11-27): on every install, never installed or removed.
 
-  ID, NAME, DESCRIPTION, ADDS   the extension, said for the Extensions page and context.md
+  ID, NAME, DESCRIPTION, ADDS   the feature, said for context.md
   PROJECT_TYPE, MODE            the Streamlit project and its mode, as DATA (Plans/editions.plan.md, "Project
                                 modes"): the Streamlit canvas, its widgets' framework, Python, the
                                 agent's tool groups, the export
-  BASE_MODE_ADDS                what it adds to the base's own mode while it is on: today's app offers the
-                                Streamlit canvas in every BI project, as it did before it was an extension
+  BASE_MODE_ADDS                what it adds to the base's own mode: the Streamlit canvas in every BI project
   FRONT_END                     the front-end plug-ins it names (they live in the shared web/)
   AREAS, commands()             its agent commands (commands.py) and their areas, added to the base's registry
   STARTERS                      its starter families (starters/*.blade.py: snippets for a widget's code)

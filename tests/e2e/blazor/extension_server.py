@@ -25,7 +25,6 @@ def extension_server(
         | {
             "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
             "SWISSARMYBENCH_STATE": str(tmp / "state"),
-            "SWISSARMYBENCH_EXTENSIONS": ",".join(extensions),
             "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
             "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
             "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),
@@ -34,10 +33,7 @@ def extension_server(
             "SWISSARMYBENCH_PROJECT_VENV": "off",
             "PYTHON_KEYRING_BACKEND": "tests.file_keyring.FileKeyring",
             "SAB_TEST_KEYRING_FILE": str(tmp / "keyring.json"),
-            "PYTHONPATH": os.pathsep.join(
-                [str(ROOT / "extensions" / name / "src") for name in extensions]
-                + [str(ROOT), str(ROOT / "src")]
-            ),
+            "PYTHONPATH": os.pathsep.join([str(ROOT), str(ROOT / "src")]),
         }
         | (extra or {})
     )

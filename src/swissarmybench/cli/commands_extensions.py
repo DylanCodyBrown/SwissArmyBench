@@ -1,4 +1,5 @@
-"""The agent's extensions_* commands: extensions: what plugs into the base (Streamlit, Accounting, Power Apps).
+"""The agent's extensions_* commands: the user's own folder extensions in the library (the packaged ones are
+built in, the owner 2026-11-27: installing or removing one answers in one sentence that it is built in).
 
 Registered into cli/commands.py's REGISTRY when it imports this module (the tool list's order is the areas',
 then each command's place here). Standard library only.
@@ -14,7 +15,7 @@ from swissarmybench.cli.command_kit import command, opt, req
 
 @command(
     "extensions_list",
-    "The Extensions page: each extension, its status (preinstalled, available, installed, coming)",
+    "The Extensions page: the library's folder extensions (and a built-in feature's own panel)",
 )
 def extensions_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/extensions")
@@ -22,7 +23,7 @@ def extensions_list(a: dict[str, Any]) -> Any:
 
 @command(
     "extensions_install",
-    "Install an available extension (waits for the user's Allow; the app stops, installs it, restarts)",
+    "A folder extension's missing packages installed, then loaded again (waits for the user's Allow)",
     req("id", "The extension's id, from extensions_list."),
 )
 def extensions_install(a: dict[str, Any]) -> Any:
@@ -31,7 +32,7 @@ def extensions_install(a: dict[str, Any]) -> Any:
 
 @command(
     "extensions_remove",
-    "Remove an installed extension (waits for the user's Allow; the app stops, removes it, restarts)",
+    "Remove a folder extension: its folder to the trash (waits for the user's Allow)",
     req("id", "The extension's id, from extensions_list."),
 )
 def extensions_remove(a: dict[str, Any]) -> Any:

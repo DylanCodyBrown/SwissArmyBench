@@ -14,7 +14,7 @@ SAYS_IT = {"tests/test_page_words.py", "tests/e2e/blazor/test_erd_catalog_enviro
 
 
 def texts() -> list[Path]:
-    names = ("src", "extensions", "plugin", "tests", "blazor/SwissArmyBench.Web", "blazor/interop")
+    names = ("src", "plugin", "tests", "blazor/SwissArmyBench.Web", "blazor/interop")
     folders = [ROOT / n for n in names]
     found = [p for folder in folders for p in folder.rglob("*") if p.suffix in READ and p.is_file()]
     kept = [p for p in found if not {"obj", "bin", "node_modules", "wwwroot"} & set(p.parts)]

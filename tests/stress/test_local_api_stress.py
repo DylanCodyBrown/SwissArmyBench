@@ -48,7 +48,7 @@ pytestmark = pytest.mark.skipif(
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 API_FILE = REPOSITORY / "examples" / "forms_recon" / "API.py"
-WIDGETS = REPOSITORY / "extensions" / "streamlit" / "src" / "swissarmybench_streamlit" / "widgets"
+WIDGETS = REPOSITORY / "src" / "swissarmybench_streamlit" / "widgets"
 SCALES = [s for s in os.environ.get("SWISSARMYBENCH_STRESS_SCALES", "medium,large").split(",") if s]
 RESULTS: dict[str, Any] = {"latency": [], "timings": {}}
 CALLERS = (1, 8, 32)

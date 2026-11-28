@@ -37,7 +37,6 @@ def tools_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(tmp_path: Path, tools_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     monkeypatch.setenv("PATH", str(tools_dir) + os.pathsep + os.environ.get("PATH", ""))
     with make_client(tmp_path) as test_client:
         yield test_client
@@ -141,7 +140,6 @@ def test_open_as_grid_writes_the_result_whole(client: TestClient, app_folder: Pa
 
 def test_deno_missing_is_the_missing_package_answer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     tools = fakes.install(tmp_path / "no-deno")
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     monkeypatch.setenv("PATH", str(tools) + os.pathsep + "/usr/bin:/bin")
     with make_client(tmp_path) as client:
         ok(new_app(client, tmp_path))
@@ -342,7 +340,6 @@ def test_the_agents_commands_drive_the_same_door(
 @pytest.mark.skipif(not REAL_DENO, reason="Deno is not on this computer (SWISSARMYBENCH_TEST_DENO names one)")
 def test_the_cells_on_a_real_deno(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     tools = fakes.install(tmp_path / "fake-tools")
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     deno_folder = str(Path(str(REAL_DENO)).resolve().parent)
     monkeypatch.setenv("PATH", os.pathsep.join([str(tools), deno_folder, os.environ.get("PATH", "")]))
     with make_client(tmp_path) as client:
@@ -410,7 +407,6 @@ def test_only_the_files_a_person_edits_are_listed_and_the_rest_stay(
     config = ok(client.get("/powerapps/project/file", params={"path": "power.config.json"}, headers=AUTH))
     assert '"environmentId"' in config["text"]
     # The Workbench lists the same set (the mode names the route).
-    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
     assert extensions.mode_of("codeapp")["project_files"] == "/powerapps/project/files"
     assert extensions.mode_of(None)["project_files"] == ""
     # The agent sees the same set, and reads a hidden one only by its path.

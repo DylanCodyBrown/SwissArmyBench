@@ -47,7 +47,7 @@ STDLIB_FORBIDDEN: dict[str, set[str]] = {
 
 
 def package(extension: str) -> Path:
-    return ROOT / "extensions" / extension / "src" / f"swissarmybench_{extension}"
+    return ROOT / "src" / f"swissarmybench_{extension}"
 
 
 def files_of(extension: str, layer: str) -> list[Path]:
@@ -98,7 +98,7 @@ def test_every_extension_is_listed_and_no_deeper_than_a_folder(extension: str) -
 
 
 def test_the_list_is_every_extension_package() -> None:
-    found = sorted(p.parent.parent.name for p in (ROOT / "extensions").glob("*/src/swissarmybench_*"))
+    found = sorted(p.name.removeprefix("swissarmybench_") for p in (ROOT / "src").glob("swissarmybench_*"))
     assert found == sorted(EXTENSIONS)
 
 

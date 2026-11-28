@@ -9,8 +9,9 @@ calls the shared library the Team library (the code keeps its names: library, sh
   local copy   the app makes it itself, never asking for a path: the state folder's team/<owner>-<repo>/ (the
                library's own default is in the state folder too; the projects are reached from the Projects
                page, so the folder need not be seen)
-  steps        Join: install GitHub sync, sign in, pick the repository, the local copy, Set up this computer;
-               Start: install, sign in, a name, the repository made and the library pushed, Set up
+  steps        Join: sign in, pick the repository, the local copy, Set up this computer;
+               Start: sign in, a name, the repository made and the library pushed, Set up (GitHub sync is
+               built in: nothing to install first, the owner 2026-11-27)
   pending      Install restarts the app: the step it was at is kept in the state folder's team.json and
                taken up again after the restart (a day at most)
   leave        stops sharing: the library goes back to this computer's own (the folder it was before), the
@@ -34,8 +35,8 @@ TEAM_FOLDER: str = "team"  # the local copies' folder in the state folder
 PENDING_SECONDS: float = 24 * 3600.0  # a step kept over a restart is taken up within a day
 ACTIONS: tuple[str, ...] = ("join", "start")
 STEPS: dict[str, tuple[str, ...]] = {
-    "join": ("install", "sign_in", "pick", "setup"),
-    "start": ("install", "sign_in", "name", "setup"),
+    "join": ("sign_in", "pick", "setup"),
+    "start": ("sign_in", "name", "setup"),
 }
 # What a team's library item is (Leave's copy takes these and nothing else: not projects/, not README.md).
 ITEM_FOLDERS: tuple[str, ...] = (
@@ -85,7 +86,7 @@ Each folder here is one of the team's projects. Share a project from the Project
 works on one without changing the team's.
 """
 
-NEEDS_WORDS: str = "Joining a team needs GitHub sync"
+NEEDS_WORDS: str = "GitHub sync did not start here, and a team needs it"
 _REPOSITORY = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 _NAME = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 _OWNER = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
@@ -159,12 +160,10 @@ def pending(action: str, step: str, now: float) -> dict[str, Any]:
 
 
 def next_step(action: str, sync_on: bool, signed_in: bool) -> str:
-    """The first step still to do: install GitHub sync, sign in, then pick (join) or name (start)."""
-    if not sync_on:
-        return "install"
-    if not signed_in:
+    """The first step still to do: sign in, then pick (join) or name (start)."""
+    if not sync_on or not signed_in:
         return "sign_in"
-    return STEPS[action][2]
+    return STEPS[action][1]
 
 
 def resume(record: Any, sync_on: bool, signed_in: bool, now: float) -> dict[str, Any] | None:

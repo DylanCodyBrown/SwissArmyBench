@@ -33,7 +33,7 @@ from tests.conftest import TOKEN
 from tests.live_server import running
 from tests.test_local_api import API_PY, ORDERS, _ask
 
-PREBUILT = Path(__file__).resolve().parents[1] / "extensions/streamlit/src/swissarmybench_streamlit/widgets"
+PREBUILT = Path(__file__).resolve().parents[1] / "src/swissarmybench_streamlit/widgets"
 API_WIDGETS = ("api_table", "api_form", "api_button", "api_metric")
 
 

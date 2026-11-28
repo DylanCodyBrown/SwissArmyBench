@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace SwissArmyBench.Web.Api.Settings;
 
 /// <summary>What Settings reads and sets: the team (routes_team.py), updates (routes_updates.py), beta mode
@@ -28,7 +26,6 @@ public sealed class SettingsClient
     /// <summary>A Join or Start kept over Install's restart (null: gone).</summary>
     public Task TeamPendingAsync(string? action) => _api.PostAsync("/team/pending", new { action });
 
-    public Task<JsonElement> InstallExtensionAsync(string id) => _api.PostAsync<JsonElement>("/extensions/install", new { id });
 
     public Task<TeamRepositories> TeamRepositoriesAsync() => _api.GetAsync<TeamRepositories>("/team/repositories");
 

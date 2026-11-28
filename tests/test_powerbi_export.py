@@ -28,7 +28,6 @@ TABLES = ("regions", "stores", "customers", "orders", "calendar")
 
 @pytest.fixture(autouse=True)
 def vault(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit,powerbi")
     with memory_keyring():
         yield
 
@@ -553,14 +552,4 @@ def test_the_erds_button_is_the_extensions_page_action_as_data(monkeypatch: pyte
             "title": "These tables and their relationships as a Power BI Project",
         }
     ]
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit")
-    assert all(m["page_actions"] == [] for m in extensions.modes())
-
-
-def test_with_the_extension_off_its_door_says_which_it_needs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit")
-    with make_client(tmp_path) as client:
-        refused = client.post("/powerbi/plan", json={}, headers=AUTH)
-        assert refused.status_code >= 400 and "Power BI" in refused.text
+    assert all(m["page_actions"] == actions for m in extensions.modes())  # in every project type

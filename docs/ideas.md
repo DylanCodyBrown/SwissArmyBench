@@ -9767,3 +9767,42 @@ connections from that power bi data set and the queries."
     only a link then, so it would be read through the workspace connection.
   - What does "automatically" do with a project open: import into it, or ask once?
   - Should a source that only works on this computer be made at all? It would carry the amber warning.
+
+## Every extension built in (the owner, 2026-11-27; decisions and open notes)
+
+"Also I think all extensions should be built in now". Asked how: "Merge into one package" and "No Remove". It
+reverses 2026-11-17's optional extensions (Plans/editions.plan.md) and the Streamlit extension's "Preinstalled".
+
+- **The layout: each feature keeps a package of its own, in the one wheel** (`src/swissarmybench_streamlit`,
+  `_accounting`, `_powerapps`, `_powerbi`, `_git`, `_copilot`, beside `src/swissarmybench`), not spread into the
+  app's domain/, services/, adapters/ and server/. Why: every import, entry in a manifest, test and monkeypatch
+  already names `swissarmybench_<id>`, so the move is a `git mv` of each folder with its history and almost no
+  edit; each keeps its own three layers and its own composition root (extension.py), held by
+  tests/test_extension_layers.py; the app's own folders do not gain 130 files; the front end rule holds as it
+  was (blazor/ names none). Spreading them would have meant renaming every module to keep the one-file-a-feature
+  depth rule and merging six composition roots into bootstrap.py, whose ceiling only shrinks.
+- **One place names them:** `swissarmybench/extensions.py` BUILT_IN (id to module, in the order their project
+  types and rail areas are offered). No entry points, no SWISSARMYBENCH_EXTENSIONS, no extensions.json, no
+  catalog and no statuses. Each still declares what it adds in its extension.py, read through the same Manifest
+  a folder extension's is.
+- **No Install, no Remove:** the Extensions page lists the user's own folder extensions (New extension…, Install
+  its missing packages, Remove to the trash, Show its folder) and a built-in feature's own panel where it has
+  one (GitHub Copilot's sign-in and its language server's Install, which is Copilot's own and stays).
+  `extensions_install` and `extensions_remove` stay for folder extensions; asked of a built-in id they answer in
+  one sentence that it is built in. The updater's `--with` is only the user's own added packages now.
+- **Packages:** pbixray 0.15.5 and pythonnet 3.0.5 (Windows) moved into the `[server]` extra, accepted by the
+  owner's choice to merge. Nothing else new.
+- **An older install's update (a decision made here, the owner's to take back):** 0.0.42's own updater asks the
+  new release for each installed extension's wheel and fails when one is missing, so build.py still writes an
+  EMPTY wheel of each old package name (metadata only, no code, needing the app at the same version) for the
+  GitHub release. They never go to PyPI and the app never asks for them. They can stop once no install older
+  than 0.0.43 is expected to update.
+- **Found on the way:** the MCP server did not start with Power Apps on (an argument named `as`, a Python
+  keyword); a path too long answered 500 from Accounting's and Power Apps' routes (now the one refusal shape, 400).
+- **The tool list's ceiling** was 100,000 characters for the base with Streamlit; with every feature's tools
+  always in it the list is larger, and the test's ceiling is 117,000. The agent's context pays for that on every
+  start: the owner's to weigh (the features' tools could be trimmed, or listed only in their project type).
+- **Open (the owner's):** whether the rail's page keeps the name Extensions now that it lists only the user's
+  own folder extensions (it could be My extensions, or move into Settings); whether a built-in feature's panel
+  (Copilot's) belongs on that page or in Settings; whether Source Control and Power BI should sit on the rail
+  for someone who uses neither (the rail's own hide switch is there); when the empty wheels stop.

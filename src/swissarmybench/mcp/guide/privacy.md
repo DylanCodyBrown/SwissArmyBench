@@ -79,10 +79,10 @@ password.
   the releases since the version last seen on this computer, `since` a version, or `all`; `open=true` opens
   the window on the user's main window. It opens by itself on the first start after an update; closing it
   (which marks it seen, `whats_new.json`: the version only) is the user's own (403 for you).
-- `extensions_list`: the Extensions page (Streamlit preinstalled; Accounting and Power Apps coming).
-  `extensions_install(id=...)` and `extensions_remove(id=...)` wait for the user's Allow, then the app
-  stops, uv installs this version with the kept extensions, and it starts again (as `app_update`).
-  A development checkout answers 409 with what to run instead.
+- `extensions_list`: the Extensions page: the user's own folder extensions in the library (every packaged
+  extension is built in: nothing of them to install or remove). `extensions_new`, and a folder's
+  `extensions_install(id=...)` (its missing packages) and `extensions_remove(id=...)` (to the trash) wait for
+  the user's Allow; nothing restarts.
 - The server runs while the app is open: it stops 30 s after the last window closes (at once when the
   desktop app closes), or 10 minutes after your last request (or VS Code's, or a Python session's) with no
   window open; an open project with unsaved changes is saved first, or with Autosave off the stop waits.

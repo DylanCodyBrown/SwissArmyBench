@@ -36,14 +36,14 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `desktop_` | app windows | `desktop_open`, `app_whats_new` |
 | `agent_` | yours only | `agent_context`, `agent_events`, `agent_approvals` |
 
-Extensions, when installed: Accounting (`workbook_`, `template_`, `statements_`), Power Apps (`powerapps_`),
-Power BI (`powerbi_import_project`, `powerbi_source`, `powerbi_edit_plan`), Copilot (`copilot_`), Git
-(`github_`, `scm_`).
+Built in too: Accounting (`workbook_`, `template_`, `statements_`), Power Apps (`powerapps_`), Power BI
+(`powerbi_`: `powerbi_export`, `powerbi_source`, `powerbi_edit_plan`), Copilot (`copilot_`), Git (`github_`,
+`scm_`).
 No prefix: `guide`, `commands`, `health`.
 
 ## Rules
 - Exports that copy rows (`table_export`, `canvas_export`, `project_save` with keep_rows, `project_copy`
-  with data), `app_update`, `extensions_install`, `library_set_folder`, `team_join`, `sharing_start`,
+  with data), `app_update`, `extensions_new`, `library_set_folder`, `team_join`, `sharing_start`,
   `projects_folders`, `project_share`, `powerbi_edit_apply` wait for Allow.
 - No password value comes back. Any typed box takes `${NAME}` (`$${X}`: the text), SQL a bound
   parameter; `variables_resolve` previews it.

@@ -1,5 +1,5 @@
 @* Join a team… or Start a team… (the classic library.ts openTeamFlow): one dialog of steps, from the first still to do:
-   GitHub sync (Install, kept over the app's restart), Sign in (Sign in with GitHub's code, or a token), the repository
+   Sign in (Sign in with GitHub's code, or a token; GitHub sync is built in, nothing is installed first), the repository
    (search, Enter joins the first) or the new one's name (its owner, Start the team), then Set up this computer and
    Done. Logic in TeamFlowDialog.razor.cs. *@
 
@@ -27,17 +27,6 @@
             <Busy IsBusy="_busyWords is not null" Words="@(_busyWords ?? string.Empty)">
                 @switch (_at)
                 {
-                    case "install":
-                        <h3 class="team-step-title">@_status?.Needs?.Words</h3>
-                        @if (_installing)
-                        {
-                            <div class="loading-block">Installing @_status?.Needs?.Name: the app starts again and Settings opens here.</div>
-                        }
-                        else
-                        {
-                            <div class="row"><button type="button" class="btn primary team-install" @onclick="InstallAsync"><Icon Name="extensions" /> Install</button></div>
-                        }
-                        break;
                     case "sign_in":
                         @* The Git extension's own sign-in step (the classic scmPage.ts teamSignIn), borrowed here. *@
                         <SwissArmyBench.Web.Pages.Scm.TeamSignIn Device="_status?.Device == true" TokenSteps="@(_status?.TokenSteps ?? [])" OnSignedIn="NextAsync" />

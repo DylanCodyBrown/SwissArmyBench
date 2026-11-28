@@ -1,6 +1,6 @@
-# Power Apps (an extension)
+# Power Apps
 
-When the Power Apps extension is installed (`app_mode(all=true)` lists the `codeapp` type), its `powerapps_`
+Built in (`app_mode(all=true)` lists the `codeapp` type): its `powerapps_`
 tools build Power Apps code apps (React and TypeScript apps that run in Power Platform). Microsoft's own
 command lines do the work: the Power Apps CLI (`pa`) for the app, the Power Platform CLI (`pac`) for the
 environments list and custom connectors. Every run is on the Code App page's Runs and the Session page.

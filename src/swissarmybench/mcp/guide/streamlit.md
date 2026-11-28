@@ -1,9 +1,7 @@
 # Streamlit: widgets and the Canvas
 
-The Streamlit extension (`swissarmybench-streamlit`), preinstalled with every install: the installers and
-each update put it in, and the user can remove it on the Extensions page. Without it the app is the BI base:
-no Canvas, no Widgets, and a `canvas_*` or `widgets_*` call says which extension it needs
-(`extensions_install id=streamlit` waits for the user's Allow). A Streamlit project (`project_new
+Built in (the owner, 2026-11-27; a preinstalled extension of its own before): the Canvas, Widgets and the
+`canvas_*` and `widgets_*` tools are on every install. A Streamlit project (`project_new
 type="streamlit"`) starts with data.ipynb and an empty canvas; a BI project gets a canvas too.
 
 App notebooks and the old `.stapp.json` canvases were replaced by widgets (2026-11-21): opening an old one

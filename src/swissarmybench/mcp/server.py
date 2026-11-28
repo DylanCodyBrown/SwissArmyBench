@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import keyword
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import Image, MCPServer
@@ -157,6 +158,11 @@ def tool_description(cmd: Command) -> str:
     return _first_sentence(cmd.summary, DESCRIPTION_LIMIT)
 
 
+def _parameter(name: str) -> str:
+    """An argument's name as a Python parameter: a keyword (`as`) gets an underscore (`as_`)."""
+    return name + "_" if keyword.iskeyword(name) else name
+
+
 def _signature(cmd: Command) -> inspect.Signature:
     """The command's arguments as a typed Python signature, required ones first. Only JSON
     arguments carry a note: their shape is the one thing a name and a type can't say."""
@@ -168,7 +174,7 @@ def _signature(cmd: Command) -> inspect.Signature:
             kind = Annotated[kind, Field(description=_first_sentence(arg.help, ARG_NOTE_LIMIT))]
         params.append(
             inspect.Parameter(
-                arg.name,
+                _parameter(arg.name),
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 default=inspect.Parameter.empty if arg.required else None,
                 annotation=kind,
@@ -178,9 +184,13 @@ def _signature(cmd: Command) -> inspect.Signature:
 
 
 def _make_tool(cmd: Command) -> Any:
+    names = {_parameter(a.name): a.name for a in cmd.args}
+
     def run(**kwargs: Any) -> Any:
         try:
-            result = execute_result(cmd.name, {k: v for k, v in kwargs.items() if v is not None})
+            result = execute_result(
+                cmd.name, {names.get(k, k): v for k, v in kwargs.items() if v is not None}
+            )
         except CommandError as error:
             raise GridServerError(str(error)) from error
         except Exception as error:  # a reply the command did not expect: say what, not just "Error"

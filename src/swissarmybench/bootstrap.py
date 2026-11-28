@@ -48,7 +48,7 @@ from swissarmybench.adapters.connection_colours import ColoursFile
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, grammar_later, open_database
 from swissarmybench.adapters.datasets import DatasetStore, file_stamp
 from swissarmybench.adapters.extensions import FolderExtensions
-from swissarmybench.adapters.extensions import discover as discover_extensions
+from swissarmybench.adapters.extensions import built_in as built_in_features
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import is_folder, make_folder
 from swissarmybench.adapters.folders import listing as folder_listing
@@ -93,7 +93,6 @@ from swissarmybench.domain import api_patterns as api_pattern_rules
 from swissarmybench.domain import api_targets as api_target_rules
 from swissarmybench.domain import blade_tables, project_paths
 from swissarmybench.domain import connection_slots as slot_rules
-from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import local_api as local_api_rules
@@ -418,46 +417,27 @@ def _beta_log(
 # ----- the app's own life: extensions, the Team box, sharing, updates (bootstrap's order) -----
 
 
-def _extensions(
-    ws: Workspace, live: LiveUpdates, approvals: Approvals, state_dir: Path,
-    state_file: Callable[[str], Path | None],
-    on_extensions: list[Any], on_shutdown: Callable[[], None] | None, install_packages: Any,
-) -> tuple[UpdateHelper, Extensions]:  # fmt: skip
-    """Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
-    over to the update's helper, and each update keeps the installed ones (`--with`). The library's folder
-    extensions are read live (FolderExtensions): their packages go into the app's own Python (the blades'
-    install), their folders to the system's trash on Remove, shown in its file manager on Show its folder."""
-    update_helper = UpdateHelper(info_file_path(), state_dir / "update_failed.json")
-    extensions = Extensions(
+def _extensions(ws: Workspace, live: LiveUpdates, approvals: Approvals, install_packages: Any) -> Extensions:
+    """The Extensions page: the library's folder extensions, read live (FolderExtensions): their packages go
+    into the app's own Python (the blades' install), their folders to the system's trash on Remove, shown in
+    its file manager on Show its folder. The built-in features are told to it as their modules say them."""
+    return Extensions(
         current=__version__,
-        found=discover_extensions(os.environ),
-        helper=update_helper,
+        built_in=built_in_features(),
         approvals=approvals,
         audit=ws.audit,
         live=live,
-        stop=on_shutdown or (lambda: None),
-        record=JsonFile(state_file("extensions.json")),
         folders=FolderExtensions(file_manager.trash, file_manager.show),
         install_packages=install_packages,
-        panels={
-            extension_modules.manifest(m).ID.lower(): extension_modules.manifest(m).PANEL
-            for m in on_extensions
-            if extension_modules.manifest(m).PANEL.startswith("/")
-        },
     )
-    update_helper.kept = extensions.kept_wheels
-    return update_helper, extensions
 
 
 def _team(
     ws: Workspace, hooks: Hooks, library: Library, project_explorer: ProjectExplorer, library_setup: Any,
-    file_manager: Any, approvals: Approvals, extensions: Extensions, state_dir: Path,
-    state_file: Callable[[str], Path | None],
+    file_manager: Any, approvals: Approvals, state_dir: Path, state_file: Callable[[str], Path | None],
 ) -> Team:  # fmt: skip
     """Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the
-    team joined, the folders before it, a step kept over Install's restart). The GitHub work is an
-    extension's."""
-    syncing = next((e for e in extension_rules.CATALOG if "team" in e.provides), None)
+    team joined, the folders before it). The GitHub work is the built-in Git feature's (hooks.team)."""
     return Team(
         ws,
         hooks,
@@ -468,11 +448,6 @@ def _team(
         TeamFiles(file_manager.show),
         str(state_dir),
         approvals,
-        lambda: {
-            "id": syncing.id if syncing else "",
-            "name": syncing.name if syncing else "",
-            "installable": extensions.state()["installable"],
-        },
     )
 
 
@@ -491,7 +466,7 @@ def _sharing(ws: Workspace, hooks: Hooks, approvals: Approvals, state_dir: Path,
 
 
 def _updates(
-    ws: Workspace, live: LiveUpdates, settings: Settings, update_helper: UpdateHelper, extensions: Extensions,
+    ws: Workspace, live: LiveUpdates, settings: Settings, update_helper: UpdateHelper,
     approvals: Approvals, open_work: Any, failure_note: Path | None, state_file: Callable[[str], Path | None],
     on_shutdown: Callable[[], None] | None,
 ) -> Updates:  # fmt: skip
@@ -508,7 +483,6 @@ def _updates(
         live=live,
         stop=on_shutdown or (lambda: None),
         failed=take_failure_note(failure_note),
-        changing=extensions.changing,
         whats_new=WhatsNewFiles(state_file("whats_new.json")),
     )
 
@@ -815,7 +789,6 @@ def bootstrap(
 # none is its service's constructor argument). Each is checked at the end of bootstrap(), so a part moved
 # before what it needs fails at start, not on a click.
 LATE_BOUND = (
-    "update_helper.kept",  # UpdateHelper <-> Extensions: an update keeps the wheels Extensions installed
     "hooks.sharing",  # Hooks <-> Sharing: Sharing reads the hooks' share targets, a target's stop tells it
     "datasets.changed_on_disk",  # DatasetService <-> FileWatch: the watch reads the tables' origins
     "datasets.not_now",  # the same cycle
@@ -1226,10 +1199,6 @@ def _projects(b: Built) -> None:
         default_folder=str(settings.projects_dir),
         modes=extension_modules.modes,
         streamlit=extension_modules.STREAMLIT_KIND,
-        off=lambda: {
-            str(e["project_type"]): e
-            for e in extension_rules.off_project_types(extension_rules.CATALOG, extension_modules.modes())
-        },
     )
     sab_projects.shared_folder = b.project_explorer.shared_folder
 
@@ -1615,16 +1584,14 @@ def _app_life(b: Built) -> None:
     ws, live, state_dir, state_file, approvals = b.ws, b.live, b.state_dir, b.state_file, b.approvals
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
     failure_note = state_file("update_failed.json")
-    # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
-    # over to the update's helper, and each update keeps the installed ones (`--with`).
-    b.update_helper, b.extensions = _extensions(
-        ws, live, approvals, state_dir, state_file, b.on_extensions, b.on_shutdown, b.blades.install
-    )
+    b.update_helper = UpdateHelper(info_file_path(), state_dir / "update_failed.json")
+    # The Extensions page: the library's folder extensions (the built-in features have nothing to install).
+    b.extensions = _extensions(ws, live, approvals, b.blades.install)
     # Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the team
-    # joined, the folders before it, a step kept over Install's restart). The GitHub work is an extension's.
+    # joined, the folders before it). The GitHub work is the built-in Git feature's.
     b.team = _team(
-        ws, b.hooks, b.library, b.project_explorer, b.library_setup, file_manager, approvals, b.extensions,
-        state_dir, state_file,
+        ws, b.hooks, b.library, b.project_explorer, b.library_setup, file_manager, approvals, state_dir,
+        state_file,
     )  # fmt: skip
     # Share a running app with your organization (Microsoft Dev Tunnels; the third way data leaves this
     # computer, on the user's click): devtunnel in the state folder's devtunnel/, got on the first share.
@@ -1638,8 +1605,8 @@ def _app_life(b: Built) -> None:
         b.workbench.kernel_count,
     )
     b.updates = _updates(
-        ws, live, b.settings, b.update_helper, b.extensions, approvals, open_work, failure_note,
-        state_file, b.on_shutdown,
+        ws, live, b.settings, b.update_helper, approvals, open_work, failure_note, state_file,
+        b.on_shutdown,
     )  # fmt: skip
 
 

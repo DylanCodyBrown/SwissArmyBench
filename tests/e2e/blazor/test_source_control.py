@@ -43,7 +43,6 @@ def server(tmp_path_factory: pytest.TempPathFactory, hub: GitHubStandin) -> Iter
     env = os.environ | {
         "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
         "SWISSARMYBENCH_STATE": str(tmp / "state"),
-        "SWISSARMYBENCH_EXTENSIONS": "streamlit,git",
         "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
         "SWISSARMYBENCH_PROJECTS_DIR": str(tmp / "projects"),
         "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp / "workbench"),
@@ -54,10 +53,7 @@ def server(tmp_path_factory: pytest.TempPathFactory, hub: GitHubStandin) -> Iter
         "SWISSARMYBENCH_GITHUB_WEB": hub.url,
         "PYTHON_KEYRING_BACKEND": "tests.file_keyring.FileKeyring",
         "SAB_TEST_KEYRING_FILE": str(tmp / "keyring.json"),
-        "PYTHONPATH": os.pathsep.join(
-            [str(ROOT / "extensions" / name / "src") for name in ("git", "streamlit")]
-            + [str(ROOT), str(ROOT / "src")]
-        ),
+        "PYTHONPATH": os.pathsep.join([str(ROOT), str(ROOT / "src")]),
     }
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     info: dict[str, Any] | None = None

@@ -237,14 +237,52 @@ NOT_COMMANDS = {
     " the whole",
     "/structures/saved": "sab.structure's read of a saved file (the client's): structures_show reads one",
     "/connections/{}/used": "a Workbench kernel's count of a call (plumbing): connections_usage reads it",
-    "/accounting/{}": "the Accounting extension is not on here: its door says so (extensions_install)",
-    "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
-    "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
-    "/powerbi/{}": "the Power BI extension is not on here: its door says so (extensions_install)",
-    "/git/{}": "the Git extension is not on here: its door says so (extensions_install)",
+    # The built-in features' routes (each was its own package's before 2026-11-27).
+    "/accounting": "the Accounting page's own facts (its mode, its block kinds): app_mode reads the mode",
+    "/accounting/designs/{}/sheets": "workbook_sheet calls it: its address is built from the design's",
+    "/accounting/designs/{}/sheets/{}": "workbook_sheet calls it: its address is built from the design's",
+    "/accounting/designs/{}/sheets/{}/blocks": "workbook_block calls it, from the design's address",
+    "/accounting/designs/{}/blocks/{}": "workbook_block calls it, from the design's address",
+    "/accounting/designs/{}/play": "workbook_play calls it, from the design's address",
+    "/accounting/designs/{}/save": "workbook_save calls it, from the design's address",
+    "/accounting/designs/{}/export": "workbook_export calls it, from the design's address",
+    "/accounting/designs/{}/preview": "the page's read of the last Play's preview: workbook_play answers it",
+    "/accounting/designs/{}/download": "the page's download of the last Play's .xlsx (a file for the user's "
+    "browser): workbook_save and workbook_export write files the agent names",
+    "/accounting/functions": "the Excel functions a formula box offers: blades_starters lists them",
+    "/copilot/inline": "the editors' question whether inline completion is on (plumbing): copilot_status",
+    "/copilot/complete": "the editor's own request as the user types (ghost text): the agent writes its own",
+    "/copilot/cancel": "the editor's own (a completion no longer wanted)",
+    "/copilot/event": "the editor's own (a suggestion shown, accepted or partly accepted, told back)",
+    "/copilot/sign-in": "signing in to GitHub Copilot is the user's own (403 for the agent)",
+    "/copilot/sign-in/finish": "signing in to GitHub Copilot is the user's own (403 for the agent)",
+    "/copilot/sign-out": "signing out of GitHub Copilot is the user's own (403 for the agent)",
+    "/git/mark": "the footer's mark (page plumbing): github_status says the same",
+    "/git/sign-in/token": "signing in to GitHub is the user's own (403 for the agent)",
+    "/git/sign-in/device": "signing in to GitHub is the user's own (403 for the agent)",
+    "/git/sign-in/device/poll": "signing in to GitHub is the user's own (403 for the agent)",
+    "/git/sign-out": "signing out of GitHub is the user's own (403 for the agent)",
+    "/powerapps/live/{}": "the dev server's live pages passed through under their own secret (a frame)",
+    "/powerapps/live/{}/{}": "the dev server's live pages passed through under their own secret",
+    "/powerapps/notebook/open": "powerapps_notebook open= calls it (its address is built from the verb)",
+    "/powerapps/notebook/interrupt": "powerapps_notebook interrupt= calls it",
+    "/powerapps/notebook/restart": "powerapps_notebook restart= calls it",
+    "/powerapps/notebook/stop": "powerapps_notebook stop= calls it",
+    "/powerapps/notebook/data-ts": "powerapps_data_ts calls it",
+    "/powerapps/notebook/use-in-app": "powerapps_data_ts use_in_app= calls it",
+    "/powerapps/notebook/complete": "the editor's own completions as the user types",
+    "/powerapps/notebook/types": "the editor's declarations of the kernel's `sab` (text for Monaco)",
+    "/powerapps/notebook/prepare/{}": "the kernel's own route (its key, no token): a connection's tables",
+    "/powerbi/page": "the Power BI rail page as data (page plumbing): powerbi_setup_status and "
+    "powerbi_source read the same",
+    "/powerbi/panel": "the Power BI page's panel as data (page plumbing): powerbi_edit_plan is its review",
+    "/powerbi/live": "whether a Power BI Desktop is open (the page's mark): powerbi_edit_model reads it",
+    "/powerbi/open": "Open in Power BI Desktop starts a program on the user's computer: the user's click",
+    "/powerbi/opened": "a .pbix opened with the app (the desktop app's hand-over): powerbi_import_project",
+    "/powerbi/report": "a report file dropped on the page (its bytes): powerbi_export takes its path",
     "/team/pull": "the Team box's Pull: github_pull (the team library's folder) is the same",
     "/team/push": "the Team box's Push: github_push (the team library's folder) is the same",
-    "/team/pending": "the Team box's step kept over Install's restart (page plumbing): team_status reads it",
+    "/team/pending": "the Team box's step kept over a restart (page plumbing): team_status reads it",
     "/sandbox/adapter/tables": "adapter's tables(source) with the token: an in-app caller's, a test's",
     "/sandbox/adapter/read": "adapter's read with the token, as Arrow: an in-app caller's, a test's",
     "/sandbox/adapter/query": "adapter's query with the token, as Arrow: an in-app caller's, a test's",
@@ -285,7 +323,7 @@ def test_every_server_route_has_a_command_or_a_stated_reason(live: Live, tmp_pat
     source = "".join(
         p.read_text(encoding="utf-8") for p in sorted(Path(main.__file__).parent.glob("command*.py"))
     )
-    # And each extension's that is on (the Streamlit extension, preinstalled: its commands.py).
+    # And each built-in feature's (its commands.py).
     from swissarmybench import extensions
 
     for module in extensions.enabled():
@@ -807,7 +845,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # 100,000 (2026-11-25): the Collaboration panel (the owner: "a place where I can leave notes for my
     # team"; the agent posts only with collaboration_post): collaboration_list, _thread, _post, _search,
     # _unread, _objects, _profile (each one short schema).
-    assert size < 100_000, f"the tool list is {size} characters"
+    # 117,000 (2026-11-27): every extension built in (the owner: "all extensions should be built in now"), so
+    # the list every agent gets is the base's and Streamlit's (99,900) with Accounting's, Power Apps', Power
+    # BI's, Git's and Copilot's 71 tools (16,700), which counted before only where each was installed.
+    assert size < 117_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

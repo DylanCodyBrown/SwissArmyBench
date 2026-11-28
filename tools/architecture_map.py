@@ -73,7 +73,7 @@ class Module:
 def packages() -> list[tuple[str, Path]]:
     """The base package and each extension's, by name."""
     found = [(BASE, ROOT / "src" / BASE)]
-    for home in sorted((ROOT / "extensions").glob("*/src/swissarmybench_*")):
+    for home in sorted((ROOT / "src").glob("swissarmybench_*")):
         if home.is_dir():
             found.append((home.name, home))
     return found

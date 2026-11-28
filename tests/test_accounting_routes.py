@@ -1,5 +1,5 @@
-"""The Accounting extension in the app (its routes, the project type and its mode, the agent's commands):
-on through SWISSARMYBENCH_EXTENSIONS, and off (nothing of it shows). Made-up data only."""
+"""Accounting in the app, built in (its routes, the project type and its mode, the agent's commands): always
+on, with no switch. Made-up data only."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import pytest
 from openpyxl import load_workbook
 from starlette.testclient import TestClient
 
-from swissarmybench import extensions
 from tests import accounting_data as made_up
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 from tests.test_accounting_statements import BINDINGS, make_template
@@ -22,7 +21,6 @@ from tests.test_accounting_statements import BINDINGS, make_template
 
 @pytest.fixture
 def on(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit,accounting")  # Streamlit: preinstalled
     with make_client(tmp_path) as test_client:
         yield test_client
 
@@ -31,32 +29,11 @@ def _table(frame: Any) -> pa.Table:
     return pa.Table.from_pandas(frame, preserve_index=False)
 
 
-def test_the_capability_check() -> None:
-    assert extensions.extension_on("accounting", {"SWISSARMYBENCH_EXTENSIONS": "accounting"})
-    assert (
-        not extensions.extension_on("accounting", {"SWISSARMYBENCH_EXTENSIONS": ""})
-        or "accounting" in extensions.installed()
-    )
-    assert not extensions.extension_on("accounting", {"SWISSARMYBENCH_EXTENSIONS": "accounting,-accounting"})
-
-
-def test_off_nothing_of_accounting_shows(client: TestClient, tmp_path: Path) -> None:
-    assert client.get("/accounting", headers=AUTH).status_code == 404
-    assert [m["type"] for m in client.get("/app/modes", headers=AUTH).json()["modes"]] == ["bi", "streamlit"]
-    answer = client.post(
-        "/projects", json={"folder": str(tmp_path), "name": "books", "type": "accounting"}, headers=AUTH
-    )
-    assert answer.status_code == 400 and "No installed extension makes a accounting project" in answer.text
-    from swissarmybench.cli.commands import REGISTRY
-
-    assert not [n for n in REGISTRY if n.startswith(("workbook_", "template_", "statements_"))]
-
-
 def test_an_accounting_project_sets_its_mode(on: TestClient, tmp_path: Path) -> None:
     about = on.get("/accounting", headers=AUTH).json()
     assert about["mode"]["canvases"] == ["excel"] and "pivot" in about["kinds"]
     modes = [m["type"] for m in on.get("/app/modes", headers=AUTH).json()["modes"]]
-    assert modes == ["bi", "accounting", "streamlit"]
+    assert modes == ["bi", "streamlit", "accounting", "codeapp", "powerbi"]
     assert on.get("/app/mode", headers=AUTH).json()["mode"]["type"] == "bi"  # no project: the base's
     made = on.post(
         "/projects", json={"folder": str(tmp_path), "name": "books", "type": "accounting"}, headers=AUTH
@@ -230,22 +207,6 @@ def test_the_agents_commands_are_the_extensions_when_on(monkeypatch: pytest.Monk
         "/accounting/build",
         {"template": "statement", "data": "statements", "dry_run": True},
     )
-
-
-def test_the_package_declares_its_entry_point_on_the_bases_version() -> None:
-    import tomllib
-
-    import swissarmybench_accounting
-
-    root = Path(__file__).resolve().parents[1]
-    base = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
-    own = tomllib.loads((root / "extensions" / "accounting" / "pyproject.toml").read_text())
-    assert own["project"]["name"] == "swissarmybench-accounting"
-    assert own["project"]["version"] == base == swissarmybench_accounting.__version__
-    assert own["project"]["dependencies"] == [f"swissarmybench[server]=={base}"]
-    assert own["project"]["entry-points"]["swissarmybench.extensions"] == {
-        "accounting": "swissarmybench_accounting.extension:describe"
-    }
 
 
 def test_the_mcp_lists_the_modes_tools_first(monkeypatch: pytest.MonkeyPatch) -> None:

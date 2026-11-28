@@ -19,7 +19,7 @@ STARTERS = (
     "src/swissarmybench/services/debugger.py",
     "src/swissarmybench/services/sharing.py",
     "src/swissarmybench/services/connection_slots.py",
-    "extensions/copilot/src/swissarmybench_copilot/services/copilot.py",
+    "src/swissarmybench_copilot/services/copilot.py",
 )
 
 

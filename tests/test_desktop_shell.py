@@ -59,7 +59,7 @@ pytestmark = pytest.mark.skipif(bool(_WHY_NOT), reason=_WHY_NOT or "runs")
 def environment(folder: Path) -> dict[str, str]:
     (folder / "home").mkdir(parents=True, exist_ok=True)
     (folder / "state").mkdir(parents=True, exist_ok=True)
-    paths = [str(ROOT / "extensions" / "streamlit" / "src")]
+    paths = [str(ROOT / "src")]
     return os.environ | {
         "HOME": str(folder / "home"),
         "USERPROFILE": str(folder / "home"),
@@ -68,7 +68,6 @@ def environment(folder: Path) -> dict[str, str]:
         "SWISSARMYBENCH_WORKBENCH_DIR": str(folder / "home" / "SwissArmyBench"),
         "SWISSARMYBENCH_PROJECTS_DIR": str(folder / "home" / "Projects"),
         "SWISSARMYBENCH_UPDATE_FEED": "none",
-        "SWISSARMYBENCH_EXTENSIONS": "streamlit",
         # The server's life, short: it stops 2 s after the app's last window, 3 s after a client's request.
         "SWISSARMYBENCH_LIFE_GRACE": "2",
         "SWISSARMYBENCH_LIFE_IDLE": "3",

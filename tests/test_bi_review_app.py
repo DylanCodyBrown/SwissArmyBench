@@ -34,7 +34,7 @@ from tests.fake_keyring import memory_keyring
 from tests.live_server import running
 
 YAML = importlib.util.find_spec("yaml") is not None
-KEPT = ("SWISSARMYBENCH_INFO", "SWISSARMYBENCH_EXTENSIONS", "LARKFIELD_DIR", "TARGET_GROWTH")
+KEPT = ("SWISSARMYBENCH_INFO", "LARKFIELD_DIR", "TARGET_GROWTH")
 
 
 def answer(text: str) -> Any:
@@ -83,7 +83,6 @@ def built(tmp_path_factory: pytest.TempPathFactory) -> Iterator[app.Built]:
         auto_load_catalogs=False,
     )
     saved = {k: os.environ.get(k) for k in KEPT}
-    os.environ["SWISSARMYBENCH_EXTENSIONS"] = "streamlit,powerbi"
     try:
         with memory_keyring(), running(lambda port: create_app(port, TOKEN, settings)) as (port, _server):
             info = tmp / "server.json"

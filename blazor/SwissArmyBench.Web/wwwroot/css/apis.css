@@ -43,9 +43,6 @@
   border-radius: 8px;
   background: var(--surface);
 }
-.extension-card.coming {
-  opacity: 0.75;
-}
 .extension-head {
   display: flex;
   align-items: center;
@@ -65,12 +62,11 @@
   border-radius: 999px;
   font-size: 12px;
 }
-.extension-status.status-available {
+.extension-status.status-builtin {
   border-color: var(--accent);
   color: var(--accent);
 }
 .extension-description,
-.extension-stage,
 .extension-said {
   margin: 0;
 }
@@ -85,9 +81,6 @@
   align-items: flex-start;
   gap: 6px;
   margin-top: auto;
-}
-.extension-progress {
-  width: 100%;
 }
 /* A folder extension's card: its path on one line, its actions side by side. */
 .extension-project,

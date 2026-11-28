@@ -9,18 +9,12 @@ namespace SwissArmyBench.Web.Pages.Extensions;
 
 public partial class ExtensionsPage
 {
-    private const int WatchMilliseconds = 1500;
-    private const int ServerError = 500;
-
     private readonly Dictionary<string, string> _said = [];
-    private readonly CancellationTokenSource _gone = new();
     private ExtensionListing? _list;
     private Exception? _error;
-    private ChangingExtension? _changing;
-    private string _stage = string.Empty;
     private string? _busy;
     private bool _newing;
-    private (ExtensionInfo Ext, string Question, string Action)? _asking;
+    private (ExtensionInfo Ext, string Question)? _asking;
 
     [Inject]
     private ExtensionsClient Extensions { get; set; } = default!;
@@ -40,18 +34,10 @@ public partial class ExtensionsPage
 
     private async Task LoadAsync()
     {
-        if (_changing is not null)
-        {
-            return; // the server is going away: drawn from what was listed
-        }
         try
         {
             _list = await Extensions.CardsAsync();
             _error = null;
-            if (_list.Changing is { } changing)
-            {
-                Started(changing);
-            }
         }
         catch (ApiException error)
         {
@@ -61,10 +47,8 @@ public partial class ExtensionsPage
 
     private static string StatusWords(ExtensionInfo ext) => ext.Source == "folder" ? "Installed (folder)" : ext.Status switch
     {
-        "installed" when ext.Preinstalled => "Preinstalled",
+        "builtin" => "Built in",
         "installed" => "Installed",
-        "available" => "Available",
-        "coming" => "Coming",
         _ => ext.Status,
     };
 
@@ -79,36 +63,21 @@ public partial class ExtensionsPage
         return $"Adds the {ext.ProjectName ?? ext.ProjectType} project type{(named.Count > 0 ? $": {string.Join(", ", named)}" : string.Empty)}";
     }
 
-    private string StageWords(string name, string action)
-    {
-        var doing = action == "install" ? $"Installing {name}" : $"Removing {name}";
-        return _stage switch
-        {
-            "stopped" => $"{doing}: the app stopped; uv is at work.",
-            "back" => $"{(action == "install" ? $"{name} is installed" : $"{name} is removed")}: the app opened again in a window of its own.",
-            _ => $"{doing}: the app stops and starts again.",
-        };
-    }
-
-    /// <summary>Install or Remove: the server asks first when it would (its question), else the change starts.</summary>
-    private async Task ChangeAsync(ExtensionInfo ext, string action, bool confirmed)
+    /// <summary>Remove a folder extension: the server asks first (its question), then its folder goes to the trash.</summary>
+    private async Task RemoveAsync(ExtensionInfo ext, bool confirmed)
     {
         _said.Remove(ext.Id);
         _busy = ext.Id;
         try
         {
-            var answer = await Extensions.ChangeAsync(action, ext.Id, confirmed);
+            var answer = await Extensions.RemoveAsync(ext.Id, confirmed);
             if (answer.Confirm is { } question)
             {
-                _asking = (ext, question, action);
-            }
-            else if (answer.Changing is { } changing)
-            {
-                Started(changing);
+                _asking = (ext, question);
             }
             else if (answer.Removed is not null)
             {
-                await LoadAsync(); // a folder's: gone at once, no restart
+                await LoadAsync(); // gone at once, no restart
             }
         }
         catch (ApiException error)
@@ -123,7 +92,7 @@ public partial class ExtensionsPage
         if (_asking is { } asking)
         {
             _asking = null;
-            await ChangeAsync(asking.Ext, asking.Action, true);
+            await RemoveAsync(asking.Ext, true);
         }
     }
 
@@ -164,56 +133,9 @@ public partial class ExtensionsPage
         }
     }
 
-    /// <summary>A change under way: the server is watched going away (uv at work) and coming back.</summary>
-    private void Started(ChangingExtension changing)
-    {
-        if (_changing is not null)
-        {
-            return;
-        }
-        _changing = changing;
-        _stage = string.Empty;
-        _ = WatchAsync();
-    }
-
-    private async Task WatchAsync()
-    {
-        var stopped = false;
-        while (!_gone.IsCancellationRequested)
-        {
-            try
-            {
-                await Task.Delay(WatchMilliseconds, _gone.Token);
-            }
-            catch (TaskCanceledException)
-            {
-                return;
-            }
-            var status = await Extensions.HealthAsync();
-            if (status is 0 or >= ServerError)
-            {
-                stopped = true;
-                _stage = "stopped";
-            }
-            else if (stopped)
-            {
-                _stage = status is 401 or 403 ? "back" : string.Empty;
-                if (status == 200)
-                {
-                    _changing = null; // the same server answering again: the hand-over did not happen
-                    await InvokeAsync(LoadAsync);
-                }
-                await InvokeAsync(StateHasChanged);
-                return;
-            }
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
     private void OnNotice(Notice notice)
     {
-        // extensions_changing: an Install or Remove started in another window (its card says so here too).
-        if (notice.Type is "extensions_changed" or "extensions_changing" or "app_updating")
+        if (notice.Type is "extensions_changed")
         {
             _ = InvokeAsync(async () =>
             {
@@ -226,8 +148,6 @@ public partial class ExtensionsPage
     public void Dispose()
     {
         Live.NoticeArrived -= OnNotice;
-        _gone.Cancel();
-        _gone.Dispose();
         GC.SuppressFinalize(this);
     }
 }

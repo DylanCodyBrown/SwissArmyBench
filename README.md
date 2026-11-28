@@ -841,27 +841,30 @@ The agent has `app_update_check` and `app_update` (which waits for your Allow).
 
 From a terminal, `swissarmybench update` does the same: it asks for the newest release and, when it is newer,
 installs it that same way (the app closes, installs and opens again; with no app running, its server starts in the
-background for it). Use it instead of reinstalling: an update keeps the installed extensions and the libraries you
+background for it). Use it instead of reinstalling: an update keeps the libraries you
 added, and never touches your library (connections, key vaults, variables), your settings or your projects.
 
-## Extensions
+## Built in, and your own extensions
 
-Swiss Army Bench is the base; **extensions** plug into it (Plans/editions.plan.md). The rail's
-**Extensions** page lists them: **Streamlit** is preinstalled (its own package, `swissarmybench-streamlit`:
-the installers put it in beside the base, every update keeps it, and an update from a version that had it
-built in installs it once at its first start); **Accounting** (an Excel workbook from a Python automation,
-statements and invoices), **Power Apps** (code apps) and **GitHub Copilot** (Copilot's ghost text in the
-Workbench's cells and scripts) are available. Streamlit can be removed like any
-other (Remove asks first, and it is never brought back by itself); without it the app is the BI base: no Apps
-area and no Streamlit canvas, and its agent tools say which extension they need. An available extension installs with one click: the app stops, the update's
-helper runs `uv tool install --force "swissarmybench[server]==<this version>" --with <the extension's
-wheel>` (the wheel from the GitHub release of this exact version), and the app starts again; Remove is the
-same without it. An update of the base keeps each installed extension (`--with` its wheel at the new
-version). An extension package registers itself under the entry-point group `swissarmybench.extensions`;
-`SWISSARMYBENCH_EXTENSIONS=<id>,...` treats ids as installed, for tests and development only. The agent has
-`extensions_list`, `extensions_install` and `extensions_remove` (both wait for your Allow).
+Everything is built in (the owner, 2026-11-27: "Also I think all extensions should be built in now"). **Streamlit**
+(the Canvas and widgets), **Accounting** (an Excel workbook from a Python automation, statements and invoices),
+**Power Apps** (code apps), **Power BI** (your model as a Power BI Desktop file, a .pbix as a project), **Git**
+(GitHub sync and the Source Control page) and **GitHub Copilot** (ghost text in the Workbench's cells and scripts)
+were extensions of their own, installed and removed one at a time. They are part of the one wheel now, on every
+install, with nothing to install and nothing to remove: their project types are offered in New project, the rail
+shows Source Control and Power BI, and the agent has every one's tools. GitHub Copilot stays off until you sign in
+(its panel is on the Extensions page). An update needs nothing but the app's own package; the libraries you added
+are kept.
 
-**Git** (an extension, available): GitHub sync for the meta store and shared projects with no Git on the computer
+The rail's **Extensions** page is for your own: a **folder extension** is a folder in your library
+(`extensions/<id>/`: `extension.py`, `commands.py`, an optional `contract.json` for a project type), found at
+start and trusted like your blades. **New extension…** makes one with a page route and an agent command to grow
+from; its card has Install (its missing packages, then Load again), Remove (its folder goes to the trash, asked
+first) and Show its folder, with no restart. The agent has `extensions_list`, `extensions_new`,
+`extensions_install` and `extensions_remove` (each waits for your Allow); asked to install or remove something
+built in, they answer that it is built in.
+
+**Git**: GitHub sync for the team library and shared projects with no Git on the computer
 (clone, connect, pull with line merges and conflicts beside the file, push fast-forward only), a **Git**
 page (the rail's Git) that is VS Code's Source Control view and graph with Monaco's diff editor, and a footer mark when the open
 project is out of sync. Sign in with a fine-grained token (kept in the keyring only). Code adapted from VS Code (MIT)
