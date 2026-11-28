@@ -495,7 +495,7 @@ src/swissarmybench/
                          (each query ONE DuckDB statement; dependencies, order, cycles, each query's sources; no
                          I/O: Context's keys and `missing`), check, run, run_query, to_sql (the same loop over
                          a DuckDB connection, sources by the caller's resolver), functions(); M's meaning where
-                         SQL differs. Version 1.0.0; it only grows; the wheel carries it as `duckpq`
+                         SQL differs. Version 1.1.0; it only grows; the wheel carries it as `duckpq`
   sab_excel.py           public: THE workbook builder (Plans/excel.plan.md, the owner 2026-11-21), one file the
                          app, a kernel, a Streamlit app and an export share; standard library, openpyxl and
                          duckdb only: build(grids, design, template, out): no design a plain workbook

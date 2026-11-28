@@ -6697,8 +6697,30 @@ answer: tests/test_duckpq_semantics.py; DuckDB 2.0.0):
   a null value.
 - Text joined with null is null in both (`&`, `||`).
 
-**Stated differences (in docs/duckpq.md too):** `try x otherwise y` per row runs only with `otherwise null`
-(`TRY(x)`: SQL cannot tell an error from a null; any other is refused with its line); `Text.From` of a fractional
+- **`try x otherwise y` per row (duckpq 1.1.0, 2026-11-28; the owner's yes).** M: y where x raises, x's own
+  value where it does not, so a null that is no error stays null. DuckDB's `TRY(x)` is null for both, so
+  `COALESCE(TRY(x), y)` would give y for a real null; duckpq writes two shapes that do not. A conversion of a
+  column (`try Number.From([s]) otherwise 0`): `CASE WHEN "s" IS NULL THEN NULL ELSE COALESCE(TRY_CAST("s" AS
+  DOUBLE), 0) END`. Anything else: `CASE WHEN g IS NULL THEN y ELSE list_extract(g, 1) END` with g =
+  `TRY(list_transform([0], lambda duckpq_tried: x))`: g is null only when x raised (a null x gives `[NULL]`).
+  On texts "12", "x", null, "2.5", "y": `otherwise 0` gives 12, 0, null, 2.5, 0; `try Number.From([s]) * 2
+  otherwise -1` gives 24, -1, null, 5, -1; `otherwise [n]` takes the row's own n; nested, the outer otherwise
+  answers where the inner one raises too; the same in Table.SelectRows and Table.TransformColumns. `otherwise
+  null` compiles to the same two without the fallback (`TRY_CAST(c AS T)`, `list_extract(g, 1)`).
+- **Why a lambda (a DuckDB 2.0.0 defect, found here):** a part of an expression that appears twice in one
+  SELECT is worked out once in a projection below, OUTSIDE its TRY, so its error is not caught:
+  `SELECT TRY(CAST(s AS DOUBLE) + CAST(s AS DOUBLE)) FROM t` raises "Could not convert string 'x' to DOUBLE",
+  and so does `SELECT TRY(CAST(s AS DOUBLE)), TRY(CAST(s AS DOUBLE) + 1)`; with
+  `SET disabled_optimizers = 'common_subexpressions'` both answer null. Wrapping in a list, a CASE or a
+  COALESCE does not help; a lambda's body is left whole, and TRY_CAST is not touched. Tried on 2,000,000 rows,
+  one in ten no number: TRY_CAST 0.03 s, TRY 0.96 s, TRY over the lambda 2.7 s. DuckDB's TRY also refuses a
+  volatile function (its own `error()` among them) and a scalar subquery inside it, at bind time: duckpq
+  refuses both at the try's line.
+
+**Stated differences (in docs/duckpq.md too):** `try x otherwise y` per row catches only what DuckDB raises
+(where M raises and DuckDB answers, DuckDB's answer stays), x and y must fit one DuckDB type (M keeps a text
+beside numbers; DuckDB refuses it when it runs), and `try x` alone per row (M's error record) is refused with
+its line; `Text.From` of a fractional
 number is DuckDB's text of it; `Table.TransformColumnTypes` ignores its culture; `Date.AddDays` and its kind
 answer a date; "the row above" (FillDown, Distinct by columns, an index column) follows the order DuckDB hands
 the rows in; `Table.Pivot` with no aggregate takes the largest value where M raises an error on two.
@@ -6706,7 +6728,7 @@ the rows in; `Table.Pivot` with no aggregate takes the largest value where M rai
 **duckpq's tests** (tests/test_duckpq_*.py, importing only duckpq, duckdb and the standard library): the parser
 (62: every construct, the specification's precedence, escapes, a field name with spaces, a section document,
 thirteen errors each with its line and column), the functions against hand-worked rows (83), the semantics above
-(12), the sources (29: CSV, a CSV's delimiter, Parquet, JSON at the root and nested, a missing file's line, a
+(21: nine of them try ... otherwise), the sources (29: CSV, a CSV's delimiter, Parquet, JSON at the root and nested, a missing file's line, a
 DuckDB file through the resolver with its navigation, a native query by option and by Value.NativeQuery,
 Snowflake-style navigation, every database function reaching the resolver, a refusal at the source's line, a
 table given by name, dependency order, cycles naming the loop, one query's problem not stopping the others,

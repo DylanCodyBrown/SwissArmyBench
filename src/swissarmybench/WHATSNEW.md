@@ -14,6 +14,7 @@
 - Import a Power BI dataset's queries as one file
 - A Power Query table shows its M and the SQL composed
 - Export a .pq file to run anywhere, with no app
+- Power Query: try ... otherwise works on every row
 
 ### Bug fixes
 - Fixed: agent tools did not start with Power Apps

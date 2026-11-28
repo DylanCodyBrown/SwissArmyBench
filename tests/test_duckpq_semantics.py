@@ -6,6 +6,9 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import duckdb
+import pytest
+
 import duckpq
 
 T = (
@@ -102,10 +105,102 @@ def test_list_contains_never_answers_null() -> None:
     assert column("List.Contains({7, null}, [a])") == [True, False, True, False]
 
 
-def test_try_otherwise_null_per_row_and_any_other_is_refused() -> None:
-    assert column("try Number.From([t]) otherwise null") == [None, None, None, None]
-    (problem,) = duckpq.check(f'Table.AddColumn({T}, "v", each try Number.From([t]) otherwise 0)')
-    assert "otherwise null" in problem.message and problem.name == "try"
+# ----- try ... otherwise per row (1.1.0) -----
+#
+# learn.microsoft.com/powerquery-m/m-spec-error-handling: `try x otherwise y` is y when x raises an error, and
+# x's own value when it does not: a null that is no error stays null.
+
+S = (
+    "#table(type table [s = text, u = text, n = Int64.Type], {"
+    '{"12", "1", 1}, {"x", "7", 2}, {null, "3", 3}, {"2.5", "4", 0}, {"y", "z", 5}})'
+)
+
+
+def tried(expression: str) -> list[Any]:
+    return [r[3] for r in duckpq.run(f'Table.AddColumn({S}, "v", each {expression})')["Query"].fetchall()]
+
+
+def tried_sql(expression: str) -> str:
+    return duckpq.to_sql(f'Table.AddColumn({S}, "v", each {expression})')["Query"]
+
+
+def test_try_otherwise_an_error_row_takes_the_otherwise_value_and_a_good_row_keeps_its_own() -> None:
+    assert tried("try Number.From([s]) otherwise 0")[:2] == [12.0, 0.0]
+    assert tried("try Number.From([s]) otherwise 0")[3:] == [2.5, 0.0]
+    assert tried("try Number.From([s]) * 2 otherwise -1")[:2] == [24.0, -1.0]
+    assert tried("try Date.From([s]) otherwise #date(2000, 1, 1)")[1].isoformat() == "2000-01-01"
+
+
+def test_try_otherwise_a_null_that_is_no_error_stays_null_as_in_m() -> None:
+    """The row whose s is null: Number.From(null) is null and no error, so M answers null, not the otherwise
+    value. Both shapes keep it: a conversion of a column (TRY_CAST), and any other expression (TRY of a list)."""
+    assert tried("try Number.From([s]) otherwise 0")[2] is None
+    assert tried("try Number.From([s]) * 2 otherwise -1")[2] is None
+    assert tried("try Number.From([s]) otherwise [n]") == [12.0, 2.0, None, 2.5, 5.0]
+
+
+def test_try_otherwise_how_it_compiles() -> None:
+    cast = tried_sql("try Number.From([s]) otherwise 0")
+    assert 'CASE WHEN "s" IS NULL THEN NULL ELSE COALESCE(TRY_CAST("s" AS DOUBLE), 0) END' in cast
+    other = tried_sql("try Number.From([s]) * 2 otherwise -1")
+    assert "CASE WHEN TRY(list_transform([0], lambda duckpq_tried: " in other
+    assert "IS NULL THEN -1 ELSE list_extract(TRY(list_transform([0], lambda duckpq_tried: " in other
+    assert 'TRY_CAST("s" AS DOUBLE) AS "v"' in tried_sql("try Number.From([s]) otherwise null")
+    assert tried("try Number.From([s]) otherwise null") == [12.0, None, None, 2.5, None]
+    assert tried("try Number.From([s]) * 2 otherwise null") == [24.0, None, None, 5.0, None]
+
+
+def test_try_catches_a_part_that_appears_twice_in_the_step() -> None:
+    """DuckDB 2.0.0 works a part of an expression that appears twice in a SELECT out once, outside its TRY:
+    `SELECT TRY(CAST(s AS DOUBLE) + CAST(s AS DOUBLE))` raises on a text that is no number. The tried
+    expression is compiled inside a lambda, which is left whole."""
+    assert tried("try Number.From([s]) + Number.From([s]) otherwise -1") == [24.0, -1.0, None, 5.0, -1.0]
+    assert tried("try Number.From([s]) + Number.From([s]) otherwise null") == [24.0, None, None, 5.0, None]
+    two = "(try Number.From([s]) + 1 otherwise 0) + (try Number.From([s]) * 2 otherwise 0)"
+    assert tried(two) == [37.0, 0.0, None, 8.5, 0.0]
+
+
+def test_try_otherwise_nested() -> None:
+    """The inner otherwise fails too on the last row: the outer one answers for it."""
+    inner = "try Number.From([s]) otherwise Number.From([u])"
+    assert tried(f"try ({inner}) otherwise -5") == [12.0, 7.0, None, 2.5, -5.0]
+    assert tried(f"try ({inner}) + Number.From([u]) otherwise -5") == [13.0, 14.0, None, 6.5, -5.0]
+    assert tried("try Number.From([u]) + (try Number.From([s]) otherwise 100) otherwise -5") == [
+        13.0,
+        107.0,
+        None,
+        6.5,
+        -5.0,
+    ]
+
+
+def test_try_otherwise_in_a_filter_and_in_a_column_transform() -> None:
+    kept_rows = duckpq.run(f"Table.SelectRows({S}, each (try Number.From([s]) otherwise 0) > 2)")
+    assert [r[0] for r in kept_rows["Query"].fetchall()] == ["12", "2.5"]
+    made = duckpq.run(f'Table.TransformColumns({S}, {{{{"s", each try Number.From(_) otherwise -1}}}})')
+    assert [r[0] for r in made["Query"].fetchall()] == [12.0, -1.0, None, 2.5, -1.0]
+
+
+def test_try_with_no_otherwise_per_row_is_refused_with_its_line() -> None:
+    """`try x` alone is a record ([HasError, Value, Error]) in M: a column of SQL has no such value."""
+    (problem,) = duckpq.check(f'Table.AddColumn({S},\n "v", each try Number.From([s]))')
+    assert (problem.line, problem.column, problem.name) == (2, 12, "try")
+    assert "otherwise" in problem.message
+
+
+def test_try_refuses_what_duckdb_cannot_try_with_its_line() -> None:
+    """DuckDB's TRY takes no error() of the query's own and no subquery: said here, not by the engine."""
+    (raised,) = duckpq.check(
+        f'Table.AddColumn({S}, "v", each try (if [n] > 2 then error "big" else [n]) otherwise 0)'
+    )
+    assert raised.name == "try" and "error" in raised.message and raised.line == 1
+
+
+def test_try_otherwise_wants_one_type_as_any_column_of_sql() -> None:
+    """The known difference from M: the otherwise value must fit the tried value's type. M would keep a text
+    beside numbers in one column; DuckDB refuses it when it runs."""
+    with pytest.raises(duckdb.Error):
+        tried('try Number.From([s]) otherwise "bad"')
 
 
 def test_plain_values_follow_the_same_rules() -> None:

@@ -419,6 +419,30 @@ def test_run_file_builds_every_table_from_its_original_sources(client: TestClien
     assert [t["grid"] for t in again["tables"]] == [t["grid"] for t in ran["tables"]]
 
 
+def test_a_per_row_try_otherwise_runs_to_a_table(client: TestClient, tmp_path: Path) -> None:
+    """duckpq 1.1.0: a reading that is no number (a word, the app's reader's empty text for a blank) takes the
+    otherwise value; the others keep their own."""
+    (tmp_path / "readings.csv").write_text("sensor,value\na,12\nb,oops\nc,\nd,2.5\n", encoding="utf-8")
+    file = tmp_path / "readings.pq"
+    file.write_text(
+        'let\n    Read = Table.PromoteHeaders(Csv.Document(File.Contents("readings.csv"))),\n'
+        '    Typed = Table.TransformColumnTypes(Read, {{"value", type text}}),\n'
+        '    Clean = Table.AddColumn(Typed, "number", each try Number.From([value]) otherwise -1),\n'
+        '    Doubled = Table.AddColumn(Clean, "twice", each try Number.From([value]) * 2 otherwise 0)\n'
+        "in\n    Doubled\n",
+        encoding="utf-8",
+    )
+    assert ok(client.post("/scripts/pq/problems", json={"path": str(file)}, headers=AGENT))["problems"] == []
+    ran = ok(client.post("/scripts/pq/run", json={"path": str(file)}, headers=AUTH))
+    assert ran["table"] == "readings"
+    assert rows_of(client, ran["grid"]) == [
+        ["a", "12", 12.0, 24.0],
+        ["b", "oops", -1.0, 0.0],
+        ["c", "", -1.0, 0.0],
+        ["d", "2.5", 2.5, 5.0],
+    ]
+
+
 def test_one_query_by_its_line_or_its_name_and_the_unsaved_text_wins(
     client: TestClient, tmp_path: Path
 ) -> None:

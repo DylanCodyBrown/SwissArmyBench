@@ -9855,7 +9855,8 @@ Open, for the owner:
   resolver that reads through them) would make a database query run unchanged on a Function App.
 - A connection's table named inside a larger composed query is read whole (the contract's limit applies), since
   the pushdown sends columns and filters only for a table read directly; the flat form covers the common case.
-- Not run yet: `try ... otherwise <a value>` per row, a group's rows kept as a nested table (All Rows), custom
+- Not run yet: `try x` alone per row (M's error record; `try ... otherwise <a value>` runs since duckpq
+  1.1.0, below), a group's rows kept as a nested table (All Rows), custom
   functions that need rows, Table.Transpose, Table.AddColumn over lists, culture-aware casts, Duration.*,
   Folder.Files, Web.Contents (a resolver may answer for it in duckpq; the app has no mapping).
 - .m is also Objective-C's and MATLAB's ending: such a file in a project would list under Power Query.
@@ -9873,3 +9874,29 @@ stays `src/duckpq.py`, carried in Swiss Army Bench's one wheel as the module `du
 alone: it imports nothing from the app, has its own version, change list and tests, and is carried beside an exported
 `.pq` file. That way moving it out later is a lift, not a rewrite. docs/duckpq.md is kept ready as that repository's
 README.
+
+### `try ... otherwise <value>` per row runs (the owner's yes, 2026-11-28; duckpq 1.1.0)
+
+Before, only `otherwise null` ran per row, because SQL cannot tell an error from a null. Now any otherwise value
+runs, and a null that is no error stays null as in M: a conversion of a column compiles to TRY_CAST behind a null
+test, anything else to DuckDB's TRY over a one-item list made in a lambda (null only when the expression raised).
+docs/verified.md has the SQL and the DuckDB 2.0.0 defect the lambda is there for (a repeated part of an
+expression is worked out outside its TRY); docs/duckpq.md the differences left: only what DuckDB raises is an
+error, both values must fit one type, `try x` alone is still refused with its line.
+
+Open, for the owner:
+
+- `(try x)[HasError]` and `[Value]` could run (`g IS NULL`, `list_extract(g, 1)`), should the record's fields
+  be wanted; the record itself as a column's value cannot.
+- A refusal of the compiler's own inside a try (a function it does not run: `try Some.Unknown([a]) otherwise 0`)
+  is taken as an error and answers the otherwise value for every row, as it did in 1.0.0 for plain values. That
+  is a guess where the rule is "refused, never guessed"; telling "cannot compile" from "M would raise" apart
+  needs two kinds of PowerQueryError. Not changed here.
+- pyproject.toml asks duckdb>=1.2; TRY and the `lambda x:` form need 1.3.
+
+### An exported .pq file does not carry the connections' code (the owner, 2026-11-28)
+
+Asked whether an exported .pq file should carry the project's connection code (adapter.py and connections.py, so
+a database source runs unchanged elsewhere): "no not needed if we already imported the connection". The export
+stays as it is: the file, duckpq.py, run.py, requirements.txt and README.md; its `run.py` leaves each database
+source for the caller's resolver to fill in.

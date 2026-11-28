@@ -53,6 +53,10 @@ compile (a function it does not know, a source nothing resolves, a step that nee
 is refused in one sentence with its line and column, never guessed.
 
 Changes
+    1.1.0   `try x otherwise y` per row with any otherwise value (before: only `otherwise null`): the otherwise
+            value where x raises, x's own value where it does not, a null that is no error kept null as in M.
+            A conversion of a column compiles to TRY_CAST, anything else to TRY over a lambda. `try x` alone
+            per row (M's error record) is still refused with its line.
     1.0.0   the first: the parser, the compiler, the functions in functions(), the sources above.
 """
 
@@ -67,7 +71,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     "Compiled", "Context", "Document", "Failure", "Member", "Node", "PowerQueryError", "Problem", "Query",
     "Resolved", "Source", "check", "compile", "functions", "parse", "run", "run_query", "to_sql",
@@ -1639,14 +1643,17 @@ class _Run:
             return self.ev(node["otherwise"], scope)
         if not isinstance(value, Sx):
             return value
-        otherwise = self.ev(node["otherwise"], scope) if node["otherwise"] is not None else None
-        if node["otherwise"] is None or otherwise is not None:
+        if node["otherwise"] is None:
             raise self.fail(
                 node,
-                "Per row, try runs only as `try ... otherwise null`: SQL cannot tell an error from a null.",
+                "Per row, try needs an otherwise (`try ... otherwise 0`): try alone is a record of the error, "
+                "which a column of SQL cannot hold.",
                 "try",
             )
-        return Sx(f"TRY({value.sql})")
+        otherwise = self.ev(node["otherwise"], scope)
+        if _unknown(otherwise):
+            return UNKNOWN
+        return Sx(_try_sql(self, node, value.sql, otherwise))
 
     def _error(self, node: Node, scope: _Scope) -> Any:
         message = self.ev(node["body"], scope)
@@ -2161,6 +2168,39 @@ _PLAIN: dict[str, Callable[..., Any]] = {
     "Date.Month": lambda d: d.month,
     "Date.Day": lambda d: d.day,
 }
+
+
+_SQL_TEXT = re.compile(r"'(?:[^']|'')*'")
+_CAST_OF_A_COLUMN = re.compile(r'CAST\(("(?:[^"]|"")*") AS ([A-Z][A-Z0-9(), ]*)\)')
+
+
+def _try_sql(run: _Run, node: Node, body: str, otherwise: Any) -> str:
+    """`try <body> otherwise <otherwise>` for one row. M: the otherwise value when the body raises, the
+    body's own value when it does not, so a null that is no error stays null. Two shapes, both exact:
+
+        a conversion of a column     CASE WHEN c IS NULL THEN NULL ELSE COALESCE(TRY_CAST(c AS T), y) END
+        anything else                CASE WHEN g IS NULL THEN y ELSE list_extract(g, 1) END
+                                     g = TRY(list_transform([0], lambda duckpq_tried: x))
+
+    g is null only when x raised: a null x gives [NULL], a list that is not null. x sits in a lambda because
+    DuckDB (seen in 2.0.0) works a part of x that appears twice in the SELECT out once, OUTSIDE its TRY, where
+    its error is not caught (`TRY(CAST(s AS DOUBLE) + CAST(s AS DOUBLE))` raises); a lambda's body is left
+    whole. With `otherwise null` the same two, without their fallback."""
+    bare = _SQL_TEXT.sub("''", body)
+    if re.search(r"\berror\(", bare) or "(SELECT " in bare.upper():
+        what = "an `error` of its own" if re.search(r"\berror\(", bare) else "another table's values"
+        raise run.fail(node, f"Per row, try cannot hold {what}: DuckDB's TRY refuses it.", "try")
+    cast = _CAST_OF_A_COLUMN.fullmatch(body)
+    if cast:
+        column, kind = cast.groups()
+        tried = f"TRY_CAST({column} AS {kind})"
+        if otherwise is None:
+            return tried
+        return f"CASE WHEN {column} IS NULL THEN NULL ELSE COALESCE({tried}, {run.sx(otherwise, node)}) END"
+    tried = f"TRY(list_transform([0], lambda duckpq_tried: {body}))"
+    if otherwise is None:
+        return f"list_extract({tried}, 1)"
+    return f"CASE WHEN {tried} IS NULL THEN {run.sx(otherwise, node)} ELSE list_extract({tried}, 1) END"
 
 
 def _scalar(run: _Run, node: Node, name: str, args: list[Any]) -> Any:

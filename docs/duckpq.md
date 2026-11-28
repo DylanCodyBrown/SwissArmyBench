@@ -118,10 +118,22 @@ duckpq writes M's meaning:
 | A sort puts null first going up | `ASC NULLS FIRST`, `DESC NULLS LAST` |
 | A join's keys match null with null | `ON l.k IS NOT DISTINCT FROM r.k` |
 | `List.Count` counts nulls, `List.Sum` skips them | `count(*)`, `sum()` |
+| `try Number.From([c]) otherwise y`: y on an error, null kept | `CASE WHEN c IS NULL THEN NULL ELSE COALESCE(TRY_CAST(c AS DOUBLE), y) END` |
+| `try x otherwise y`, any other x | `CASE WHEN g IS NULL THEN y ELSE list_extract(g, 1) END`, g being `TRY(list_transform([0], lambda duckpq_tried: x))` |
 
 Known differences, stated rather than hidden:
 
-- `try x otherwise y` per row runs only with `otherwise null` (`TRY(x)`): SQL cannot tell an error from a null.
+- `try x otherwise y` per row (1.1.0) catches what DuckDB raises for that row (a conversion, a cast out of
+  range, a text that is no date): the otherwise value where it raises, x's own value where it does not, and a
+  null that is no error stays null, as in M. What is left different:
+  - **Only DuckDB's errors are errors.** Where M would raise and DuckDB answers a value or a null, the row
+    keeps DuckDB's answer and the otherwise value is not taken.
+  - **One type.** x and the otherwise value must fit one DuckDB type, as any column does:
+    `try Number.From([t]) otherwise "bad"` keeps numbers and a text in one column in M; here DuckDB refuses it
+    when it runs. Write `otherwise null`, or a value of x's type.
+  - **`try x` alone** per row is M's record of the error (`[HasError, Value, Error]`): refused with its line.
+  - An `error "..."` of the query's own inside the tried expression, or another table's values (a subquery),
+    is refused with its line: DuckDB's TRY takes neither.
 - `Text.From` of a fractional number is DuckDB's text of it (`1.0`, where M writes `1`).
 - `Table.TransformColumnTypes` ignores its culture argument: a cast is DuckDB's.
 - `Date.AddDays` and its kind answer a date.
