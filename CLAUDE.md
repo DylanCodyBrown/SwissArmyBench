@@ -114,7 +114,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   whose settings name the same server and database, through the connection tables contract
   (`[Conn].[schema].[table]`); never the published dataset. A source no connection matches is refused in one
   sentence with Add connection; what the compiler cannot run (a function it does not know, a step that needs
-  rows where only SQL is) is refused with its line, its column and its name, never guessed. One file holds many
+  rows where only SQL is) is refused with its line, its column and its name, never guessed. That holds
+  inside a `try` too (duckpq 1.1.1): only M's own errors and what DuckDB raises per row take the otherwise value. One file holds many
   queries (`section S; shared Orders = ...;`): they name each other and run in dependency order; a plain
   `let ... in` file is one query named after the file. A run's table shows its M read-only with Edit in Scripts
   and Show as SQL. **Import Power BI queries…** (New file) writes a .pbix's, .pbit's or .pbip's queries and
@@ -519,7 +520,8 @@ src/swissarmybench/
                          (each query ONE DuckDB statement; dependencies, order, cycles, each query's sources; no
                          I/O: Context's keys and `missing`), check, run, run_query, to_sql (the same loop over
                          a DuckDB connection, sources by the caller's resolver), functions(); M's meaning where
-                         SQL differs. Version 1.1.0; it only grows; the wheel carries it as `duckpq`
+                         SQL differs; a `try` catches only M's own errors (EvaluationError), never
+                         a refusal. Version 1.1.1; it only grows; the wheel carries it as `duckpq`
   sab_excel.py           public: THE workbook builder (Plans/excel.plan.md, the owner 2026-11-21), one file the
                          app, a kernel, a Streamlit app and an export share; standard library, openpyxl and
                          duckdb only: build(grids, design, template, out): no design a plain workbook

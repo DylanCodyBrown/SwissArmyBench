@@ -248,13 +248,18 @@ class PowerQueryFiles:
             return await self._source(context.sources[key[1]], held, saved)
         except MissingVariables as error:
             return duckpq.Failure(refusals.first_sentence(str(error)))
-        except (FileNotFoundError, OSError, ValueError, LookupError, refusals.Explained) as error:
+        except FileNotFoundError as error:
+            # M's own read would raise too: a `try` around the source takes its otherwise (duckpq 1.1.1)
+            return duckpq.Failure(refusals.first_sentence(str(error)) or "No file.", raised=True)
+        except (OSError, ValueError, LookupError, refusals.Explained) as error:
             return duckpq.Failure(refusals.first_sentence(str(error)) or type(error).__name__)
         except Exception as error:  # a connection's own code failing: its words, at the source's line
             return duckpq.Failure(refusals.first_sentence(str(error)) or type(error).__name__)
 
     async def _source(self, source: duckpq.Source, held: _Resolution, saved: list[rules.Connection]) -> Any:
         if source.kind == "file":
+            if "://" not in str(source.path) and not self._files.exists(str(source.path)):
+                raise FileNotFoundError(f"No file at {source.path}.")
             table = await self._tables.read_file(str(source.path), source.sheet)
             held.tables[source.name] = table
             return duckpq.Resolved([str(n) for n in table.schema.names])

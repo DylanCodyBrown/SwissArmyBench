@@ -203,6 +203,112 @@ def test_try_otherwise_wants_one_type_as_any_column_of_sql() -> None:
         tried('try Number.From([s]) otherwise "bad"')
 
 
+# ----- what cannot be compiled is refused, even inside try (1.1.1) -----
+#
+# Two kinds of failure. An EvaluationError is M's own error, known while compiling (a constant that does not
+# convert, a missing column, field or item, a file that is not there): `try` takes its otherwise for it, as it
+# does per row for what DuckDB raises. Every other PowerQueryError is a refusal: duckpq cannot compile this,
+# and M might well have run it, so an otherwise value would be a guess.
+
+
+def refused(text: str, **given: Any) -> duckpq.PowerQueryError:
+    with pytest.raises(duckpq.PowerQueryError) as raised:
+        duckpq.run(text, **given)
+    assert not isinstance(raised.value, duckpq.EvaluationError)
+    return raised.value
+
+
+def test_try_per_row_does_not_swallow_a_function_duckpq_does_not_run() -> None:
+    """Before 1.1.1 this gave 0 on every row."""
+    error = refused(f'Table.AddColumn({S},\n "v", each try Text.Frobnicate([s]) otherwise 0)')
+    assert (error.line, error.column, error.name) == (2, 16, "Text.Frobnicate")
+    assert "not a function duckpq runs" in error.what
+    other = refused(f'Table.AddColumn({S}, "v", each try Some.Unknown([s]) otherwise 0)')
+    assert other.name == "Some.Unknown" and other.line == 1
+    (problem,) = duckpq.check(f'Table.AddColumn({S}, "v", each try Text.Frobnicate([s]) otherwise 0)')
+    assert problem.name == "Text.Frobnicate"
+
+
+def test_try_around_a_whole_query_does_not_swallow_what_cannot_be_compiled() -> None:
+    """M's meaning for a whole-query try: its otherwise is the answer only when working the query out raises
+    an error. A function duckpq does not run, or a step it cannot map, raises nothing in M (M has the
+    function): the answer there would be the query's own, so here it is refused, never the otherwise."""
+    unknown = refused(f"try Table.Frobnicate({S}) otherwise {S}")
+    assert (unknown.line, unknown.column, unknown.name) == (1, 5, "Table.Frobnicate")
+    step = refused(f'try Table.Group({S}, {{"s"}}, {{}}, GroupKind.Local) otherwise {S}')
+    assert step.name == "Table.Group" and "GroupKind.Global" in step.what
+
+
+def test_try_does_not_swallow_a_source_nothing_resolves() -> None:
+    database = f'try Sql.Database("srv", "db"){{[Schema = "a", Item = "b"]}}[Data] otherwise {S}'
+    error = refused(database)
+    assert error.line == 1 and "Nothing reads Sql.Database" in error.what
+    said = refused(
+        database, resolver=lambda source: (_ for _ in ()).throw(RuntimeError("the server said no"))
+    )
+    assert "the server said no" in said.what
+    failure = duckpq.Context()
+    first = duckpq.compile(database, "Query", failure)
+    assert not first.complete
+    for key in failure.missing:
+        failure.resolved[key] = duckpq.Failure("No connection reads srv.")
+    (problem,) = duckpq.compile(database, "Query", failure).problems  # a caller's Failure: a refusal
+    assert problem.message == "No connection reads srv." and problem.line == 1
+    # a caller that knows M's own read would raise (the file is not there) says so: the otherwise is taken
+    file = f'try Csv.Document(File.Contents("orders.csv")) otherwise {S}'
+    for said_raised, problems in ((False, 1), (True, 0)):
+        context = duckpq.Context()
+        duckpq.compile(file, "Query", context)
+        for key in context.missing:
+            context.resolved[key] = duckpq.Failure("orders.csv is not there.", raised=said_raised)
+        assert len(duckpq.compile(file, "Query", context).problems) == problems
+
+
+def test_try_nested_refuses_through_every_level_and_from_the_otherwise() -> None:
+    inner = "try Text.Frobnicate([s]) otherwise 1"
+    assert refused(f'Table.AddColumn({S}, "v", each try ({inner}) otherwise 0)').name == "Text.Frobnicate"
+    assert (
+        refused(f'Table.AddColumn({S}, "v", each try Number.From([s]) otherwise Text.Frobnicate([s]))').name
+        == "Text.Frobnicate"
+    )
+    whole = f"try (try Table.Frobnicate({S}) otherwise {S}) otherwise {S}"
+    assert refused(whole).name == "Table.Frobnicate"
+    # an inner try that may take its otherwise still does, inside an outer one
+    assert tried('try (try Number.From("x") otherwise Number.From([s])) otherwise -5') == [
+        12.0,
+        -5.0,
+        None,
+        2.5,
+        -5.0,
+    ]
+
+
+def test_try_still_takes_its_otherwise_for_an_error_that_is_m_s_own() -> None:
+    """What M itself raises, known while compiling: the otherwise is M's answer, not a guess."""
+    plain = {
+        'try Number.From("x") otherwise 5': 5,
+        'try 1 + "a" otherwise 5': 5,
+        "try {1, 2}{5} otherwise 5": 5,
+        "try [a = 1][b] otherwise 5": 5,
+        'try error "no" otherwise 5': 5,
+        "try not 1 otherwise 5": 5,
+        "try Text.Length(5) otherwise 5": 5,
+        "try 7 otherwise 5": 7,
+    }
+    for text, answer in plain.items():
+        made = duckpq.run(f'#table({{"v"}}, {{{{{text}}}}})')["Query"].fetchall()
+        assert made == [(answer,)], text
+    kept_table = duckpq.run(f'try Table.SelectColumns({S}, {{"nope"}}) otherwise Table.FirstN({S}, 1)')
+    assert len(kept_table["Query"].fetchall()) == 1
+    assert tried("try [nope] otherwise 0") == [0, 0, 0, 0, 0]
+    missing = f'try Csv.Document(File.Contents("/nowhere/none.csv")) otherwise Table.FirstN({S}, 2)'
+    assert len(duckpq.run(missing)["Query"].fetchall()) == 2
+    with pytest.raises(duckpq.PowerQueryError) as raised:  # with no try around it, it is said as any problem
+        duckpq.run('Csv.Document(File.Contents("/nowhere/none.csv"))')
+    assert "not a file" in raised.value.what and issubclass(duckpq.EvaluationError, duckpq.PowerQueryError)
+    assert duckpq.Failure("x").raised is False
+
+
 def test_plain_values_follow_the_same_rules() -> None:
     """What is worked out while compiling (no row in it) answers as the SQL would."""
     made = duckpq.run(

@@ -53,6 +53,12 @@ compile (a function it does not know, a source nothing resolves, a step that nee
 is refused in one sentence with its line and column, never guessed.
 
 Changes
+    1.1.1   What cannot be compiled is refused even inside `try` (before: `try Some.Unknown([a]) otherwise 0`
+            gave 0 on every row). Two kinds of failure now: EvaluationError (a PowerQueryError) is M's own
+            error known while compiling (a constant that does not convert, a missing column, field or item,
+            an `error`, a file that is not there: Failure(..., raised=True)) and `try` takes its otherwise
+            for it; every other PowerQueryError is a refusal and passes through every `try` with its line,
+            column and name. Per row, `otherwise` is still taken only where DuckDB raises for that row.
     1.1.0   `try x otherwise y` per row with any otherwise value (before: only `otherwise null`): the otherwise
             value where x raises, x's own value where it does not, a null that is no error kept null as in M.
             A conversion of a column compiles to TRY_CAST, anything else to TRY over a lambda. `try x` alone
@@ -71,9 +77,9 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __all__ = [
-    "Compiled", "Context", "Document", "Failure", "Member", "Node", "PowerQueryError", "Problem", "Query",
+    "Compiled", "Context", "Document", "EvaluationError", "Failure", "Member", "Node", "PowerQueryError", "Problem", "Query",
     "Resolved", "Source", "check", "compile", "functions", "parse", "run", "run_query", "to_sql",
 ]  # fmt: skip
 
@@ -94,6 +100,13 @@ class PowerQueryError(ValueError):
 
     def to_json(self) -> dict[str, Any]:
         return {"message": self.what, "line": self.line, "column": self.column, "name": self.name}
+
+
+class EvaluationError(PowerQueryError):
+    """An error that is M's own, known while compiling: the value M would raise as it works the expression
+    out (a constant that does not convert, a column, field or item that is not there, a file that is not
+    there). `try` takes its otherwise for this kind alone; any other PowerQueryError is a refusal (duckpq
+    cannot compile it, and M might have run it), which no `try` catches."""
 
 
 @dataclass(frozen=True)
@@ -1145,9 +1158,12 @@ class Resolved:
 
 @dataclass(frozen=True)
 class Failure:
-    """A key that cannot be resolved, in one sentence: said at the line that asked."""
+    """A key that cannot be resolved, in one sentence: said at the line that asked. `raised`: M's own read
+    would raise too (the file is not there), so a `try` around the source takes its otherwise; left False
+    (nothing here reads it, a connection is missing) it is a refusal that no `try` catches."""
 
     message: str
+    raised: bool = False
 
 
 SOURCE_PREFIX = "m_source_"
@@ -1188,7 +1204,8 @@ class Context:
         if key in self.resolved:
             found = self.resolved[key]
             if isinstance(found, Failure):
-                raise PowerQueryError(found.message, node.line if node else 1, node.column if node else 1)
+                kind = EvaluationError if found.raised else PowerQueryError
+                raise kind(found.message, node.line if node else 1, node.column if node else 1)
             return found
         if key not in self.missing:
             self.missing.append(key)
@@ -1458,7 +1475,12 @@ class _Run:
         return self._kinds[node.kind](node, scope)
 
     def fail(self, node: Node, what: str, name: str | None = None) -> PowerQueryError:
+        """A refusal: what cannot be compiled. No `try` catches it."""
         return PowerQueryError(what, node.line, node.column, name)
+
+    def raised(self, node: Node, what: str, name: str | None = None) -> EvaluationError:
+        """M's own error, known while compiling: a `try` around it takes its otherwise."""
+        return EvaluationError(what, node.line, node.column, name)
 
     # ----- names -----
 
@@ -1607,7 +1629,13 @@ class _Run:
         except PowerQueryError:
             raise
         except (TypeError, ValueError, IndexError, KeyError, AttributeError) as error:
-            raise self.fail(node, f"{name} cannot take these values ({error}).", name) from None
+            # a scalar worked out on plain values failed as M's own would; a table step's is a refusal
+            kind = self.raised if name in _SCALARS else self.fail
+            raise kind(node, f"{name} cannot take these values ({error}).", name) from None
+        if any(isinstance(a, Sx | ErrorValue | RowRef | GroupRows) for a in args):
+            raise self.fail(
+                node, f"{name} is not a function duckpq runs (per row it is no source either).", name
+            )
         return Nav(name, tuple(self.plain(a, node, f"{name}'s argument") for a in args), at=node)
 
     # ----- expressions -----
@@ -1624,7 +1652,7 @@ class _Run:
         if isinstance(test, bool):
             return self.ev(node["then" if test else "other"], scope)
         if not _symbolic(test):
-            raise self.fail(node, "if needs a condition that is true or false.")
+            raise self.raised(node, "if needs a condition that is true or false.")
         then, other = self.ev(node["then"], scope), self.ev(node["other"], scope)
         if _unknown(then) or _unknown(other):
             return UNKNOWN
@@ -1635,7 +1663,7 @@ class _Run:
     def _try(self, node: Node, scope: _Scope) -> Any:
         try:
             value = self.ev(node["body"], scope)
-        except PowerQueryError:
+        except EvaluationError:  # M's own error; a refusal (any other PowerQueryError) passes through
             if node["otherwise"] is None:
                 raise
             return self.ev(node["otherwise"], scope)
@@ -1672,7 +1700,7 @@ class _Run:
             return None
         if op == "not":
             if not isinstance(value, bool):
-                raise self.fail(node, "not needs true or false.")
+                raise self.raised(node, "not needs true or false.")
             return not value
         return -value if op == "-" else value
 
@@ -1694,7 +1722,7 @@ class _Run:
         try:
             return _plain_binary(op, left, right)
         except (TypeError, ValueError):
-            raise self.fail(
+            raise self.raised(
                 node, f"{op} cannot be worked out between {_words(left).lower()} and {_words(right).lower()}."
             ) from None
 
@@ -1713,7 +1741,7 @@ class _Run:
             if name not in target:
                 if optional:
                     return None
-                raise self.fail(node, f"The record has no field {name}.", name)
+                raise self.raised(node, f"The record has no field {name}.", name)
             return target[name]
         if isinstance(target, RowRef):
             _need(self, node, target.columns, [name])
@@ -1762,7 +1790,7 @@ class _Run:
                 return target[index]
             if node["optional"]:
                 return None
-            raise self.fail(node, f"The list has {len(target)} items: there is no item {index} (from 0).")
+            raise self.raised(node, f"The list has {len(target)} items: there is no item {index} (from 0).")
         raise self.fail(node, f"{{...}} cannot pick from {_words(target).lower()}.")
 
 
@@ -1877,7 +1905,7 @@ def _need(run: _Run, node: Node, columns: Cols, names: Iterable[str]) -> None:
     for name in names:
         if name not in columns:
             shown = ", ".join(columns[:8]) + (", ..." if len(columns) > 8 else "")
-            raise run.fail(
+            raise run.raised(
                 node, f"{name} is not a column here (the table has {shown or 'no columns'}).", name
             )
 
@@ -3411,7 +3439,7 @@ class _Runner:
                 return [row[0] for row in self.connection.execute(key[1]).fetchall()]
             return self.source(self.context.sources[key[1]])
         except PowerQueryError as error:
-            return Failure(error.what)
+            return Failure(error.what, isinstance(error, EvaluationError))
         except (
             Exception
         ) as error:  # the file's, DuckDB's or the resolver's own words, said at the source's line
@@ -3487,7 +3515,7 @@ def _one_line(error: BaseException) -> str:
 def _file_reader(source: Source, path: str, connection: Any) -> str:
     """The DuckDB table function that reads a file, by the M function that named it (else by its ending)."""
     if not re.match(r"^[a-z][a-z0-9+.-]*://", path) and not os.path.exists(path):
-        raise PowerQueryError(f"{path} is not a file here.")
+        raise EvaluationError(f"{path} is not a file here.")
     quoted = text_sql(path)
     lower = path.lower()
     if source.function == "Excel.Workbook" or lower.endswith((".xlsx", ".xlsm")):

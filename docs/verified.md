@@ -6717,6 +6717,33 @@ answer: tests/test_duckpq_semantics.py; DuckDB 2.0.0):
   volatile function (its own `error()` among them) and a scalar subquery inside it, at bind time: duckpq
   refuses both at the try's line.
 
+- **A compile refusal inside `try` is refused, not swallowed (duckpq 1.1.1, 2026-11-28; the owner agreed).**
+  Found: `Table.AddColumn(T, "v", each try Some.Unknown([s]) otherwise 0)` gave 0 on every row, and
+  `try Table.Frobnicate(T) otherwise T` and `try Table.Group(T, {"s"}, {}, GroupKind.Local) otherwise T` gave
+  T: the compiler's own PowerQueryError was caught by `_try` as if M had raised. Now two kinds:
+  `EvaluationError` (a PowerQueryError: M's own error known while compiling) and the refusal (every other
+  PowerQueryError). `try` catches the first only. Raised as EvaluationError, each read against
+  learn.microsoft.com/powerquery-m/m-spec-error-handling ("errors raised while evaluating"): a scalar worked
+  out on plain values that fails (`Number.From("x")`, `Text.Length(5)`), an operator between the wrong kinds,
+  `not` and `if` on what is not true or false, a record's missing field, a list's missing item, a column that
+  is not in the table (`Table.SelectColumns(T, {"nope"})`, `[nope]` in a row), an `error "..."`, and a file
+  that is not there (`Failure(message, raised=True)`: run()'s own reader and the app's file source say so; a
+  caller's plain Failure, a missing connection among them, stays a refusal). Everything else is a refusal
+  that passes through every `try` with its line, column and name: an unknown function per row (2:16
+  Text.Frobnicate; a dotted name of no library, `Some.Unknown([s])`, says it is no function duckpq runs,
+  where it said "argument is needed here" with no name), around a whole query (1:5 Table.Frobnicate), a step
+  it cannot map (Table.Group with GroupKind.Local), a source nothing resolves ("Nothing reads
+  Sql.Database..."; a resolver that raises: its words), nested (the inner and the outer try both let it
+  through), and from the otherwise side.
+  **A whole-query try, decided:** M's meaning is "the otherwise when working the query out raises". A
+  function duckpq does not run raises nothing in M, so M's answer would be the query's own, which duckpq
+  cannot give: refused. The otherwise is the answer only for what is certainly M's error. A database source
+  is lazy here (it is asked for after the `try` has answered), so `try Sql.Database(...){...}[Data] otherwise
+  x` never took x and still does not: a source that cannot be read is said at its line.
+  tests/test_duckpq_semantics.py (5 new), tests/test_m_files.py (1 new: the app's problems
+  and run). The contract only grew: `EvaluationError`, `Failure.raised` (default False), 1.1.1's change line;
+  no function over 80 lines; standard library and duckdb only.
+
 **Stated differences (in docs/duckpq.md too):** `try x otherwise y` per row catches only what DuckDB raises
 (where M raises and DuckDB answers, DuckDB's answer stays), x and y must fit one DuckDB type (M keeps a text
 beside numbers; DuckDB refuses it when it runs), and `try x` alone per row (M's error record) is refused with

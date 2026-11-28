@@ -9946,3 +9946,21 @@ Open, for the owner:
   with queries. The action is on New file, the palette and a workbook's table's tab menu (so a workbook opened
   with the app or by Open file has it).
 - A protected workbook is refused whole. Excel itself may allow query edits under some protections.
+
+### A compile refusal inside `try` is refused, not swallowed (the owner agreed, 2026-11-28; duckpq 1.1.1)
+
+`try Some.Unknown([a]) otherwise 0` gave 0 on every row: the compiler's own refusal was caught as if M had
+raised. That broke "refused, never guessed". Decided:
+
+- **Two kinds of failure.** `EvaluationError` (a PowerQueryError) is M's own error, known while compiling: a
+  constant that does not convert, an operator between the wrong kinds, a column, field or item that is not
+  there, an `error`, a file that is not there. Every other PowerQueryError is a refusal. `try` catches the
+  first only; per row the otherwise value is taken only where DuckDB raises for that row.
+- **A whole-query try**: the otherwise is the answer only when the error is certainly M's. A function duckpq
+  does not run would have run in M, so M's answer is the query's own, which cannot be given here: refused.
+- **A file that is not there stays M's error** (`try Csv.Document(File.Contents(p)) otherwise ...` is a real
+  idiom and M's answer is certain): `Failure(message, raised=True)`. A caller's plain Failure (no connection
+  matches, a resolver that fails) is a refusal.
+- Kept as a refusal although M would also raise, because duckpq cannot tell M's rule from its own limit there:
+  a function given the wrong number of values, a table step given the wrong kind of value. They are said with
+  their line instead of taking the otherwise value.

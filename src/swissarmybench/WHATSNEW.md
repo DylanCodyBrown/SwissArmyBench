@@ -23,6 +23,7 @@
 
 ### Bug fixes
 - Fixed: agent tools did not start with Power Apps
+- Fixed: try hid a function Power Query cannot run
 - Fixed: a path too long gave an error, not a refusal
 - Fixed: the agent's tool list was too long; a fifth shorter
 

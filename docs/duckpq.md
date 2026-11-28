@@ -61,7 +61,7 @@ print(duckpq.check('Table.Nope(#table({"a"}, {{1}}))'))  # problems, before anyt
 
 | Function | What it gives |
 | --- | --- |
-| `parse(text, name="Query")` | The tree (`Document`). `PowerQueryError` carries `.line` and `.column`. |
+| `parse(text, name="Query")` | The tree (`Document`). `PowerQueryError` carries `.line` and `.column`; `EvaluationError` is the kind a `try` in the M catches. |
 | `check(text, ...)` | `list[Problem]`: what cannot run, found without reading anything. |
 | `compile(text, name, context)` | `Compiled`: each query's SQL, columns, dependencies and sources. No I/O. |
 | `to_sql(text, ...)` | `dict[str, str]`: each table query's DuckDB SQL. |
@@ -100,7 +100,9 @@ A file's table is read with its first row as the header, so `Table.PromoteHeader
 `compile()` does no I/O. What it needs from outside it asks of its `Context` by key: `("source", name)`,
 `("json", path)`, `("variable", NAME)`, `("probe", sql)`. A key not in `context.resolved` is listed in
 `context.missing`; fill them in (a `Resolved(columns, sql)` names a source your own way in the SQL, a
-`Failure(message)` refuses it at its line) and compile again until `complete`. `run()` is that loop over a
+`Failure(message)` refuses it at its line; `Failure(message, raised=True)` says M's own read would raise
+too, a file that is not there, so a `try` around the source takes its otherwise) and compile again until
+`complete`. `run()` is that loop over a
 DuckDB connection.
 
 ## Where M differs from SQL
@@ -134,6 +136,15 @@ Known differences, stated rather than hidden:
   - **`try x` alone** per row is M's record of the error (`[HasError, Value, Error]`): refused with its line.
   - An `error "..."` of the query's own inside the tried expression, or another table's values (a subquery),
     is refused with its line: DuckDB's TRY takes neither.
+- **A `try` never hides what duckpq cannot compile (1.1.1).** There are two kinds of failure. An
+  `EvaluationError` (a `PowerQueryError`) is M's own error, known while compiling: a constant that does not
+  convert (`Number.From("x")`), an operator between the wrong kinds, a column, field or item that is not
+  there, an `error "..."`, a file that is not there. `try` takes its otherwise for these, as M does. Every
+  other `PowerQueryError` is a refusal: a function duckpq does not run, a step it cannot map, a source
+  nothing resolves. M has the function and might have run it, so the otherwise value would be a guess: it is
+  refused with its line, column and name through every `try`, per row or around a whole query, nested or
+  not. (1.1.0 gave `try Some.Unknown([a]) otherwise 0` as 0 on every row.) Per row, the otherwise value is
+  taken only where DuckDB raises for that row.
 - `Text.From` of a fractional number is DuckDB's text of it (`1.0`, where M writes `1`).
 - `Table.TransformColumnTypes` ignores its culture argument: a cast is DuckDB's.
 - `Date.AddDays` and its kind answer a date.
@@ -147,7 +158,8 @@ Known differences, stated rather than hidden:
 A function it does not know (`functions()` lists what runs), a source nothing resolves, a step whose columns
 would depend on the rows (`Table.PromoteHeaders` on anything but a file or a literal, `Table.SplitColumn`
 without its new names), a group's rows kept as a nested table, a custom function that needs rows where only
-SQL is. Each with its line, its column, its name and one sentence.
+SQL is. Each with its line, its column, its name and one sentence. A refusal is never caught by a `try` in
+the M: only M's own errors (`EvaluationError`) are.
 
 ## Licence and credits
 

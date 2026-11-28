@@ -443,6 +443,31 @@ def test_a_per_row_try_otherwise_runs_to_a_table(client: TestClient, tmp_path: P
     ]
 
 
+def test_a_try_does_not_hide_what_the_compiler_cannot_run(client: TestClient, tmp_path: Path) -> None:
+    """duckpq 1.1.1: a function it does not run is refused with its line, column and name even inside a try
+    (before, every row took the otherwise value); a file that is not there is M's own error, so its otherwise
+    is the answer."""
+    (tmp_path / "readings.csv").write_text("sensor,value\na,12\n", encoding="utf-8")
+    file = tmp_path / "tried.pq"
+    file.write_text(
+        'let\n    Read = Table.PromoteHeaders(Csv.Document(File.Contents("readings.csv"))),\n'
+        '    Made = Table.AddColumn(Read, "v", each try Text.Frobnicate([value]) otherwise 0)\n'
+        "in\n    Made\n",
+        encoding="utf-8",
+    )
+    (problem,) = ok(client.post("/scripts/pq/problems", json={"path": str(file)}, headers=AGENT))["problems"]
+    assert (problem["line"], problem["name"]) == (3, "Text.Frobnicate")
+    assert client.post("/scripts/pq/run", json={"path": str(file)}, headers=AUTH).status_code >= 400
+    file.write_text(
+        'let\n    Read = try Table.PromoteHeaders(Csv.Document(File.Contents("not there.csv")))\n'
+        '        otherwise Table.PromoteHeaders(Csv.Document(File.Contents("readings.csv")))\n'
+        "in\n    Read\n",
+        encoding="utf-8",
+    )
+    ran = ok(client.post("/scripts/pq/run", json={"path": str(file)}, headers=AUTH))
+    assert rows_of(client, ran["grid"]) == [["a", 12]]
+
+
 def test_one_query_by_its_line_or_its_name_and_the_unsaved_text_wins(
     client: TestClient, tmp_path: Path
 ) -> None:
