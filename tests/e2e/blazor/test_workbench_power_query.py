@@ -42,7 +42,7 @@ def test_new_file_power_query_typed_and_f5_opens_its_table(browser: Browser, ser
     # Its starter is a let ... in over an open table, coloured as M.
     lines = page.locator(".wb-pq .view-lines")
     expect(lines).to_contain_text("Table.SelectRows")
-    expect(page.locator(".wb-pq .monaco-editor .mtk1 ~ span[class*='mtk']").first).to_be_visible()
+    expect(page.locator(".wb-pq .view-lines span[class^='mtk']:not(.mtk1)").first).to_be_visible()
 
     type_m(
         page,

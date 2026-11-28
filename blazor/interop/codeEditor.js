@@ -85,9 +85,10 @@ monaco.json.jsonDefaults.setModeConfiguration({ ...OFF, tokens: true });
 monaco.html.htmlDefaults.setModeConfiguration({ ...OFF, links: false, documentHighlights: false, rename: false });
 
 const THEMES = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
-// Monaco's own names for ours: Power Query (M) is its "pq" (monaco-editor's languages/definitions/powerquery).
-const LANGUAGES = { dax: "msdax", toml: "ini", tsx: "typescript", powerquery: "pq" };
-const POWER_QUERY = "pq";
+const LANGUAGES = { dax: "msdax", toml: "ini", tsx: "typescript" };
+// Power Query (M): Monaco's own "powerquery" (monaco-editor's languages/definitions/powerquery); its problems are
+// the server's (powerQueryProblems), it has no completion provider.
+const POWER_QUERY = "powerquery";
 const TEXT_SETTLES_MS = 150;
 const LINT_SETTLES_MS = 500;
 const INTEL_LANGUAGES = ["python", "sql", "msdax"];
