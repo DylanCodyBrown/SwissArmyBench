@@ -115,7 +115,8 @@ PARTS: dict[str, dict[str, Any]] = {
         "visible": Many({"number": COUNT, "kind": NAME, "name": NAME, "state": NAME}),
     },
     # A script or a .sql file: its language and whether it runs.
-    "script": {"language": NAME, "running": FLAG},
+    # A Power Query file linked to an Excel workbook: the workbook's name (its Save writes into it).
+    "script": {"language": NAME, "running": FLAG, "workbook": NAME},
     "canvas": {
         "path": NAME,
         "page": NAME,

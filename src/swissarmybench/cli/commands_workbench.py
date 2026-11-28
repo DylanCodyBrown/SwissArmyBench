@@ -150,6 +150,7 @@ def _scripts_window(command_id: str, path: Any) -> Any:
     opt("done", "With task: ticked or cleared (none: switched).", "bool"),
     opt("after", "edit_block: add `to` after the block (-1: top).", "bool"),
     opt("format", "export: svg or png."),
+    opt("source", "new: the file it is made from."),
 )
 def workbench_file(a: dict[str, Any]) -> Any:
     act = a["action"]
@@ -159,7 +160,7 @@ def workbench_file(a: dict[str, Any]) -> Any:
         if not str(a.get("to") or "").strip():
             return {"error": "Give the file a name (to): a new file is made only once it is named."}
         body = {"type": a.get("type"), "name": a.get("to"), "folder": a.get("path")}
-        more = {k: a[k] for k in ("variant",) if a.get(k)}
+        more = {k: a[k] for k in ("variant", "source") if a.get(k)}
         return api.call("POST", "/scripts/files/new", body | {"connection": a.get("connection")} | more)
     if act == "blocks":
         found = api.call("POST", "/workbench/markdown", {"path": a.get("path")})
@@ -195,14 +196,17 @@ def workbench_file(a: dict[str, Any]) -> Any:
     "as its file (Edit in Scripts), its path. A Power Query file (path ending .pq or .m): run builds each query "
     "that is a table as the open table of its name, from its original sources; problems: what cannot run "
     "(line, column), nothing read; sql: the DuckDB SQL composed; export: the file with duckpq.py and run.py "
-    "beside it, to run with no app",
-    req("action", "run or for_table; a .pq file: run, problems, sql or export."),
+    "beside it, to run with no app; linked to an Excel workbook: workbook, preview, save, reload (the guide)",
+    req(
+        "action", "run or for_table; a .pq file: run, problems, sql, export, workbook, preview, save, reload."
+    ),
     opt("path", "The .sql or .pq file (its text read when text is not sent)."),
     opt("text", "run: the SQL or M (unsaved text wins over the file's)."),
     opt("connection", 'run: where it runs ("" the open tables), else the file\'s header.'),
     opt("line", "run: the statement (a .pq file: the query) at this line; none: Run file.", "int"),
     opt("table", "run: the table's name (default: the file's name); for_table: the table."),
     opt("query", "A .pq file: one query by its name."),
+    opt("force", "save: over queries changed on disk.", "bool"),
 )
 def workbench_sql(a: dict[str, Any]) -> Any:
     if a["action"] == "for_table":
@@ -210,9 +214,11 @@ def workbench_sql(a: dict[str, Any]) -> Any:
     if str(a.get("path") or "").lower().endswith((".pq", ".m")):
         paths = {"run": "/scripts/pq/run", "problems": "/scripts/pq/problems", "sql": "/scripts/pq/sql"}
         paths["export"] = "/scripts/pq/export"
+        paths |= {"workbook": "/scripts/pq/workbook", "preview": "/scripts/pq/workbook/preview"}
+        paths |= {"save": "/scripts/pq/workbook/save", "reload": "/scripts/pq/workbook/reload"}
         if a["action"] not in paths:
-            return {"error": "action: run, problems, sql or export."}
-        body = {k: a[k] for k in ("path", "text", "query", "line") if a.get(k) is not None}
+            return {"error": "action: run, problems, sql, export, workbook, preview, save or reload."}
+        body = {k: a[k] for k in ("path", "text", "query", "line", "force") if a.get(k) is not None}
         return api.call("POST", paths[a["action"]], body)
     if a["action"] != "run":
         return {"error": "action: run or for_table (problems and sql: a .pq file's)."}

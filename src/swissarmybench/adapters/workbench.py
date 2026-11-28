@@ -76,6 +76,12 @@ class Documents:
 
         return m_files.read(path)
 
+    def workbooks(self) -> Any:
+        """An Excel workbook's file, for its Power Query (adapters/workbook_queries.py)."""
+        from swissarmybench.adapters import workbook_queries
+
+        return workbook_queries
+
     def modified(self, path: str) -> float | None:
         try:
             file = Path(path).expanduser()
