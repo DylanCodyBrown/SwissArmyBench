@@ -6627,3 +6627,68 @@ to the scripts page with an open script" / "sql authorship will have one place i
 - Looked at in Chromium at deviceScaleFactor 2, light and dark, on the made-up sample store: the Pop out button
   on a table and on a page, a table in its own window, the placeholder with Reattach, a rail page in its own
   window and its placeholder.
+
+## Power Query (M) compiled to DuckDB SQL: duckpq, and Power Query files (2026-11-28)
+
+The owner, 2026-11-27: "Let's make our own engine that supports creating tables from m code" / "Our own power
+query compiler basically" / "I just want a run button and the power query runs" / "I want to approach this like
+we could use this power query library outside of this application". Made-up data only.
+
+**Where M differs from SQL, and what duckpq writes** (each proven on a column's values, so DuckDB computes the
+answer: tests/test_duckpq_semantics.py; DuckDB 2.0.0):
+
+- `null = null` is true and `null <> 1` is true in M; SQL's `=` gives null. Written `IS NOT DISTINCT FROM` and
+  `IS DISTINCT FROM`. A comparison (`<`, `>`) with null stays null in both, and a filter drops the row.
+- Text compares by code point and by case in M ("Banana" < "apple", "banana" is not "Banana"). DuckDB's own
+  comparison with no collation is the same; `Table.Sort` on text gives null, "Banana", "apple", "banana".
+- A sort puts null first going up and last going down in M; DuckDB's default is the other way. Written
+  `ASC NULLS FIRST` and `DESC NULLS LAST`.
+- `Text.Contains`, `Text.StartsWith` and `Text.EndsWith` are case-sensitive: `contains()`, `starts_with()`,
+  `ends_with()`; with `Comparer.OrdinalIgnoreCase` both sides are lowered.
+- `7 / 2` is 3.5 between whole numbers, and `1 / 0` is infinity, not an error: DuckDB's `/` (float division).
+  `Number.IntegerDivide(-7, 2)` is -3 (toward zero): `CAST(trunc(a / b) AS BIGINT)`, where DuckDB's `//` gives -4.
+- `Number.Round` rounds halves to even (0.5 -> 0, 1.5 -> 2, 2.5 -> 2, -2.5 -> -2): `round_even()`; with
+  `RoundingMode.AwayFromZero`, `round()` (2.5 -> 3). `Int64.From` rounds the same way (a plain cast of 2.5 is 3).
+- Positions count from 0 in M: `Text.Middle(t, 1, 3)` is `substr(t, 2, 3)`, `Text.PositionOf` is `instr() - 1`,
+  `Table{0}` is `LIMIT 1 OFFSET 0`.
+- A join's keys match null with null in M (a merge keeps the pair): `ON l.k IS NOT DISTINCT FROM r.k`.
+- `List.Count` counts nulls (`count(*)`), `List.NonNullCount` and `List.Sum` skip them (`count(c)`, `sum(c)`).
+- `List.Contains({7, 1}, [a])` never answers null: `coalesce(a IN (...), FALSE)`, and a null in the list matches
+  a null value.
+- Text joined with null is null in both (`&`, `||`).
+
+**Stated differences (in docs/duckpq.md too):** `try x otherwise y` per row runs only with `otherwise null`
+(`TRY(x)`: SQL cannot tell an error from a null; any other is refused with its line); `Text.From` of a fractional
+number is DuckDB's text of it; `Table.TransformColumnTypes` ignores its culture; `Date.AddDays` and its kind
+answer a date; "the row above" (FillDown, Distinct by columns, an index column) follows the order DuckDB hands
+the rows in; `Table.Pivot` with no aggregate takes the largest value where M raises an error on two.
+
+**duckpq's tests** (tests/test_duckpq_*.py, importing only duckpq, duckdb and the standard library): the parser
+(62: every construct, the specification's precedence, escapes, a field name with spaces, a section document,
+thirteen errors each with its line and column), the functions against hand-worked rows (83), the semantics above
+(12), the sources (29: CSV, a CSV's delimiter, Parquet, JSON at the root and nested, a missing file's line, a
+DuckDB file through the resolver with its navigation, a native query by option and by Value.NativeQuery,
+Snowflake-style navigation, every database function reaching the resolver, a refusal at the source's line, a
+table given by name, dependency order, cycles naming the loop, one query's problem not stopping the others,
+parameters and variables, a bound ${NAME} staying a name, to_sql and run_query, a filter and a pick kept flat,
+the missing-keys loop a caller with its own engine runs), a golden section document of five queries over a CSV
+and a DuckDB file run to its hand-worked tables (3), and alone (5: its imports, its version and change list, run
+in a bare Python with swissarmybench, sqlglot, pyarrow, pandas and numpy blocked, compile with duckdb blocked,
+no function over 80 lines and the file under its ceiling of 5,000 lines).
+
+**The app's half** (tests/test_m_files.py, 27): a .pq or .m file is a document of the Scripts page with a group
+of its own; each database function matched to a saved connection (SQL Server by server and database, PostgreSQL
+with its port, a Snowflake account without its domain, Databricks, Dataverse, Oracle) and named
+`[Conn].[schema].[table]`; no match said in one sentence with Add connection, never the nearest one; a .pbit's
+DataModelSchema (UTF-16), a .pbip's TMDL and model.bim and a .pbix's pbixray frames each read to the same
+section document; and through the server on a real app: Run file builds four tables (a CSV, a saved connection's
+table, a three-way join grouped, a native query on the connection), the table shows its M with the SQL composed,
+run again replaces each in its own grid, one query by line or name, problems before a run with nothing read, a
+cast that fails on a row named with its query's line, the composed SQL with nothing built, `${NAME}` bound never
+written into the SQL (it is bracketed: the app's binder refuses a variable right after FROM, and
+`IS NOT DISTINCT FROM ${NAME}` reads that way), Edit in Scripts, New file's Power Query type and the import of a
+made-up template, and the export run in a bare Python to its Parquet files.
+
+**Found on the way:** pbixray is not installed in this container, so a .pbix is proven through its frames'
+shape (the reader's seam), not a real file; DuckDB's excel extension is not installed here either, so duckpq's
+own workbook read (standalone) is not run here, while the app reads a sheet through its own reader.

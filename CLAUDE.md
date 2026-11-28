@@ -102,6 +102,33 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   ask a new .sql file's name there (the New file dialog), then open it; its New query page and query tray went; a query's table shows its query read-only
   with Edit in Scripts. A tab's right click has Rename… (F2: a module with its imports, a notebook, a SQL file or
   an untitled one's Save as; `workbench_file` rename).
+- **Power Query (M) is a language of the Scripts page, run by our own compiler (the owner, 2026-11-27:
+  "something we should have added a support for m code power query logic. Wish I had it as a supported language
+  and those data sets can all be imported into one power query file that can be ran against the data set" /
+  "Let's make our own engine that supports creating tables from m code" / "I think the engine should stay
+  python" / "Actually I don't care about the conversion. I just want a run button and the power query runs" /
+  "Our own power query compiler basically").** A `.pq` or `.m` file is a script of the Scripts page (Monaco in
+  M, its problems underlined before a run; its group in the Files pane; New file's Power Query type). **Run file
+  (F5) runs every query that is a table, Ctrl+Enter the one under the cursor, and each becomes the open table
+  of its name, read "against the original source"**: an open table by name, a file, or the saved connection
+  whose settings name the same server and database, through the connection tables contract
+  (`[Conn].[schema].[table]`); never the published dataset. A source no connection matches is refused in one
+  sentence with Add connection; what the compiler cannot run (a function it does not know, a step that needs
+  rows where only SQL is) is refused with its line, its column and its name, never guessed. One file holds many
+  queries (`section S; shared Orders = ...;`): they name each other and run in dependency order; a plain
+  `let ... in` file is one query named after the file. A run's table shows its M read-only with Edit in Scripts
+  and Show as SQL. **Import Power BI queries…** (New file) writes a .pbix's, .pbit's or .pbip's queries and
+  parameters as one file. The agent: `workbench_sql` with a .pq path (run, problems, sql, export).
+  **The compiler is duckpq, its own library (the owner, 2026-11-27: "I want to approach this like we could use
+  this power query library outside of this application it has applications everywhere"; named `duckpq`):**
+  `src/duckpq.py`, ONE file like adapter.py, the standard library and duckdb only, importing nothing of
+  swissarmybench (it moves to a repository and a package of its own; docs/duckpq.md is its README; it is not a
+  Microsoft product). A table is lazy: every `Table.*` step composes ONE DuckDB statement. It does no I/O when
+  it compiles: what it needs it asks by key and the caller resolves. Its contract changes only by adding, with
+  its own version and change list, no function over 80 lines and a ceiling that is the owner's to raise; its
+  tests (tests/test_duckpq_*.py) import only duckpq, duckdb and the standard library. **The app is one caller:**
+  the domain and the services call its compile half only (tests/test_architecture.py), and resolve its sources
+  through the app's own engine. An export of a .pq file carries duckpq.py beside it, so the M runs with no app.
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -451,6 +478,13 @@ src/swissarmybench/
                          newest first, `### New features` then `### Bug fixes`, short bullets (60 characters at most;
                          "Short descriptions as possible"); the running version has its heading (tests/test_whats_new.py)
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
+  (src/duckpq.py)        beside the package, not in it: duckpq, the Power Query (M) compiler (the owner,
+                         2026-11-27), one file of its own that imports nothing of swissarmybench: parse (M's
+                         expression language and section documents, each node its line and column), compile
+                         (each query ONE DuckDB statement; dependencies, order, cycles, each query's sources; no
+                         I/O: Context's keys and `missing`), check, run, run_query, to_sql (the same loop over
+                         a DuckDB connection, sources by the caller's resolver), functions(); M's meaning where
+                         SQL differs. Version 1.0.0; it only grows; the wheel carries it as `duckpq`
   sab_excel.py           public: THE workbook builder (Plans/excel.plan.md, the owner 2026-11-21), one file the
                          app, a kernel, a Streamlit app and an export share; standard library, openpyxl and
                          duckdb only: build(grids, design, template, out): no design a plain workbook
@@ -784,6 +818,13 @@ src/swissarmybench/
     sql_files.py         a .sql file (2026-11-24): its `-- connection:` header read and written, its statements
                          (split outside strings and comments), the one at the cursor, Run file's one query, the
                          table named after the file, the line an error points at (DuckDB's LINE n, a quoted name)
+    m_files.py           a Power Query file (.pq, .m; 2026-11-27), the app's half of duckpq: the query named
+                         after a plain file, the table a query makes, the query at the cursor, the starter;
+                         SOURCES (one entry an M source function: its connection starters, where its server and
+                         database are), connection_for (the saved connection by server and database; NoConnection:
+                         Add connection), reference ([Conn].[schema].[table]); a dataset's queries (from_schema: a
+                         .pbit's DataModelSchema, a model.bim; from_tmdl; from_frames: pbixray's) as one section
+                         document; export_files (the file, duckpq.py, run.py, requirements.txt, README.md)
     new_files.py         New file (the owner, 2026-11-27: "a drop down combo that asks what file type you wanna
                          create ... then scaffolds it for you"; "Everything should get a name or the file is not
                          created"): the file types as data (TYPES: Python, SQL, JSON, YAML, TOML, XML, Markdown,
@@ -1208,6 +1249,12 @@ src/swissarmybench/
     sql_files.py         a .sql file's run (the statement as the open table named after the file, through
                          datasets.build_from_query or connection_swap.new_query: no SQL runner of its own; a
                          failure's line) and Edit in Scripts (a query's table as scripts/<table>.sql, made once)
+    m_files.py           a Power Query file's run (PowerQueryFiles, held by SqlFiles as `power_query`): the file
+                         compiled with duckpq.compile and each key it asks for resolved the app's way (a
+                         database source: its saved connection and columns; a native query run on it; a file
+                         through the app's readers; a ${NAME}; a probe), then each query's SQL built through
+                         datasets.build_from_query; problems (nothing read), sql, for_table, export, import_new
+                         (New file's maker: Import Power BI queries…), reopen (a project's table run again)
     debugger.py          the Scripts page's debugger: a session per kernel over the kernel's own debugpy (the
                          Jupyter debug protocol), the run and the events' watcher, steps, variables, evaluate,
                          stop; `debug_state` notices
@@ -1377,6 +1424,8 @@ src/swissarmybench/
     collaboration.py     .sab/collaboration/'s files (read, written atomically only when the bytes change, stamped for
                          the look) and the project's objects as `@` finds them and a reference checks them (there or
                          gone, at which line)
+    m_files.py           a Power BI dataset's queries read from its file: a .pbit's DataModelSchema, a .pbip's
+                         TMDL or model.bim, a .pbix's own schema part else pbixray's frames (imported only here)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and

@@ -1,5 +1,15 @@
 # What's new in Swiss Army Bench
 
+## 0.0.43 · 2026-11-28 00:32 UTC
+
+### New features
+- Power Query .pq files: Run and each query is a table
+- Import a Power BI dataset's queries as one file
+- A Power Query table shows its M and the SQL composed
+- Export a .pq file to run anywhere, with no app
+
+### Bug fixes
+
 ## 0.0.42 · 2026-11-27 21:40 UTC
 
 ### New features
