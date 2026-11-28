@@ -9849,3 +9849,9 @@ Open, for the owner:
   functions that need rows, Table.Transpose, Table.AddColumn over lists, culture-aware casts, Duration.*,
   Folder.Files, Web.Contents (a resolver may answer for it in duckpq; the app has no mapping).
 - .m is also Objective-C's and MATLAB's ending: such a file in a project would list under Power Query.
+
+### Power Query's `.m` ending stays (the owner, 2026-11-28)
+
+The builder asked whether `.m` should stay, since MATLAB and Objective-C use it too. The owner: ".m. is the official vs
+code extension". So `.m` and `.pq` both open as Power Query files on the Scripts page. A MATLAB or Objective-C file in
+a project would also list under Power Query; that is accepted.
