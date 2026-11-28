@@ -101,7 +101,8 @@ def test_every_type_has_a_starter_and_opens_on_its_page() -> None:
     for kind in rules.TYPES:
         name = rules.named(kind, kind.suggested)
         assert name == kind.suggested + kind.ending
-        assert isinstance(rules.starter(kind, name), str)
+        if not kind.maker:  # a type its own maker writes (Import Power BI queries…) has no starter text
+            assert isinstance(rules.starter(kind, name), str)
         home = "scripts" if kind.kind == "structure" else workbench_pages.page_of_path(name)
         assert home == kind.page, kind.id
     assert of("notebook").page == "notebooks"  # the two-pages rule

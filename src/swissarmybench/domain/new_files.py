@@ -24,7 +24,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from swissarmybench.domain import notebooks, sql_files
+from swissarmybench.domain import m_files, notebooks, sql_files
 from swissarmybench.domain.script_ide import valid_identifier
 
 DEFAULT_TYPE = "python"  # Ctrl+N's, and a call that names no type
@@ -47,11 +47,13 @@ class FileType:
     endings: tuple[str, ...]  # the first is filled in; the others are kept as typed
     folder: str  # where it starts, inside the project ("" its top)
     page: str  # the page it opens on (domain/workbench_pages.py)
-    kind: str  # how its tab is drawn: script, sql, structure, text, notebook
+    kind: str  # how its tab is drawn: script, sql, powerquery, structure, text, notebook
     icon: str
     words: str  # what the dialog says it makes
     suggested: str  # the name the dialog starts with
-    asks: tuple[str, ...] = ("name", "folder")  # what its dialog asks (a SQL file: connection; variant)
+    # What its dialog asks (a SQL file: connection; a diagram: variant; an import: source, a file of this
+    # computer the new file is made from).
+    asks: tuple[str, ...] = ("name", "folder")
     variants: tuple[tuple[str, str], ...] = ()  # (id, label): a diagram's kinds
     loose: bool = True  # it can be made with no project open, in any folder
     maker: str = ""  # an extension's own type: its maker's id (services/hooks.py new_file_makers)
@@ -101,6 +103,30 @@ TYPES: tuple[FileType, ...] = (
         "Run file builds the open table named after the file.",
         "query",
         asks=("name", "folder", "connection"),
+    ),
+    FileType(
+        "powerquery",
+        "Power Query",
+        (".pq", ".m"),
+        "scripts",
+        "scripts",
+        "powerquery",
+        "powerquery",
+        "A let ... in query: Run file builds the open table named after the file.",
+        "query",
+    ),
+    FileType(
+        "powerquery_import",
+        "Import Power BI queries…",
+        (".pq",),
+        "scripts",
+        "scripts",
+        "powerquery",
+        "powerquery",
+        "Every query of a Power BI dataset (.pbix, .pbit, .pbip) as one file, to run against their sources.",
+        "dataset",
+        asks=("name", "folder", "source"),
+        maker="powerquery_import",
     ),
     FileType(
         "json",
@@ -696,6 +722,7 @@ def starter(kind: FileType, name: str, options: Mapping[str, Any] | None = None)
     by_type: dict[str, Callable[[], str]] = {
         "python": lambda: python_starter(name),
         "sql": lambda: sql_starter(given.get("connection"), given.get("table")),
+        "powerquery": lambda: m_files.starter(given.get("table"), given.get("columns") or ()),
         "json": json_starter,
         "yaml": yaml_starter,
         "toml": lambda: toml_starter(name),

@@ -22,7 +22,7 @@ def workbench_home(a: dict[str, Any]) -> Any:
 @command(
     "workbench_open",
     "A notebook's cells (with their outputs) or a script's text, and its remembered Python",
-    req("path", "An .ipynb, .py or .sql file."),
+    req("path", "An .ipynb, .py, .sql or .pq file."),
     values=True,
 )
 def workbench_open(a: dict[str, Any]) -> Any:
@@ -192,19 +192,28 @@ def workbench_file(a: dict[str, Any]) -> Any:
     "A .sql file (the Scripts page's SQL): run builds the open table named after the file (orders_by_month.sql: "
     "orders_by_month; run again replaces it, its steps kept) on the file's `-- connection: <name>` (none: DuckDB "
     "over the open tables and [Conn].table names); a failure names its line. for_table: a table a query made "
-    "as its .sql file (Edit in Scripts), its path",
-    req("action", "run or for_table."),
-    opt("path", "run: the .sql file (its text read when text is not sent)."),
-    opt("text", "run: the SQL (unsaved text wins over the file's)."),
+    "as its file (Edit in Scripts), its path. A Power Query file (path ending .pq or .m): run builds each query "
+    "that is a table as the open table of its name, from its original sources; problems: what cannot run "
+    "(line, column), nothing read; sql: the DuckDB SQL composed",
+    req("action", "run or for_table; a .pq file: run, problems or sql."),
+    opt("path", "The .sql or .pq file (its text read when text is not sent)."),
+    opt("text", "run: the SQL or M (unsaved text wins over the file's)."),
     opt("connection", 'run: where it runs ("" the open tables), else the file\'s header.'),
-    opt("line", "run: Run selection at this line (the statement there); none: Run file.", "int"),
+    opt("line", "run: the statement (a .pq file: the query) at this line; none: Run file.", "int"),
     opt("table", "run: the table's name (default: the file's name); for_table: the table."),
+    opt("query", "A .pq file: one query by its name."),
 )
 def workbench_sql(a: dict[str, Any]) -> Any:
     if a["action"] == "for_table":
         return api.call("POST", "/scripts/sql/for-table", {"table": a.get("table")})
+    if str(a.get("path") or "").lower().endswith((".pq", ".m")):
+        paths = {"run": "/scripts/pq/run", "problems": "/scripts/pq/problems", "sql": "/scripts/pq/sql"}
+        if a["action"] not in paths:
+            return {"error": "action: run, problems or sql."}
+        body = {k: a[k] for k in ("path", "text", "query", "line") if a.get(k) is not None}
+        return api.call("POST", paths[a["action"]], body)
     if a["action"] != "run":
-        return {"error": "action: run or for_table."}
+        return {"error": "action: run or for_table (problems and sql: a .pq file's)."}
     body = {k: a[k] for k in ("path", "text", "connection", "line", "table") if a.get(k) is not None}
     return api.call("POST", "/scripts/sql/run", body)
 
@@ -237,7 +246,7 @@ def workbench_format(a: dict[str, Any]) -> Any:
 @command(
     "workbench_save",
     "Save a notebook's cells or a script's text (refused if changed on disk since modified, unless force)",
-    req("path", "An .ipynb, .py or .sql file."),
+    req("path", "An .ipynb, .py, .sql or .pq file."),
     opt(
         "cells",
         '[{"kind": "code" | "sql" | "dax" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',

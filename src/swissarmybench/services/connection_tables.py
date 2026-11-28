@@ -16,7 +16,7 @@ import asyncio
 import re
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -313,6 +313,13 @@ class ConnectionTables:
             )
         prepared.sql = sql_rules.rewrite(quoted, names, targets)
         return prepared
+
+    async def columns_of(self, name: str, parts: Sequence[str]) -> list[str]:
+        """The columns of the table `[name].<parts>` names, as its catalog spells them (none known: []): a
+        Power Query file's source (services/m_files.py) asks before anything is read."""
+        saved, kind = self.kind(name)
+        place = rules.resolve(saved, kind, tuple(parts), await self.places(saved))
+        return await self._known(saved, place)
 
     async def _known(self, name: str, place: Place) -> list[str]:
         """The table's columns as its catalog spells them (none known: every column is read)."""

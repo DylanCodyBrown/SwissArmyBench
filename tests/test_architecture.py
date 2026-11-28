@@ -148,7 +148,9 @@ def test_the_domain_imports_only_itself_and_does_no_io(path: Path) -> None:
             # `from swissarmybench.domain import steps` also lists "swissarmybench.domain" itself.
             if own != "domain":
                 problems.append(f"imports {module}")
-        elif top not in sys.stdlib_module_names and top != "sqlglot":
+        elif top not in sys.stdlib_module_names and top not in ("sqlglot", "duckpq"):
+            # duckpq (src/duckpq.py): the Power Query compiler, its own library; its parse and compile are
+            # pure rules over text (the standard library alone), which is all the domain and services call.
             problems.append(f"imports {module}")
         elif top in DOMAIN_FORBIDDEN:
             problems.append(f"imports {module}")
@@ -164,7 +166,7 @@ def test_the_service_layer_imports_only_the_domain_and_itself(path: Path) -> Non
         if own is not None:
             if own not in ("domain", "services", "settings"):
                 problems.append(f"imports {module}")
-        elif top not in sys.stdlib_module_names or top in SERVICES_FORBIDDEN:
+        elif (top not in sys.stdlib_module_names and top != "duckpq") or top in SERVICES_FORBIDDEN:
             problems.append(f"imports {module}")
     assert problems == []
 
@@ -269,10 +271,11 @@ def test_no_function_of_a_one_file_module_is_over_80_lines(name: str) -> None:
 
 
 def test_duckpq_is_one_file_that_imports_nothing_of_the_app() -> None:
-    """duckpq (src/duckpq.py, the Power Query compiler; the owner, 2026-11-27: "I want to approach this like we
-    could use this power query library outside of this application") is held like the adapters: one file, no
-    function over 80 lines, a ceiling that is the owner's to raise, and no import of swissarmybench. Its own
-    tests (tests/test_duckpq_alone.py) hold the same and move with it; this one keeps the app from leaning in."""
+    """duckpq (src/duckpq.py, the Power Query compiler; the owner, 2026-11-27: "I want to approach this like
+    we could use this power query library outside of this application") is held like the adapters: one file,
+    no function over 80 lines, a ceiling that is the owner's to raise, and no import of swissarmybench. Its
+    own tests (tests/test_duckpq_alone.py) hold the same and move with it; this one keeps the app from leaning
+    in, and the app's layers to its compile half (run() is for a caller with no engine of its own)."""
     path = PACKAGE.parent / "duckpq.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     modules = {
@@ -282,6 +285,10 @@ def test_duckpq_is_one_file_that_imports_nothing_of_the_app() -> None:
         for alias in node.names
     }
     assert "swissarmybench" not in modules and "sqlglot" not in modules and "pyarrow" not in modules
+    for layer in ("domain", "services"):
+        for file in _layer_files(layer):
+            text = file.read_text(encoding="utf-8")
+            assert not any(f"duckpq.{name}(" in text for name in ("run", "run_query", "to_sql")), file.name
     assert len(path.read_text(encoding="utf-8").splitlines()) <= 5000
     long = [
         node.name

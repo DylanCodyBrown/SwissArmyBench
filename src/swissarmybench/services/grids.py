@@ -130,6 +130,9 @@ class GridService:
             "query": info.query,
             # A query run on a connection (the "+" tab's Query from): the connection it runs on again.
             "query_connection": _query_connection(self._origin_of(info.name), info.query),
+            # A Power Query file's query (services/m_files.py): `query` is its M, this the SQL composed.
+            "query_language": "powerquery" if self._origin_of(info.name).m else "sql",
+            "query_sql": self._origin_of(info.name).sql if self._origin_of(info.name).m else None,
             # Opened from a connection with fewer rows than it holds: the grid offers the rest.
             "opened": info.opened.to_json() if info.opened else None,
             "source_columns": [{"name": c.name, "type": c.type} for c in info.columns],

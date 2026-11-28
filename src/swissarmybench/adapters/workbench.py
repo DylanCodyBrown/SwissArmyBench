@@ -70,6 +70,12 @@ class Documents:
             raise ValueError(f"{file.name} is not readable as {encoding}: {error}") from None
         return text, str(file), file.stat().st_mtime
 
+    def dataset_queries(self, path: str) -> Any:
+        """A Power BI dataset's queries read from its file (adapters/m_files.py): New file's import."""
+        from swissarmybench.adapters import m_files
+
+        return m_files.read(path)
+
     def modified(self, path: str) -> float | None:
         try:
             file = Path(path).expanduser()

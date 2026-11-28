@@ -9,7 +9,8 @@ from swissarmybench.domain import text_documents
 
 Stamp = tuple[int, int]
 MAX_WATCHED = 4000
-_ENDINGS = (".py", ".ipynb", ".sql")  # a .sql file (2026-11-24) follows its changes too
+# A .sql file (2026-11-24) and a Power Query file (.pq, .m: 2026-11-27) follow their changes too.
+_ENDINGS = (".py", ".ipynb", ".sql", ".pq", ".m")
 _DOC_ENDINGS = tuple(e for e in text_documents.ENDINGS if e != ".txt")
 # A project's structure files (a tab beside the code follows them as a script's): its top, structures/.
 _STRUCTURE_ENDINGS = (".json", ".yaml", ".yml", ".xml", ".toml")

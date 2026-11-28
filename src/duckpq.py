@@ -1234,7 +1234,7 @@ def literal(value: Any) -> str | None:
         micro = value.days * 86_400_000_000 + value.seconds * 1_000_000 + value.microseconds
         return f"to_microseconds({micro})"
     if isinstance(value, Var):
-        return value.text
+        return f"({value.text})"  # bracketed: a caller's binder sees a value's place, whatever word is before
     if isinstance(value, Sx):
         return value.sql
     if isinstance(value, list):
@@ -1425,6 +1425,7 @@ class _Run:
     def __init__(self, context: Context) -> None:
         self.context = context
         self.section: _Section | None = None
+        self.finishing: str | None = None  # the query whose value is being made its table (a bare source)
         self._kinds: dict[str, Callable[[Node, _Scope], Any]] = {
             "literal": lambda n, s: n["value"],
             "text": self._text,
@@ -1880,8 +1881,9 @@ def _need(run: _Run, node: Node, columns: Cols, names: Iterable[str]) -> None:
 def _source_table(run: _Run, node: Node, source: Source, promotable: bool = False) -> Table:
     """A source as a table: its columns asked of the context (an open table while they are not known)."""
     section = run.section
-    if section is not None and section.busy and source.name not in section.reads[section.busy[-1]]:
-        section.reads[section.busy[-1]].append(source.name)
+    reader = (section.busy[-1] if section.busy else run.finishing) if section is not None else None
+    if section is not None and reader is not None and source.name not in section.reads[reader]:
+        section.reads[reader].append(source.name)
     found = run.context.ask(("source", source.name), node)
     if isinstance(found, Unknown):
         made = _open_table()
@@ -3288,6 +3290,7 @@ def compile(text: str, name: str = "Query", context: Context | None = None) -> C
     for member in document.members:
         try:
             value = section.get(member.name, member.body)
+            run.finishing = member.name
             queries.append(_finished(run, member, value, section.depends[member.name]))
         except PowerQueryError as error:
             problem = Problem(error.what, error.line, error.column, error.name, member.name)

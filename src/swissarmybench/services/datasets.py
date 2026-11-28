@@ -9,7 +9,7 @@ first grid on a dataset starts with no steps.
 from __future__ import annotations
 
 import threading
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import sample_data, variable_refs
@@ -486,15 +486,41 @@ class DatasetService:
 
     # ===== the "+" tab: a table from a query =====
 
-    async def build_from_query(self, name: str, text: str, replace: bool, who: str) -> dict[str, Any]:
+    async def build_from_query(
+        self,
+        name: str,
+        text: str,
+        replace: bool,
+        who: str,
+        tables: Mapping[str, Any] | None = None,
+        origin: Origin | None = None,
+    ) -> dict[str, Any]:
         """Dataset `name` from one SELECT over the open tables, each read as its tab shows it.
         `replace` is the tab's Run again; it rebuilds only a table a query made, so a pushed dataset
-        (or another tab's table) is never overwritten by a name clash."""
+        (or another tab's table) is never overwritten by a name clash. `tables`: Arrow tables the query
+        names besides (a Power Query file's sources, read by its service); `origin`: where the table
+        says it came from when that is not this SQL alone (the Power Query that composed it: its M is what
+        the table shows as its query)."""
         ws = self.ws
-        settings = ws.settings
         existing = ws.store.get(name)
         if existing is not None and not (replace and existing.query is not None):
             raise DatasetError(f"A dataset named {name!r} already exists; pick a new name.")
+        table, reads = await self.query_table(text, name, tables)
+        shown = origin.m if origin is not None and origin.m else text
+        origin = origin or Origin("query", sql=text)
+        result = await self.store_table(name, table, "sql_result", False, who, query=shown, origin=origin)
+        ws.audit.write(who, "sql_query", name, query=text, rows=table.num_rows)
+        return result | {"rows": table.num_rows} | ({"connection_reads": reads} if reads else {})
+
+    async def query_table(
+        self, text: str, name: str = "", tables: Mapping[str, Any] | None = None
+    ) -> tuple[Any, list[Any]]:
+        """One SELECT over the open tables (each as its tab shows it), the connections' tables it names and
+        the Arrow `tables` given, as an Arrow table, with the connections' reads. `name`: the table it
+        builds, which it may not read."""
+        ws = self.ws
+        settings = ws.settings
+        given = dict(tables or {})
 
         def tab_view(cursor: SqlSession, dataset: str) -> str:
             if dataset == name:
@@ -505,12 +531,12 @@ class DatasetService:
                 return f"SELECT * FROM {quote('ds_' + dataset)}"  # noqa: S608 (a quoted dataset name)
             return ws.compiled(cursor, grid, info).sql()
 
-        bound, params = await self.bind_sql(text, name)
+        bound, params = await self.bind_sql(text, name or "the query")
         prepared = await self.prepare_connections(bound)
 
         def execute(cursor: Any) -> Any:
             datasets = {i.name for i in ws.store.all()}
-            for target, table in prepared.tables.items():
+            for target, table in (prepared.tables | given).items():
                 cursor.register(target, table)
             guarded = guard(
                 prepared.sql,
@@ -518,10 +544,10 @@ class DatasetService:
                 None,
                 lambda dataset: tab_view(cursor, dataset),
                 grammar=ws.grammar,
-                connection_tables=frozenset(prepared.tables),
+                connection_tables=frozenset(prepared.tables) | frozenset(given),
             )
             if guarded.kind != "select":
-                raise SqlRefused(f"Write one SELECT; its result becomes {name}.")
+                raise SqlRefused(f"Write one SELECT; its result becomes {name or 'the table'}.")
             timer = threading.Timer(settings.query_timeout_seconds, cursor.interrupt)
             timer.start()
             try:
@@ -536,11 +562,7 @@ class DatasetService:
             raise TimedOut(
                 f"The query was stopped: it ran past {settings.query_timeout_seconds:.0f} seconds."
             ) from None
-        origin = Origin("query", sql=text)
-        result = await self.store_table(name, table, "sql_result", False, who, query=text, origin=origin)
-        ws.audit.write(who, "sql_query", name, query=text, rows=table.num_rows)
-        reads = {"connection_reads": prepared.reads} if prepared.reads else {}
-        return result | {"rows": table.num_rows} | reads
+        return table, list(prepared.reads)
 
     async def bind_sql(self, text: str, where: str) -> tuple[str, list[str]]:
         """A query's ${NAME} (12.7): each outside strings and comments a bound parameter ($1, $2), its value

@@ -28,6 +28,7 @@ _KIND_PAGE: dict[str, str] = {
     "app": "notebooks",
     "script": "scripts",
     "sql": "scripts",
+    "powerquery": "scripts",  # a Power Query file (.pq, .m: domain/m_files.py, 2026-11-27)
     "text": "scripts",  # Markdown and plain text (New file, 2026-11-27)
 }
 # A structure's tab opens on either page (the one it was opened from): it has no page of its own.
@@ -36,6 +37,7 @@ _KIND_WORDS: dict[str, str] = {
     "app": "A Streamlit app",
     "script": "A script",
     "sql": "A SQL file",
+    "powerquery": "A Power Query file",
     "text": "A text file",
 }
 
@@ -45,6 +47,8 @@ _KIND_WORDS: dict[str, str] = {
 _PATH_PAGES: tuple[tuple[str, str], ...] = (
     (".py", "scripts"),
     (".sql", "scripts"),  # a SQL file (domain/sql_files.py, the owner 2026-11-24)
+    (".pq", "scripts"),  # a Power Query file (domain/m_files.py, the owner 2026-11-27)
+    (".m", "scripts"),
     # Text documents (Markdown, HTML, SVG, Mermaid, a chart's spec, plain text: domain/text_documents.py).
     *((ending, "scripts") for ending in text_documents.ENDINGS),
     (".ipynb", "notebooks"),
@@ -57,6 +61,8 @@ _PATH_KINDS: tuple[tuple[str, str], ...] = (
     (".ipynb", "notebook"),
     (".py", "script"),
     (".sql", "sql"),
+    (".pq", "powerquery"),
+    (".m", "powerquery"),
     *((ending, "text") for ending in text_documents.ENDINGS),
 )
 _WRONG_PAGE: str = "{kind} opens on the {page} page, not here."
@@ -145,7 +151,7 @@ def rules() -> dict[str, Any]:
     }
 
 
-_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql", *text_documents.ENDINGS)
+_DOCUMENT_ENDINGS: tuple[str, ...] = (".ipynb", ".py", ".sql", ".pq", ".m", *text_documents.ENDINGS)
 
 
 def renamed(path: str, to: Any) -> str:
@@ -186,6 +192,7 @@ def old_address(query: Mapping[str, str]) -> tuple[str, dict[str, str]]:
 _COMMAND_PAGES: dict[str, str] = {
     "file.newScript": "scripts",
     "file.newSql": "scripts",
+    "file.newPowerQuery": "scripts",
     "file.newNotebook": "notebooks",
     "file.newApp": "notebooks",
 }
