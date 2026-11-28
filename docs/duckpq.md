@@ -20,7 +20,7 @@ line and a column, whenever it meets something it cannot run.
 ```python
 import duckpq
 
-M = '''
+M = """
 section Sales;
 
 shared MinimumAmount = 20 meta [IsParameterQuery = true];
@@ -41,20 +41,20 @@ shared ByRegion = let
     Grouped = Table.Group(Expanded, {"region"}, {{"total", each List.Sum([amount]), type number}})
 in
     Table.Sort(Grouped, {{"total", Order.Descending}});
-'''
+"""
 
 
 def resolver(source: duckpq.Source):
     # Any database function reaches here with its arguments and its navigation.
     if source.function == "Sql.Database" and source.arguments[0] == "warehouse.example":
-        return "warehouse.duckdb"          # a DuckDB file: attached, the navigation picks its table
-    return None                            # not mine: files are read by duckpq itself
+        return "warehouse.duckdb"  # a DuckDB file: attached, the navigation picks its table
+    return None  # not mine: files are read by duckpq itself
 
 
 tables = duckpq.run(M, resolver=resolver, parameters={"MinimumAmount": 50})
-print(tables["ByRegion"].fetchall())       # a DuckDB relation: .df(), .arrow(), .pl(), .fetchall()
-print(duckpq.to_sql(M, resolver=resolver)["ByRegion"])   # the DuckDB SQL it composed
-print(duckpq.check('Table.Nope(#table({"a"}, {{1}}))'))   # problems, before anything runs
+print(tables["ByRegion"].fetchall())  # a DuckDB relation: .df(), .arrow(), .pl(), .fetchall()
+print(duckpq.to_sql(M, resolver=resolver)["ByRegion"])  # the DuckDB SQL it composed
+print(duckpq.check('Table.Nope(#table({"a"}, {{1}}))'))  # problems, before anything runs
 ```
 
 ## The API
