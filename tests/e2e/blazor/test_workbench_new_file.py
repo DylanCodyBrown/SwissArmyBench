@@ -19,6 +19,7 @@ TYPES = [
     "SQL file (.sql)",
     "Power Query (.pq)",
     "Import Power BI queries… (.pq)",
+    "Edit workbook queries… (.pq)",
     "JSON (.json)",
     "YAML (.yaml)",
     "TOML (.toml)",

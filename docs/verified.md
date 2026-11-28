@@ -6817,3 +6817,18 @@ workbook with no Data Mashup yet (its first query is added in Excel).
 Mashup made by hand from the specification. For the owner on Windows: open a workbook saved from here, see
 that Queries & Connections lists the queries with the new M, that Refresh runs them and fills the sheet's
 table, that an added query shows as connection only, and whether Excel asks the privacy levels again.
+
+**The suites, 2026-11-28, on the Release build:** the unit suite (no e2e, four workers) 6,543 passed, 43 skipped,
+10 failed: this container's known eight (the four data.py tests of test_projects, test_script_export,
+test_updater, test_connection_drivers, test_performance) and two that pass alone (test_sql_server's interrupt,
+test_api_editor's squiggles: the suite's load). The browser suite (two workers): 226 passed, 7 skipped, 2
+failed, the three of tests/e2e/blazor/test_workbook_queries.py among the passes (a workbook's queries opened,
+one edited and saved, Section1.m on disk with the new M in Excel's line ends and every other part the same;
+Run file's tables; the workbook open in Excel refused); the two failures (test_workbook's palette "Played."
+and test_grid_headers_values' Profile sent to Analyze) fail the same way in the main checkout without this
+work. bUnit 363 passed (6 new: WorkbookQueriesTests). ruff and ruff format clean; mypy: only
+sab_canvas.py:622; `dotnet build -warnaserror` and `dotnet format --verify-no-changes` clean;
+tests/test_architecture.py passes and the architecture map is current; bootstrap.py stays at 1,976 lines and
+WorkbenchPage.razor at 400; no MCP tool was added (`workbench_file` gained `source`, `workbench_sql` `force`).
+Looked at in Chromium at deviceScaleFactor 2, light and dark: the linked tab, a save's queries in the Output,
+the refusal while the workbook is open in Excel, and Run's table.

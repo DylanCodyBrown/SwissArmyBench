@@ -375,3 +375,14 @@ def test_the_words_around_the_file() -> None:
     )
     assert wq.conflict_words("b.xlsx").endswith("Reload them, or Keep mine.")
     assert wq.backup_name("Sales Report.xlsx") == "Sales Report.backup.xlsx"
+
+
+def test_the_screen_state_names_a_linked_tabs_workbook() -> None:
+    from swissarmybench.domain import screen
+
+    report = {
+        "page": "scripts",
+        "script": {"language": "powerquery", "running": False, "workbook": "Sales Report.xlsx", "text": "x"},
+    }
+    kept = screen.clean(report)["script"]
+    assert kept == {"language": "powerquery", "running": False, "workbook": "Sales Report.xlsx"}
