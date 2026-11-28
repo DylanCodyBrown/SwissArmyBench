@@ -145,8 +145,7 @@ def guide_text(topic: str | None = None) -> str:
 
 @command(
     "guide",
-    "Read first: the index; topic: one topic's detail. "
-    "Read first: the index of the app and its tools; topic gives one topic's detail.",
+    "Read first: the index; topic: one topic's detail. The index of the app and its tools.",
     opt("topic", "One of: " + ", ".join(GUIDE_TOPICS) + "; or context: the live context.md."),
 )
 def guide(a: dict[str, Any]) -> Any:
