@@ -95,6 +95,62 @@ public sealed class WorkbookQueriesTests : AppTestContext
     }
 
     [Fact]
+    public void A_workbook_with_no_power_query_offers_to_add_it_and_still_previews()
+    {
+        var asked = new List<string>();
+        var link = new WorkbookLink(true, "plain.xlsx", "/made/up/plain.xlsx", true, 0, Why: "plain.xlsx has no Power Query yet.", CanAdd: true);
+        var line = Render<WorkbookLinkLine>(p => p.Add(l => l.Link, link).Add(l => l.OnAddPowerQuery, () => asked.Add("add")));
+        Assert.Contains("no Power Query yet", line.Find(".wb-pq-workbook-why").TextContent, StringComparison.Ordinal);
+        Assert.Equal("Add Power Query to this workbook", line.Find(".wb-pq-add-power-query").TextContent);
+        Assert.Single(line.FindAll(".wb-pq-preview-save"));
+        line.Find(".wb-pq-add-power-query").Click();
+        Assert.Equal(["add"], asked);
+
+        var open = Render<WorkbookLinkLine>(p => p.Add(l => l.Link, link with { OpenInExcel = true }));
+        Assert.True(open.Find(".wb-pq-add-power-query").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public async Task A_save_never_adds_power_query_and_the_button_does_and_says_what_was_addedAsync()
+    {
+        const string NoQueries = """{"linked": true, "workbook": "plain.xlsx", "workbook_path": "/made/up/plain.xlsx", "there": true, "queries": 0, "open_in_excel": false, "changed": false, "why": "plain.xlsx has no Power Query yet.", "can_add": true}""";
+        const string Stopped = "plain.xlsx has no Power Query yet. Add Power Query to this workbook to save these queries into it.";
+        const string Added = "Added Power Query to plain.xlsx: 1 query, connection only (no sheet, no table).";
+        _server.Answer("POST /scripts/pq/workbook", NoQueries);
+        _server.Refuse("POST /scripts/pq/workbook/save", $$"""{"error": "{{Stopped}}", "needs_add": true}""");
+        var said = new List<string>();
+        var view = Render<PowerQueryFileView>(p => p
+            .Add(v => v.Text, Linked.Replace("Sales Report.xlsx", "plain.xlsx", StringComparison.Ordinal))
+            .Add(v => v.Path, "/made/up/plain.pq")
+            .Add(v => v.OnSaid, said.Add));
+        view.WaitForElement(".wb-pq-add-power-query");
+
+        // The page's Save: stopped, with the offer beside the reason. Nothing asked for the add.
+        Assert.Null(await view.InvokeAsync(view.Instance.SaveIntoWorkbookAsync));
+        view.WaitForElement(".wb-sql-error .wb-pq-add-power-query");
+        Assert.Contains(Stopped, view.Find(".wb-sql-error").TextContent, StringComparison.Ordinal);
+        var plain = JsonDocument.Parse(_server.Asked.Last(a => a.Route == "POST /scripts/pq/workbook/save").Body).RootElement;
+        Assert.False(plain.GetProperty("add").GetBoolean());
+
+        // The user's own click: add is sent, and what was added is said.
+        _server.Answer("POST /scripts/pq/workbook/save", $$"""
+            {"workbook": "plain.xlsx", "written": true, "writes": true, "backup": "/made/up/plain.backup.xlsx",
+             "adds_power_query": true, "new_parts": ["customXml/item1.xml", "customXml/itemProps1.xml"], "words": "{{Added}}",
+             "changes": [{"query": "Sales", "what": "added", "words": "Added as connection only (no sheet)."}]}
+            """);
+        _server.Answer("POST /scripts/pq/workbook", NoQueries.Replace("\"queries\": 0", "\"queries\": 1", StringComparison.Ordinal).Replace("\"can_add\": true", "\"can_add\": false", StringComparison.Ordinal).Replace("\"plain.xlsx has no Power Query yet.\"", "null", StringComparison.Ordinal));
+        await view.Find(".wb-sql-error .wb-pq-add-power-query").ClickAsync(new());
+        view.WaitForElement(".wb-pq-added-power-query");
+        Assert.Equal("Power Query added to the workbook", view.Find(".wb-console-head strong").TextContent);
+        Assert.Contains(Added, view.Find(".wb-pq-added-power-query").TextContent, StringComparison.Ordinal);
+        Assert.Equal([Added], said);
+        Assert.Empty(view.FindAll(".wb-pq-add-power-query"));
+        var sent = JsonDocument.Parse(_server.Asked.Last(a => a.Route == "POST /scripts/pq/workbook/save").Body).RootElement;
+        Assert.True(sent.GetProperty("add").GetBoolean());
+        Assert.False(sent.GetProperty("force").GetBoolean());
+    }
+
+    [Fact]
     public void A_plain_power_query_file_has_no_workbook_line_and_asks_nothing()
     {
         var view = Render<PowerQueryFileView>(p => p.Add(v => v.Text, "let a = 1 in a").Add(v => v.Path, "/made/up/plain.pq"));

@@ -10,14 +10,14 @@
 <div class="wb-script wb-sql wb-pq">
     @if (_link is { Linked: true } link)
     {
-        <WorkbookLinkLine Link="link" Busy="_running" OnReload="ReloadFromWorkbookAsync" OnKeepMine="KeepMineAsync" OnPreview="PreviewSaveAsync" />
+        <WorkbookLinkLine Link="link" Busy="_running" OnReload="ReloadFromWorkbookAsync" OnKeepMine="KeepMineAsync" OnPreview="PreviewSaveAsync" OnAddPowerQuery="AddPowerQueryAsync" />
     }
     <div class="wb-script-editor">
         <CodeEditor @ref="_editor" Value="@Text" Language="powerquery" Label="Power Query file" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" />
     </div>
     <section class="wb-console wb-sql-output wb-pq-output" aria-label="Output" hidden="@(_built is null && _failed is null && _sql is null && _saved is null && !_running)">
         <div class="wb-console-head">
-            <strong>@(_saved is { } into ? (into.Written ? "Saved into the workbook" : "Save preview") : _sql is null ? "Output" : "As SQL")</strong>
+            <strong>@(_saved is { } into ? SavedTitle(into) : _sql is null ? "Output" : "As SQL")</strong>
             <span class="sql-status" role="status">@Status</span>
             <span class="wb-grow"></span>
             <button type="button" class="btn small ghost" @onclick="ClearAsync">Clear</button>
@@ -30,6 +30,10 @@
                     @if (failed.Line is { } line)
                     {
                         <button type="button" class="btn small ghost wb-sql-goto" @onclick="() => RevealLineAsync(line)">Go to line @line</button>
+                    }
+                    @if (_link is { CanAdd: true, OpenInExcel: false })
+                    {
+                        <button type="button" class="btn small wb-pq-add-power-query" disabled="@_running" @onclick="AddPowerQueryAsync">@WorkbookLinkLine.AddPowerQuery</button>
                     }
                     @if (failed.AddConnection)
                     {
@@ -45,6 +49,10 @@
         else if (_saved is { } saved)
         {
             <ul class="wb-console-body wb-pq-tables wb-pq-changes" aria-label="Workbook queries">
+                @if (saved.AddsPowerQuery)
+                {
+                    <li class="wb-pq-table wb-pq-added-power-query"><Icon Name="excel" /> <span>@saved.Words</span></li>
+                }
                 @foreach (var change in saved.Changes)
                 {
                     <li class="wb-pq-table wb-pq-change @change.What" @key="change.Query">

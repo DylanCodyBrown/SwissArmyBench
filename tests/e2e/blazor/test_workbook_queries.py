@@ -2,7 +2,7 @@
 New file's Edit workbook queries… opens its queries as one linked file ("Saves into <workbook>"), a query is
 edited and saved, and the workbook's Section1.m on disk has the new M with every other part as it was; Run
 file previews the queries as tables from the workbook's own named table; a workbook open in Excel is
-refused."""
+refused; a workbook with no Power Query stops a save and adds it only on Add Power Query to this workbook."""
 
 from __future__ import annotations
 
@@ -23,8 +23,10 @@ def folder_of(server: dict[str, Any], name: str) -> Path:
     return folder
 
 
-def open_linked(browser: Browser, server: dict[str, Any], folder: Path, name: str) -> tuple[Page, Path]:
-    workbook = data.workbook(folder / "Made Up Sales.xlsx")
+def open_linked(
+    browser: Browser, server: dict[str, Any], folder: Path, name: str, queries: bool = True
+) -> tuple[Page, Path]:
+    workbook = (data.workbook if queries else data.plain_workbook)(folder / "Made Up Sales.xlsx")
     page = open_page(browser, server, "scripts")
     page.click(".wb-top-new")
     page.click(".context-menu [role=menuitem]:has-text('Edit workbook queries')")
@@ -105,4 +107,52 @@ def test_a_workbook_open_in_excel_is_not_written(browser: Browser, server: dict[
     )
     expect(page.locator(".wb-pq-workbook.blocked")).to_contain_text("Open in Excel")
     assert workbook.read_bytes() == before
+    page.close()
+
+
+def test_power_query_is_added_to_a_workbook_only_on_the_users_click(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The owner, 2026-11-28: "Yea optional". A save into a workbook with no Power Query stops and offers;
+    the click adds it (one custom XML part, its properties), says so, and the sheets are as they were."""
+    folder = folder_of(server, "added")
+    page, workbook = open_linked(browser, server, folder, "made_up_first", queries=False)
+    before = data.parts_of(workbook)
+    line = page.locator(".wb-pq-workbook")
+    expect(line).to_contain_text("Made Up Sales.xlsx has no Power Query yet.")
+    expect(line.locator(".wb-pq-add-power-query")).to_have_text("Add Power Query to this workbook")
+
+    # A save: the file is saved, the workbook is not touched, and the offer is beside the reason.
+    page.click(".wb-pq .monaco-editor .view-lines")
+    page.keyboard.press("Control+End")
+    page.keyboard.type("// a made-up note")
+    page.keyboard.press("Control+S")
+    error = page.locator(".wb-sql-error")
+    expect(error).to_contain_text("has no Power Query yet. Add Power Query to this workbook", timeout=30_000)
+    assert data.parts_of(workbook) == before and not (folder / "Made Up Sales.backup.xlsx").exists()
+
+    error.locator(".wb-pq-add-power-query").click()
+    expect(page.locator(".wb-console-head strong")).to_have_text(
+        "Power Query added to the workbook", timeout=30_000
+    )
+    said = page.locator(".wb-pq-added-power-query")
+    expect(said).to_contain_text("Added Power Query to Made Up Sales.xlsx: 1 query, connection only")
+    expect(said).to_contain_text("customXml/item1.xml and its properties part")
+    expect(page.locator(".wb-pq-change.added strong")).to_have_text("Query1")
+    expect(page.locator(".wb-pq-backup")).to_contain_text("Made Up Sales.backup.xlsx")
+    expect(page.locator(".wb-pq-workbook")).to_contain_text("1 workbook query")
+    expect(page.locator(".wb-pq-add-power-query")).to_have_count(0)
+    after = data.parts_of(workbook)
+    assert set(after) - set(before) == {
+        "customXml/item1.xml",
+        "customXml/itemProps1.xml",
+        "customXml/_rels/item1.xml.rels",
+    }
+    assert {n for n in before if after[n] != before[n]} == {
+        "xl/_rels/workbook.xml.rels",
+        "[Content_Types].xml",
+    }
+    assert data.section_of(workbook).startswith("section Section1;\r\n\r\nshared Query1 = let")
+    book = openpyxl.load_workbook(workbook)
+    assert book.sheetnames == ["Data"] and book["Data"]["A2"].value == "North"
     page.close()

@@ -95,8 +95,8 @@ public sealed class ScriptIdeClient
 
     /// <summary>The saved file's queries written into its workbook's Data Mashup, and nothing else of it
     /// (<paramref name="force"/>: Keep mine, over queries changed on disk).</summary>
-    public Task<WorkbookSave> SaveIntoWorkbookAsync(string path, bool force = false, CancellationToken cancel = default) =>
-        _api.PostAsync<WorkbookSave>("/scripts/pq/workbook/save", new { path, force }, cancel);
+    public Task<WorkbookSave> SaveIntoWorkbookAsync(string path, bool force = false, bool add = false, CancellationToken cancel = default) =>
+        _api.PostAsync<WorkbookSave>("/scripts/pq/workbook/save", new { path, force, add }, cancel);
 
     /// <summary>Reload: the workbook's queries read again into the linked file.</summary>
     public Task<WorkbookReload> ReloadWorkbookAsync(string path, CancellationToken cancel = default) =>

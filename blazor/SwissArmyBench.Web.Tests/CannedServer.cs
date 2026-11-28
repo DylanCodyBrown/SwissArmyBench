@@ -16,6 +16,7 @@ public sealed class CannedServer : HttpMessageHandler
     public CannedServer Answer(string route, string json)
     {
         _answers[route] = json;
+        _refused.Remove(route);
         return this;
     }
 

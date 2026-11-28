@@ -8,7 +8,9 @@ namespace SwissArmyBench.Web.Pages.Workbench;
 // A Power Query file linked to an Excel workbook (the owner, 2026-11-28: "Excel's own Power Query"): its first line
 // names the workbook (`// workbook: Sales Report.xlsx`). The view asks the server what the link is (the workbook by
 // name, there or not, open in Excel, its queries changed on disk), and after the page saved the file it writes the
-// queries into the workbook: the result, or what stands in the way, is the Output's.
+// queries into the workbook: the result, or what stands in the way, is the Output's. A workbook with no Power Query
+// yet stops that save (the owner, 2026-11-28: "Yea optional"): Add Power Query to this workbook is the user's own
+// click, and what was added is said in the Output and by the page's notice.
 public partial class PowerQueryFileView
 {
     // The first line of a linked file starts with this.
@@ -63,9 +65,16 @@ public partial class PowerQueryFileView
 
     /// <summary>The page saved the file: its queries written into its workbook. The words to say (none: the file is
     /// not linked, or the save was refused: why is in the Output).</summary>
-    public Task<string?> SaveIntoWorkbookAsync() => SaveIntoWorkbookAsync(false);
+    public Task<string?> SaveIntoWorkbookAsync() => SaveIntoWorkbookAsync(false, false);
 
-    private async Task<string?> SaveIntoWorkbookAsync(bool force)
+    private static string SavedTitle(WorkbookSave saved) => (saved.Written, saved.AddsPowerQuery) switch
+    {
+        (true, true) => "Power Query added to the workbook",
+        (true, false) => "Saved into the workbook",
+        _ => "Save preview",
+    };
+
+    private async Task<string?> SaveIntoWorkbookAsync(bool force, bool add)
     {
         if (Workbook is null || Path is not { } path)
         {
@@ -75,7 +84,7 @@ public partial class PowerQueryFileView
         await MarkAsync(null, null);
         try
         {
-            _saved = await Ide.SaveIntoWorkbookAsync(path, force);
+            _saved = await Ide.SaveIntoWorkbookAsync(path, force, add);
         }
         catch (ApiException error)
         {
@@ -112,7 +121,21 @@ public partial class PowerQueryFileView
     }
 
     // Keep mine: this file's queries written over the workbook's, as they changed on disk.
-    private Task KeepMineAsync() => SaveIntoWorkbookAsync(true);
+    private Task KeepMineAsync() => SaveIntoWorkbookAsync(true, false);
+
+    /// <summary>The page says what a save into the workbook did when the view did it by itself (Add Power Query).</summary>
+    [Parameter]
+    public EventCallback<string> OnSaid { get; set; }
+
+    // Add Power Query to this workbook: the user's explicit click on a workbook that has none. The saved file's
+    // queries become its first ones; what was added is the Output's first line and the page's notice.
+    private async Task AddPowerQueryAsync()
+    {
+        if (await SaveIntoWorkbookAsync(false, true) is { } words)
+        {
+            await OnSaid.InvokeAsync(words);
+        }
+    }
 
     // Reload: the workbook's queries into the file; the page reads it again.
     private async Task ReloadFromWorkbookAsync()

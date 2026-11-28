@@ -1,7 +1,9 @@
 @* A Power Query file linked to an Excel workbook (the owner, 2026-11-28: "Excel's own Power Query"): the one line
    over its editor. "Saves into <workbook>", how many workbook queries it holds, and what stands in a save's way,
    each in one sentence: the workbook is not there or cannot be read, Excel has it open, or its queries changed on
-   disk since the file was opened (Reload them, or Keep mine). Preview save lists what a save would change. *@
+   disk since the file was opened (Reload them, or Keep mine). Preview save lists what a save would change. A
+   workbook with no Power Query yet (the owner, 2026-11-28: "Yea optional") says so and offers Add Power Query to
+   this workbook: the user's own click, never done by a save itself. *@
 @using SwissArmyBench.Web.Api.Workbench
 
 <div class="wb-pq-workbook @(Blocked ? "blocked" : string.Empty)" role="status" aria-label="This file's workbook">
@@ -25,14 +27,21 @@
         <button type="button" class="btn small wb-pq-reload" disabled="@Busy" @onclick="OnReload">Reload</button>
         <button type="button" class="btn small ghost wb-pq-keep-mine" disabled="@Busy" @onclick="OnKeepMine">Keep mine</button>
     }
+    @if (Link.CanAdd)
+    {
+        <button type="button" class="btn small wb-pq-add-power-query" title="Writes this file's queries into the workbook as its first Power Query: one new custom XML part and its properties, each query connection only. A backup copy is made first." disabled="@(Busy || Link.OpenInExcel)" @onclick="OnAddPowerQuery">@AddPowerQuery</button>
+    }
     <span class="wb-grow"></span>
-    @if (Link.There && Link.Why is null)
+    @if (Link.There && (Link.Why is null || Link.CanAdd))
     {
         <button type="button" class="btn small ghost wb-pq-preview-save" title="What a save would change in the workbook: nothing is written" disabled="@Busy" @onclick="OnPreview">Preview save</button>
     }
 </div>
 
 @code {
+    /// <summary>The button's words, the same ones the server's refusal names.</summary>
+    public const string AddPowerQuery = "Add Power Query to this workbook";
+
     [Parameter, EditorRequired]
     public WorkbookLink Link { get; set; } = default!;
 
@@ -47,6 +56,9 @@
 
     [Parameter]
     public EventCallback OnPreview { get; set; }
+
+    [Parameter]
+    public EventCallback OnAddPowerQuery { get; set; }
 
     private bool Blocked => Link.Why is not null || Link.OpenInExcel || Link.Changed;
 }

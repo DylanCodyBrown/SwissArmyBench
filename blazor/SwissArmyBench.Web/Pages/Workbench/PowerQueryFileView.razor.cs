@@ -48,7 +48,7 @@ public partial class PowerQueryFileView
 
     private string Status => _running ? "Running…"
         : _failed is not null ? "Failed."
-        : _saved is { } saved ? saved.Words
+        : _saved is { } saved ? (saved is { Written: true, AddsPowerQuery: true } ? "Its first queries." : saved.Words)
         : _built is { } built ? $"{Tables(built.Tables.Count)} built from {(built.Tables.Count == 1 ? "its" : "their")} original sources."
         : _sql is { } composed ? $"What runs in DuckDB for {Tables(composed.Queries.Count)}."
         : string.Empty;
