@@ -17,7 +17,7 @@
                      aria-selected="@(on ? "true" : "false")" tabindex="@(on ? 0 : -1)" data-key="@key" title="@($"{doc.KindLabel}: {doc.Path ?? doc.Title}")"
                      @onclick="() => OnShow.InvokeAsync(key)" @onmouseup="e => AuxAsync(e, key)"
                      @oncontextmenu="e => OnTabMenu.InvokeAsync((key, e))" @oncontextmenu:preventDefault="true">
-                    <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsBlade ? "bolt" : doc.IsWorkbook ? "excel" : doc.CodeFile is not null ? "codeapp" : doc.IsNotebook ? "notebook" : doc.IsSql ? "sql" : doc.TextKind is { } text ? text.Icon : "code")" /></span>
+                    <span class="wb-tab-icon" title="@doc.KindLabel"><Icon Name="@(doc.IsBlade ? "bolt" : doc.IsWorkbook ? "excel" : doc.CodeFile is not null ? "codeapp" : doc.IsNotebook ? "notebook" : doc.IsSql ? "sql" : doc.IsPowerQuery ? "powerquery" : doc.TextKind is { } text ? text.Icon : "code")" /></span>
                     <span class="wb-tab-dirty" title="Unsaved changes">@(doc.Dirty ? "●" : string.Empty)</span>
                     <span class="tab-label">@doc.Title</span>
                     @if (doc.Review.Count > 0)
@@ -41,7 +41,7 @@
     <div class="wb-gbody">
         @foreach (var key in Group.Tabs)
         {
-            <div class="wb-doc-body @(PoppedOut(Documents[key]) is null ? null : "popped-out-here") kind-@(Documents[key].CodeFile is not null ? "codefile" : Documents[key].IsWorkbook ? "workbook" : Documents[key].IsNotebook ? "notebook" : Documents[key].IsSql ? "sql" : Documents[key].IsText ? "text" : "script")" hidden="@(key != Group.Active)" @key="key">
+            <div class="wb-doc-body @(PoppedOut(Documents[key]) is null ? null : "popped-out-here") kind-@(Documents[key].CodeFile is not null ? "codefile" : Documents[key].IsWorkbook ? "workbook" : Documents[key].IsNotebook ? "notebook" : Documents[key].IsQueryFile ? "sql" : Documents[key].IsText ? "text" : "script")" hidden="@(key != Group.Active)" @key="key">
                 @* The document's review comments: its bar over it, and the comments handed down to its editors. *@
                 @* In a window of its own (State/PopOuts.cs): its place here is blank but for Reattach and Show window. *@
                 @if (PoppedOut(Documents[key]) is { } elsewhere)

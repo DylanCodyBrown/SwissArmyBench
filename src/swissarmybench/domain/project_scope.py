@@ -35,6 +35,7 @@ KINDS: tuple[str, ...] = (
     "notebook",
     "script",
     "sql",
+    "powerquery",
     "app",
     "structure",
 )  # a structure: structures/<name>.json
@@ -90,7 +91,7 @@ def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) 
     """The project's notebooks, scripts and apps from its files (path inside it, size, last change), by
     kind then name; `made`: an export the app writes (data.py, pages/*.py)."""
     if kind is not None and kind not in KINDS:
-        raise ScopeError("kind is notebook, script, sql, app or structure.")
+        raise ScopeError("kind is notebook, script, sql, powerquery, app or structure.")
     found = []
     for relative, size, modified in files:
         if relative.startswith(APP_FOLDER + "/"):

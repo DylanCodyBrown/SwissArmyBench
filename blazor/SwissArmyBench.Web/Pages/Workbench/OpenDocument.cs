@@ -48,6 +48,15 @@ public sealed class OpenDocument
 
     public SqlFileView? SqlView { get; set; }
 
+    /// <summary>A Power Query file (.pq, .m; the owner, 2026-11-27): its queries run by the app's own compiler, each
+    /// an open table.</summary>
+    public bool IsPowerQuery => Path is { } path && (path.EndsWith(".pq", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".m", StringComparison.OrdinalIgnoreCase));
+
+    public PowerQueryFileView? PowerQueryView { get; set; }
+
+    /// <summary>A file of queries (SQL or Power Query): its run builds open tables; no Python session, no export.</summary>
+    public bool IsQueryFile => IsSql || IsPowerQuery;
+
     /// <summary>A text document (the owner, 2026-11-27): Markdown, an HTML page, an SVG picture, a Mermaid diagram,
     /// a chart's spec or plain text (Docs/TextFiles): an editor and, where the app can draw it, its preview. Nothing runs.</summary>
     public bool IsText => TextKind is not null;
@@ -63,7 +72,7 @@ public sealed class OpenDocument
     public TextFileView? TextView { get; set; }
 
     /// <summary>A notebook or a script: code that runs in the session (not a blade, structure, workbook, SQL or text file).</summary>
-    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && !IsSql && !IsText && CodeFile is null;
+    public bool IsCode => !IsBlade && !IsStructure && !IsWorkbook && !IsQueryFile && !IsText && CodeFile is null;
 
     /// <summary>A project's data.ipynb's view: cells, lineage or dictionary.</summary>
     public string DataView { get; set; } = "cells";
@@ -128,15 +137,15 @@ public sealed class OpenDocument
 
     public ScriptView? ScriptView { get; set; }
 
-    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : IsText ? "document" : "script";
+    public string KindWord => IsWorkbook ? "workbook" : IsStructure ? "structure" : IsNotebook ? "notebook" : IsSql ? "SQL file" : IsPowerQuery ? "Power Query file" : IsText ? "document" : "script";
 
     /// <summary>Its tab's words: the blade's name, else its file's (every document is a named file).</summary>
     public string Title => Blade ?? FilePaths.Name(CodeFile ?? Path ?? KindWord);
 
     /// <summary>The kind's word on its tab's icon (the classic tab kinds: Notebook, Script).</summary>
-    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : IsText ? "Document" : "Script";
+    public string KindLabel => IsBlade ? "Blade" : CodeFile is not null ? "Code file" : IsWorkbook ? "Workbook" : IsStructure ? "Structure" : IsNotebook ? "Notebook" : IsSql ? "SQL file" : IsPowerQuery ? "Power Query file" : IsText ? "Document" : "Script";
 
     /// <summary>Renamed from its tab (Rename…): a notebook, a script, a SQL file or a text file; a blade, a
     /// structure, a workbook and a code app's file keep their own ways.</summary>
-    public bool CanRename => IsCode || IsSql || IsText;
+    public bool CanRename => IsCode || IsQueryFile || IsText;
 }

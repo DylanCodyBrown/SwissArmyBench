@@ -81,7 +81,8 @@ public partial class FilesPane
     private bool Own(TreeFile file) => Page == "scripts" && !file.ReadOnly && file.MadeFrom is null && !file.Library
         && (file.Path.EndsWith(".py", StringComparison.Ordinal) || IsSql(file));
 
-    private static bool IsSql(TreeFile file) => file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase);
+    // A SQL file or a Power Query file: renamed and deleted from here, never duplicated as a module is.
+    private static bool IsSql(TreeFile file) => file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) || PowerQueryFileView.IsFile(file.Path);
 
     /// <summary>A file opens on its kind's page (a notebook on Notebooks, a .py on Scripts).</summary>
     private static string AddressOf(string path) =>

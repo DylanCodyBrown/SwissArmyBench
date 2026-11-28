@@ -160,6 +160,9 @@ class ProjectScope:
             sql = code_tree.sql_group(files)  # the project's .sql files (2026-11-24)
             if sql is not None:
                 groups.append(sql)
+            queries = code_tree.power_query_group(files)  # its Power Query files (2026-11-27)
+            if queries is not None:
+                groups.append(queries)
             text = code_tree.text_group(files)  # its Markdown and plain text files (2026-11-27)
             if text is not None:
                 groups.append(text)

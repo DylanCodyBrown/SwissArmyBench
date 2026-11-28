@@ -152,7 +152,15 @@ page, and SQL is written only on the Scripts page).
   package, its imports in the project following, a plan until `apply`; package: a new one; duplicate; rename:
   a notebook, a .sql file or a loose script renamed in its folder, a tab's Rename…). `workbench_sql`: run a .sql
   file (path, or text; line: the statement there, Run selection) as the open table named after the file, a
-  failure naming its line; for_table: a query's table as its .sql file (Edit in Scripts). Delete
+  failure naming its line; for_table: a query's table as its .sql file (Edit in Scripts). **A Power Query
+  file** (.pq or .m; make it with `workbench_file` new, type `powerquery`, or `powerquery_import` with `source`
+  a .pbix, .pbit or .pbip: the dataset's queries as one file) is run by the same tool, by its path's ending:
+  `workbench_sql(action="run", path)` builds every query that is a table as the open table of its name, from
+  its original sources (an open table by name, a file, a saved connection matched by server and database: none
+  matching says Add connection), `query` or `line` one of them; `action="problems"` says what cannot run with
+  line and column, nothing read; `action="sql"` the DuckDB SQL composed; `action="export"` writes the file
+  with duckpq.py and run.py beside it, to run with no app. A plain `let ... in` file is one query named after
+  the file; a `section` file holds many `shared` queries that name each other. Delete
   (to the trash) is the user's own. `workbench_debug(action, document)`: the script in its running kernel
   under the debugger: start (code, breakpoints [{line, condition?, log?}]), state (paused line, frames,
   output), breakpoints, over, into, out, continue, variables, evaluate (expression in the frame), stop. The window's `view.fullScreen`,

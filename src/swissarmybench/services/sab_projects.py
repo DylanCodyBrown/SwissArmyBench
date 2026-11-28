@@ -223,6 +223,9 @@ class SabProjects:
         self.saved: list[Callable[[str], Awaitable[None]]] = []
         # The shared projects folder (the Project Explorer's; None: not set): New project's "where": "shared".
         self.shared_folder: Callable[[], str | None] = lambda: None
+        # A table a Power Query file's query made, run again from its file (services/m_files.py reopen;
+        # set by SqlFiles, which holds that service): (table, file, query, who).
+        self.power_query: Callable[[str, str, str, str], Awaitable[None]] | None = None
         self.on_opened: list[Callable[[str], None]] = []  # the Project Explorer's "last opened"
 
     # ===== what is open, and whether a save would change anything =====
@@ -593,6 +596,15 @@ class SabProjects:
                 else:
                     adapted = source.extra.get("reader") == "adapter"  # a file connection's file
                     await self._datasets.load_file(table.name, there, source.sheet, True, who, adapted)
+            elif source.kind == "query" and isinstance(source.extra.get("powerquery"), dict):
+                # A Power Query file's query (services/m_files.py reopen): run again from its file.
+                kept = source.extra["powerquery"]
+                file = rules.candidates(Source("file", path=str(kept.get("path") or "")), current.folder)
+                there = next((p for p in file if self._archive.exists(p)), None)
+                if there is None or self.power_query is None:
+                    problem = "no_file"
+                else:
+                    await self.power_query(table.name, there, str(kept.get("query")), who)
             elif source.kind == "query" and source.sql:
                 await self._datasets.build_from_query(table.name, source.sql, False, who)
             elif source.kind == "cell":

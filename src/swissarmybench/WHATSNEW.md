@@ -10,6 +10,10 @@
 - Extensions page lists your own folder extensions
 - One download: updates need only the app itself
 - Joining a team needs no install first
+- Power Query .pq files: Run and each query is a table
+- Import a Power BI dataset's queries as one file
+- A Power Query table shows its M and the SQL composed
+- Export a .pq file to run anywhere, with no app
 
 ### Bug fixes
 - Fixed: agent tools did not start with Power Apps

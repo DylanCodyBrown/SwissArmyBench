@@ -1,4 +1,5 @@
-@* A table a query made: its query read-only, where it runs, and Edit in Scripts (the owner, 2026-11-24: "sql
+@* A table a query made: its query read-only (a Power Query file's: its M, with Show as SQL for the DuckDB SQL composed
+   from it), where it runs, and Edit in Scripts (the owner, 2026-11-24: "sql
    authorship will have one place in scripts and not on the grid menu"): its .sql file (made from the query the first
    time) opened on the Scripts page, where running it replaces this table. *@
 @inject SwissArmyBench.Web.Api.Workbench.ScriptIdeClient Ide
@@ -8,19 +9,24 @@
     <div class="query-shown-bar">
         <button type="button" class="btn ghost icon small" aria-label="@(_open ? "Hide the query" : "Show the query")" title="@(_open ? "Hide the query" : "Show the query")"
                 aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open"><Icon Name="@(_open ? "up" : "down")" /></button>
-        <strong>Query</strong>
-        <span class="query-shown-on">@(Connection is { Length: > 0 } on ? $"on {on}, in its own SQL" : "on the open tables (DuckDB)")</span>
-        <button type="button" class="btn small query-edit" title="Its .sql file on the Scripts page: run it there to replace this table" @onclick="EditAsync"><Icon Name="edit" /> Edit in Scripts</button>
+        <strong>@(IsPowerQuery ? "Power Query" : "Query")</strong>
+        <span class="query-shown-on">@(IsPowerQuery ? "from its original sources" : Connection is { Length: > 0 } on ? $"on {on}, in its own SQL" : "on the open tables (DuckDB)")</span>
+        @if (IsPowerQuery && ComposedSql is { Length: > 0 })
+        {
+            <button type="button" class="btn small ghost query-as-sql" aria-pressed="@(_asSql ? "true" : "false")" title="The DuckDB SQL composed from this query" @onclick="() => (_asSql, _open) = (!_asSql, true)"><Icon Name="sql" /> @(_asSql ? "Show the query" : "Show as SQL")</button>
+        }
+        <button type="button" class="btn small query-edit" title="@(IsPowerQuery ? "Its Power Query file on the Scripts page: run it there to replace this table" : "Its .sql file on the Scripts page: run it there to replace this table")" @onclick="EditAsync"><Icon Name="edit" /> Edit in Scripts</button>
         <ErrorNote Error="_error" OnClose="() => _error = null" />
     </div>
     @if (_open)
     {
-        <pre class="query-shown-sql mono" aria-label="SQL query">@Sql</pre>
+        <pre class="query-shown-sql mono" aria-label="@(IsPowerQuery && !_asSql ? "Power Query (M)" : "SQL query")">@(_asSql && ComposedSql is { } composed ? composed : Sql)</pre>
     }
 </section>
 
 @code {
     private bool _open = true;
+    private bool _asSql;
     private Exception? _error;
 
     [Parameter, EditorRequired]
@@ -33,6 +39,16 @@
     /// <summary>The connection the query runs on (none: the open tables).</summary>
     [Parameter]
     public string? Connection { get; set; }
+
+    /// <summary>The query's language: "powerquery" for a Power Query file's query (its M shown), else SQL.</summary>
+    [Parameter]
+    public string? Language { get; set; }
+
+    /// <summary>A Power Query's table: the DuckDB SQL composed from its M (Show as SQL).</summary>
+    [Parameter]
+    public string? ComposedSql { get; set; }
+
+    private bool IsPowerQuery => Language == "powerquery";
 
     private async Task EditAsync()
     {

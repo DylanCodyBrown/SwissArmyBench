@@ -94,9 +94,15 @@ packages = [
     "src/swissarmybench_powerbi",
     "src/swissarmybench_streamlit",
 ]
+
 # The front end's published files (build.py copies blazor/publish/wwwroot here): ignored by Git, so named as
 # artifacts to go in the wheel all the same.
 artifacts = ["src/swissarmybench/web_blazor/**"]
+
+# duckpq, the Power Query (M) compiler, is its own top-level module (it imports nothing of swissarmybench and
+# will move to a repository and a package of its own); until then the wheel carries it.
+[tool.hatch.build.targets.wheel.force-include]
+"src/duckpq.py" = "duckpq.py"
 
 [tool.mypy]
 strict = true
@@ -161,6 +167,13 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/domain/api_targets.py" = ["E501"]
 # The workbook builder's DuckDB queries: a block's own query (the designer's), names quoted by _quote.
 "src/swissarmybench/sab_excel.py" = ["S608"]
+# duckpq (Power Query compiled to DuckDB SQL): its lines are the SQL it composes, every name through q() and
+# every value through literal(). Its tests' lines are M and SQL as a person would write them.
+"src/duckpq.py" = ["S608", "E501"]
+"tests/test_duckpq_*.py" = ["S608", "E501", "RUF043"]
+# A Power Query file's tests: their lines are M as a person writes it.
+"tests/test_m_files.py" = ["E501", "S608"]
+"tests/e2e/blazor/test_workbench_power_query.py" = ["E501"]
 # The canvas runtime: its bookkeeping (the analyzer's marks, the viewer's values, Play's stamp) must never
 # stop a page, and a built app has nowhere to log to.
 "src/swissarmybench_streamlit/server/sab_canvas.py" = ["S110"]

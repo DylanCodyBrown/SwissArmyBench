@@ -182,6 +182,27 @@ def sql_group(paths: Iterable[str]) -> dict[str, Any] | None:
     return {"id": SQL, "name": "SQL files", "files": files, "kind": SQL}
 
 
+POWER_QUERY = "powerquery"
+
+
+def power_query_group(paths: Iterable[str]) -> dict[str, Any] | None:
+    """The Scripts page's Power Query group (the owner, 2026-11-27: "Wish I had it as a supported language"):
+    every .pq and .m file of the project, by folder then name, each opening as a Power Query tab
+    (domain/m_files.py). None when there are none."""
+    files = []
+    for relative in paths:
+        relative = relative.replace("\\", "/")
+        if not relative.lower().endswith((".pq", ".m")) or not listed(relative):
+            continue
+        files.append(
+            {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
+        )
+    if not files:
+        return None
+    files.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
+    return {"id": POWER_QUERY, "name": "Power Query", "files": files, "kind": POWER_QUERY}
+
+
 TEXT = "text"
 _TEXT_ENDINGS: tuple[str, ...] = text_documents.ENDINGS
 

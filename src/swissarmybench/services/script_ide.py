@@ -386,6 +386,7 @@ class ScriptIde:
         return {
             "connection": body.get("connection"),
             "table": table or (tables[0].name if tables else None),
+            "columns": [c.name for c in tables[0].columns] if tables and not table else [],
             "variant": new_files.variant_of(kind, body.get("variant")),
             "project": root.rsplit("/", 1)[-1],
             "date": datetime.now(UTC).date().isoformat(),
@@ -426,7 +427,9 @@ class ScriptIde:
                 raise Refused(f"A {kind.label} cannot be made here: its extension is not on.")
             new_files.named(kind, body.get("name"))  # no name, no file: said the one way
             made = await maker(
-                {"name": body.get("name"), "folder": body.get("folder"), "check": checking}, who
+                {"name": body.get("name"), "folder": body.get("folder"), "check": checking}
+                | ({"source": body["source"]} if "source" in body else {}),
+                who,
             )
             if not checking:
                 self.ws.audit.write(who, "script_new_file", made.get("relative"), type=kind.id)

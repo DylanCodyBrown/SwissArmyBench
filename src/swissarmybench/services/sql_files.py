@@ -21,6 +21,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import refusals
 from swissarmybench.domain import sql_files as rules
 from swissarmybench.domain.variable_refs import MissingVariables
+from swissarmybench.services.m_files import PowerQueryFiles
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 
 ConnectionQuery = Callable[[str, Any, str], Awaitable[dict[str, Any]]]
@@ -54,22 +55,42 @@ class Projects(Protocol):
     current: Any
 
 
+class Swap(Protocol):
+    """services/connection_swap.py's ConnectionSwap: a new table from a query on a connection."""
+
+    async def new_query(self, name: str, body: Any, who: str = ...) -> dict[str, Any]: ...
+
+
+class CodeFiles(Protocol):
+    """services/code_files.py: the file_changed notice."""
+
+    async def touched(self, path: str, who: str) -> Any: ...
+
+
 class SqlFiles:
     def __init__(
         self,
         ws: Workspace,
-        tables: Tables,
-        connection_query: ConnectionQuery,
-        files: Files,
-        projects: Projects,
-        touched: Callable[[str, str], Awaitable[Any]],
+        tables: Any,
+        swap: Swap,
+        files: Any,
+        projects: Any,
+        code_files: CodeFiles,
+        connections: Any,
+        hooks: Any,
     ) -> None:
         self.ws = ws
-        self._tables = tables
-        self._connection_query = connection_query  # services/connection_swap.py new_query
-        self._files = files
-        self._projects = projects
-        self._touched = touched  # services/code_files.py: the file_changed notice
+        self._tables: Tables = tables
+        self._connection_query: ConnectionQuery = swap.new_query
+        self._files: Files = files
+        self._projects: Projects = projects
+        self._touched = code_files.touched
+        # The Scripts page's other query language (the owner, 2026-11-27): a Power Query file's run, held here
+        # as a text document's service is held by the Workbench. New file's "Import Power BI queries…" is
+        # its maker; a project's table a query of it made is run again by it.
+        self.power_query = PowerQueryFiles(ws, tables, connections, files, projects, code_files.touched)
+        hooks.new_file_makers["powerquery_import"] = self.power_query.import_new
+        projects.power_query = self.power_query.reopen
 
     async def run(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{path?, text?, connection?, line?, selection?, table?}: the file's query run; its table built.
@@ -129,6 +150,8 @@ class SqlFiles:
         if self.ws.store.get(table) is None:
             raise NotFound(f"{table} is not open.")
         origin = self._tables.origins.get(table)
+        if origin is not None and origin.m:  # a Power Query file's query: its own file
+            return await self.power_query.for_table(table, origin, who)
         if origin is None or origin.kind not in ("query", "connection") or not origin.sql or origin.dax:
             raise Refused(f"{table} did not come from a SQL query: it has no query to edit.")
         connection = origin.connection if origin.kind == "connection" else None

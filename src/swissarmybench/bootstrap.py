@@ -1877,7 +1877,7 @@ def _doors(b: Built) -> None:
     b.timeseries = TimeSeries(ws)
     b.sql = SqlBox(ws, b.datasets, table_reader)
     b.sql_files = SqlFiles(
-        ws, b.datasets, b.connection_swap.new_query, b.documents, b.sab_projects, b.code_files.touched
+        ws, b.datasets, b.connection_swap, b.documents, b.sab_projects, b.code_files, b.connections, b.hooks
     )
     b.exports = Exports(ws, export_writer, b.tickets, now=lambda: datetime.now(UTC))
     b.codes = CodeService(ws, b.verifier)

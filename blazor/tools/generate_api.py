@@ -76,6 +76,7 @@ ANSWERS: list[Answer] = [
             "step_error": "StepError?",
             "query": "string?",
             "query_connection": "string?",
+            "query_sql": "string?",
             "opened": f"{JSON}?",
             "selected_rows": f"{JSON}?",
             "highlights": f"{JSON}?",

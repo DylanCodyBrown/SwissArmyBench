@@ -1,0 +1,68 @@
+@* A Power Query file (the owner, 2026-11-27: "Wish I had it as a supported language" / "I just want a run button and
+   the power query runs"): Monaco in M with its colours, the problems underlined before a run (what cannot run, with
+   its line: the server's, nothing read), Run file (F5: every query that is a table) and Run query (Ctrl+Enter: the
+   one under the cursor), and its Output under it: each open table it built with Open in Tables, the failure with its
+   line marked in the code, or the DuckDB SQL composed (Show as SQL). Logic in PowerQueryFileView.razor.cs. *@
+
+<div class="wb-script wb-sql wb-pq">
+    <div class="wb-script-editor">
+        <CodeEditor @ref="_editor" Value="@Text" Language="powerquery" Label="Power Query file" Intel="IntelFor" OnChange="TextChangedAsync" OnKey="KeyAsync" OnProblems="OnProblems" />
+    </div>
+    <section class="wb-console wb-sql-output wb-pq-output" aria-label="Output" hidden="@(_built is null && _failed is null && _sql is null && !_running)">
+        <div class="wb-console-head">
+            <strong>@(_sql is null ? "Output" : "As SQL")</strong>
+            <span class="sql-status" role="status">@Status</span>
+            <span class="wb-grow"></span>
+            <button type="button" class="btn small ghost" @onclick="ClearAsync">Clear</button>
+        </div>
+        @if (_failed is { } failed)
+        {
+            <div class="wb-console-body">
+                <div class="wb-error-panel wb-sql-error" role="alert">
+                    <strong>@(failed.Line is { } at ? $"Line {at}: " : string.Empty)@failed.Words</strong>
+                    @if (failed.Line is { } line)
+                    {
+                        <button type="button" class="btn small ghost wb-sql-goto" @onclick="() => RevealLineAsync(line)">Go to line @line</button>
+                    }
+                    @if (failed.AddConnection)
+                    {
+                        <a class="btn small wb-pq-add-connection" href="connections?add=1"><Icon Name="plus" /> Add connection</a>
+                    }
+                    @if (failed.Details is { Length: > 0 } details && details != failed.Words)
+                    {
+                        <details><summary>Details</summary><pre class="mono">@details</pre></details>
+                    }
+                </div>
+            </div>
+        }
+        else if (_built is { } built)
+        {
+            <ul class="wb-console-body wb-pq-tables" aria-label="Tables built">
+                @foreach (var table in built.Tables)
+                {
+                    <li class="wb-pq-table" @key="table.Table">
+                        <Icon Name="table" /> <strong>@table.Table</strong>
+                        <span class="muted">@SqlFileView.Rows(table.Rows)</span>
+                        <button type="button" class="btn small wb-sql-open" @onclick="() => OnOpenTable.InvokeAsync(table)">Open in Tables</button>
+                    </li>
+                }
+            </ul>
+        }
+        else if (_sql is { } composed)
+        {
+            <div class="wb-console-body wb-pq-sql">
+                @foreach (var query in composed.Queries)
+                {
+                    <div class="wb-pq-sql-query" @key="query.Query">
+                        <strong>@query.Table</strong>
+                        @if (query.Sources.Count > 0)
+                        {
+                            <span class="muted">reads @string.Join("; ", query.Sources.Select(s => $"{s.Name}: {s.Words}"))</span>
+                        }
+                        <pre class="mono" aria-label="@($"The DuckDB SQL of {query.Query}")">@query.Sql</pre>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>

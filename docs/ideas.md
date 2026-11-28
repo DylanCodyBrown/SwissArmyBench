@@ -9806,3 +9806,46 @@ reverses 2026-11-17's optional extensions (Plans/editions.plan.md) and the Strea
   own folder extensions (it could be My extensions, or move into Settings); whether a built-in feature's panel
   (Copilot's) belongs on that page or in Settings; whether Source Control and Power BI should sit on the rail
   for someone who uses neither (the rail's own hide switch is there); when the empty wheels stop.
+
+## Power Query (M) as a language, and duckpq (the owner, 2026-11-27/28; decisions and open notes)
+
+The owner: "something we should have added a support for m code power query logic. Wish I had it as a supported
+language and those data sets can all be imported into one power query file that can be ran against the data
+set"; "Let's make our own engine that supports creating tables from m code"; "I think the engine should stay
+python"; "Actually I don't care about the conversion. I just want a run button and the power query runs";
+"Our own power query compiler basically"; "I want to approach this like we could use this power query library
+outside of this application it has applications everywhere"; and its name: `duckpq`.
+
+Decisions:
+
+- **duckpq is its own library** (src/duckpq.py: one file, the standard library and duckdb, nothing of
+  swissarmybench), to be moved to a repository and a PyPI package of its own; docs/duckpq.md is its README.
+  The app imports it as `import duckpq` and calls only its compile half; tests/test_architecture.py holds that.
+- **A table is a DuckDB query being built, never rows in Python.** Each `Table.*` step composes one statement;
+  a filter and a pick of columns stay flat (SELECT cols FROM source WHERE ...), so a source can take them.
+- **The compiler does no I/O.** What it needs (a source's columns, a variable, a JSON file, a column's values
+  for Table.Pivot) it asks by key; the caller resolves and compiles again. duckpq.run() is that loop over a
+  DuckDB connection with a resolver; the app runs the same loop its own way (services/m_files.py).
+- **Sources go to the saved connections** by their settings (server and database), through the connection
+  tables contract (`[Conn].[schema].[table]`), never the published dataset. None matching is refused with Add
+  connection. A file is read with its first row as the header, so Table.PromoteHeaders after it is a no-op and
+  a file never promoted is refused.
+- **One tool for the agent**: a command of its own put the MCP tool list at 100,248 characters, so
+  `workbench_sql` takes a .pq file (run, problems, sql, export).
+- **bootstrap.py did not grow** (2,009 lines): the Power Query service hangs on SqlFiles, as a text document's
+  service hangs on the Workbench.
+
+Open, for the owner:
+
+- The Power BI page's own "import its queries" action is not added: that page is drawn from the extension's
+  data, and the extensions are being moved by another branch. Once both land it is one action there pointing at
+  `scripts?new=powerquery_import`.
+- An export carries duckpq.py and a run.py whose resolver names each database source to fill in; it does not
+  carry the saved connections' code. Joining it with the project scaffold's adapter.py and connections.py (a
+  resolver that reads through them) would make a database query run unchanged on a Function App.
+- A connection's table named inside a larger composed query is read whole (the contract's limit applies), since
+  the pushdown sends columns and filters only for a table read directly; the flat form covers the common case.
+- Not run yet: `try ... otherwise <a value>` per row, a group's rows kept as a nested table (All Rows), custom
+  functions that need rows, Table.Transpose, Table.AddColumn over lists, culture-aware casts, Duration.*,
+  Folder.Files, Web.Contents (a resolver may answer for it in duckpq; the app has no mapping).
+- .m is also Objective-C's and MATLAB's ending: such a file in a project would list under Power Query.

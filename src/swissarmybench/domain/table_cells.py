@@ -1006,6 +1006,10 @@ class Origin:
     whole: bool = True
     # A file connection's file, read through the adapter's Files (DuckDB's types): read the same way again.
     adapted: bool = False
+    # A Power Query file's query (kind "query"; domain/m_files.py): its M as written, its name in the file at
+    # `path`; `sql` is the DuckDB SQL duckpq composed from it.
+    m: str | None = None
+    m_query: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {"kind": self.kind, "kernel": self.kernel}

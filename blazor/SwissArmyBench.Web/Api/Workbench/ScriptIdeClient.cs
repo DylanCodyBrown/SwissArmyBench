@@ -54,11 +54,11 @@ public sealed class ScriptIdeClient
 
     /// <summary>Where a new file would go, or the one sentence why not (a taken name, a wrong ending): nothing written.</summary>
     public Task<NewFileMade> CheckNewFileAsync(NewFileRequest request, CancellationToken cancel = default) =>
-        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, variant = request.Variant, check = true }, cancel);
+        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, variant = request.Variant, source = request.Source, check = true }, cancel);
 
     /// <summary>A new file, named and written with its type's starter (in the open project, else the folder named).</summary>
     public Task<NewFileMade> NewFileAsync(NewFileRequest request) =>
-        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, variant = request.Variant });
+        _api.PostAsync<NewFileMade>("/scripts/files/new", new { type = request.Type, name = request.Name, folder = request.Folder, connection = request.Connection, variant = request.Variant, source = request.Source });
 
     /// <summary>A .sql file run: its text as on screen, where it runs ("" the open tables), and with a line, Run
     /// selection there (the selected text, else the statement at the line).</summary>
@@ -73,6 +73,22 @@ public sealed class ScriptIdeClient
             table = request.Table,
         }, cancel);
 
-    /// <summary>Edit in Scripts: a table a query made, as its .sql file (made now when it is not there yet).</summary>
+    /// <summary>A Power Query file run: every query that is a table (with a line: the one there), each the open
+    /// table of its name, read from its original sources.</summary>
+    public Task<PowerQueryRun> RunPowerQueryAsync(PowerQueryRequest request, CancellationToken cancel = default) =>
+        _api.PostAsync<PowerQueryRun>("/scripts/pq/run", PowerQueryBody(request), cancel);
+
+    /// <summary>Show as SQL: the DuckDB SQL composed for each query (with a line: the one there). Nothing is built.</summary>
+    public Task<PowerQuerySqlAnswer> PowerQuerySqlAsync(PowerQueryRequest request, CancellationToken cancel = default) =>
+        _api.PostAsync<PowerQuerySqlAnswer>("/scripts/pq/sql", PowerQueryBody(request), cancel);
+
+    /// <summary>Export to run anywhere: the saved file with duckpq.py and run.py beside it, in a folder of its own.</summary>
+    public Task<PowerQueryExport> ExportPowerQueryAsync(string path) => _api.PostAsync<PowerQueryExport>("/scripts/pq/export", new { path });
+
+    private static object PowerQueryBody(PowerQueryRequest request) =>
+        new { path = request.Path, text = request.Text, line = request.Line, query = request.Query };
+
+    /// <summary>Edit in Scripts: a table a query made, as its file (a .sql file made now when it is not there yet; a
+    /// Power Query's table: the .pq file it ran from).</summary>
     public Task<SqlTableFile> SqlForTableAsync(string table) => _api.PostAsync<SqlTableFile>("/scripts/sql/for-table", new { table });
 }

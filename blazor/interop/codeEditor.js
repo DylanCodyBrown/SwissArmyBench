@@ -86,6 +86,9 @@ monaco.html.htmlDefaults.setModeConfiguration({ ...OFF, links: false, documentHi
 
 const THEMES = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
 const LANGUAGES = { dax: "msdax", toml: "ini", tsx: "typescript" };
+// Power Query (M): Monaco's own "powerquery" (monaco-editor's languages/definitions/powerquery); its problems are
+// the server's (powerQueryProblems), it has no completion provider.
+const POWER_QUERY = "powerquery";
 const TEXT_SETTLES_MS = 150;
 const LINT_SETTLES_MS = 500;
 const INTEL_LANGUAGES = ["python", "sql", "msdax"];
@@ -278,8 +281,41 @@ const SEVERITY = {
   hint: monaco.MarkerSeverity.Hint,
 };
 
+/** A Power Query file's problems before a run (POST /scripts/pq/problems: what cannot run, each with its line and
+ *  column; nothing is read), in the lint's shape. A name the problem is about is underlined whole. */
+async function powerQueryProblems(model) {
+  const owner = owners.get(model);
+  if (!owner || !owner.intel) return null;
+  let context = {};
+  try {
+    context = (await owner.dotnet.invokeMethodAsync("IntelContext")) ?? {};
+  } catch {
+    return null;
+  }
+  try {
+    const answer = await fetch("/scripts/pq/problems", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: model.getValue(), path: context.path ?? undefined }),
+    });
+    if (!answer.ok) return null;
+    const found = await answer.json();
+    const problems = (found.problems ?? []).map((p) => {
+      const line = Math.min(Math.max(1, p.line ?? 1), model.getLineCount());
+      const col = Math.max(1, p.column ?? 1);
+      const word = model.getWordAtPosition({ lineNumber: line, column: col });
+      const named = p.name && model.getLineContent(line).startsWith(p.name, col - 1) ? col + p.name.length : 0;
+      const end = named || word?.endColumn || model.getLineMaxColumn(line);
+      return { line, col, end_col: Math.max(end, col + 1), message: p.message, source: "Power Query", severity: "error" };
+    });
+    return { problems };
+  } catch {
+    return null;
+  }
+}
+
 async function lint(model, language) {
-  const found = await ask("lint", model, { language: language === "msdax" ? "dax" : language });
+  const found = language === POWER_QUERY ? await powerQueryProblems(model) : await ask("lint", model, { language: language === "msdax" ? "dax" : language });
   if (!found || !Array.isArray(found.problems) || model.isDisposed()) return;
   const markers = found.problems.map((p) => ({
     startLineNumber: p.line,
@@ -432,7 +468,8 @@ export function create(host, dotnet, options) {
   let lintTimer = 0;
   let quiet = false; // a setValue from C# is not a change to tell C# about
   const lintSoon = () => {
-    if (!owner.intel || !INTEL_LANGUAGES.includes(owner.language) || editor.getOption(monaco.editor.EditorOption.readOnly)) return;
+    const linted = INTEL_LANGUAGES.includes(owner.language) || owner.language === POWER_QUERY;
+    if (!owner.intel || !linted || editor.getOption(monaco.editor.EditorOption.readOnly)) return;
     clearTimeout(lintTimer);
     lintTimer = setTimeout(() => lint(model, owner.language), LINT_SETTLES_MS);
   };

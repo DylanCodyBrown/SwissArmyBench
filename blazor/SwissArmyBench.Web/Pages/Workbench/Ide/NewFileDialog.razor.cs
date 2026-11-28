@@ -15,6 +15,7 @@ public partial class NewFileDialog : IDisposable
     private string _folder = string.Empty;
     private string _connection = string.Empty;
     private string _variant = string.Empty;
+    private string _source = string.Empty;
     private string _makes = string.Empty;
     private string? _why;
     private bool _making;
@@ -61,7 +62,8 @@ public partial class NewFileDialog : IDisposable
         _name.Trim(),
         _folder.Trim(),
         Type.AsksFor("connection") && _connection.Length > 0 ? _connection : null,
-        _variant.Length > 0 ? _variant : null);
+        _variant.Length > 0 ? _variant : null,
+        Type.AsksFor("source") ? _source.Trim() : null);
 
     protected override async Task OnInitializedAsync()
     {
@@ -78,6 +80,15 @@ public partial class NewFileDialog : IDisposable
         {
             _folder = folder;
             await CheckAsync(CancellationToken.None);
+        }
+    }
+
+    /// <summary>Browse…: the file a type is made from (an import's), picked with the app's file picker.</summary>
+    private async Task BrowseSourceAsync()
+    {
+        if (await Files.ChooseAsync("file", "The file it is made from", null, "new-file-source") is { } file)
+        {
+            _source = file;
         }
     }
 

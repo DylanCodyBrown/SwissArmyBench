@@ -45,6 +45,7 @@ public partial class WorkbenchPage
         var type = TextOf(args, "type") ?? command switch
         {
             "file.newSql" => "sql",
+            "file.newPowerQuery" => "powerquery",
             "workbook.new" => "workbook",
             _ => IsNotebooks ? "notebook" : "python",
         };

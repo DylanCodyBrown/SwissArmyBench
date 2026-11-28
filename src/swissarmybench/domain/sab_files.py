@@ -67,7 +67,7 @@ PACKED_SUFFIXES: frozenset[str] = frozenset(
     {
         ".ipynb", ".py", ".md", ".txt", ".toml", ".cfg", ".ini", ".yaml", ".yml", ".css", ".js",
         ".html", ".htm", ".mmd", ".mermaid", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
-        ".tang", ".sql",
+        ".tang", ".sql", ".pq", ".m",
     }
 )  # fmt: skip
 # Folders that are never the project's own: environments, caches, version control.
@@ -276,6 +276,12 @@ def source_of(
         return Source("connection", connection=name, schema=dataset if origin.dax else "", sql=origin.sql,
                       dax=origin.dax)  # fmt: skip
     if origin.kind == "query" and origin.sql:
+        if origin.m_query and origin.path:
+            # A Power Query file's query: read again by running it (its file relative to the project).
+            file = near(origin.path, sab_folder) or origin.path
+            return Source(
+                "query", sql=origin.sql, extra={"powerquery": {"path": file, "query": origin.m_query}}
+            )
         return Source("query", sql=origin.sql)
     if origin.kind == "python" and kernel_document:
         inside = near(kernel_document, project_folder)
